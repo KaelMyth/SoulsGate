@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Прототип">
+  <meta name="theme-color" content="#0b0f16">
+  <meta name="format-detection" content="telephone=no">
+  <title>Прототип</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="stage"><canvas id="game"></canvas></div>
+  <div id="safe-probe"></div>
+  <div id="ui-root"></div>
+  <div id="rotate-hint">Переверни телефон вертикально</div>
+  <div id="boot-error" hidden></div>
+
+  <!-- Показывает ошибку прямо на экране: в iPhone нет консоли, а скриншот ошибки поможет её починить. -->
+  <script>
+    (function () {
+      var box = document.getElementById('boot-error');
+      function show(text) {
+        if (!box.hidden) return; // показываем только первую ошибку
+        box.hidden = false;
+        box.textContent = text;
+      }
+      window.addEventListener('error', function (e) {
+        if (e.target && e.target !== window && (e.target.src || e.target.href)) {
+          show('Не загрузился файл: ' + (e.target.src || e.target.href) +
+            '\n\nЕсли страница открыта двойным щелчком по index.html, так нельзя: ' +
+            'ES-модули работают только через адрес http(s). См. README.md.');
+        } else {
+          show('Ошибка: ' + e.message + '\n' + (e.filename || '') + ':' + (e.lineno || '?'));
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        show('Ошибка (promise): ' + (e.reason && e.reason.message || e.reason));
+      });
+    })();
+  </script>
+  <script type="module" src="src/main.js"></script>
+  <script nomodule>
+    document.getElementById('boot-error').hidden = false;
+    document.getElementById('boot-error').textContent = 'Этот браузер слишком старый для прототипа. Нужен iOS 14+ (Safari).';
+  </script>
+</body>
+</html>
