@@ -196,17 +196,20 @@ export class Renderer {
   drawEnemy(e, x, y, C) {
     const ctx = this.ctx;
     const r = e.radius;
+    const hit = e.flash > 0;
     ctx.fillStyle = C.shadow;
     ctx.beginPath();
     ctx.ellipse(x, y + r * 0.6, r * 1.05, r * 0.55, 0, 0, TAU);
     ctx.fill();
 
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.def.color;
+    // Попадание: враг белеет и на мгновение раздувается.
+    const rr = hit ? r * 1.15 : r;
+    ctx.fillStyle = hit ? '#ffffff' : e.def.color;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, TAU);
+    ctx.arc(x, y, rr, 0, TAU);
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = e.def.edge;
+    ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
     ctx.stroke();
 
     // Полоска здоровья над головой.

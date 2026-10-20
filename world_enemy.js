@@ -1,5 +1,7 @@
-// Враг-касатель: бежит к герою и бьёт при касании (урон наносит игра по событию столкновения).
+// Враг-касатель: бежит к герою (в обход скал) и бьёт при касании (урон наносит игра по событию столкновения).
 // Все свойства лежат в записи def из CONFIG.enemies; новый враг = новая запись.
+
+const dir = { x: 0, y: 0 };
 
 export function createEnemy() {
   return {
@@ -10,6 +12,8 @@ export function createEnemy() {
     def: null,
     touchTimer: 0, // пауза до следующего удара по герою
     flash: 0,      // вспышка при попадании, с
+    kbVx: 0, kbVy: 0, // скорость откидывания, быстро затухает
+    kbTau: 0.07,      // за сколько секунд затухает откидывание
   };
 }
 
@@ -26,9 +30,32 @@ export function initEnemy(e, def, x, y) {
   e.def = def; // ссылка, не копия: скорость из панели действует на живых врагов сразу
   e.touchTimer = 0;
   e.flash = 0;
+  e.kbVx = e.kbVy = 0;
 }
 
-export function updateEnemy(e, dt, hero, arena) {
+/**
+ * Откинуть врага на distance единиц в направлении (dirX, dirY) за время около tau секунд.
+ * Врагу можно задать множитель def.knockbackScale (тяжёлых врагов откидывает меньше).
+ */
+export function applyKnockback(e, dirX, dirY, distance, tau) {
+  const len = Math.hypot(dirX, dirY);
+  if (len < 1e-9 || distance <= 0) return;
+  const scale = e.def && e.def.knockbackScale !== undefined ? e.def.knockbackScale : 1;
+  const t = Math.max(0.01, tau);
+  const v0 = (distance * scale) / t;
+  e.kbTau = t;
+  e.kbVx += (dirX / len) * v0;
+  e.kbVy += (dirY / len) * v0;
+  const speed = Math.hypot(e.kbVx, e.kbVy);
+  const MAX = 1600; // потолок, чтобы сумма модификаторов не выкидывала врага за экран за кадр
+  if (speed > MAX) {
+    e.kbVx *= MAX / speed;
+    e.kbVy *= MAX / speed;
+  }
+}
+
+/** nav: необязательное поле навигации (NavGrid); без него враг идёт напрямую. */
+export function updateEnemy(e, dt, hero, arena, nav) {
   e.prevX = e.x;
   e.prevY = e.y;
   if (e.touchTimer > 0) e.touchTimer -= dt;
@@ -37,12 +64,30 @@ export function updateEnemy(e, dt, hero, arena) {
   const dx = hero.x - e.x;
   const dy = hero.y - e.y;
   const d = Math.hypot(dx, dy);
-  // Не вдавливаемся в героя: останавливаемся, когда фигуры уже касаются.
   const gap = d - (hero.radius + e.radius - 2);
   if (d > 1e-6 && gap > 0) {
-    const step = Math.min(e.def.speed * dt, gap);
-    e.x += (dx / d) * step;
-    e.y += (dy / d) * step;
+    let mx = dx / d;
+    let my = dy / d;
+    let direct = true;
+    // Скала на пути к герою: идём по полю навигации в обход.
+    if (nav && arena.segmentBlocked(e.x, e.y, hero.x, hero.y, e.radius + 2) && nav.direction(e.x, e.y, dir)) {
+      mx = dir.x;
+      my = dir.y;
+      direct = false;
+    }
+    let step = e.def.speed * dt;
+    if (direct && step > gap) step = gap; // не вдавливаемся в героя
+    e.x += mx * step;
+    e.y += my * step;
+  }
+
+  if (e.kbVx !== 0 || e.kbVy !== 0) {
+    e.x += e.kbVx * dt;
+    e.y += e.kbVy * dt;
+    const k = Math.exp(-dt / e.kbTau);
+    e.kbVx *= k;
+    e.kbVy *= k;
+    if (Math.abs(e.kbVx) + Math.abs(e.kbVy) < 1) e.kbVx = e.kbVy = 0;
   }
   arena.resolveCircle(e);
 }

@@ -11,7 +11,7 @@ const storageKey = 'proto.tunables.v' + CONFIG.version;
 const defaults = JSON.parse(JSON.stringify(CONFIG));
 loadOverrides(CONFIG, TUNABLES, storage, storageKey);
 
-lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen');
+lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen');
 
 const game = new Game({
   canvas: document.getElementById('game'),

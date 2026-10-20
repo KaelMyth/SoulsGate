@@ -7,6 +7,7 @@ import { Stick } from './input_stick.js';
 import { Arena } from './world_arena.js';
 import { Hero } from './world_hero.js';
 import { Camera } from './world_camera.js';
+import { NavGrid } from './world_nav.js';
 import { createEnemy, resetEnemy, updateEnemy } from './world_enemy.js';
 import { createProjectile, resetProjectile, updateProjectile } from './world_projectile.js';
 import { createEffect, resetEffect, initEffect, updateEffect } from './world_effects.js';
@@ -16,6 +17,7 @@ import { Spawner } from './systems_spawner.js';
 import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
+import { PauseUI } from './ui_pause.js';
 import { readSafeInsets } from './platform_viewport.js';
 
 export class Game {
@@ -29,13 +31,14 @@ export class Game {
 
     this.bus = new EventBus();
     this.arena = new Arena(config.arena);
+    this.nav = new NavGrid(this.arena, config.nav);
     this.hero = new Hero(config.hero);
     this.camera = new Camera(config.camera);
     this.stick = new Stick(o.canvas, this.bus, config.stick);
     this.insets = readSafeInsets(o.probe);
 
     // Состояние забега.
-    this.state = 'playing'; // 'playing' | 'dead'
+    this.state = 'playing'; // 'playing' | 'paused' | 'dead'
     this.deadTimer = 0;
     this.kills = 0;
     this.runTime = 0;
@@ -48,9 +51,9 @@ export class Game {
     this.effects = new EntityPool(createEffect, resetEffect, 24);
     this.heroList = [this.hero];
 
-    this.combat = new Combat(this.bus, this.hero);
+    this.combat = new Combat(this.bus, this.hero, config.combat);
     this.autoattack = new AutoAttack({
-      config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus,
+      config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
     });
 
     this.renderer = new Renderer(o.canvas, config, {
@@ -80,6 +83,11 @@ export class Game {
     this.collisions.addRule(Layer.ENEMY, Layer.HERO, (e) => this.onEnemyTouchHero(e));
 
     this.deathScreen = new DeathScreen(o.uiRoot, () => this.restart());
+    this.pauseUI = new PauseUI(o.uiRoot, {
+      onToggle: () => this.togglePause(),
+      onResume: () => this.resume(),
+      onRestart: () => this.restart(),
+    });
 
     this.stepper = new FixedStepper(config.step);
     this.meter = new FpsMeter();
@@ -139,10 +147,21 @@ export class Game {
     window.addEventListener('orientationchange', () => this.onResize());
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => this.onResize()).observe(o.canvas);
     // Свернули приложение: палец «потерялся», отпускаем стик.
+    // Заодно ставим игру на паузу: вернулся и продолжил, а не погиб, пока отвечал в мессенджере.
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.stick.cancel();
+      if (document.hidden) {
+        this.stick.cancel();
+        this.pause();
+      }
     });
-    window.addEventListener('blur', () => this.stick.cancel());
+    window.addEventListener('blur', () => {
+      this.stick.cancel();
+      this.pause();
+    });
+    // Для отладки на компьютере: P или Esc.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') this.togglePause();
+    });
   }
 
   /** Всё, что есть в мире: герой, скалы, враги, снаряды, эффекты. */
@@ -157,7 +176,9 @@ export class Game {
   }
 
   onShotHitEnemy(p, e) {
-    this.combat.damageEnemy(e, p.damage, p);
+    const speed = Math.hypot(p.vx, p.vy) || 1;
+    // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
+    this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     p.active = false; // снаряд потрачен
   }
 
@@ -172,18 +193,18 @@ export class Game {
   }
 
   update(dt) {
+    if (this.state === 'paused') return; // пауза: мир стоит, отрисовка продолжается
     if (this.state === 'playing') {
       this.runTime += dt;
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.autoattack.update(dt);
+      this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
       const en = this.enemies.items;
-      for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena);
-      const hs = this.heroShots.items;
-      for (let i = 0; i < hs.length; i++) if (hs[i].active) updateProjectile(hs[i], dt, this.arena);
-      const es = this.enemyShots.items;
-      for (let i = 0; i < es.length; i++) if (es[i].active) updateProjectile(es[i], dt, this.arena);
+      for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
+      this.moveShots(this.heroShots.items, dt);
+      this.moveShots(this.enemyShots.items, dt);
 
       this.collisions.detect();
       this.spawner.update(dt);
@@ -208,10 +229,43 @@ export class Game {
     this.effects.sweep();
   }
 
-  /** Новый забег. Конфиг и подобранные ползунки не трогаем. */
-  restart() {
-    if (this.state !== 'dead') return;
+  /** Двигает снаряды; те, что упёрлись в скалу, гаснут искрой. */
+  moveShots(list, dt) {
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (!p.active) continue;
+      if (updateProjectile(p, dt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
+    }
+  }
+
+  pause() {
+    if (this.state !== 'playing') return;
+    this.state = 'paused';
     this.stick.cancel();
+    this.pauseUI.setPaused(true);
+    this.bus.emit('game:paused', {});
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.state = 'playing';
+    this.stepper.reset(); // время паузы не «догоняем»
+    this.pauseUI.setPaused(false);
+    this.bus.emit('game:resumed', {});
+  }
+
+  togglePause() {
+    if (this.state === 'paused') this.resume();
+    else this.pause();
+  }
+
+  /** Новый забег (после смерти или с экрана паузы). Конфиг и подобранные ползунки не трогаем. */
+  restart() {
+    if (this.state !== 'dead' && this.state !== 'paused') return;
+    this.stick.cancel();
+    this.pauseUI.setPaused(false);
+    this.nav.source = -1;
+    this.stepper.reset();
     this.enemies.clear();
     this.heroShots.clear();
     this.enemyShots.clear();

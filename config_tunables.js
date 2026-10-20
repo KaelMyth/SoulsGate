@@ -14,6 +14,10 @@ export const TUNABLES = [
   { group: 'Автоатака', path: 'projectiles.bolt.range', label: 'Дальность полёта снаряда', min: 100, max: 600, step: 10 },
   { group: 'Автоатака', path: 'projectiles.bolt.radius', label: 'Размер снаряда', min: 2, max: 14, step: 1 },
 
+  { group: 'Импакт попадания', path: 'projectiles.bolt.knockback', label: 'Откидывание, единиц', min: 0, max: 60, step: 1 },
+  { group: 'Импакт попадания', path: 'combat.knockbackTime', label: 'Время откидывания, с', min: 0.02, max: 0.3, step: 0.01 },
+  { group: 'Импакт попадания', path: 'combat.hitFlash', label: 'Длительность вспышки, с', min: 0.02, max: 0.4, step: 0.01 },
+
   { group: 'Враг-бегун', path: 'enemies.runner.hp', label: 'Здоровье (у новых врагов)', min: 5, max: 200, step: 5 },
   { group: 'Враг-бегун', path: 'enemies.runner.speed', label: 'Скорость', min: 20, max: 200, step: 5 },
   { group: 'Враг-бегун', path: 'enemies.runner.touchDamage', label: 'Урон при касании', min: 1, max: 40, step: 1 },

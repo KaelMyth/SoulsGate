@@ -7,6 +7,7 @@ export function createProjectile() {
     x: 0, y: 0, prevX: 0, prevY: 0, // прошлое положение: для плавной отрисовки между шагами
     vx: 0, vy: 0,
     radius: 0, damage: 0, speed: 0, range: 0,
+    knockback: 0, // насколько откидывает врага при попадании, единиц
     travelled: 0,
     color: '#fff',
     owner: null,
@@ -29,23 +30,33 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.damage = def.damage;
   p.speed = def.speed;
   p.range = def.range;
+  p.knockback = def.knockback || 0;
   p.travelled = 0;
   p.color = def.color;
   p.owner = owner;
 }
 
-/** Летит по прямой; исчезает, пролетев дальность или выйдя за арену. Скалы не мешают. */
+/**
+ * Летит по прямой; исчезает, пролетев дальность, выйдя за арену или упёршись в скалу.
+ * Возвращает причину исчезновения ('range' | 'edge' | 'rock') или null, если летит дальше.
+ */
 export function updateProjectile(p, dt, arena) {
   p.prevX = p.x;
   p.prevY = p.y;
   p.x += p.vx * dt;
   p.y += p.vy * dt;
   p.travelled += p.speed * dt;
-  if (
-    p.travelled >= p.range ||
-    p.x < arena.left || p.x > arena.right ||
-    p.y < arena.top || p.y > arena.bottom
-  ) {
+  if (p.x < arena.left || p.x > arena.right || p.y < arena.top || p.y > arena.bottom) {
     p.active = false;
+    return 'edge';
   }
+  if (arena.circleHitsRock(p.x, p.y, p.radius)) {
+    p.active = false;
+    return 'rock';
+  }
+  if (p.travelled >= p.range) {
+    p.active = false;
+    return 'range';
+  }
+  return null;
 }
