@@ -1,22 +1,22 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
-import { EventBus } from './core/events.js';
-import { FixedStepper, FpsMeter, GameLoop } from './core/loop.js';
-import { EntityPool } from './core/entity-pool.js';
-import { CollisionWorld, Layer } from './core/collision.js';
-import { Stick } from './input/stick.js';
-import { Arena } from './world/arena.js';
-import { Hero } from './world/hero.js';
-import { Camera } from './world/camera.js';
-import { createEnemy, resetEnemy, updateEnemy } from './world/enemy.js';
-import { createProjectile, resetProjectile, updateProjectile } from './world/projectile.js';
-import { createEffect, resetEffect, initEffect, updateEffect } from './world/effects.js';
-import { Combat } from './systems/combat.js';
-import { AutoAttack } from './systems/autoattack.js';
-import { Spawner } from './systems/spawner.js';
-import { Renderer } from './render/renderer.js';
-import { DebugPanel } from './debug/panel.js';
-import { DeathScreen } from './ui/death-screen.js';
-import { readSafeInsets } from './platform/viewport.js';
+import { EventBus } from './core_events.js';
+import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
+import { EntityPool } from './core_entity-pool.js';
+import { CollisionWorld, Layer } from './core_collision.js';
+import { Stick } from './input_stick.js';
+import { Arena } from './world_arena.js';
+import { Hero } from './world_hero.js';
+import { Camera } from './world_camera.js';
+import { createEnemy, resetEnemy, updateEnemy } from './world_enemy.js';
+import { createProjectile, resetProjectile, updateProjectile } from './world_projectile.js';
+import { createEffect, resetEffect, initEffect, updateEffect } from './world_effects.js';
+import { Combat } from './systems_combat.js';
+import { AutoAttack } from './systems_autoattack.js';
+import { Spawner } from './systems_spawner.js';
+import { Renderer } from './render_renderer.js';
+import { DebugPanel } from './debug_panel.js';
+import { DeathScreen } from './ui_death-screen.js';
+import { readSafeInsets } from './platform_viewport.js';
 
 export class Game {
   /** o: { canvas, uiRoot, probe, config, defaults, tunables, build, storage, storageKey, rnd? } */

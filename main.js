@@ -1,7 +1,7 @@
-import { CONFIG, BUILD } from './config/game.js';
-import { TUNABLES } from './config/tunables.js';
-import { loadOverrides, safeStorage } from './debug/tunables.js';
-import { lockBrowserGestures } from './platform/viewport.js';
+import { CONFIG, BUILD } from './config_game.js';
+import { TUNABLES } from './config_tunables.js';
+import { loadOverrides, safeStorage } from './debug_tunables.js';
+import { lockBrowserGestures } from './platform_viewport.js';
 import { Game } from './game.js';
 
 const storage = safeStorage();
