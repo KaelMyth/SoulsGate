@@ -151,7 +151,9 @@ export class Spawner {
   spawnOne() {
     if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return false;
     const e = this.enemies.spawn();
-    initEnemy(e, this.cfg.enemies[this.cfg.spawn.enemy], this.pt.x, this.pt.y);
+    const sp = this.cfg.spawn;
+    const shooter = this.wave >= sp.shooterFromWave && sp.shooterShare > 0 && this.rnd() < sp.shooterShare;
+    initEnemy(e, this.cfg.enemies[shooter ? 'shooter' : sp.enemy], this.pt.x, this.pt.y);
     this.arena.resolveCircle(e); // не внутри скалы
     e.prevX = e.x;
     e.prevY = e.y;

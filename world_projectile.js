@@ -8,6 +8,7 @@ export function createProjectile() {
     vx: 0, vy: 0,
     radius: 0, damage: 0, speed: 0, range: 0,
     knockback: 0, // насколько откидывает врага при попадании, единиц
+    parryable: false, // можно ли парировать (снаряды стрелков)
     travelled: 0,
     color: '#fff',
     owner: null,
@@ -31,6 +32,7 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.speed = def.speed;
   p.range = def.range;
   p.knockback = def.knockback || 0;
+  p.parryable = !!def.parryable;
   p.travelled = 0;
   p.color = def.color;
   p.owner = owner;

@@ -13,6 +13,9 @@ export class Hero {
     this.vx = 0;
     this.vy = 0;
     this.facing = -Math.PI / 2; // куда смотрит (посох), радианы; вверх по умолчанию
+    this.dashing = false; // идёт рывок: стик не слушаем, летим со скоростью рывка
+    this.dashVx = 0;
+    this.dashVy = 0;
   }
 
   get radius() {
@@ -24,6 +27,15 @@ export class Hero {
     this.prevX = this.x;
     this.prevY = this.y;
     if (this.invuln > 0) this.invuln -= dt;
+
+    if (this.dashing) {
+      this.vx = this.dashVx;
+      this.vy = this.dashVy;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      arena.resolveCircle(this);
+      return;
+    }
 
     const tvx = ix * this.cfg.speed;
     const tvy = iy * this.cfg.speed;
@@ -62,5 +74,6 @@ export class Hero {
     this.active = true;
     this.invuln = 0;
     this.facing = -Math.PI / 2;
+    this.dashing = false;
   }
 }

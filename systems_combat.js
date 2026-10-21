@@ -5,8 +5,8 @@
 //   'enemy:hit-incoming' { enemy, amount, knockback, dirX, dirY, source, cancelled }
 //                        ДО применения удара по врагу. Подписчик (модификатор) может изменить урон,
 //                        силу откидывания и направление или отменить удар целиком.
-//   'hero:hit-incoming'  { amount, source, cancelled }   ДО применения урона по герою.
-//                        На этапе 4 здесь встанут блок и парирование.
+//   'hero:hit-incoming'  { amount, source, cancelled, parryable }   ДО применения урона по герою.
+//                        Здесь работают блок и парирование (systems/defense.js).
 //   'damage:dealt'       { target, targetKind: 'enemy'|'hero', amount, knockback, source, hp }   урон применён
 //   'enemy:killed'       { enemy, source }
 //   'hero:died'          { source }
@@ -54,7 +54,8 @@ export class Combat {
   damageHero(amount, source) {
     const hero = this.hero;
     if (!hero.active || hero.invuln > 0) return false;
-    const incoming = { amount, source, cancelled: false };
+    // parryable: источник можно парировать (снаряд стрелка); касание жуков парировать нельзя.
+    const incoming = { amount, source, cancelled: false, parryable: !!(source && source.parryable) };
     this.bus.emit('hero:hit-incoming', incoming);
     if (incoming.cancelled || incoming.amount <= 0) return false;
     hero.hp = Math.max(0, hero.hp - incoming.amount);

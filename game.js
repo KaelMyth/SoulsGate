@@ -15,10 +15,14 @@ import { Combat } from './systems_combat.js';
 import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
+import { HeroDefense } from './systems_defense.js';
+import { Shooters } from './systems_shooters.js';
+import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
+import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
 
 export class Game {
@@ -51,6 +55,9 @@ export class Game {
     this.sagTimer = 0;
     this.sagCount = 0;
     this.storage = o.storage || null;
+    this.hitStop = 0;      // остановка времени при парировании, с
+    this.blocks = 0;       // счётчики для панели: сколько блоков и парирований
+    this.parries = 0;
 
     // Объекты боя: списки с пулами. Вражеские снаряды пока никто не выпускает (стрелок на этапе 4).
     this.enemies = new EntityPool(createEnemy, resetEnemy, 16);
@@ -60,6 +67,11 @@ export class Game {
     this.heroList = [this.hero];
 
     this.combat = new Combat(this.bus, this.hero, config.combat);
+    this.defense = new HeroDefense({ config, hero: this.hero, stick: this.stick, bus: this.bus });
+    this.swipe = new SwipeDetector(this.bus, config.dash, (dx, dy) => {
+      if (this.state === 'playing') this.defense.tryDash(dx, dy);
+    });
+    this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.autoattack = new AutoAttack({
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
@@ -76,6 +88,7 @@ export class Game {
       enemyShots: this.enemyShots,
       effects: this.effects,
       autoattack: this.autoattack,
+      defense: this.defense,
       hud: this.hud,
     });
     this.spawner = new Spawner({
@@ -97,6 +110,12 @@ export class Game {
       onToggle: () => this.togglePause(),
       onResume: () => this.resume(),
       onRestart: () => this.restart(),
+    });
+
+    this.slotPresses = 0;
+    this.slot = new SlotUI(o.uiRoot, (n) => {
+      this.slotPresses = n;
+      this.bus.emit('slot:pressed', { count: n });
     });
 
     this.stepper = new FixedStepper(config.step);
@@ -124,6 +143,7 @@ export class Game {
         cap: this.hud.cap,
         checks: this.swarm.pairChecks,
         crash: this.crashResult ? this.crashText() : '',
+        defense: 'состояние ' + this.defense.state + ' · блоков ' + this.blocks + ' · парирований ' + this.parries + ' · слот нажат ' + this.slotPresses,
         stick: this.stick.active
           ? 'x ' + this.stick.x.toFixed(2) + ' y ' + this.stick.y.toFixed(2)
           : 'не нажат',
@@ -151,6 +171,17 @@ export class Game {
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
     this.bus.on('hero:hit-incoming', (inc) => {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
+    });
+    // Блок и парирование: вспышки, искры и остановка времени. Сами они считаются в systems/defense.js.
+    this.bus.on('hero:blocked', () => {
+      this.blocks++;
+      this.burst(this.hero.x, this.hero.y, 0.2, this.defense.blockRadius * 0.8, this.defense.blockRadius * 1.25, C.blockEdge);
+    });
+    this.bus.on('hero:parried', (e) => {
+      this.parries++;
+      this.hitStop = Math.max(this.hitStop, config.block.hitStop);
+      this.burst(this.hero.x, this.hero.y, 0.3, this.defense.blockRadius, this.defense.blockRadius * 1.9, C.parry);
+      this.sparks(e.x, e.y, config.block.sparks, C.spark);
     });
     this.bus.on('hero:died', () => {
       this.state = 'dead';
@@ -195,6 +226,15 @@ export class Game {
     initEffect(this.effects.spawn(), x, y, life, r0, r1, color);
   }
 
+  /** Искры: короткие чёрточки, разлетающиеся во все стороны. */
+  sparks(x, y, n, color) {
+    for (let i = 0; i < n; i++) {
+      if (this.effects.count >= this.config.render.maxEffects) return;
+      const a = this.rnd() * Math.PI * 2;
+      initEffect(this.effects.spawn(), x, y, 0.3 + this.rnd() * 0.2, 6, 26 + this.rnd() * 34, color, a);
+    }
+  }
+
   onShotHitEnemy(p, e) {
     const speed = Math.hypot(p.vx, p.vy) || 1;
     // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
@@ -203,7 +243,8 @@ export class Game {
   }
 
   onEnemyShotHitHero(p) {
-    if (this.combat.damageHero(p.damage, p)) p.active = false;
+    this.combat.damageHero(p.damage, p);
+    p.active = false; // снаряд потрачен: попал, заблокирован или спарирован (герой в неуязвимости тоже гасит его)
   }
 
   onEnemyTouchHero(e) {
@@ -214,8 +255,17 @@ export class Game {
 
   update(dt) {
     if (this.state === 'paused') return; // пауза: мир стоит, отрисовка продолжается
+    if (this.state === 'playing' && this.hitStop > 0) {
+      // Остановка времени при парировании: мир замер, но искры летят.
+      this.hitStop -= dt;
+      const fx0 = this.effects.items;
+      for (let i = 0; i < fx0.length; i++) if (fx0[i].active) updateEffect(fx0[i], dt);
+      this.effects.sweep();
+      return;
+    }
     if (this.state === 'playing') {
       this.runTime += dt;
+      this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
@@ -225,11 +275,13 @@ export class Game {
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
+      this.shooters.update(dt, en);
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
 
       this.collisions.detect();
+      this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
       this.watchCrash(dt);
@@ -260,6 +312,21 @@ export class Game {
       const p = list[i];
       if (!p.active) continue;
       if (updateProjectile(p, dt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
+    }
+  }
+
+  /** Пока включён блок, снаряды врагов встречают сферу, а не тело героя: парируем у самой сферы. */
+  hitShotsOnBlock() {
+    if (!this.defense.blocking || !this.hero.active) return;
+    const R = this.defense.blockRadius;
+    const list = this.enemyShots.items;
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (!p.active) continue;
+      const dx = p.x - this.hero.x;
+      const dy = p.y - this.hero.y;
+      const lim = R + p.radius;
+      if (dx * dx + dy * dy <= lim * lim) this.onEnemyShotHitHero(p);
     }
   }
 
@@ -353,6 +420,9 @@ export class Game {
     this.enemyShots.clear();
     this.effects.clear();
     this.hero.reset();
+    this.defense.reset();
+    this.swipe.reset();
+    this.hitStop = 0;
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.autoattack.reset();
     this.spawner.reset();

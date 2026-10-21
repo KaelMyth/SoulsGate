@@ -296,3 +296,23 @@ body {
   color: var(--ink);
   font-weight: 500;
 }
+
+/* ---------- Слот умения (заглушка) ---------- */
+#slot-btn {
+  position: fixed;
+  z-index: 20;
+  left: 50%;
+  bottom: calc(var(--safe-bottom, 0px) + 24px);
+  transform: translateX(-50%);
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: rgba(11, 15, 22, 0.55);
+  color: var(--ink);
+  font-size: 13px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#slot-btn.flash { border-color: var(--accent); background: rgba(255, 177, 74, 0.35); color: #fff; }

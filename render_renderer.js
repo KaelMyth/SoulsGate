@@ -50,6 +50,7 @@ export class Renderer {
     this.enemyShots = deps.enemyShots || EMPTY;
     this.effects = deps.effects || EMPTY;
     this.autoattack = deps.autoattack || null;
+    this.defense = deps.defense || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -166,7 +167,10 @@ export class Renderer {
       ctx.stroke();
     }
 
-    if (hero.active) this.drawHero(hx, hy, C);
+    if (hero.active) {
+      this.drawHero(hx, hy, C);
+      this.drawBlock(hx, hy, C);
+    }
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
@@ -180,8 +184,19 @@ export class Renderer {
       const t = Math.min(1, f.age / f.life);
       ctx.globalAlpha = 1 - t;
       ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r0 + (f.r1 - f.r0) * t, 0, TAU);
-      ctx.lineWidth = 3;
+      if (f.angle !== null) {
+        // Искра: чёрточка, летящая от центра.
+        const rr = f.r0 + (f.r1 - f.r0) * (1 - (1 - t) * (1 - t));
+        const r2 = Math.max(f.r0, rr - 9);
+        const ca = Math.cos(f.angle);
+        const sa = Math.sin(f.angle);
+        ctx.moveTo(f.x + ca * r2, f.y + sa * r2);
+        ctx.lineTo(f.x + ca * rr, f.y + sa * rr);
+        ctx.lineWidth = 2.2;
+      } else {
+        ctx.arc(f.x, f.y, f.r0 + (f.r1 - f.r0) * t, 0, TAU);
+        ctx.lineWidth = 3;
+      }
       ctx.strokeStyle = f.color;
       ctx.stroke();
     }
@@ -204,13 +219,24 @@ export class Renderer {
 
     // Попадание: враг белеет и на мгновение раздувается.
     const rr = hit ? r * 1.15 : r;
-    ctx.fillStyle = hit ? '#ffffff' : e.def.color;
+    const aiming = e.aim > 0;
+    ctx.fillStyle = hit ? '#ffffff' : aiming ? '#ffe9a8' : e.def.color;
     ctx.beginPath();
     ctx.arc(x, y, rr, 0, TAU);
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
     ctx.stroke();
+
+    // Стрелок целится: расширяющееся кольцо, сигнал «сейчас выстрелит, можно парировать».
+    if (aiming) {
+      const k = 1 - e.aim / Math.max(0.01, e.aimTotal);
+      ctx.beginPath();
+      ctx.arc(x, y, r + 3 + k * 8, 0, TAU);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffe27a';
+      ctx.stroke();
+    }
 
     // Полоска здоровья над головой.
     const bw = r * 2;
@@ -234,7 +260,8 @@ export class Renderer {
     ctx.ellipse(hx, hy + r * 0.6, r * 1.05, r * 0.55, 0, 0, TAU);
     ctx.fill();
 
-    ctx.fillStyle = C.hero;
+    // Окно парирования: герой меняет цвет.
+    ctx.fillStyle = this.defense && this.defense.parrying ? C.parry : C.hero;
     ctx.beginPath();
     ctx.arc(hx, hy, r, 0, TAU);
     ctx.fill();
@@ -271,6 +298,12 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(px, py, p.radius, 0, TAU);
       ctx.fill();
+      if (p.parryable) {
+        // Парируемые снаряды обведены: видно, что их можно поймать.
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#fff3d0';
+        ctx.stroke();
+      }
     }
   }
 
@@ -330,6 +363,52 @@ export class Renderer {
     ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x + 6, y + hh / 2 + 0.5);
     ctx.fillText('Убито: ' + hud.kills, x, y + hh + 14);
     this.drawWaveHud(C, x, y + hh + 30);
+    this.drawCooldowns(C);
+  }
+
+  /** Сфера блока вокруг героя. Окно парирования подсвечено, к концу блока сфера мигает. */
+  drawBlock(hx, hy, C) {
+    const d = this.defense;
+    if (!d || !d.blocking) return;
+    const ctx = this.ctx;
+    const left = this.cfg.block.duration - d.blockTime;
+    if (left < 0.3 && Math.floor(left * 20) % 2 === 0) return; // мигает: блок вот-вот кончится
+    const parry = d.parrying;
+    ctx.beginPath();
+    ctx.arc(hx, hy, d.blockRadius, 0, TAU);
+    ctx.fillStyle = parry ? 'rgba(255,226,122,0.26)' : C.block;
+    ctx.fill();
+    ctx.lineWidth = parry ? 3 : 2;
+    ctx.strokeStyle = parry ? C.parry : C.blockEdge;
+    ctx.stroke();
+  }
+
+  /** Индикаторы перезарядки блока и рывка в левом нижнем углу. */
+  drawCooldowns(C) {
+    const d = this.defense;
+    if (!d) return;
+    const ctx = this.ctx;
+    const x = this.hud.insets.left + 12;
+    const bottom = this.h - (this.hud.insets.bottom || 0) - 16;
+    const w = 92;
+    const bar = (y, label, frac, color) => {
+      ctx.fillStyle = C.hpBg;
+      ctx.fillRect(x, y, w, 8);
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), 8);
+      ctx.fillStyle = C.hud;
+      ctx.font = '10px ui-monospace, Menlo, monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(label, x, y - 2);
+    };
+    const blockFrac = d.blocking
+      ? 1 - d.blockTime / this.cfg.block.duration
+      : d.blockCd > 0 ? 1 - d.blockCd / d.blockCdMax : 1;
+    bar(bottom - 34, d.blocking ? (d.parrying ? 'Блок · парирование!' : 'Блок') : 'Блок', blockFrac,
+      d.blocking ? (d.parrying ? C.parry : C.blockEdge) : d.blockCd > 0 ? C.border : C.hpHero);
+    const dashFrac = d.dashCd > 0 ? 1 - d.dashCd / d.dashCdMax : 1;
+    bar(bottom - 8, 'Рывок', dashFrac, d.dashCd > 0 ? C.border : C.hpHero);
   }
 
   /** Номер волны, счётчик врагов, крупная надпись на передышке и результат краш-теста. */

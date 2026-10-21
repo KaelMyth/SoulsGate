@@ -16,6 +16,9 @@ export function createEnemy() {
     kbTau: 0.07,      // за сколько секунд затухает откидывание
     hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
     swX: 0, swY: 0,   // подсказка курса от стаи (сплочённость и согласованность)
+    aim: 0,           // стрелок: сколько ещё секунд целится (светится и стоит)
+    aimTotal: 1,
+    fireTimer: 0,     // стрелок: до следующего прицеливания
   };
 }
 
@@ -35,6 +38,9 @@ export function initEnemy(e, def, x, y) {
   e.kbVx = e.kbVy = 0;
   e.hx = e.hy = 0;
   e.swX = e.swY = 0;
+  e.aim = 0;
+  e.aimTotal = def.aimTime || 1;
+  e.fireTimer = def.firstShotDelay || 0;
 }
 
 /**
@@ -69,7 +75,12 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   const dy = hero.y - e.y;
   const d = Math.hypot(dx, dy);
   const gap = d - (hero.radius + e.radius - 2);
-  if (d > 1e-6 && gap > 0) {
+  // Стрелок держит дистанцию: стоит, пока целится, и когда видит героя с нужного расстояния.
+  let hold = false;
+  if (e.def.keepDistance > 0) {
+    hold = e.aim > 0 || (d <= e.def.keepDistance && !arena.segmentBlocked(e.x, e.y, hero.x, hero.y, 3));
+  }
+  if (d > 1e-6 && gap > 0 && !hold) {
     let mx = dx / d;
     let my = dy / d;
     let direct = true;

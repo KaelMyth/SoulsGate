@@ -147,6 +147,7 @@ export class DebugPanel {
       'волна ' + s.wave + ' · живых врагов ' + s.enemies + ' / потолок ' + (s.cap || '—') + ' · проверок соседей ' + s.checks,
       s.crash ? 'краш-тест: ' + s.crash : 'краш-тест: просадки не было',
       'объектов в мире ' + s.objects + ' (враги ' + s.enemies + ', снаряды ' + s.shots + ', эффекты ' + s.effects + ')',
+      'защита: ' + s.defense,
       'стик ' + s.stick,
       'события ' + (this.log.join(' · ') || '—'),
     ].join('\n');

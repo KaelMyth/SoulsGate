@@ -39,6 +39,31 @@ export const TUNABLES = [
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.godMode', label: 'Герой бессмертен (0 нет, 1 да)', min: 0, max: 1, step: 1 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.fpsThreshold', label: 'Порог просадки FPS', min: 20, max: 59, step: 1 },
 
+  { group: 'Блок и парирование', path: 'block.duration', label: 'Длительность блока, с', min: 0.5, max: 3, step: 0.1 },
+  { group: 'Блок и парирование', path: 'block.parryWindow', label: 'Окно парирования, с', min: 0.1, max: 1, step: 0.05 },
+  { group: 'Блок и парирование', path: 'block.cooldown', label: 'Перезарядка блока, с', min: 0.3, max: 5, step: 0.1 },
+  { group: 'Блок и парирование', path: 'block.cancelCooldown', label: 'Перезарядка, если блок снят рано, с', min: 0, max: 2, step: 0.1 },
+  { group: 'Блок и парирование', path: 'block.reduction', label: 'Сколько урона гасит блок (0..1)', min: 0, max: 1, step: 0.05 },
+  { group: 'Блок и парирование', path: 'block.startDelay', label: 'Задержка включения блока, с', min: 0, max: 0.4, step: 0.01 },
+  { group: 'Блок и парирование', path: 'block.hitStop', label: 'Остановка времени при парировании, с', min: 0, max: 0.3, step: 0.01 },
+
+  { group: 'Рывок', path: 'dash.distance', label: 'Дальность рывка', min: 40, max: 300, step: 5 },
+  { group: 'Рывок', path: 'dash.duration', label: 'Время рывка, с', min: 0.05, max: 0.4, step: 0.01 },
+  { group: 'Рывок', path: 'dash.cooldown', label: 'Перезарядка рывка, с', min: 0.3, max: 4, step: 0.1 },
+  { group: 'Рывок', path: 'dash.invuln', label: 'Неуязвимость на рывок, с', min: 0, max: 0.5, step: 0.02 },
+  { group: 'Рывок', path: 'dash.doubleWindow', label: 'Окно двойного свайпа, с', min: 0.15, max: 0.8, step: 0.05 },
+  { group: 'Рывок', path: 'dash.swipeMaxTime', label: 'Макс. длительность свайпа, с', min: 0.1, max: 0.5, step: 0.01 },
+  { group: 'Рывок', path: 'dash.swipeMinMag', label: 'Мин. отклонение стика для свайпа', min: 0.3, max: 1, step: 0.05 },
+
+  { group: 'Жук-стрелок', path: 'enemies.shooter.hp', label: 'Здоровье (у новых врагов)', min: 5, max: 200, step: 5 },
+  { group: 'Жук-стрелок', path: 'enemies.shooter.speed', label: 'Скорость', min: 20, max: 200, step: 5 },
+  { group: 'Жук-стрелок', path: 'enemies.shooter.keepDistance', label: 'Дистанция, на которой стоит', min: 60, max: 300, step: 10 },
+  { group: 'Жук-стрелок', path: 'enemies.shooter.aimTime', label: 'Прицеливание (сигнал для парирования), с', min: 0.1, max: 1.5, step: 0.05 },
+  { group: 'Жук-стрелок', path: 'enemies.shooter.fireInterval', label: 'Пауза между выстрелами, с', min: 0.5, max: 6, step: 0.1 },
+  { group: 'Жук-стрелок', path: 'enemies.shooter.shot.speed', label: 'Скорость снаряда', min: 60, max: 400, step: 10 },
+  { group: 'Жук-стрелок', path: 'enemies.shooter.shot.damage', label: 'Урон снаряда', min: 1, max: 50, step: 1 },
+  { group: 'Жук-стрелок', path: 'spawn.shooterShare', label: 'Доля стрелков среди врагов', min: 0, max: 1, step: 0.05 },
+
   { group: 'Управление', path: 'stick.radius', label: 'Радиус стика, px', min: 30, max: 120, step: 2 },
   { group: 'Управление', path: 'stick.deadzone', label: 'Мёртвая зона стика', min: 0, max: 0.4, step: 0.01 },
 
