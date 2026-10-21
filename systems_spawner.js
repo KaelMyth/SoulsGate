@@ -1,5 +1,16 @@
-// Появление врагов: за краем экрана. На этапе 3 здесь вырастут волны по таблице из конфига.
+// Волны: враги приходят пачками по таблице из config.waves.table и появляются за краем экрана.
+//
+//   передышка (waves.intermission с, на экране «Волна N») → волна: враги выходят с заданным интервалом,
+//   пока их живых меньше потолка; волна кончается, когда вышли все и все убиты → передышка → следующая.
+//
+// Начиная с waves.crash.startWave идёт краш-тест: волна не кончается, потолок живых растёт на capGrowth
+// в секунду, а интервал появления падает до minInterval. Он нужен, чтобы найти число врагов,
+// на котором телефон перестаёт держать 60 FPS.
+//
+// События: 'wave:started' { wave, crash }, 'wave:cleared' { wave }.
 import { initEnemy } from './world_enemy.js';
+
+const MAX_SPAWNS_PER_STEP = 20; // страховка: даже при интервале 0 за шаг не больше стольких
 
 const TAU = Math.PI * 2;
 
@@ -35,33 +46,115 @@ export function pickSpawnPoint(rnd, cam, arena, margin, out) {
 }
 
 export class Spawner {
-  /** o: { config, enemies (EntityPool), camera, arena, rnd } */
+  /** o: { config, enemies (EntityPool), camera, arena, rnd, bus? } */
   constructor(o) {
     this.cfg = o.config;
     this.enemies = o.enemies;
     this.camera = o.camera;
     this.arena = o.arena;
     this.rnd = o.rnd;
+    this.bus = o.bus || null;
     this.pt = { x: 0, y: 0 };
-    this.timer = this.cfg.spawn.firstDelay;
+    this.alive = 0;
+    this.reset();
   }
 
+  /** Новый забег: с волны waves.startWave (по умолчанию с первой). */
   reset() {
-    this.timer = this.cfg.spawn.firstDelay;
+    this.jumpToWave(this.cfg.waves.startWave);
+  }
+
+  /** Перейти к волне n: передышка с надписью, затем волна. Живых врагов не трогает. */
+  jumpToWave(n) {
+    this.wave = Math.max(1, Math.round(n));
+    this.phase = 'intermission';
+    this.timer = this.cfg.waves.intermission;
+    this.spawned = 0;
+    this.crashTime = 0;
+    this.spawnTimer = 0;
+  }
+
+  get crash() {
+    return this.wave >= this.cfg.waves.crash.startWave;
+  }
+
+  /** Строка таблицы для волны; после конца таблицы держится последняя. */
+  row(wave) {
+    const t = this.cfg.waves.table;
+    return t[Math.min(wave, t.length) - 1];
+  }
+
+  /** Сколько врагов в волне (с множителем численности). В краш-тесте не ограничено. */
+  waveCount() {
+    return this.crash ? Infinity : Math.ceil(this.row(this.wave).count * this.cfg.spawn.countMult);
+  }
+
+  /** Потолок живых врагов сейчас: по таблице, в краш-тесте растёт со временем, всегда под жёстким потолком. */
+  cap() {
+    const base = Math.ceil(this.row(this.wave).maxAlive * this.cfg.spawn.countMult);
+    const grow = this.crash ? Math.floor(this.crashTime * this.cfg.waves.crash.capGrowth) : 0;
+    return Math.min(base + grow, this.cfg.limits.maxEnemies);
+  }
+
+  /** Интервал между появлениями сейчас. В краш-тесте плавно падает до minInterval за rampTime. */
+  interval() {
+    const row = this.row(this.wave);
+    if (!this.crash) return row.interval;
+    const c = this.cfg.waves.crash;
+    const k = Math.min(1, this.crashTime / Math.max(0.001, c.rampTime));
+    return row.interval + (c.minInterval - row.interval) * k;
+  }
+
+  countAlive() {
+    const items = this.enemies.items;
+    let n = 0;
+    for (let i = 0; i < items.length; i++) if (items[i].active) n++;
+    return n;
   }
 
   update(dt) {
-    this.timer -= dt;
-    if (this.timer > 0) return;
-    const sp = this.cfg.spawn;
-    if (this.enemies.count < sp.maxAlive && pickSpawnPoint(this.rnd, this.camera, this.arena, sp.margin, this.pt)) {
-      const e = this.enemies.spawn();
-      initEnemy(e, this.cfg.enemies[sp.enemy], this.pt.x, this.pt.y);
-      this.arena.resolveCircle(e); // не внутри скалы
-      e.prevX = e.x;
-      e.prevY = e.y;
+    if (this.phase === 'intermission') {
+      this.timer -= dt;
+      if (this.timer <= 0) {
+        this.phase = 'active';
+        this.spawned = 0;
+        this.crashTime = 0;
+        this.spawnTimer = 0;
+        if (this.bus) this.bus.emit('wave:started', { wave: this.wave, crash: this.crash });
+      }
+      return;
     }
-    this.timer += sp.interval;
-    if (this.timer < 0) this.timer = 0;
+
+    if (this.crash) this.crashTime += dt;
+    this.alive = this.countAlive();
+    const total = this.waveCount();
+    this.spawnTimer -= dt;
+    let made = 0;
+    while (this.spawnTimer <= 0 && this.spawned < total && this.alive < this.cap() && made < MAX_SPAWNS_PER_STEP) {
+      if (!this.spawnOne()) break;
+      this.spawned++;
+      this.alive++;
+      made++;
+      this.spawnTimer += this.interval();
+    }
+    // Упёрлись в потолок или в лимит за шаг: не копим «долг» по таймеру, иначе после гибели врагов хлынет залп.
+    if (this.spawnTimer < 0) this.spawnTimer = 0;
+
+    if (!this.crash && this.spawned >= total && this.alive === 0) {
+      if (this.bus) this.bus.emit('wave:cleared', { wave: this.wave });
+      this.wave++;
+      this.phase = 'intermission';
+      this.timer = this.cfg.waves.intermission;
+    }
+  }
+
+  spawnOne() {
+    if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return false;
+    const e = this.enemies.spawn();
+    initEnemy(e, this.cfg.enemies[this.cfg.spawn.enemy], this.pt.x, this.pt.y);
+    this.arena.resolveCircle(e); // не внутри скалы
+    e.prevX = e.x;
+    e.prevY = e.y;
+    return true;
   }
 }

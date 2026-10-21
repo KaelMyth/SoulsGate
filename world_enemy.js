@@ -14,6 +14,8 @@ export function createEnemy() {
     flash: 0,      // вспышка при попадании, с
     kbVx: 0, kbVy: 0, // скорость откидывания, быстро затухает
     kbTau: 0.07,      // за сколько секунд затухает откидывание
+    hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
+    swX: 0, swY: 0,   // подсказка курса от стаи (сплочённость и согласованность)
   };
 }
 
@@ -31,6 +33,8 @@ export function initEnemy(e, def, x, y) {
   e.touchTimer = 0;
   e.flash = 0;
   e.kbVx = e.kbVy = 0;
+  e.hx = e.hy = 0;
+  e.swX = e.swY = 0;
 }
 
 /**
@@ -75,10 +79,25 @@ export function updateEnemy(e, dt, hero, arena, nav) {
       my = dir.y;
       direct = false;
     }
+    // Стая: добавляем подсказку соседей к курсу на героя. Цель остаётся главной (вес 1),
+    // соседи только подправляют направление.
+    if (e.swX !== 0 || e.swY !== 0) {
+      mx += e.swX;
+      my += e.swY;
+      const ml = Math.hypot(mx, my);
+      if (ml > 1e-6) {
+        mx /= ml;
+        my /= ml;
+      }
+    }
     let step = e.def.speed * dt;
     if (direct && step > gap) step = gap; // не вдавливаемся в героя
     e.x += mx * step;
     e.y += my * step;
+    e.hx = mx;
+    e.hy = my;
+  } else {
+    e.hx = e.hy = 0;
   }
 
   if (e.kbVx !== 0 || e.kbVy !== 0) {

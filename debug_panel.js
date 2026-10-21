@@ -144,6 +144,8 @@ export class DebugPanel {
       'FPS ' + m.fps.toFixed(1) + '   мин ' + min,
       'кадр ' + m.frameMs.toFixed(1) + ' мс   шагов/кадр ' + s.steps,
       'здоровье ' + s.hp + ' · убито ' + s.kills,
+      'волна ' + s.wave + ' · живых врагов ' + s.enemies + ' / потолок ' + (s.cap || '—') + ' · проверок соседей ' + s.checks,
+      s.crash ? 'краш-тест: ' + s.crash : 'краш-тест: просадки не было',
       'объектов в мире ' + s.objects + ' (враги ' + s.enemies + ', снаряды ' + s.shots + ', эффекты ' + s.effects + ')',
       'стик ' + s.stick,
       'события ' + (this.log.join(' · ') || '—'),

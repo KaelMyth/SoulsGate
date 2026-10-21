@@ -18,13 +18,26 @@ export const TUNABLES = [
   { group: 'Импакт попадания', path: 'combat.knockbackTime', label: 'Время откидывания, с', min: 0.02, max: 0.3, step: 0.01 },
   { group: 'Импакт попадания', path: 'combat.hitFlash', label: 'Длительность вспышки, с', min: 0.02, max: 0.4, step: 0.01 },
 
-  { group: 'Враг-бегун', path: 'enemies.runner.hp', label: 'Здоровье (у новых врагов)', min: 5, max: 200, step: 5 },
-  { group: 'Враг-бегун', path: 'enemies.runner.speed', label: 'Скорость', min: 20, max: 200, step: 5 },
-  { group: 'Враг-бегун', path: 'enemies.runner.touchDamage', label: 'Урон при касании', min: 1, max: 40, step: 1 },
-  { group: 'Враг-бегун', path: 'enemies.runner.touchCooldown', label: 'Пауза между ударами, с', min: 0.2, max: 2, step: 0.1 },
+  { group: 'Жук', path: 'enemies.beetle.hp', label: 'Здоровье (у новых врагов)', min: 5, max: 200, step: 5 },
+  { group: 'Жук', path: 'enemies.beetle.speed', label: 'Скорость', min: 20, max: 200, step: 5 },
+  { group: 'Жук', path: 'enemies.beetle.touchDamage', label: 'Урон при касании', min: 1, max: 40, step: 1 },
+  { group: 'Жук', path: 'enemies.beetle.touchCooldown', label: 'Пауза между ударами, с', min: 0.2, max: 2, step: 0.1 },
 
-  { group: 'Появление врагов', path: 'spawn.interval', label: 'Секунд между появлениями', min: 0.2, max: 5, step: 0.1 },
-  { group: 'Появление врагов', path: 'spawn.maxAlive', label: 'Потолок живых врагов', min: 1, max: 30, step: 1 },
+  { group: 'Стая жуков', path: 'swarm.clusterRadius', label: 'Радиус, на котором жуки видят друг друга', min: 20, max: 79, step: 1 },
+  { group: 'Стая жуков', path: 'swarm.cohesion', label: 'Тяга друг к другу', min: 0, max: 2, step: 0.05 },
+  { group: 'Стая жуков', path: 'swarm.alignment', label: 'Общий курс стаи', min: 0, max: 2, step: 0.05 },
+  { group: 'Стая жуков', path: 'swarm.separationIters', label: 'Теснота (проходов за шаг)', min: 0, max: 4, step: 1 },
+
+  { group: 'Волны', path: 'spawn.countMult', label: 'Множитель численности врагов', min: 0.2, max: 5, step: 0.1 },
+  { group: 'Волны', path: 'waves.intermission', label: 'Передышка между волнами, с', min: 0.5, max: 6, step: 0.5 },
+  { group: 'Волны', path: 'waves.startWave', label: 'Прыгнуть на волну (10 = краш-тест)', min: 1, max: 10, step: 1 },
+  { group: 'Волны', path: 'limits.maxEnemies', label: 'Жёсткий потолок живых врагов', min: 50, max: 2000, step: 50 },
+  { group: 'Волны', path: 'limits.maxShots', label: 'Жёсткий потолок снарядов', min: 5, max: 200, step: 5 },
+
+  { group: 'Краш-тест (волна 10)', path: 'waves.crash.capGrowth', label: 'Прирост потолка врагов, в секунду', min: 0.5, max: 30, step: 0.5 },
+  { group: 'Краш-тест (волна 10)', path: 'waves.crash.minInterval', label: 'Мин. интервал появления, с', min: 0.02, max: 1, step: 0.02 },
+  { group: 'Краш-тест (волна 10)', path: 'waves.crash.godMode', label: 'Герой бессмертен (0 нет, 1 да)', min: 0, max: 1, step: 1 },
+  { group: 'Краш-тест (волна 10)', path: 'waves.crash.fpsThreshold', label: 'Порог просадки FPS', min: 20, max: 59, step: 1 },
 
   { group: 'Управление', path: 'stick.radius', label: 'Радиус стика, px', min: 30, max: 120, step: 2 },
   { group: 'Управление', path: 'stick.deadzone', label: 'Мёртвая зона стика', min: 0, max: 0.4, step: 0.01 },

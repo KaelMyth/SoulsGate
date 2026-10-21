@@ -1,5 +1,5 @@
 // Автоатака: ближайший враг в радиусе, снаряд летит в него, перезарядка настраивается.
-// Пока перебор врагов простой; при большой орде на этапе 3 заменится на сетку (spatial grid).
+// Цель ищется через сетку (spatial grid), если она передана: цена не растёт с размером орды.
 import { initProjectile } from './world_projectile.js';
 
 /**
@@ -7,12 +7,15 @@ import { initProjectile } from './world_projectile.js';
  * Если передана арена, враги за скалой (снаряд в них не долетит) не выбираются;
  * pad: запас на толщину снаряда.
  */
-export function findNearest(enemies, x, y, radius, arena, pad) {
+export function findNearest(enemies, x, y, radius, arena, pad, grid) {
   let best = null;
   let bestD2 = radius * radius;
-  for (let i = 0; i < enemies.length; i++) {
-    const e = enemies[i];
-    if (!e.active) continue;
+  // С сеткой смотрим только врагов в соседних клетках; без неё (тесты, простые случаи) всех.
+  const n = grid ? grid.query(x, y, radius) : enemies.length;
+  const buf = grid ? grid.buf : null;
+  for (let k = 0; k < n; k++) {
+    const e = enemies[grid ? buf[k] : k];
+    if (!e || !e.active) continue;
     const dx = e.x - x;
     const dy = e.y - y;
     const d2 = dx * dx + dy * dy;
@@ -25,10 +28,11 @@ export function findNearest(enemies, x, y, radius, arena, pad) {
 }
 
 export class AutoAttack {
-  /** o: { config, hero, enemies (EntityPool), shots (EntityPool), bus, arena? } */
+  /** o: { config, hero, enemies (EntityPool), shots (EntityPool), bus, arena?, grid? (SpatialGrid по enemies.items) } */
   constructor(o) {
     this.cfg = o.config;
     this.arena = o.arena || null;
+    this.grid = o.grid || null;
     this.hero = o.hero;
     this.enemies = o.enemies;
     this.shots = o.shots;
@@ -54,13 +58,16 @@ export class AutoAttack {
     this.timer -= dt;
     const def = this.cfg.projectiles[atk.projectile];
     const arena = atk.requireLineOfSight ? this.arena : null;
-    const target = findNearest(this.enemies.items, hero.x, hero.y, atk.radius, arena, def.radius);
+    const target = findNearest(this.enemies.items, hero.x, hero.y, atk.radius, arena, def.radius, this.grid);
     this.target = target;
-    if (target && this.timer <= 0) {
+    // Потолок снарядов: множители конструктора иначе заполнят мир выстрелами. Пока слотов нет, ждём.
+    const lim = this.cfg.limits;
+    const full = lim && this.shots.count >= lim.maxShots;
+    if (target && this.timer <= 0 && !full) {
       this.fire(target);
       this.timer += atk.reload; // переносим остаток: ритм выстрелов не плывёт
       if (this.timer < 0) this.timer = 0;
-    } else if (!target && this.timer < 0) {
+    } else if ((!target || full) && this.timer < 0) {
       this.timer = 0; // цели нет: первый выстрел по новой цели без задержки
     }
   }

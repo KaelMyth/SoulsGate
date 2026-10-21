@@ -329,5 +329,45 @@ export class Renderer {
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x + 6, y + hh / 2 + 0.5);
     ctx.fillText('Убито: ' + hud.kills, x, y + hh + 14);
+    this.drawWaveHud(C, x, y + hh + 30);
+  }
+
+  /** Номер волны, счётчик врагов, крупная надпись на передышке и результат краш-теста. */
+  drawWaveHud(C, x, y) {
+    const hud = this.hud;
+    const ctx = this.ctx;
+    if (hud.wave === undefined) return;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = '600 13px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = C.accent;
+    ctx.fillText(hud.crash ? 'Волна ' + hud.wave + ' · КРАШ-ТЕСТ' : 'Волна ' + hud.wave, x, y);
+    ctx.font = '11px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = C.hud;
+    if (hud.crash) {
+      ctx.fillText('Врагов ' + hud.alive + (hud.cap ? ' / потолок ' + hud.cap : ''), x, y + 16);
+      if (hud.crashResult) {
+        ctx.fillStyle = C.hurt;
+        ctx.fillText(hud.crashResult, x, y + 32);
+      }
+    } else if (hud.waveLeft >= 0 && !hud.intermission) {
+      ctx.fillText('Осталось ' + hud.waveLeft, x, y + 16);
+    }
+
+    // Передышка: крупная надпись по центру, плавно гаснет к концу.
+    if (hud.intermission > 0) {
+      const t = Math.min(1, hud.intermission / Math.max(0.01, hud.intermissionTotal));
+      ctx.globalAlpha = Math.min(1, t * 3);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = C.accent;
+      ctx.font = '700 34px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillText('Волна ' + hud.wave, this.w / 2, this.h * 0.28);
+      if (hud.crash) {
+        ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = C.hurt;
+        ctx.fillText('краш-тест: врагов всё больше, смотри на FPS', this.w / 2, this.h * 0.28 + 30);
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 }

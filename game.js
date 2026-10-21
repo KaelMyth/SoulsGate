@@ -14,6 +14,7 @@ import { createEffect, resetEffect, initEffect, updateEffect } from './world_eff
 import { Combat } from './systems_combat.js';
 import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
+import { Swarm } from './systems_swarm.js';
 import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
@@ -42,7 +43,14 @@ export class Game {
     this.deadTimer = 0;
     this.kills = 0;
     this.runTime = 0;
-    this.hud = { insets: this.insets, kills: 0 };
+    this.hud = {
+      insets: this.insets, kills: 0,
+      wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
+    };
+    this.crashResult = null; // { enemies, fps, wave, time }: первая просадка FPS в краш-тесте
+    this.sagTimer = 0;
+    this.sagCount = 0;
+    this.storage = o.storage || null;
 
     // Объекты боя: списки с пулами. Вражеские снаряды пока никто не выпускает (стрелок на этапе 4).
     this.enemies = new EntityPool(createEnemy, resetEnemy, 16);
@@ -52,8 +60,10 @@ export class Game {
     this.heroList = [this.hero];
 
     this.combat = new Combat(this.bus, this.hero, config.combat);
+    this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.autoattack = new AutoAttack({
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
+      grid: this.swarm.grid,
     });
 
     this.renderer = new Renderer(o.canvas, config, {
@@ -69,7 +79,7 @@ export class Game {
       hud: this.hud,
     });
     this.spawner = new Spawner({
-      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd,
+      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus,
     });
 
     // Слои столкновений: кто с кем взаимодействует, объявлено здесь, а не размазано по коду.
@@ -110,6 +120,10 @@ export class Game {
         effects: this.effects.count,
         hp: Math.ceil(this.hero.hp) + '/' + config.hero.maxHp,
         kills: this.kills,
+        wave: this.waveLabel(),
+        cap: this.hud.cap,
+        checks: this.swarm.pairChecks,
+        crash: this.crashResult ? this.crashText() : '',
         stick: this.stick.active
           ? 'x ' + this.stick.x.toFixed(2) + ' y ' + this.stick.y.toFixed(2)
           : 'не нажат',
@@ -134,6 +148,10 @@ export class Game {
       if (e.targetKind === 'enemy') this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
     });
+    // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
+    this.bus.on('hero:hit-incoming', (inc) => {
+      if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
+    });
     this.bus.on('hero:died', () => {
       this.state = 'dead';
       this.deadTimer = 0;
@@ -142,6 +160,8 @@ export class Game {
 
     this.bus.on('config:changed', (e) => {
       if (e.path === 'render.maxDpr') this.onResize();
+      // Ползунок «Прыгнуть на волну»: перенос сразу, без перезапуска забега.
+      if (e.path === 'waves.startWave' && this.state !== 'dead') this.jumpToWave(e.value);
     });
     window.addEventListener('resize', () => this.onResize());
     window.addEventListener('orientationchange', () => this.onResize());
@@ -198,16 +218,21 @@ export class Game {
       this.runTime += dt;
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
-      this.autoattack.update(dt);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
       const en = this.enemies.items;
+      this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
+      this.autoattack.update(dt);  // цель ищется через сетку
+      this.swarm.steer(en);        // стая: куда тянет жуков
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
+      this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
 
       this.collisions.detect();
       this.spawner.update(dt);
+      this.syncWaveHud();
+      this.watchCrash(dt);
     } else {
       // Герой погиб: мир замирает, доигрываются только вспышки, потом экран перезапуска.
       this.deadTimer += dt;
@@ -238,6 +263,62 @@ export class Game {
     }
   }
 
+  /** Копирует состояние волн в HUD (его рисует renderer) и считает живых врагов. */
+  syncWaveHud() {
+    const sp = this.spawner;
+    const hud = this.hud;
+    hud.wave = sp.wave;
+    hud.crash = sp.crash;
+    hud.intermission = sp.phase === 'intermission' ? Math.max(0, sp.timer) : 0;
+    hud.intermissionTotal = this.config.waves.intermission;
+    hud.alive = sp.alive;
+    hud.cap = sp.phase === 'active' ? sp.cap() : 0;
+    hud.waveLeft = sp.crash ? -1 : Math.max(0, sp.waveCount() - sp.spawned) + sp.alive;
+  }
+
+  waveLabel() {
+    const sp = this.spawner;
+    return sp.crash ? sp.wave + ' (краш-тест)' : String(sp.wave);
+  }
+
+  crashText() {
+    const r = this.crashResult;
+    return 'просадка FPS до ' + Math.round(r.fps) + ' на ' + r.enemies + ' врагах (волна ' + r.wave + ', ' + r.time.toFixed(0) + ' с)';
+  }
+
+  /** Краш-тест: запоминает, на каком числе врагов FPS впервые просел ниже порога и продержался так. */
+  watchCrash(dt) {
+    if (!this.spawner.crash || this.spawner.phase !== 'active') {
+      this.sagTimer = 0;
+      return;
+    }
+    const c = this.config.waves.crash;
+    const fps = this.meter.fps;
+    const measuring = fps > 0 && isFinite(this.meter.minFps); // идёт после прогрева замера
+    if (measuring && fps < c.fpsThreshold) {
+      if (this.sagTimer === 0) this.sagCount = this.spawner.alive;
+      this.sagTimer += dt;
+      if (this.sagTimer >= c.fpsHold && !this.crashResult) {
+        this.crashResult = { enemies: this.sagCount, fps, wave: this.spawner.wave, time: this.spawner.crashTime };
+        this.hud.crashResult = this.crashText();
+        this.bus.emit('crash:fps-drop', this.crashResult);
+        try {
+          if (this.storage) this.storage.setItem('proto.crash.v1', JSON.stringify(this.crashResult));
+        } catch (err) { /* память телефона недоступна: результат останется на экране */ }
+      }
+    } else {
+      this.sagTimer = 0;
+    }
+  }
+
+  jumpToWave(n) {
+    this.spawner.jumpToWave(n);
+    this.crashResult = null;
+    this.hud.crashResult = '';
+    this.sagTimer = 0;
+    this.syncWaveHud();
+  }
+
   pause() {
     if (this.state !== 'playing') return;
     this.state = 'paused';
@@ -250,6 +331,7 @@ export class Game {
     if (this.state !== 'paused') return;
     this.state = 'playing';
     this.stepper.reset(); // время паузы не «догоняем»
+    this.meter.interrupt(); // и простой не считаем просадкой FPS
     this.pauseUI.setPaused(false);
     this.bus.emit('game:resumed', {});
   }
@@ -274,6 +356,9 @@ export class Game {
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.autoattack.reset();
     this.spawner.reset();
+    this.crashResult = null;
+    this.hud.crashResult = '';
+    this.sagTimer = 0;
     this.kills = 0;
     this.hud.kills = 0;
     this.runTime = 0;
