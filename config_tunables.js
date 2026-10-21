@@ -23,6 +23,11 @@ export const TUNABLES = [
   { group: 'Жук', path: 'enemies.beetle.touchDamage', label: 'Урон при касании', min: 1, max: 40, step: 1 },
   { group: 'Жук', path: 'enemies.beetle.touchCooldown', label: 'Пауза между ударами, с', min: 0.2, max: 2, step: 0.1 },
 
+  { group: 'Опыт', path: 'xp.gainMult', label: 'Скорость набора опыта (множитель)', min: 0.2, max: 5, step: 0.1 },
+  { group: 'Опыт', path: 'xp.pickupRadius', label: 'Радиус притягивания камней', min: 20, max: 250, step: 5 },
+  { group: 'Опыт', path: 'gems.green.value', label: 'Опыт зелёного камня', min: 1, max: 10, step: 1 },
+  { group: 'Опыт', path: 'gems.red.value', label: 'Опыт красного камня (бык)', min: 1, max: 50, step: 1 },
+
   { group: 'Бык', path: 'enemies.bull.hp', label: 'Здоровье (у новых врагов)', min: 10, max: 300, step: 5 },
   { group: 'Бык', path: 'enemies.bull.speed', label: 'Скорость подхода', min: 20, max: 200, step: 5 },
   { group: 'Бык', path: 'enemies.bull.attack.windup', label: 'Замах (сигнал для парирования), с', min: 0.2, max: 2, step: 0.05 },

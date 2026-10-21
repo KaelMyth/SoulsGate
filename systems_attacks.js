@@ -171,7 +171,6 @@ export class Attacks {
 /**
  * Что рисовать на земле для врага: { shape, x, y, dirX, dirY, length, width, radius, progress } или null.
  * Рисует renderer, а считается тут, чтобы одни и те же данные видели и экран, и тесты.
- * Стрелок в прицеливании тоже даёт тонкую линию.
  */
 export function getTelegraph(e, hero, out) {
   const A = e.def.attack;
@@ -187,21 +186,6 @@ export function getTelegraph(e, hero, out) {
     out.width = Math.max(A.width || 0, e.radius * 2);
     out.radius = A.radius || 0;
     out.progress = Math.min(1, a.t / Math.max(0.01, A.windup));
-    return out;
-  }
-  if (e.aim > 0 && e.def.shot) {
-    const dx = hero.x - e.x;
-    const dy = hero.y - e.y;
-    const d = Math.hypot(dx, dy) || 1;
-    out.shape = 'line';
-    out.x = e.x;
-    out.y = e.y;
-    out.dirX = dx / d;
-    out.dirY = dy / d;
-    out.length = Math.min(e.def.shot.range, d + 60);
-    out.width = 5;
-    out.radius = 0;
-    out.progress = 1 - e.aim / Math.max(0.01, e.aimTotal);
     return out;
   }
   return null;

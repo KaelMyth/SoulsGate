@@ -239,7 +239,7 @@ body {
 #pause-btn {
   position: fixed;
   z-index: 20;
-  top: calc(var(--safe-top) + 116px);
+  top: calc(var(--safe-top) + 132px);
   left: calc(var(--safe-left) + 8px);
   width: 44px;
   height: 44px;

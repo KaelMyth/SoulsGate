@@ -18,6 +18,7 @@ import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
+import { Xp, createGem, resetGem } from './systems_xp.js';
 import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
@@ -65,6 +66,7 @@ export class Game {
     this.heroShots = new EntityPool(createProjectile, resetProjectile, 16);
     this.enemyShots = new EntityPool(createProjectile, resetProjectile, 0);
     this.effects = new EntityPool(createEffect, resetEffect, 24);
+    this.gems = new EntityPool(createGem, resetGem, 32);
     this.heroList = [this.hero];
 
     this.combat = new Combat(this.bus, this.hero, config.combat);
@@ -72,6 +74,7 @@ export class Game {
     this.swipe = new SwipeDetector(this.bus, config.dash, (dx, dy) => {
       if (this.state === 'playing') this.defense.tryDash(dx, dy);
     });
+    this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
@@ -89,6 +92,7 @@ export class Game {
       heroShots: this.heroShots,
       enemyShots: this.enemyShots,
       effects: this.effects,
+      gems: this.gems,
       autoattack: this.autoattack,
       defense: this.defense,
       hud: this.hud,
@@ -139,6 +143,8 @@ export class Game {
         enemies: this.enemies.count,
         shots: this.heroShots.count + this.enemyShots.count,
         effects: this.effects.count,
+        gems: this.gems.count,
+        level: this.xp.level + ' (' + Math.floor(this.xp.xp) + '/' + (this.xp.need || 'макс') + ')',
         hp: Math.ceil(this.hero.hp) + '/' + config.hero.maxHp,
         kills: this.kills,
         wave: this.waveLabel(),
@@ -185,6 +191,7 @@ export class Game {
       this.burst(this.hero.x, this.hero.y, 0.3, this.defense.blockRadius, this.defense.blockRadius * 1.9, C.parry);
       this.sparks(e.x, e.y, config.block.sparks, C.spark);
     });
+    this.bus.on('hero:levelup', () => this.burst(this.hero.x, this.hero.y, 0.6, this.hero.radius, this.hero.radius * 5, '#7dffb0'));
     this.bus.on('hero:died', () => {
       this.state = 'dead';
       this.deadTimer = 0;
@@ -284,6 +291,7 @@ export class Game {
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
 
+      this.xp.update(dt);
       this.collisions.detect();
       this.hitShotsOnBlock();
       this.spawner.update(dt);
@@ -296,7 +304,7 @@ export class Game {
         const sec = Math.floor(this.runTime);
         const mm = Math.floor(sec / 60);
         const ss = String(sec % 60).padStart(2, '0');
-        this.deathScreen.show('Убито: ' + this.kills + '\nПродержался: ' + mm + ':' + ss);
+        this.deathScreen.show('Убито: ' + this.kills + '\nУровень: ' + this.xp.level + '\nПродержался: ' + mm + ':' + ss);
       }
     }
 
@@ -308,6 +316,7 @@ export class Game {
     this.heroShots.sweep();
     this.enemyShots.sweep();
     this.effects.sweep();
+    this.gems.sweep();
   }
 
   /** Двигает снаряды; те, что упёрлись в скалу, гаснут искрой. */
@@ -344,6 +353,10 @@ export class Game {
     hud.intermissionTotal = this.config.waves.intermission;
     hud.alive = sp.alive;
     hud.cap = sp.phase === 'active' ? sp.cap() : 0;
+    hud.level = this.xp.level;
+    hud.xpFraction = this.xp.fraction;
+    hud.xpMax = this.xp.need === 0;
+    hud.levelFlash = this.xp.levelFlash;
     hud.waveLeft = sp.crash ? -1 : Math.max(0, sp.waveCount() - sp.spawned) + sp.alive;
   }
 
@@ -423,6 +436,8 @@ export class Game {
     this.heroShots.clear();
     this.enemyShots.clear();
     this.effects.clear();
+    this.gems.clear();
+    this.xp.reset();
     this.hero.reset();
     this.defense.reset();
     this.swipe.reset();
@@ -439,6 +454,7 @@ export class Game {
     this.deadTimer = 0;
     this.state = 'playing';
     this.deathScreen.hide();
+    this.syncWaveHud(); // HUD сразу показывает новый забег, не дожидаясь шага
     this.bus.emit('run:restarted', {});
   }
 

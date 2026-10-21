@@ -51,6 +51,7 @@ export class Renderer {
     this.heroShots = deps.heroShots || EMPTY;
     this.enemyShots = deps.enemyShots || EMPTY;
     this.effects = deps.effects || EMPTY;
+    this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
     this.defense = deps.defense || null;
     this.hud = deps.hud || null;
@@ -145,6 +146,9 @@ export class Renderer {
       ctx.stroke();
     }
 
+    // Камни опыта лежат на земле под врагами и героем.
+    this.drawGems(alpha, viewL, viewR, viewT, viewB);
+
     // Зоны атак на земле (под врагами): видно, откуда придёт удар.
     this.drawTelegraphs(C, alpha);
 
@@ -213,6 +217,31 @@ export class Renderer {
     this.drawHud(C);
   }
 
+  /** Камни опыта: маленькие ромбики; красный крупнее. Вне экрана не рисуем. */
+  drawGems(alpha, viewL, viewR, viewT, viewB) {
+    const ctx = this.ctx;
+    const list = this.gems.items;
+    for (let i = 0; i < list.length; i++) {
+      const g = list[i];
+      if (!g.active || !g.def) continue;
+      const x = g.prevX + (g.x - g.prevX) * alpha;
+      const y = g.prevY + (g.y - g.prevY) * alpha;
+      const r = g.radius;
+      if (x + r < viewL || x - r > viewR || y + r < viewT || y - r > viewB) continue;
+      ctx.beginPath();
+      ctx.moveTo(x, y - r * 1.25);
+      ctx.lineTo(x + r, y);
+      ctx.lineTo(x, y + r * 1.25);
+      ctx.lineTo(x - r, y);
+      ctx.closePath();
+      ctx.fillStyle = g.def.color;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = g.def.edge;
+      ctx.stroke();
+    }
+  }
+
   /** Телеграфы атак: зона заполняется за время замаха, к концу контур мигает. Не яркие: полупрозрачные. */
   drawTelegraphs(C, alpha) {
     const ctx = this.ctx;
@@ -220,7 +249,7 @@ export class Renderer {
     const tg = this.tg || (this.tg = {});
     for (let i = 0; i < en.length; i++) {
       const e = en[i];
-      if (!e.active || (!e.def.attack && !(e.aim > 0))) continue;
+      if (!e.active || !e.def.attack) continue;
       if (!getTelegraph(e, this.hero, tg)) continue;
       const x = e.prevX + (e.x - e.prevX) * alpha;
       const y = e.prevY + (e.y - e.prevY) * alpha;
@@ -415,8 +444,28 @@ export class Renderer {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x + 6, y + hh / 2 + 0.5);
-    ctx.fillText('Убито: ' + hud.kills, x, y + hh + 14);
-    this.drawWaveHud(C, x, y + hh + 30);
+    // Шкала опыта и уровень под полоской здоровья.
+    const xy = y + hh + 4;
+    ctx.fillStyle = C.hpBg;
+    ctx.fillRect(x, xy, w, 8);
+    ctx.fillStyle = hud.xpMax ? C.accent : '#4fd18b';
+    ctx.fillRect(x, xy, w * Math.max(0, Math.min(1, hud.xpFraction || 0)), 8);
+    ctx.strokeStyle = C.border;
+    ctx.strokeRect(x + 0.5, xy + 0.5, w - 1, 7);
+    ctx.fillStyle = C.hud;
+    ctx.font = '11px ui-monospace, Menlo, monospace';
+    ctx.fillText((hud.xpMax ? 'Ур. макс' : 'Ур. ' + (hud.level || 1)) + ' · Убито: ' + hud.kills, x, y + hh + 24);
+    this.drawWaveHud(C, x, y + hh + 40);
+    // Повышение уровня: надпись над героем-HUD, плавно гаснет.
+    if (hud.levelFlash > 0) {
+      ctx.globalAlpha = Math.min(1, hud.levelFlash);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#7dffb0';
+      ctx.font = '700 18px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillText('Уровень ' + hud.level + '!', this.w / 2, this.h * 0.42);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
+    }
     this.drawCooldowns(C);
   }
 
