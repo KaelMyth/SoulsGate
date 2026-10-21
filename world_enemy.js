@@ -16,6 +16,9 @@ export function createEnemy() {
     kbTau: 0.07,      // за сколько секунд затухает откидывание
     hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
     swX: 0, swY: 0,   // подсказка курса от стаи (сплочённость и согласованность)
+    // Атака с телеграфом (systems/attacks.js): состояние, время в нём, пауза до следующей, направление удара.
+    atk: { state: 'idle', t: 0, cd: 0, hit: false, dirX: 1, dirY: 0 },
+    strikeSrc: { x: 0, y: 0, active: true, parryable: true, enemy: null }, // «источник удара» для блока и парирования
     aim: 0,           // стрелок: сколько ещё секунд целится (светится и стоит)
     aimTotal: 1,
     fireTimer: 0,     // стрелок: до следующего прицеливания
@@ -39,6 +42,12 @@ export function initEnemy(e, def, x, y) {
   e.hx = e.hy = 0;
   e.swX = e.swY = 0;
   e.aim = 0;
+  e.atk.state = 'idle';
+  e.atk.t = 0;
+  e.atk.hit = false;
+  e.atk.cd = def.attack ? def.attack.firstDelay || 0 : 0;
+  e.strikeSrc.enemy = e;
+  e.strikeSrc.active = true;
   e.aimTotal = def.aimTime || 1;
   e.fireTimer = def.firstShotDelay || 0;
 }
@@ -47,10 +56,10 @@ export function initEnemy(e, def, x, y) {
  * Откинуть врага на distance единиц в направлении (dirX, dirY) за время около tau секунд.
  * Врагу можно задать множитель def.knockbackScale (тяжёлых врагов откидывает меньше).
  */
-export function applyKnockback(e, dirX, dirY, distance, tau) {
+export function applyKnockback(e, dirX, dirY, distance, tau, ignoreScale) {
   const len = Math.hypot(dirX, dirY);
   if (len < 1e-9 || distance <= 0) return;
-  const scale = e.def && e.def.knockbackScale !== undefined ? e.def.knockbackScale : 1;
+  const scale = !ignoreScale && e.def && e.def.knockbackScale !== undefined ? e.def.knockbackScale : 1;
   const t = Math.max(0.01, tau);
   const v0 = (distance * scale) / t;
   e.kbTau = t;
@@ -80,6 +89,7 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   if (e.def.keepDistance > 0) {
     hold = e.aim > 0 || (d <= e.def.keepDistance && !arena.segmentBlocked(e.x, e.y, hero.x, hero.y, 3));
   }
+  if (e.atk.state !== 'idle') hold = true; // замах, удар, восстановление и оглушение: сам не идёт
   if (d > 1e-6 && gap > 0 && !hold) {
     let mx = dx / d;
     let my = dy / d;

@@ -1,6 +1,8 @@
 // Отрисовка на Canvas 2D: цветные фигуры вместо арта.
 // Мир рисуется с интерполяцией между прошлым и текущим шагом логики (alpha из цикла).
 
+import { getTelegraph } from './systems_attacks.js';
+
 const TAU = Math.PI * 2;
 const EMPTY = { items: [] };
 
@@ -143,6 +145,9 @@ export class Renderer {
       ctx.stroke();
     }
 
+    // Зоны атак на земле (под врагами): видно, откуда придёт удар.
+    this.drawTelegraphs(C, alpha);
+
     // Враги.
     const en = this.enemies.items;
     for (let i = 0; i < en.length; i++) {
@@ -208,6 +213,49 @@ export class Renderer {
     this.drawHud(C);
   }
 
+  /** Телеграфы атак: зона заполняется за время замаха, к концу контур мигает. Не яркие: полупрозрачные. */
+  drawTelegraphs(C, alpha) {
+    const ctx = this.ctx;
+    const en = this.enemies.items;
+    const tg = this.tg || (this.tg = {});
+    for (let i = 0; i < en.length; i++) {
+      const e = en[i];
+      if (!e.active || (!e.def.attack && !(e.aim > 0))) continue;
+      if (!getTelegraph(e, this.hero, tg)) continue;
+      const x = e.prevX + (e.x - e.prevX) * alpha;
+      const y = e.prevY + (e.y - e.prevY) * alpha;
+      const k = tg.progress;
+      const blink = k > 0.7 && (Math.floor(k * 18) & 1); // последняя часть замаха: контур мигает
+      ctx.save();
+      ctx.translate(x, y);
+      if (tg.shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(0, 0, tg.radius, 0, TAU);
+        ctx.fillStyle = C.teleFill;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, tg.radius * k, 0, TAU);
+        ctx.fillStyle = C.teleProgress;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, tg.radius, 0, TAU);
+      } else {
+        ctx.rotate(Math.atan2(tg.dirY, tg.dirX));
+        const w = tg.width / 2;
+        ctx.fillStyle = C.teleFill;
+        ctx.fillRect(0, -w, tg.length, tg.width);
+        ctx.fillStyle = C.teleProgress;
+        ctx.fillRect(0, -w, tg.length * k, tg.width);
+        ctx.beginPath();
+        ctx.rect(0, -w, tg.length, tg.width);
+      }
+      ctx.lineWidth = blink ? 2.5 : 1.5;
+      ctx.strokeStyle = C.teleEdge;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   drawEnemy(e, x, y, C) {
     const ctx = this.ctx;
     const r = e.radius;
@@ -218,9 +266,15 @@ export class Renderer {
     ctx.fill();
 
     // Попадание: враг белеет и на мгновение раздувается.
-    const rr = hit ? r * 1.15 : r;
+    const rr = hit ? r * 1.15 : e.atk.state === 'windup' ? r * (1 + 0.08 * Math.sin(e.atk.t * 30)) : r;
     const aiming = e.aim > 0;
-    ctx.fillStyle = hit ? '#ffffff' : aiming ? '#ffe9a8' : e.def.color;
+    const st = e.atk.state;
+    // Враг с атакой: замах (светлеет, напрягается), оглушение после парирования (холодный цвет).
+    let fill = e.def.color;
+    if (aiming) fill = '#ffe9a8';
+    else if (st === 'windup') fill = '#f6d9a4';
+    else if (st === 'stun') fill = '#8fa8c8';
+    ctx.fillStyle = hit ? '#ffffff' : fill;
     ctx.beginPath();
     ctx.arc(x, y, rr, 0, TAU);
     ctx.fill();

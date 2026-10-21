@@ -152,8 +152,12 @@ export class Spawner {
     if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return false;
     const e = this.enemies.spawn();
     const sp = this.cfg.spawn;
-    const shooter = this.wave >= sp.shooterFromWave && sp.shooterShare > 0 && this.rnd() < sp.shooterShare;
-    initEnemy(e, this.cfg.enemies[shooter ? 'shooter' : sp.enemy], this.pt.x, this.pt.y);
+    // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
+    const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
+    const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
+    const r = this.rnd();
+    const kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
+    initEnemy(e, this.cfg.enemies[kind], this.pt.x, this.pt.y);
     this.arena.resolveCircle(e); // не внутри скалы
     e.prevX = e.x;
     e.prevY = e.y;

@@ -17,6 +17,7 @@ import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { Shooters } from './systems_shooters.js';
+import { Attacks } from './systems_attacks.js';
 import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
@@ -71,6 +72,7 @@ export class Game {
     this.swipe = new SwipeDetector(this.bus, config.dash, (dx, dy) => {
       if (this.state === 'playing') this.defense.tryDash(dx, dy);
     });
+    this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.autoattack = new AutoAttack({
@@ -248,6 +250,7 @@ export class Game {
   }
 
   onEnemyTouchHero(e) {
+    if (e.atk.state === 'strike') return; // рывок бьёт сам, касание поверх не считаем (иначе урон дважды)
     if (e.touchTimer > 0) return;
     // Если герой неуязвим, пауза не запускается: враг ударит сразу, как только можно.
     if (this.combat.damageHero(e.def.touchDamage, e)) e.touchTimer = e.def.touchCooldown;
@@ -274,6 +277,7 @@ export class Game {
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
+      this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
