@@ -49,6 +49,8 @@ export const TUNABLES = [
 
   { group: 'Рывок', path: 'dash.distance', label: 'Дальность рывка', min: 40, max: 300, step: 5 },
   { group: 'Рывок', path: 'dash.duration', label: 'Время рывка, с', min: 0.05, max: 0.4, step: 0.01 },
+  { group: 'Рывок', path: 'dash.decay', label: 'Торможение в рывке (меньше = резче), с', min: 0.02, max: 0.3, step: 0.01 },
+  { group: 'Рывок', path: 'dash.glide', label: 'Инерция после рывка, с', min: 0.02, max: 0.6, step: 0.02 },
   { group: 'Рывок', path: 'dash.cooldown', label: 'Перезарядка рывка, с', min: 0.3, max: 4, step: 0.1 },
   { group: 'Рывок', path: 'dash.invuln', label: 'Неуязвимость на рывок, с', min: 0, max: 0.5, step: 0.02 },
   { group: 'Рывок', path: 'dash.doubleWindow', label: 'Окно двойного свайпа, с', min: 0.15, max: 0.8, step: 0.05 },

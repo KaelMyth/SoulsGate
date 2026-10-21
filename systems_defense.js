@@ -26,20 +26,27 @@ export class HeroDefense {
     this.state = 'move';
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
+    // Блок ставится один раз за остановку: новый блок только после нового касания стика.
+    this.bus.on('stick:press', () => { this.armed = true; });
   }
 
   reset() {
     this.state = 'move';
     this.upTime = 0;       // сколько стик уже отпущен
+    this.armed = true;     // можно ставить блок: сбрасывается при постановке, взводится касанием стика
+    this.dashElapsed = 0;  // сколько идёт рывок
+    this.dashV0 = 0;       // начальная скорость рывка
     this.blockTime = 0;    // сколько идёт блок
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
+    this.dashT = 0.1;      // длительность активной фазы текущего рывка
     this.dashCd = 0;
     this.dashCdMax = 1;
     this.dashX = 0;
     this.dashY = 0;
     this.hero.dashing = false;
+    this.hero.glideTime = 0;
   }
 
   go(action) {
@@ -88,16 +95,30 @@ export class HeroDefense {
     this.dashX = dirX / len;
     this.dashY = dirY / len;
     this.dashTime = d.duration;
+    this.dashT = Math.max(0.02, d.duration);
     this.dashCd = d.cooldown;
     this.dashCdMax = Math.max(0.001, d.cooldown);
-    const speed = d.distance / Math.max(0.01, d.duration);
+    // Рывок с инерцией: скорость быстро падает по экспоненте (резкий старт, мягкое торможение),
+    // остаток скорости не обрывается, а плавно перетекает в обычное движение (glide).
+    // v0 подобрана так, что рывок вместе с «скольжением» проходит ровно distance.
+    const tau = Math.max(0.005, d.decay);
+    const T = Math.max(0.02, d.duration);
+    const eEnd = Math.exp(-T / tau);
+    this.dashV0 = d.distance / (tau * (1 - eEnd) + eEnd * d.glide);
+    this.dashElapsed = 0;
     this.hero.dashing = true;
-    this.hero.dashVx = this.dashX * speed;
-    this.hero.dashVy = this.dashY * speed;
+    this.hero.dashVx = this.dashX * this.dashV0;
+    this.hero.dashVy = this.dashY * this.dashV0;
     this.hero.facing = Math.atan2(this.dashY, this.dashX);
     if (d.invuln > 0 && this.hero.invuln < d.invuln) this.hero.invuln = d.invuln;
     this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
     return true;
+  }
+
+  /** Средний множитель скорости рывка на отрезке [t, t + dt]. */
+  avgDecay(t, dt) {
+    const tau = Math.max(0.005, this.cfg.dash.decay);
+    return (tau / dt) * (Math.exp(-t / tau) - Math.exp(-(t + dt) / tau));
   }
 
   update(dt) {
@@ -106,17 +127,29 @@ export class HeroDefense {
     if (!this.hero.active) return;
     const stickUp = !this.stick.active;
     this.upTime = stickUp ? this.upTime + dt : 0;
+    if (!stickUp) this.armed = true;
 
     if (this.state === 'dash') {
-      this.dashTime -= dt;
-      if (this.dashTime <= 0) {
+      if (this.dashElapsed >= this.dashT) {
+        // Рывок закончился: остаток скорости остаётся у героя и гаснет плавно, а не обрывается.
         this.go('end');
         this.hero.dashing = false;
-        this.hero.vx = this.hero.vy = 0;
+        const k = Math.exp(-this.dashElapsed / Math.max(0.005, this.cfg.dash.decay));
+        this.hero.vx = this.dashX * this.dashV0 * k;
+        this.hero.vy = this.dashY * this.dashV0 * k;
+        this.hero.glideTime = this.cfg.dash.glide * 2.5;
+        this.hero.glideAccel = this.cfg.dash.glide;
+      } else {
+        // Скорость на этот шаг: среднее экспоненты за шаг (так сумма шагов равна интегралу, дальность точная).
+        const k = this.avgDecay(this.dashElapsed, dt);
+        this.hero.dashVx = this.dashX * this.dashV0 * k;
+        this.hero.dashVy = this.dashY * this.dashV0 * k;
+        this.dashElapsed += dt;
       }
     } else if (this.state === 'move') {
       // Блок включается сам: стик отпущен немного времени подряд и блок не на перезарядке.
-      if (stickUp && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
+      if (stickUp && this.armed && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
+        this.armed = false; // один блок за остановку
         this.blockTime = 0;
         this.bus.emit('block:started', {});
       }

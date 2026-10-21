@@ -16,6 +16,8 @@ export class Hero {
     this.dashing = false; // идёт рывок: стик не слушаем, летим со скоростью рывка
     this.dashVx = 0;
     this.dashVy = 0;
+    this.glideTime = 0;   // после рывка: сколько ещё скорость гаснет плавно
+    this.glideAccel = 0.2; // постоянная времени этого гашения, с
   }
 
   get radius() {
@@ -37,10 +39,12 @@ export class Hero {
       return;
     }
 
+    if (this.glideTime > 0) this.glideTime -= dt;
+    const accelTime = this.glideTime > 0 ? Math.max(this.cfg.accelTime, this.glideAccel) : this.cfg.accelTime;
     const tvx = ix * this.cfg.speed;
     const tvy = iy * this.cfg.speed;
-    if (this.cfg.accelTime > 0) {
-      const k = 1 - Math.exp(-dt / this.cfg.accelTime);
+    if (accelTime > 0) {
+      const k = 1 - Math.exp(-dt / accelTime);
       this.vx += (tvx - this.vx) * k;
       this.vy += (tvy - this.vy) * k;
       if (tvx === 0 && tvy === 0 && Math.abs(this.vx) + Math.abs(this.vy) < 2) {
