@@ -3,6 +3,7 @@
 //
 // События в шину:
 //   'stick:press'   { x, y, time }                          палец коснулся
+//   'stick:move'    { x, y, mag, time, pressTime }          палец сдвинулся (вектор стика, длина 0..1)
 //   'stick:release' { time, duration, dirX, dirY, mag, cancelled }   палец отпущен
 // На 'stick:release' на этапе 4 повесится блок.
 
@@ -85,6 +86,7 @@ export class Stick {
     const dy = e.clientY - this.originTop - this.baseY;
     const o = computeStick(dx, dy, this.cfg.radius, this.cfg.deadzone, this.out);
     this.x = o.x; this.y = o.y; this.mag = o.mag; this.kx = o.kx; this.ky = o.ky;
+    this.bus.emit('stick:move', { x: o.x, y: o.y, mag: o.mag, time: e.timeStamp, pressTime: this.pressTime });
   }
 
   onUp(e) {
