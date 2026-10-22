@@ -26,4 +26,10 @@ export class Storage {
     this.slots.fill(null);
     for (const key of keys || []) if (mods[key]) this.add({ key, def: mods[key] });
   }
+
+  /** Для тестов: положить мод, а если места нет, добавить ячейку. */
+  addAlways(mod) {
+    if (this.add(mod) >= 0) return;
+    this.slots.push(mod);
+  }
 }

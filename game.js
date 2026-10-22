@@ -90,6 +90,7 @@ export class Game {
     this.autoattack = new AutoAttack({
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
       grid: this.swarm.grid,
+      rnd: this.rnd,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
@@ -117,7 +118,7 @@ export class Game {
     this.collisions.setLayer(Layer.ENEMY, this.enemies.items);
     this.collisions.setLayer(Layer.HERO_PROJ, this.heroShots.items);
     this.collisions.setLayer(Layer.ENEMY_PROJ, this.enemyShots.items);
-    this.collisions.addRule(Layer.HERO_PROJ, Layer.ENEMY, (p, e) => this.onShotHitEnemy(p, e));
+    // Снаряды героя против врагов считает hitEnemiesWithShots через сетку: перебор «каждый с каждым» не тянет сотни снарядов.
     this.collisions.addRule(Layer.ENEMY_PROJ, Layer.HERO, (p) => this.onEnemyShotHitHero(p));
     this.collisions.addRule(Layer.ENEMY, Layer.HERO, (e) => this.onEnemyTouchHero(e));
 
@@ -266,6 +267,34 @@ export class Game {
     }
   }
 
+  /** Попадания снарядов героя во врагов: кандидатов дают клетки сетки, точное пересечение проверяется по кругам. */
+  hitEnemiesWithShots() {
+    const shots = this.heroShots.items;
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    let big = 0;
+    for (const k in this.config.enemies) big = Math.max(big, this.config.enemies[k].radius || 0);
+    const reach = big + 12; // самый крупный враг + запас на сдвиг врагов с момента сборки сетки
+    for (let i = 0; i < shots.length; i++) {
+      const p = shots[i];
+      if (!p.active) continue;
+      const n = grid.query(p.x, p.y, p.radius + reach);
+      const buf = grid.buf;
+      for (let k = 0; k < n; k++) {
+        const e = en[buf[k]];
+        if (!e.active) continue;
+        this.collisions.checks++;
+        const dx = p.x - e.x;
+        const dy = p.y - e.y;
+        const r = p.radius + e.radius;
+        if (dx * dx + dy * dy <= r * r) {
+          this.onShotHitEnemy(p, e);
+          if (!p.active) break;
+        }
+      }
+    }
+  }
+
   onShotHitEnemy(p, e) {
     const speed = Math.hypot(p.vx, p.vy) || 1;
     // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
@@ -315,6 +344,7 @@ export class Game {
 
       this.xp.update(dt);
       this.collisions.detect();
+      this.hitEnemiesWithShots();
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
@@ -519,6 +549,7 @@ export class Game {
     }
     this.mode = mode;
     this.panel.setAvailable(mode === 'test');
+    this.pauseUI.setTestTools(mode === 'test');
     this.modeScreen.hide();
     this.restart();
   }

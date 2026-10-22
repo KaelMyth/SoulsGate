@@ -7,12 +7,22 @@ import { BuilderUI } from './ui_builder.js';
 export class PauseUI {
   /** handlers: { onToggle, onResume, onRestart, onExit }; grid: BuildGrid; storage: Storage; config: живой конфиг */
   constructor(root, handlers, grid, storage, config) {
+    this.storage = storage;
     this.button = h('button', {
       id: 'pause-btn', type: 'button', 'aria-label': 'Пауза', onclick: () => handlers.onToggle(),
     }, '❚❚');
     this.builder = new BuilderUI(grid, config, storage);
+    // Тестовый набор: любой мод из конфига кладётся в хранилище нажатием (только режим «Тестирование»).
+    this.tools = h('div', { class: 'test-tools' }, h('span', {}, 'Тест: добавить мод'));
+    for (const key of Object.keys(config.mods)) {
+      this.tools.append(h('button', {
+        type: 'button', class: 'tool', 'data-spawn': key,
+        onclick: () => { this.storage.addAlways({ key, def: config.mods[key] }); this.builder.rebuild(); },
+      }, '+ ' + config.mods[key].name));
+    }
     this.main = h('div', { class: 'card', id: 'pause-main' },
       this.builder.root,
+      this.tools,
       h('div', { class: 'row' },
         h('button', { id: 'pause-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
         h('button', { id: 'pause-menu', class: 'secondary', type: 'button', onclick: () => this.showMenu(true) }, 'Меню')));
@@ -22,6 +32,11 @@ export class PauseUI {
       h('button', { id: 'menu-exit', class: 'secondary', type: 'button', onclick: () => handlers.onExit() }, 'Выход'));
     this.screen = h('div', { id: 'pause-screen', hidden: '' }, this.main, this.menu);
     root.append(this.button, this.screen);
+  }
+
+  /** Набор для тестов виден только в режиме «Тестирование». */
+  setTestTools(on) {
+    this.tools.hidden = !on;
   }
 
   showMenu(on) {
