@@ -1,12 +1,48 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 6 · сборка 1 (опыт)';
+export const BUILD = 'этап 6 · сборка 2 (поле билда)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
   // на телефоне настройки со старым номером тогда не применятся.
-  version: 6,
+  version: 7,
+
+  // Поле билда (открывается на паузе): квадратная сетка, нарисованная ромбами.
+  // size: сторона сетки (4 на старте игры по концепту, 7 сейчас для проверки), minCoreDistance: минимум клеток между ядрами.
+  build: {
+    size: 7,
+    minCoreDistance: 3,
+  },
+
+  // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
+  // поэтому ползунок панели сразу меняет цифры в карточке ядра. icon: имя из ui/icons.js.
+  cores: {
+    projectile: {
+      name: 'Снаряд',
+      icon: 'bolt',
+      stats: [
+        { label: 'Урон', path: 'projectiles.bolt.damage' },
+        { label: 'Скорость', path: 'projectiles.bolt.speed' },
+        { label: 'Размер', path: 'projectiles.bolt.radius' },
+        { label: 'Дальность', path: 'projectiles.bolt.range' },
+        { label: 'Откидывание', path: 'projectiles.bolt.knockback' },
+        { label: 'Перезарядка', path: 'attack.reload', unit: 'с' },
+        { label: 'Радиус цели', path: 'attack.radius' },
+      ],
+    },
+    shield: {
+      name: 'Щит',
+      icon: 'shield',
+      stats: [
+        { label: 'Длительность блока', path: 'block.duration', unit: 'с' },
+        { label: 'Окно парирования', path: 'block.parryWindow', unit: 'с' },
+        { label: 'Перезарядка', path: 'block.cooldown', unit: 'с' },
+        { label: 'Гасит урона', path: 'block.reduction', percent: true, unit: '%' },
+        { label: 'Радиус сферы', path: 'block.radiusScale', unit: '×' },
+      ],
+    },
+  },
 
   // Фиксированный шаг логики: не зависит от частоты кадров экрана.
   step: {

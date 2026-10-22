@@ -86,6 +86,9 @@ export const TUNABLES = [
   { group: 'Управление', path: 'stick.radius', label: 'Радиус стика, px', min: 30, max: 120, step: 2 },
   { group: 'Управление', path: 'stick.deadzone', label: 'Мёртвая зона стика', min: 0, max: 0.4, step: 0.01 },
 
+  { group: 'Поле билда', path: 'build.size', label: 'Сторона поля (перерасставляет ядра)', min: 5, max: 9, step: 1 },
+  { group: 'Поле билда', path: 'build.minCoreDistance', label: 'Мин. расстояние между ядрами', min: 2, max: 6, step: 1 },
+
   { group: 'Камера и экран', path: 'camera.viewWidth', label: 'Обзор: ширина экрана в единицах', min: 240, max: 800, step: 10 },
   { group: 'Камера и экран', path: 'camera.smoothTime', label: 'Плавность камеры, с', min: 0, max: 0.5, step: 0.01 },
   { group: 'Камера и экран', path: 'render.maxDpr', label: 'Чёткость (макс. DPR)', min: 1, max: 3, step: 0.5 },

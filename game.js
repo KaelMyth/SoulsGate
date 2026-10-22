@@ -24,6 +24,8 @@ import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
+import { BuildGrid } from './build_grid.js';
+import { layoutCores } from './build_placement.js';
 import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
 
@@ -112,11 +114,13 @@ export class Game {
     this.collisions.addRule(Layer.ENEMY, Layer.HERO, (e) => this.onEnemyTouchHero(e));
 
     this.deathScreen = new DeathScreen(o.uiRoot, () => this.restart());
+    this.build = new BuildGrid(config.build.size);
+    this.layoutBuild();
     this.pauseUI = new PauseUI(o.uiRoot, {
       onToggle: () => this.togglePause(),
       onResume: () => this.resume(),
       onRestart: () => this.restart(),
-    });
+    }, this.build, config);
 
     this.slotPresses = 0;
     this.slot = new SlotUI(o.uiRoot, (n) => {
@@ -200,6 +204,9 @@ export class Game {
 
     this.bus.on('config:changed', (e) => {
       if (e.path === 'render.maxDpr') this.onResize();
+      // Размер поля или расстояние между ядрами: ядра встают заново.
+      if (e.path === 'build.size' || e.path === 'build.minCoreDistance') this.relayoutBuild();
+      else if (this.pauseUI.visible) this.pauseUI.refresh();
       // Ползунок «Прыгнуть на волну»: перенос сразу, без перезапуска забега.
       if (e.path === 'waves.startWave' && this.state !== 'dead') this.jumpToWave(e.value);
     });
@@ -403,6 +410,18 @@ export class Game {
     this.syncWaveHud();
   }
 
+  /** Расставить ядра по полю билда случайно (внутри, не на краях). */
+  layoutBuild() {
+    const c = this.config;
+    if (this.build.size !== Math.round(c.build.size)) this.build.resize(c.build.size);
+    layoutCores(this.build, c.cores, this.rnd, c.build.minCoreDistance);
+  }
+
+  relayoutBuild() {
+    this.layoutBuild();
+    this.pauseUI.rebuild();
+  }
+
   pause() {
     if (this.state !== 'playing') return;
     this.state = 'paused';
@@ -429,6 +448,7 @@ export class Game {
   restart() {
     if (this.state !== 'dead' && this.state !== 'paused') return;
     this.stick.cancel();
+    this.relayoutBuild(); // новый забег: ядра встают в новые места
     this.pauseUI.setPaused(false);
     this.nav.source = -1;
     this.stepper.reset();
