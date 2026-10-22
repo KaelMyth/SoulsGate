@@ -6,7 +6,7 @@ export function formatStat(stat, value) {
   if (value === undefined || value === null || Number.isNaN(value)) return '—';
   let v = value;
   if (stat.percent) v = Math.round(value * 100);
-  const text = Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+  const text = stat.decimals !== undefined ? v.toFixed(stat.decimals) : Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
   return text + (stat.unit ? ' ' + stat.unit : '');
 }
 

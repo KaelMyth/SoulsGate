@@ -25,6 +25,7 @@ import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
 import { BuildGrid } from './build_grid.js';
+import { Storage } from './build_storage.js';
 import { layoutCores } from './build_placement.js';
 import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -115,12 +116,13 @@ export class Game {
 
     this.deathScreen = new DeathScreen(o.uiRoot, () => this.restart());
     this.build = new BuildGrid(config.build.size);
+    this.storage = new Storage(config.build.storageSlots);
     this.layoutBuild();
     this.pauseUI = new PauseUI(o.uiRoot, {
       onToggle: () => this.togglePause(),
       onResume: () => this.resume(),
       onRestart: () => this.restart(),
-    }, this.build, config);
+    }, this.build, this.storage, config);
 
     this.slotPresses = 0;
     this.slot = new SlotUI(o.uiRoot, (n) => {

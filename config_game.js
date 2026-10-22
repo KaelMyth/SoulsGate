@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 6 · сборка 2 (поле билда)';
+export const BUILD = 'этап 6 · сборка 3 (меню и хранилище)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -13,6 +13,7 @@ export const CONFIG = {
   build: {
     size: 7,
     minCoreDistance: 3,
+    storageSlots: 12,  // ячеек в ряду хранилища над полем
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -27,7 +28,7 @@ export const CONFIG = {
         { label: 'Размер', path: 'projectiles.bolt.radius' },
         { label: 'Дальность', path: 'projectiles.bolt.range' },
         { label: 'Откидывание', path: 'projectiles.bolt.knockback' },
-        { label: 'Перезарядка', path: 'attack.reload', unit: 'с' },
+        { label: 'Скорость стрельбы', path: 'attack.reload', unit: 'с', decimals: 2 },
         { label: 'Радиус цели', path: 'attack.radius' },
       ],
     },
@@ -35,10 +36,10 @@ export const CONFIG = {
       name: 'Щит',
       icon: 'shield',
       stats: [
-        { label: 'Длительность блока', path: 'block.duration', unit: 'с' },
-        { label: 'Окно парирования', path: 'block.parryWindow', unit: 'с' },
-        { label: 'Перезарядка', path: 'block.cooldown', unit: 'с' },
-        { label: 'Гасит урона', path: 'block.reduction', percent: true, unit: '%' },
+        { label: 'Длительность блока', path: 'block.duration', unit: 'с', decimals: 2 },
+        { label: 'Окно парирования', path: 'block.parryWindow', unit: 'с', decimals: 2 },
+        { label: 'Перезарядка', path: 'block.cooldown', unit: 'с', decimals: 2 },
+        { label: 'Сила блока', path: 'block.reduction', percent: true, unit: '%' },
         { label: 'Радиус сферы', path: 'block.radiusScale', unit: '×' },
       ],
     },

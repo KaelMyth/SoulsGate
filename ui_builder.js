@@ -5,14 +5,16 @@ import { icon } from './ui_icons.js';
 import { coreStats } from './build_cores.js';
 
 export class BuilderUI {
-  constructor(grid, config) {
+  constructor(grid, config, storage) {
     this.grid = grid;
+    this.storage = storage;
     this.config = config;
     this.selected = null; // id выбранного ядра
     this.board = h('div', { class: 'board' });
     this.wrap = h('div', { class: 'board-wrap' }, this.board);
     this.info = h('div', { class: 'core-info' });
-    this.root = h('div', { class: 'builder' }, this.wrap, this.info);
+    this.shelf = h('div', { class: 'shelf' });
+    this.root = h('div', { class: 'builder' }, this.shelf, this.wrap, this.info);
     this.rebuild();
   }
 
@@ -22,6 +24,8 @@ export class BuilderUI {
     if (this.selected && !g.coreById(this.selected)) this.selected = null;
     if (this.wrap.style) this.wrap.style.setProperty('--n', String(g.size));
     this.wrap.setAttribute('data-size', String(g.size));
+    clear(this.shelf);
+    for (let i = 0; i < this.storage.size; i++) this.shelf.append(h('div', { class: 'slot-cell', 'data-slot': String(i) }));
     clear(this.board);
     this.cellEls = [];
     for (const c of g.cells) {

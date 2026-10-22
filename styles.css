@@ -252,7 +252,7 @@ body {
   line-height: 1;
   touch-action: manipulation;
 }
-#pause-btn.on { border-color: var(--accent); color: var(--accent); }
+#pause-btn.on { display: none; } /* на паузе есть «Продолжить» */
 
 /* Ниже кнопки ⚙ и панели (z-index 20): на паузе можно крутить ползунки. */
 #pause-screen {
@@ -263,7 +263,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-  background: rgba(7, 10, 16, 0.6);
+  background: rgba(0, 0, 0, 0.93);
   touch-action: manipulation;
 }
 #pause-screen[hidden] { display: none; }
@@ -282,7 +282,7 @@ body {
 #pause-screen .card { width: min(94vw, 420px); margin: auto; padding: 16px 12px 20px; }
 
 /* Поле билда: сетка N×N, повёрнутая на 45°. Диагональ поля влезает в min(92vw, 50vh). */
-.builder { --fit: min(88vw, 40vh); }
+.builder { --fit: min(90vw, 43vh); }
 .board-wrap {
   --n: 7;
   --cell: calc(var(--fit) / (var(--n) * 1.4142));
@@ -312,6 +312,20 @@ body {
 #pause-screen .board .cell.core { background: #2b3b57; border-color: var(--accent); color: var(--accent); }
 #pause-screen .board .cell.core.selected { background: var(--accent); color: #1a1206; }
 .board .cell .icon-svg { width: 62%; height: 62%; transform: rotate(-45deg); pointer-events: none; }
+.shelf {
+  display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden;
+  padding: 4px 2px 8px; margin: 0 4px;
+  touch-action: pan-x; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.shelf::-webkit-scrollbar { display: none; }
+.shelf .slot-cell {
+  flex: 0 0 48px; height: 48px; box-sizing: border-box;
+  border: 1px dashed #2a3a52; border-radius: 8px; background: #101826;
+}
+#pause-screen .row { display: flex; gap: 8px; }
+#pause-screen .row button { flex: 1; margin-top: 6px; }
+#pause-screen .card[hidden] { display: none; }
+#menu-card { padding: 20px 16px 22px; width: min(80vw, 320px); }
 .core-info { min-height: 100px; margin-bottom: 0; text-align: left; padding: 0 8px; }
 .core-info h3 { margin: 0 0 4px; font-size: 16px; text-align: center; color: var(--accent); }
 .core-info .hint { margin: 10px 0; text-align: center; }
