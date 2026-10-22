@@ -23,8 +23,10 @@ export function coreStats(core, config, mods) {
     let bonus = '';
     if (m && typeof v === 'number') {
       v = v * (1 + m.percent / 100) + m.flat;
-      bonus = (m.percent ? '+' + m.percent + '%' : '') + (m.flat ? (m.percent ? ' ' : '') + '+' + m.flat : '');
+      const pc = Math.round(m.percent * 10) / 10;
+      bonus = s.key === core.def.multStat ? '×' + (1 + pc / 100) : (pc ? '+' + pc + '%' : '') + (m.flat ? (pc ? ' ' : '') + '+' + m.flat : '');
     }
+    if (s.key === 'count' && typeof v === 'number') v = Math.round(v); // снарядов целое число
     return { label: s.label, text: formatStat(s, v), bonus };
   });
 }

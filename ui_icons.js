@@ -12,6 +12,14 @@ const ICONS = {
     ['path', { d: 'M16 4 27 8v8c0 7-5 11-11 13C10 27 5 23 5 16V8z', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linejoin': 'round' }],
     ['path', { d: 'M16 9v15M10 14h12', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none' }],
   ],
+  // Х2: удвоение.
+  x2: [
+    ['text', { x: 16, y: 23, 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 700, fill: 'currentColor' }, '×2'],
+  ],
+  // Х2: надпись.
+  x2: [
+    ['text', { x: 16, y: 23, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 800, fill: 'currentColor', 'font-family': 'sans-serif' }, '×2'],
+  ],
   // Мощь: стрелка вверх.
   power: [
     ['path', { d: 'M16 4 6 16h7v11h6V16h7z', fill: 'currentColor' }],
@@ -20,6 +28,6 @@ const ICONS = {
 
 export function icon(name) {
   const root = svg('svg', { viewBox: '0 0 32 32', class: 'icon-svg', 'aria-hidden': 'true' });
-  for (const [tag, attrs] of ICONS[name] || []) root.append(svg(tag, attrs));
+  for (const [tag, attrs, text] of ICONS[name] || []) root.append(text ? svg(tag, attrs, text) : svg(tag, attrs));
   return root;
 }

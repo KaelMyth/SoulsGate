@@ -80,28 +80,43 @@ export class BuildGrid {
   }
 
   /**
-   * Ветки: для каждой клетки с модом, связанной гранями с ядром через другие моды, id ядра.
-   * Возвращает Map: индекс клетки (y * size + x) → id ядра. Ядра тоже входят (свой id).
+   * Дерево билда: от каждого ядра наружу по модам. Возвращает
+   * { owner: Map idx→id ядра, parent: Map idx→idx родителя или -1 (родитель ядро), carry: Map idx→стат, который несёт мод }.
+   * idx = y * size + x. Ядра входят в owner со своим id. Клетка с модом встаёт гранью ровно к одной детали,
+   * поэтому соседство деталей и есть дерево (петель нет).
+   * carry: какой стат ядра мод изменяет: «Мощь» несёт damage, «Х2» на ядре несёт multStat ядра, «Х2» на моде несёт то же, что родитель.
    */
-  branches() {
+  tree() {
     const owner = new Map();
+    const parent = new Map();
+    const carry = new Map();
     const queue = [];
     for (const k of this.cores) {
       owner.set(k.y * this.size + k.x, k.id);
+      parent.set(k.y * this.size + k.x, -2);
       queue.push(this.cell(k.x, k.y));
     }
     for (let i = 0; i < queue.length; i++) {
       const c = queue[i];
-      const id = owner.get(c.y * this.size + c.x);
+      const ci = c.y * this.size + c.x;
+      const id = owner.get(ci);
       for (const n of this.neighbors(c.x, c.y)) {
-        const idx = n.y * this.size + n.x;
-        if (n.mod && !owner.has(idx)) {
-          owner.set(idx, id);
-          queue.push(n);
-        }
+        const ni = n.y * this.size + n.x;
+        if (!n.mod || owner.has(ni)) continue;
+        owner.set(ni, id);
+        parent.set(ni, c.core ? -1 : ci);
+        const e = n.mod.def.effect;
+        if (e.kind === 'double') carry.set(ni, c.core ? c.core.def.multStat : carry.get(ci));
+        else carry.set(ni, e.stat);
+        queue.push(n);
       }
     }
-    return owner;
+    return { owner, parent, carry };
+  }
+
+  /** Ветки: Map индекс клетки → id ядра (ядра и связанные с ними моды). */
+  branches() {
+    return this.tree().owner;
   }
 
   /** Моды, не связанные с ядром (после снятия соседа): их надо вернуть в хранилище. */
@@ -110,17 +125,38 @@ export class BuildGrid {
     return this.cells.filter((c) => c.mod && !owner.has(c.y * this.size + c.x));
   }
 
-  /** Суммарные модификаторы ядра: { стат: { percent, flat } } по модам его ветки. */
+  /**
+   * Суммарные модификаторы ядра: { стат: { percent, flat } }.
+   * Правила: моды на разных гранях ядра складываются (+10% и +10% = +20%), моды цепочкой друг за другом
+   * умножаются (110, 121, 133.1). «Х2» на ядре даёт +100% к его множимому стату (снарядов 1→2, прочность блока 100→200),
+   * «Х2» на моде удваивает накопленный бонус ветки до него (+21% → +42%).
+   */
   modifiersFor(coreId) {
-    const owner = this.branches();
-    const out = {};
+    const { owner, parent, carry } = this.tree();
+    const kids = new Map();
     for (const c of this.cells) {
-      if (!c.mod || owner.get(c.y * this.size + c.x) !== coreId) continue;
-      const e = c.mod.def.effect;
-      const m = out[e.stat] || (out[e.stat] = { percent: 0, flat: 0 });
-      if (e.mode === 'flat') m.flat += e.value;
-      else m.percent += e.value;
+      if (!c.mod) continue;
+      const i = c.y * this.size + c.x;
+      if (owner.get(i) !== coreId) continue;
+      const p = parent.get(i);
+      if (!kids.has(p)) kids.set(p, []);
+      kids.get(p).push(i);
     }
-    return out;
+    // B: накопленный бонус до этого мода (доля), возвращает итог ветки от этого мода.
+    const walk = (i, bIn, onCore) => {
+      const e = this.cells[i].mod.def.effect;
+      const out = e.kind === 'double' ? (onCore ? 1 : 2 * bIn) : (1 + bIn) * (1 + e.value / 100) - 1;
+      let total = out;
+      for (const k of kids.get(i) || []) total += walk(k, out, false) - out;
+      return total;
+    };
+    const res = {};
+    for (const i of kids.get(-1) || []) {
+      const stat = carry.get(i);
+      if (!stat) continue;
+      const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
+      m.percent += walk(i, 0, true) * 100;
+    }
+    return res;
   }
 }

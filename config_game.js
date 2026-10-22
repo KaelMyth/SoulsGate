@@ -1,12 +1,12 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 6 · сборка 5 (моды)';
+export const BUILD = 'этап 6 · сборка 6 (ветки, Х2, блок-запас)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
   // на телефоне настройки со старым номером тогда не применятся.
-  version: 7,
+  version: 8,
 
   // Поле билда (открывается на паузе): квадратная сетка, нарисованная ромбами.
   // size: сторона сетки (4 на старте игры по концепту, 7 сейчас для проверки), minCoreDistance: минимум клеток между ядрами.
@@ -14,7 +14,7 @@ export const CONFIG = {
     size: 7,
     minCoreDistance: 3,
     storageSlots: 12,  // ячеек в ряду хранилища над полем
-    startMods: ['power', 'power', 'power'], // что лежит в хранилище с начала забега (пока для проверки)
+    startMods: ['power', 'power', 'power', 'power', 'x2', 'x2'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -22,8 +22,10 @@ export const CONFIG = {
   cores: {
     projectile: {
       name: 'Снаряд',
+      multStat: 'count', // что умножает «Х2», приложенный к ядру
       icon: 'bolt',
       stats: [
+        { label: 'Снарядов', key: 'count', path: 'attack.count' },
         { label: 'Урон', key: 'damage', path: 'projectiles.bolt.damage' },
         { label: 'Скорость', key: 'speed', path: 'projectiles.bolt.speed' },
         { label: 'Размер', key: 'size', path: 'projectiles.bolt.radius' },
@@ -35,25 +37,35 @@ export const CONFIG = {
     },
     shield: {
       name: 'Щит',
+      multStat: 'blockPower',
       icon: 'shield',
       stats: [
         { label: 'Длительность блока', key: 'blockTime', path: 'block.duration', unit: 'с', decimals: 2 },
         { label: 'Окно парирования', key: 'parry', path: 'block.parryWindow', unit: 'с', decimals: 2 },
         { label: 'Перезарядка', path: 'block.cooldown', unit: 'с', decimals: 2 },
-        { label: 'Сила блока', key: 'blockPower', path: 'block.reduction', percent: true, unit: '%' },
+        { label: 'Сила блока', key: 'blockPower', path: 'block.power' },
         { label: 'Радиус сферы', key: 'blockRadius', path: 'block.radiusScale', unit: '×' },
       ],
     },
   },
 
-  // Моды: модификаторы, которые крепятся к ядрам. effect: какой стат ядра (key из cores.*.stats),
-  // mode 'percent' (+value %) или 'flat' (+value), value. Мод подходит ядру, у которого есть этот стат.
+  // Моды: модификаторы, которые крепятся к ядрам.
+  // effect.kind 'stat': +value % к стату ядра (stat это key из cores.*.stats); подходит ядру, у которого есть этот стат.
+  // effect.kind 'double': Х2. К ядру: удваивает его стат multStat (число снарядов, силу блока);
+  //   к моду: удваивает суммарный бонус этого мода и всего, что к нему приложено; к другому Х2: ещё удваивает.
+  // Моды на разных гранях ядра дают бонусы независимо (складываются), моды цепочкой друг за другом перемножаются.
   mods: {
     power: {
       name: 'Мощь',
       icon: 'power',
       description: '+10% к урону снаряда',
-      effect: { stat: 'damage', mode: 'percent', value: 10 },
+      effect: { kind: 'stat', stat: 'damage', value: 10 },
+    },
+    x2: {
+      name: 'Х2',
+      icon: 'x2',
+      description: 'К ядру: вдвое больше (снарядов, силы блока). К моду: его бонус вдвое больше',
+      effect: { kind: 'double', value: 2 },
     },
   },
 
@@ -77,6 +89,8 @@ export const CONFIG = {
   attack: {
     radius: 230,        // дальность выбора цели, единиц мира
     reload: 0.5,        // секунд между выстрелами
+    count: 1,           // снарядов за выстрел (умножается модом «Х2» на ядре снаряда)
+    spread: 14,         // расстояние между рядом летящих снарядов, единиц мира
     projectile: 'bolt',
     core: 'projectile', // ядро билда, чьи моды действуют на эту атаку
     requireLineOfSight: true, // не целиться в тех, кто за скалой (снаряд в скалу упрётся)
@@ -90,7 +104,8 @@ export const CONFIG = {
     parryWindow: 0.25,   // с: окно парирования с начала блока
     cooldown: 2.0,       // с: перезарядка после полного блока
     cancelCooldown: 0.5, // с: перезарядка, если блок снят раньше (взялся за стик или начался рывок)
-    reduction: 0.7,      // доля урона, которую гасит обычный блок (парирование гасит всё)
+    power: 100,          // сколько урона блок впитывает за одно включение (парирование гасит всё); потом блок ломается
+    core: 'shield',      // ядро билда, чьи моды действуют на блок
     radiusScale: 1.9,    // радиус сферы в радиусах героя
     hitStop: 0.09,       // с: остановка времени при успешном парировании
     sparks: 12,          // искр при парировании

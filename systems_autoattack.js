@@ -1,6 +1,7 @@
 // Автоатака: ближайший враг в радиусе, снаряд летит в него, перезарядка настраивается.
 // Цель ищется через сетку (spatial grid), если она передана: цена не растёт с размером орды.
 import { initProjectile } from './world_projectile.js';
+import { applyMod } from './build_cores.js';
 
 /**
  * Ближайший активный враг в пределах radius от (x, y) или null.
@@ -78,11 +79,23 @@ export class AutoAttack {
     const def = this.cfg.projectiles[this.cfg.attack.projectile];
     const dx = target.x - hero.x;
     const dy = target.y - hero.y;
-    const p = this.shots.spawn();
-    initProjectile(p, def, hero.x, hero.y, dx, dy, hero);
+    const len = Math.hypot(dx, dy) || 1;
     const m = this.modifiers ? this.modifiers(this.cfg.attack.core) : null;
-    if (m && m.damage) p.damage = p.damage * (1 + m.damage.percent / 100) + m.damage.flat;
+    // Число снарядов: базовое из конфига с модами ядра. Летят рядом друг с другом, параллельно.
+    const count = Math.max(1, Math.round(applyMod(this.cfg.attack.count || 1, m && m.count)));
+    const gap = this.cfg.attack.spread || 14;
+    const nx = -dy / len;
+    const ny = dx / len;
+    let first = null;
+    for (let i = 0; i < count; i++) {
+      const off = (i - (count - 1) / 2) * gap;
+      const p = this.shots.spawn();
+      if (!p) break; // потолок снарядов
+      initProjectile(p, def, hero.x + nx * off, hero.y + ny * off, dx, dy, hero);
+      p.damage = applyMod(p.damage, m && m.damage);
+      if (!first) first = p;
+    }
     hero.facing = Math.atan2(dy, dx); // посох смотрит на цель
-    this.bus.emit('projectile:fired', { projectile: p, target });
+    if (first) this.bus.emit('projectile:fired', { projectile: first, target, count });
   }
 }

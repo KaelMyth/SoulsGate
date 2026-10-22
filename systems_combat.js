@@ -50,14 +50,16 @@ export class Combat {
     return true;
   }
 
-  /** Возвращает true, если урон реально прошёл (герой не неуязвим и удар не отменён). */
+  /** Возвращает true, если удар состоялся: урон прошёл или его целиком впитал блок (парированный или отменённый удар: false). */
   damageHero(amount, source) {
     const hero = this.hero;
     if (!hero.active || hero.invuln > 0) return false;
     // parryable: источник можно парировать (снаряд стрелка); касание жуков парировать нельзя.
     const incoming = { amount, source, cancelled: false, parryable: !!(source && source.parryable) };
     this.bus.emit('hero:hit-incoming', incoming);
-    if (incoming.cancelled || incoming.amount <= 0) return false;
+    if (incoming.cancelled) return false;
+    // Блок впитал удар целиком: герой цел, но удар состоялся (враг уходит на свою паузу между касаниями).
+    if (incoming.amount <= 0) return !!incoming.blocked;
     hero.hp = Math.max(0, hero.hp - incoming.amount);
     hero.invuln = hero.cfg.iFrames;
     this.bus.emit('damage:dealt', { target: hero, targetKind: 'hero', amount: incoming.amount, source, hp: hero.hp });

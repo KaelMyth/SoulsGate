@@ -60,7 +60,7 @@ export const TUNABLES = [
   { group: 'Блок и парирование', path: 'block.parryWindow', label: 'Окно парирования, с', min: 0.1, max: 1, step: 0.05 },
   { group: 'Блок и парирование', path: 'block.cooldown', label: 'Перезарядка блока, с', min: 0.3, max: 5, step: 0.1 },
   { group: 'Блок и парирование', path: 'block.cancelCooldown', label: 'Перезарядка, если блок снят рано, с', min: 0, max: 2, step: 0.1 },
-  { group: 'Блок и парирование', path: 'block.reduction', label: 'Сколько урона гасит блок (0..1)', min: 0, max: 1, step: 0.05 },
+  { group: 'Блок и парирование', path: 'block.power', label: 'Сила блока: сколько урона впитывает', min: 10, max: 500, step: 10 },
   { group: 'Блок и парирование', path: 'block.startDelay', label: 'Задержка включения блока, с', min: 0, max: 0.4, step: 0.01 },
   { group: 'Блок и парирование', path: 'block.hitStop', label: 'Остановка времени при парировании, с', min: 0, max: 0.3, step: 0.01 },
 

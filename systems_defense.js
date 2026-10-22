@@ -16,6 +16,8 @@ export const HERO_TRANSITIONS = Object.freeze({
   dash: { end: 'move' },
 });
 
+import { applyMod } from './build_cores.js';
+
 export class HeroDefense {
   /** o: { config, hero, stick, bus } */
   constructor(o) {
@@ -23,6 +25,7 @@ export class HeroDefense {
     this.hero = o.hero;
     this.stick = o.stick;
     this.bus = o.bus;
+    this.modifiers = o.modifiers || null; // (id) => { стат: { percent, flat } }: моды билда
     this.state = 'move';
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
@@ -37,6 +40,7 @@ export class HeroDefense {
     this.dashElapsed = 0;  // сколько идёт рывок
     this.dashV0 = 0;       // начальная скорость рывка
     this.blockTime = 0;    // сколько идёт блок
+    this.blockLeft = 0;    // сколько урона блок ещё может впитать
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -73,6 +77,12 @@ export class HeroDefense {
   startCooldown(seconds) {
     this.blockCd = seconds;
     this.blockCdMax = Math.max(0.001, seconds);
+  }
+
+  /** Сколько урона блок впитывает за одно включение: config.block.power с модами ядра щита (Х2: вдвое больше). */
+  blockPower() {
+    const m = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
+    return applyMod(this.cfg.block.power, m && m.blockPower);
   }
 
   endBlock(cancelled) {
@@ -151,6 +161,7 @@ export class HeroDefense {
       if (stickUp && this.armed && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
         this.armed = false; // один блок за остановку
         this.blockTime = 0;
+        this.blockLeft = this.blockPower();
         this.bus.emit('block:started', {});
       }
     } else if (this.state === 'block') {
@@ -169,8 +180,13 @@ export class HeroDefense {
       this.bus.emit('hero:parried', { source: src, x: src ? src.x : this.hero.x, y: src ? src.y : this.hero.y });
       return;
     }
-    // Обычный блок: часть урона гасится. Касание жуков не парируется, только блокируется.
-    inc.amount *= 1 - this.cfg.block.reduction;
-    this.bus.emit('hero:blocked', { amount: inc.amount, source: inc.source });
+    // Обычный блок впитывает урон, пока не кончится запас; остаток проходит, пустой блок ломается.
+    // Касание жуков не парируется, только блокируется.
+    const absorbed = Math.min(this.blockLeft, inc.amount);
+    this.blockLeft -= absorbed;
+    inc.amount -= absorbed;
+    inc.blocked = true;
+    this.bus.emit('hero:blocked', { amount: inc.amount, absorbed, source: inc.source });
+    if (this.blockLeft <= 1e-9) this.endBlock(false);
   }
 }

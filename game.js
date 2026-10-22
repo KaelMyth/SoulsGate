@@ -73,7 +73,10 @@ export class Game {
     this.heroList = [this.hero];
 
     this.combat = new Combat(this.bus, this.hero, config.combat);
-    this.defense = new HeroDefense({ config, hero: this.hero, stick: this.stick, bus: this.bus });
+    this.defense = new HeroDefense({
+      config, hero: this.hero, stick: this.stick, bus: this.bus,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+    });
     this.swipe = new SwipeDetector(this.bus, config.dash, (dx, dy) => {
       if (this.state === 'playing') this.defense.tryDash(dx, dy);
     });
