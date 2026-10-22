@@ -112,7 +112,16 @@ export class DebugPanel {
     }
   }
 
+  /** Режим «Игра»: панель, кнопка ⚙ и FPS скрыты полностью. Режим «Тестирование»: всё как раньше. */
+  setAvailable(on) {
+    this.available = on;
+    this.button.hidden = !on;
+    this.fpsLabel.hidden = !on;
+    if (!on && !this.panel.hidden) this.toggle();
+  }
+
   toggle() {
+    if (this.available === false) return;
     const open = this.panel.hidden;
     this.panel.hidden = !open;
     this.button.classList.toggle('on', open);

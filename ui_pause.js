@@ -1,11 +1,11 @@
 // Кнопка паузы (на экране во время игры) и экран паузы: хранилище, поле билда, «Продолжить» и «Меню».
-// «Меню» открывает второе окно: «Новая игра» и «Выход» (выход пока заглушка: назад к паузе).
+// «Меню» открывает второе окно: «Новая игра» и «Выход» (выход возвращает на экран выбора режима).
 // Экран паузы лежит ниже кнопки ⚙ и отладочной панели, поэтому ползунки доступны во время паузы.
 import { h } from './ui_dom.js';
 import { BuilderUI } from './ui_builder.js';
 
 export class PauseUI {
-  /** handlers: { onToggle, onResume, onRestart }; grid: BuildGrid; storage: Storage; config: живой конфиг */
+  /** handlers: { onToggle, onResume, onRestart, onExit }; grid: BuildGrid; storage: Storage; config: живой конфиг */
   constructor(root, handlers, grid, storage, config) {
     this.button = h('button', {
       id: 'pause-btn', type: 'button', 'aria-label': 'Пауза', onclick: () => handlers.onToggle(),
@@ -19,7 +19,7 @@ export class PauseUI {
     this.menu = h('div', { class: 'card', id: 'menu-card', hidden: '' },
       h('h2', {}, 'Меню'),
       h('button', { id: 'menu-new', type: 'button', onclick: () => handlers.onRestart() }, 'Новая игра'),
-      h('button', { id: 'menu-exit', class: 'secondary', type: 'button', onclick: () => this.showMenu(false) }, 'Выход'));
+      h('button', { id: 'menu-exit', class: 'secondary', type: 'button', onclick: () => handlers.onExit() }, 'Выход'));
     this.screen = h('div', { id: 'pause-screen', hidden: '' }, this.main, this.menu);
     root.append(this.button, this.screen);
   }

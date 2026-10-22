@@ -399,3 +399,29 @@ body {
 .core-info .mod-desc { margin: 0 0 6px; text-align: center; color: var(--ink); font-size: 14px; }
 .core-info .stat em { color: #8cf0b4; font-style: normal; font-weight: 500; font-size: 12px; }
 #pause-screen .core-info button.small { min-height: 40px; width: auto; margin: 6px auto 0; padding: 0 18px; font-size: 15px; background: transparent; border: 1px solid var(--line); color: var(--ink); }
+
+/* Скрытые отладочные элементы в режиме «Игра». */
+#dbg-btn[hidden], #dbg-fps[hidden] { display: none; }
+
+/* Стартовый экран выбора режима: поверх всего. */
+#mode-screen {
+  position: fixed; z-index: 40; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: rgba(0, 0, 0, 0.93);
+  touch-action: manipulation;
+}
+#mode-screen[hidden] { display: none; }
+#mode-screen .card {
+  box-sizing: border-box; width: min(80vw, 320px); padding: 28px 20px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: rgba(11, 15, 22, 0.95); text-align: center;
+}
+#mode-screen h2 { margin: 0 0 6px; font-size: 26px; font-weight: 600; }
+#mode-screen p { margin: 0 0 14px; font-size: 14px; color: #9fb3cc; }
+#mode-screen button {
+  display: block; width: 100%; min-height: 56px; margin-top: 10px; border: 0; border-radius: 14px;
+  background: var(--accent); color: #1a1206;
+  font: 600 18px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; touch-action: manipulation;
+}
+#mode-screen button.secondary { border: 1px solid var(--line); background: transparent; color: var(--ink); font-weight: 500; }

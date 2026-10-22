@@ -24,6 +24,8 @@ import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
+import { ModeScreen } from './ui_mode-screen.js';
+import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
 import { layoutCores } from './build_placement.js';
@@ -33,6 +35,7 @@ import { readSafeInsets } from './platform_viewport.js';
 export class Game {
   /** o: { canvas, uiRoot, probe, config, defaults, tunables, build, storage, storageKey, rnd? } */
   constructor(o) {
+    this.o = o;
     const config = o.config;
     this.config = config;
     this.canvas = o.canvas;
@@ -126,6 +129,7 @@ export class Game {
       onToggle: () => this.togglePause(),
       onResume: () => this.resume(),
       onRestart: () => this.restart(),
+      onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
     this.slotPresses = 0;
@@ -133,6 +137,11 @@ export class Game {
       this.slotPresses = n;
       this.bus.emit('slot:pressed', { count: n });
     });
+
+    // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
+    this.mode = 'test';
+    this.testValues = null;
+    this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m));
 
     this.stepper = new FixedStepper(config.step);
     this.meter = new FpsMeter();
@@ -277,7 +286,7 @@ export class Game {
   }
 
   update(dt) {
-    if (this.state === 'paused') return; // пауза: мир стоит, отрисовка продолжается
+    if (this.state === 'paused' || this.state === 'menu') return; // пауза и меню: мир стоит, отрисовка продолжается
     if (this.state === 'playing' && this.hitStop > 0) {
       // Остановка времени при парировании: мир замер, но искры летят.
       this.hitStop -= dt;
@@ -454,7 +463,7 @@ export class Game {
 
   /** Новый забег (после смерти или с экрана паузы). Конфиг и подобранные ползунки не трогаем. */
   restart() {
-    if (this.state !== 'dead' && this.state !== 'paused') return;
+    if (this.state !== 'dead' && this.state !== 'paused' && this.state !== 'menu') return;
     this.stick.cancel();
     this.relayoutBuild(); // новый забег: ядра встают в новые места
     this.pauseUI.setPaused(false);
@@ -492,7 +501,54 @@ export class Game {
     this.hud.insets = this.insets;
   }
 
+  /**
+   * Выбор режима. «game»: настоящий игрок, стартовые значения без ползунков, без панели и краш-теста.
+   * «test»: панель и ползунки, как раньше (сохранённые ползунки возвращаются). Начинается новый забег.
+   */
+  startMode(mode) {
+    const cfg = this.config;
+    if (mode === 'game' && this.mode !== 'game') {
+      this.testValues = {};
+      for (const t of this.o.tunables) this.testValues[t.path] = getPath(cfg, t.path);
+      this.testValues['waves.crash.startWave'] = cfg.waves.crash.startWave;
+      this.applyValues(this.o.defaults, (path) => path !== 'waves.startWave');
+      cfg.waves.crash.startWave = 1e9; // краш-теста в настоящей игре нет
+    } else if (mode === 'test' && this.mode === 'game' && this.testValues) {
+      this.applyValues(this.testValues);
+      cfg.waves.crash.startWave = this.testValues['waves.crash.startWave'];
+    }
+    this.mode = mode;
+    this.panel.setAvailable(mode === 'test');
+    this.modeScreen.hide();
+    this.restart();
+  }
+
+  /** Записать значения ползунков в конфиг; src: объект конфига или { путь: значение }. */
+  applyValues(src, filter) {
+    for (const t of this.o.tunables) {
+      const v = Object.prototype.hasOwnProperty.call(src, t.path) ? src[t.path] : getPath(src, t.path);
+      if (v === undefined || getPath(this.config, t.path) === v) continue;
+      setPath(this.config, t.path, v);
+      if (!filter || filter(t.path)) this.bus.emit('config:changed', { path: t.path, value: v });
+    }
+  }
+
+  /** Из паузы на экран выбора режима. */
+  exitToMenu() {
+    if (this.state !== 'paused') return;
+    this.stick.cancel();
+    this.pauseUI.setPaused(false);
+    this.state = 'menu';
+    this.panel.setAvailable(false);
+    this.modeScreen.show();
+  }
+
   start() {
+    if (this.o.menu) {
+      this.state = 'menu';
+      this.panel.setAvailable(false);
+      this.modeScreen.show();
+    }
     this.renderer.resize();
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.loop.start();

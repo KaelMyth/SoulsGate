@@ -11,7 +11,7 @@ const storageKey = 'proto.tunables.v' + CONFIG.version;
 const defaults = JSON.parse(JSON.stringify(CONFIG));
 loadOverrides(CONFIG, TUNABLES, storage, storageKey);
 
-lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen, #slot-btn');
+lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen, #slot-btn, #mode-screen');
 
 const game = new Game({
   canvas: document.getElementById('game'),
@@ -23,6 +23,7 @@ const game = new Game({
   build: BUILD,
   storage,
   storageKey,
+  menu: true, // игра начинается с экрана выбора режима
 });
 game.start();
 
