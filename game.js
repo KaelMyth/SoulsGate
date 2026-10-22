@@ -84,6 +84,7 @@ export class Game {
     this.autoattack = new AutoAttack({
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
       grid: this.swarm.grid,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
     this.renderer = new Renderer(o.canvas, config, {
@@ -116,13 +117,13 @@ export class Game {
 
     this.deathScreen = new DeathScreen(o.uiRoot, () => this.restart());
     this.build = new BuildGrid(config.build.size);
-    this.storage = new Storage(config.build.storageSlots);
+    this.inventory = new Storage(config.build.storageSlots);
     this.layoutBuild();
     this.pauseUI = new PauseUI(o.uiRoot, {
       onToggle: () => this.togglePause(),
       onResume: () => this.resume(),
       onRestart: () => this.restart(),
-    }, this.build, this.storage, config);
+    }, this.build, this.inventory, config);
 
     this.slotPresses = 0;
     this.slot = new SlotUI(o.uiRoot, (n) => {
@@ -416,6 +417,8 @@ export class Game {
   layoutBuild() {
     const c = this.config;
     if (this.build.size !== Math.round(c.build.size)) this.build.resize(c.build.size);
+    this.inventory.resize(c.build.storageSlots);
+    this.inventory.fill(c.mods, c.build.startMods);
     layoutCores(this.build, c.cores, this.rnd, c.build.minCoreDistance);
   }
 

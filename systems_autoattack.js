@@ -37,6 +37,7 @@ export class AutoAttack {
     this.enemies = o.enemies;
     this.shots = o.shots;
     this.bus = o.bus;
+    this.modifiers = o.modifiers || null; // (coreId) => { стат: { percent, flat } }
     this.timer = 0;
     this.target = null; // нужна отрисовке: метка на цели
   }
@@ -79,6 +80,8 @@ export class AutoAttack {
     const dy = target.y - hero.y;
     const p = this.shots.spawn();
     initProjectile(p, def, hero.x, hero.y, dx, dy, hero);
+    const m = this.modifiers ? this.modifiers(this.cfg.attack.core) : null;
+    if (m && m.damage) p.damage = p.damage * (1 + m.damage.percent / 100) + m.damage.flat;
     hero.facing = Math.atan2(dy, dx); // посох смотрит на цель
     this.bus.emit('projectile:fired', { projectile: p, target });
   }

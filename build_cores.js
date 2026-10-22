@@ -12,7 +12,24 @@ export function formatStat(stat, value) {
   return text + (stat.unit ? ' ' + stat.unit : '');
 }
 
-/** [{ label, text }] для ядра: значения читаются из конфига в момент вызова. */
-export function coreStats(core, config) {
-  return (core.def.stats || []).map((s) => ({ label: s.label, text: formatStat(s, getPath(config, s.path)) }));
+/**
+ * [{ label, text, bonus }] для ядра: значения читаются из конфига в момент вызова.
+ * mods: модификаторы ядра от модов ({ стат: { percent, flat } }), они уже учтены в text, bonus это пометка «+10%».
+ */
+export function coreStats(core, config, mods) {
+  return (core.def.stats || []).map((s) => {
+    let v = getPath(config, s.path);
+    const m = s.key && mods ? mods[s.key] : null;
+    let bonus = '';
+    if (m && typeof v === 'number') {
+      v = v * (1 + m.percent / 100) + m.flat;
+      bonus = (m.percent ? '+' + m.percent + '%' : '') + (m.flat ? (m.percent ? ' ' : '') + '+' + m.flat : '');
+    }
+    return { label: s.label, text: formatStat(s, v), bonus };
+  });
+}
+
+/** Применить модификатор стата к числу (для боя). */
+export function applyMod(value, mod) {
+  return mod ? value * (1 + mod.percent / 100) + mod.flat : value;
 }

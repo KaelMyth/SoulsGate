@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 6 · сборка 4 (меню билда)';
+export const BUILD = 'этап 6 · сборка 5 (моды)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -14,6 +14,7 @@ export const CONFIG = {
     size: 7,
     minCoreDistance: 3,
     storageSlots: 12,  // ячеек в ряду хранилища над полем
+    startMods: ['power', 'power', 'power'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -23,25 +24,36 @@ export const CONFIG = {
       name: 'Снаряд',
       icon: 'bolt',
       stats: [
-        { label: 'Урон', path: 'projectiles.bolt.damage' },
-        { label: 'Скорость', path: 'projectiles.bolt.speed' },
-        { label: 'Размер', path: 'projectiles.bolt.radius' },
-        { label: 'Дальность', path: 'projectiles.bolt.range' },
-        { label: 'Откидывание', path: 'projectiles.bolt.knockback' },
-        { label: 'Скорость стрельбы', path: 'attack.reload', rate: 100 },
-        { label: 'Радиус цели', path: 'attack.radius' },
+        { label: 'Урон', key: 'damage', path: 'projectiles.bolt.damage' },
+        { label: 'Скорость', key: 'speed', path: 'projectiles.bolt.speed' },
+        { label: 'Размер', key: 'size', path: 'projectiles.bolt.radius' },
+        { label: 'Дальность', key: 'range', path: 'projectiles.bolt.range' },
+        { label: 'Откидывание', key: 'knockback', path: 'projectiles.bolt.knockback' },
+        { label: 'Скорость стрельбы', key: 'rate', path: 'attack.reload', rate: 100 },
+        { label: 'Радиус цели', key: 'targetRadius', path: 'attack.radius' },
       ],
     },
     shield: {
       name: 'Щит',
       icon: 'shield',
       stats: [
-        { label: 'Длительность блока', path: 'block.duration', unit: 'с', decimals: 2 },
-        { label: 'Окно парирования', path: 'block.parryWindow', unit: 'с', decimals: 2 },
+        { label: 'Длительность блока', key: 'blockTime', path: 'block.duration', unit: 'с', decimals: 2 },
+        { label: 'Окно парирования', key: 'parry', path: 'block.parryWindow', unit: 'с', decimals: 2 },
         { label: 'Перезарядка', path: 'block.cooldown', unit: 'с', decimals: 2 },
-        { label: 'Сила блока', path: 'block.reduction', percent: true, unit: '%' },
-        { label: 'Радиус сферы', path: 'block.radiusScale', unit: '×' },
+        { label: 'Сила блока', key: 'blockPower', path: 'block.reduction', percent: true, unit: '%' },
+        { label: 'Радиус сферы', key: 'blockRadius', path: 'block.radiusScale', unit: '×' },
       ],
+    },
+  },
+
+  // Моды: модификаторы, которые крепятся к ядрам. effect: какой стат ядра (key из cores.*.stats),
+  // mode 'percent' (+value %) или 'flat' (+value), value. Мод подходит ядру, у которого есть этот стат.
+  mods: {
+    power: {
+      name: 'Мощь',
+      icon: 'power',
+      description: '+10% к урону снаряда',
+      effect: { stat: 'damage', mode: 'percent', value: 10 },
     },
   },
 
@@ -66,6 +78,7 @@ export const CONFIG = {
     radius: 230,        // дальность выбора цели, единиц мира
     reload: 0.5,        // секунд между выстрелами
     projectile: 'bolt',
+    core: 'projectile', // ядро билда, чьи моды действуют на эту атаку
     requireLineOfSight: true, // не целиться в тех, кто за скалой (снаряд в скалу упрётся)
   },
 
@@ -266,7 +279,7 @@ export const CONFIG = {
   },
 
   camera: {
-    viewWidth: 420,    // сколько единиц мира видно по ширине экрана (масштаб)
+    viewWidth: 480,    // сколько единиц мира видно по ширине экрана (масштаб)
     smoothTime: 0.1,   // с, плавность следования за героем (0 = жёстко)
     clampToArena: true,
   },

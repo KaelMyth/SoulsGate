@@ -12,6 +12,10 @@ const ICONS = {
     ['path', { d: 'M16 4 27 8v8c0 7-5 11-11 13C10 27 5 23 5 16V8z', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linejoin': 'round' }],
     ['path', { d: 'M16 9v15M10 14h12', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none' }],
   ],
+  // Мощь: стрелка вверх.
+  power: [
+    ['path', { d: 'M16 4 6 16h7v11h6V16h7z', fill: 'currentColor' }],
+  ],
 };
 
 export function icon(name) {

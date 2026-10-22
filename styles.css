@@ -372,3 +372,30 @@ body {
 
 /* В меню билда кнопка умения не нужна. */
 #pause-screen:not([hidden]) ~ #slot-btn { display: none; }
+
+/* Моды: ряд хранилища, мод на поле, подсветка граней (зелёная: можно прикрепить, красная: ядру не подходит). */
+.shelf .slot-cell { display: flex; align-items: center; justify-content: center; color: #8cf0b4; }
+.shelf .slot-cell.has { border-style: solid; border-color: #3ddc84; background: #1b3326; touch-action: none; }
+.shelf .slot-cell.selected { border-color: var(--accent); background: #2a3b2c; }
+.shelf .slot-cell .icon-svg { width: 62%; height: 62%; pointer-events: none; }
+.drag-ghost { position: fixed; z-index: 60; left: 0; top: 0; width: 48px; height: 48px; pointer-events: none; color: #8cf0b4;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.7)); }
+.drag-ghost .icon-svg { width: 100%; height: 100%; }
+
+.board .cell { --st: inset 0 0 0 0 transparent; --sr: inset 0 0 0 0 transparent; --sb: inset 0 0 0 0 transparent; --sl: inset 0 0 0 0 transparent;
+  box-shadow: var(--st), var(--sr), var(--sb), var(--sl); }
+.board .cell.fg-t { --st: inset 0 3px 0 0 #3ddc84; }
+.board .cell.fg-r { --sr: inset -3px 0 0 0 #3ddc84; }
+.board .cell.fg-b { --sb: inset 0 -3px 0 0 #3ddc84; }
+.board .cell.fg-l { --sl: inset 3px 0 0 0 #3ddc84; }
+.board .cell.fr-t { --st: inset 0 3px 0 0 #ff5a5a; }
+.board .cell.fr-r { --sr: inset -3px 0 0 0 #ff5a5a; }
+.board .cell.fr-b { --sb: inset 0 -3px 0 0 #ff5a5a; }
+.board .cell.fr-l { --sl: inset 3px 0 0 0 #ff5a5a; }
+#pause-screen .board .cell.target { background: #1b3a2a; border-color: #2f7a52; }
+#pause-screen .board .cell.mod { background: #21402e; border-color: #3ddc84; color: #8cf0b4; touch-action: none; }
+#pause-screen .board .cell.mod.selected { background: #2f5a41; border-color: var(--accent); }
+.core-info .mod-title { color: #8cf0b4; }
+.core-info .mod-desc { margin: 0 0 6px; text-align: center; color: var(--ink); font-size: 14px; }
+.core-info .stat em { color: #8cf0b4; font-style: normal; font-weight: 500; font-size: 12px; }
+#pause-screen .core-info button.small { min-height: 40px; width: auto; margin: 6px auto 0; padding: 0 18px; font-size: 15px; background: transparent; border: 1px solid var(--line); color: var(--ink); }
