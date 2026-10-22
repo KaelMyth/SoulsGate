@@ -40,7 +40,6 @@ export class HeroDefense {
     this.dashElapsed = 0;  // сколько идёт рывок
     this.dashV0 = 0;       // начальная скорость рывка
     this.blockTime = 0;    // сколько идёт блок
-    this.blockLeft = 0;    // сколько урона блок ещё может впитать
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -79,10 +78,19 @@ export class HeroDefense {
     this.blockCdMax = Math.max(0.001, seconds);
   }
 
-  /** Сколько урона блок впитывает за одно включение: config.block.power с модами ядра щита (Х2: вдвое больше). */
+  /**
+   * Сила блока в «числах» (config.block.power с модами ядра щита, Х2 удваивает число) и защита из неё:
+   * гасится доля 1 − 9 / число (10 = 10%, 100 = 91%, 1000 = 99%), не меньше 0 и не больше block.maxReduction.
+   */
   blockPower() {
     const m = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     return applyMod(this.cfg.block.power, m && m.blockPower);
+  }
+
+  blockReduction() {
+    const n = this.blockPower();
+    const r = n > 0 ? 1 - 9 / n : 0;
+    return Math.min(this.cfg.block.maxReduction, Math.max(0, r));
   }
 
   endBlock(cancelled) {
@@ -161,7 +169,6 @@ export class HeroDefense {
       if (stickUp && this.armed && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
         this.armed = false; // один блок за остановку
         this.blockTime = 0;
-        this.blockLeft = this.blockPower();
         this.bus.emit('block:started', {});
       }
     } else if (this.state === 'block') {
@@ -180,13 +187,10 @@ export class HeroDefense {
       this.bus.emit('hero:parried', { source: src, x: src ? src.x : this.hero.x, y: src ? src.y : this.hero.y });
       return;
     }
-    // Обычный блок впитывает урон, пока не кончится запас; остаток проходит, пустой блок ломается.
-    // Касание жуков не парируется, только блокируется.
-    const absorbed = Math.min(this.blockLeft, inc.amount);
-    this.blockLeft -= absorbed;
+    // Обычный блок гасит долю урона (см. blockReduction). Касание жуков не парируется, только блокируется.
+    const absorbed = inc.amount * this.blockReduction();
     inc.amount -= absorbed;
     inc.blocked = true;
     this.bus.emit('hero:blocked', { amount: inc.amount, absorbed, source: inc.source });
-    if (this.blockLeft <= 1e-9) this.endBlock(false);
   }
 }

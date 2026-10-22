@@ -57,6 +57,38 @@ export class BuilderUI {
     return true;
   }
 
+  /**
+   * Перенести мод с одной клетки поля на другую без хранилища. Моды, которые держались только на нём,
+   * уходят в хранилище (если места нет или новое место не подходит, ничего не меняется).
+   */
+  moveOnField(fx, fy, tx, ty) {
+    const from = this.grid.cell(fx, fy);
+    const to = this.grid.cell(tx, ty);
+    if (!from || !from.mod || !to || to.core || to.mod || (fx === tx && fy === ty)) return false;
+    const mod = this.grid.takeMod(fx, fy);
+    const orphans = this.grid.orphans();
+    const free = this.storage.slots.filter((x) => x === null).length;
+    if (free < orphans.length || !canPlace(this.grid, mod.def, tx, ty).ok) {
+      this.grid.placeMod(mod, fx, fy);
+      return false;
+    }
+    for (const o of orphans) this.storage.add(this.grid.takeMod(o.x, o.y));
+    this.grid.placeMod(mod, tx, ty);
+    this.sel = { kind: 'placed', x: tx, y: ty };
+    this.rebuild();
+    return true;
+  }
+
+  /** Подсветка для выбранного мода: у мода на поле считается так, будто он уже снят (его можно переставить). */
+  highlightFor(sel, mod) {
+    if (sel.kind === 'shelf') return highlight(this.grid, mod.def);
+    const taken = this.grid.takeMod(sel.x, sel.y);
+    const hl = highlight(this.grid, taken.def);
+    this.grid.placeMod(taken, sel.x, sel.y);
+    hl.targets = hl.targets.filter((c) => !(c.x === sel.x && c.y === sel.y));
+    return hl;
+  }
+
   /* ---------- Выбор ---------- */
 
   select(sel) {
@@ -129,6 +161,7 @@ export class BuilderUI {
 
   tapEmpty(x, y) {
     if (this.sel && this.sel.kind === 'shelf' && this.placeFromShelf(this.sel.index, x, y)) return;
+    if (this.sel && this.sel.kind === 'placed' && this.moveOnField(this.sel.x, this.sel.y, x, y)) return;
     this.sel = null;
     this.refresh();
   }
@@ -138,8 +171,8 @@ export class BuilderUI {
     const g = this.grid;
     const mod = this.selectedMod();
     const sel = this.sel;
-    // Подсвечиваем только мод из хранилища: куда его можно прикрепить.
-    const hl = mod && sel.kind === 'shelf' ? highlight(g, mod.def) : null;
+    // Куда выбранный мод можно прикрепить (и из хранилища, и с поля).
+    const hl = mod ? this.highlightFor(sel, mod) : null;
     const targets = new Set(hl ? hl.targets.map((c) => c.y * g.size + c.x) : []);
     const faces = new Map();
     if (hl) for (const f of hl.faces) faces.set(f.y * g.size + f.x, (faces.get(f.y * g.size + f.x) || []).concat(f));
@@ -158,9 +191,10 @@ export class BuilderUI {
     clear(this.info);
     if (mod) {
       this.info.append(h('h3', { class: 'mod-title' }, mod.def.name), h('p', { class: 'mod-desc' }, mod.def.description));
-      if (sel.kind === 'shelf') {
-        this.info.append(h('p', { class: 'hint' }, 'Перетащи на поле или нажми на зелёную клетку. Красные грани: ядру не подходит'));
-      } else {
+      this.info.append(h('p', { class: 'hint' }, sel.kind === 'shelf'
+        ? 'Перетащи на поле или нажми на зелёную клетку. Красные грани: ядру не подходит'
+        : 'Перетащи на другое место или в хранилище. Красные грани: не подходит'));
+      if (sel.kind !== 'shelf') {
         this.info.append(h('button', {
           id: 'mod-return', type: 'button', class: 'small', onclick: () => this.returnToShelf(sel.x, sel.y),
         }, 'В хранилище'));
@@ -202,6 +236,8 @@ export class BuilderUI {
       if (!t) return;
       if (src.from === 'shelf' && t.classList.contains('cell')) {
         this.placeFromShelf(src.index, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
+      } else if (src.from === 'placed' && t.classList.contains('cell')) {
+        this.moveOnField(src.x, src.y, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
       } else if (src.from === 'placed' && t.classList.contains('shelf')) {
         this.returnToShelf(src.x, src.y);
       }
