@@ -128,7 +128,7 @@ export class BuildGrid {
   /**
    * Суммарные модификаторы ядра: { стат: { percent, flat } }.
    * Правила: моды на разных гранях ядра складываются (+10% и +10% = +20%), моды цепочкой друг за другом
-   * умножаются (110, 121, 133.1). «Х2» на ядре даёт +100% к его множимому стату (снарядов 1→2, прочность блока 100→200),
+   * умножаются (110, 121, 133.1). множители на ядре перемножаются (Х2 и Х2 это Х4),
    * «Х2» на моде удваивает накопленный бонус ветки до него (+21% → +42%).
    */
   modifiersFor(coreId) {
@@ -142,20 +142,33 @@ export class BuildGrid {
       if (!kids.has(p)) kids.set(p, []);
       kids.get(p).push(i);
     }
+    // Множители на ядре (Х2, Х3): перемножаются между собой, на разных гранях и цепочкой (Х2 за Х2 это Х4).
+    const mult = (i) => {
+      let f = this.cells[i].mod.def.effect.value;
+      for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f *= mult(k);
+      return f;
+    };
     // B: накопленный бонус до этого мода (доля), возвращает итог ветки от этого мода.
-    const walk = (i, bIn, onCore) => {
+    // Множитель на моде умножает бонус, накопленный до него (+21% Х2 → +42%), цепочка множителей перемножается.
+    const walk = (i, bIn) => {
       const e = this.cells[i].mod.def.effect;
-      const out = e.kind === 'double' ? (onCore ? 1 : 2 * bIn) : (1 + bIn) * (1 + e.value / 100) - 1;
+      const out = e.kind === 'double' ? e.value * bIn : (1 + bIn) * (1 + e.value / 100) - 1;
       let total = out;
-      for (const k of kids.get(i) || []) total += walk(k, out, false) - out;
+      for (const k of kids.get(i) || []) total += walk(k, out) - out;
       return total;
     };
     const res = {};
+    const factor = {};
     for (const i of kids.get(-1) || []) {
       const stat = carry.get(i);
       if (!stat) continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
-      m.percent += walk(i, 0, true) * 100;
+      if (this.cells[i].mod.def.effect.kind === 'double') {
+        factor[stat] = (factor[stat] || 1) * mult(i);
+        m.percent = (factor[stat] - 1) * 100;
+      } else {
+        m.percent += walk(i, 0) * 100;
+      }
     }
     return res;
   }

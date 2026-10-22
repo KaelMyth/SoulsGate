@@ -11,15 +11,19 @@ export function pickCoreCells(size, count, rnd, minDist) {
   const inner = [];
   for (let y = 1; y < size - 1; y++) for (let x = 1; x < size - 1; x++) inner.push({ x, y });
   const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  // Жадный выбор может зайти в тупик (первое ядро в центре, парное с нужным расстоянием уже не найти):
+  // поэтому несколько попыток на каждое требование, и только потом требование смягчается.
   for (let need = Math.max(1, minDist); need >= 1; need--) {
-    const chosen = [];
-    const pool = inner.slice();
-    while (chosen.length < count && pool.length) {
-      const i = Math.floor(rnd() * pool.length) % pool.length;
-      const c = pool.splice(i, 1)[0];
-      if (chosen.every((o) => dist(o, c) >= need)) chosen.push(c);
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const chosen = [];
+      const pool = inner.slice();
+      while (chosen.length < count && pool.length) {
+        const i = Math.floor(rnd() * pool.length) % pool.length;
+        const c = pool.splice(i, 1)[0];
+        if (chosen.every((o) => dist(o, c) >= need)) chosen.push(c);
+      }
+      if (chosen.length === Math.min(count, inner.length)) return chosen;
     }
-    if (chosen.length === Math.min(count, inner.length)) return chosen;
   }
   return inner.slice(0, count);
 }

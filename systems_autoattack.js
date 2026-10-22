@@ -1,7 +1,7 @@
 // Автоатака: ближайший враг в радиусе, снаряд летит в него, перезарядка настраивается.
 // Цель ищется через сетку (spatial grid), если она передана: цена не растёт с размером орды.
 import { initProjectile } from './world_projectile.js';
-import { applyMod } from './build_cores.js';
+import { applyMod, countPenalty } from './build_cores.js';
 
 /**
  * Ближайший активный враг в пределах radius от (x, y) или null.
@@ -84,6 +84,7 @@ export class AutoAttack {
     // Число снарядов: базовое из конфига с модами ядра. Летят рядом друг с другом, параллельно.
     const count = Math.max(1, Math.round(applyMod(this.cfg.attack.count || 1, m && m.count)));
     const gap = this.cfg.attack.spread || 14;
+    const pen = countPenalty(this.cfg, count); // чем больше снарядов, тем слабее каждый
     const nx = -dy / len;
     const ny = dx / len;
     let first = null;
@@ -92,7 +93,7 @@ export class AutoAttack {
       const p = this.shots.spawn();
       if (!p) break; // потолок снарядов
       initProjectile(p, def, hero.x + nx * off, hero.y + ny * off, dx, dy, hero);
-      p.damage = applyMod(p.damage, m && m.damage);
+      p.damage = applyMod(p.damage, m && m.damage) * pen;
       if (!first) first = p;
     }
     hero.facing = Math.atan2(dy, dx); // посох смотрит на цель

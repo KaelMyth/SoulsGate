@@ -16,7 +16,23 @@ export function formatStat(stat, value) {
  * [{ label, text, bonus }] для ядра: значения читаются из конфига в момент вызова.
  * mods: модификаторы ядра от модов ({ стат: { percent, flat } }), они уже учтены в text, bonus это пометка «+10%».
  */
+/**
+ * Множитель урона одного снаряда, когда их несколько: за каждое удвоение числа снарядов урон умножается
+ * на config.attack.countDamage (0.75: два снаряда по 75, четыре по 56, восемь по 42).
+ */
+export function countPenalty(config, count) {
+  const d = config.attack.countDamage;
+  return count > 1 && typeof d === 'number' ? Math.pow(d, Math.log2(count)) : 1;
+}
+
+/** Число снарядов за выстрел с модами ядра (целое, не меньше 1). */
+export function projectileCount(config, mods) {
+  const m = mods && mods.count;
+  return Math.max(1, Math.round(m ? config.attack.count * (1 + m.percent / 100) + m.flat : config.attack.count));
+}
+
 export function coreStats(core, config, mods) {
+  const pen = core.def.multStat === 'count' ? countPenalty(config, projectileCount(config, mods)) : 1;
   return (core.def.stats || []).map((s) => {
     let v = getPath(config, s.path);
     const m = s.key && mods ? mods[s.key] : null;
@@ -27,6 +43,10 @@ export function coreStats(core, config, mods) {
       bonus = s.key === core.def.multStat ? '×' + (1 + pc / 100) : (pc ? '+' + pc + '%' : '') + (m.flat ? (pc ? ' ' : '') + '+' + m.flat : '');
     }
     if (s.key === 'count' && typeof v === 'number') v = Math.round(v); // снарядов целое число
+    if (s.key === 'damage' && pen < 1 && typeof v === 'number') {
+      v *= pen;
+      bonus += (bonus ? ' ' : '') + '−' + Math.round((1 - pen) * 100) + '% (снарядов больше)';
+    }
     return { label: s.label, text: formatStat(s, v), bonus };
   });
 }

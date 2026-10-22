@@ -7,6 +7,7 @@ export const TUNABLES = [
   { group: 'Герой', path: 'hero.maxHp', label: 'Здоровье (с новой жизни)', min: 30, max: 300, step: 5 },
   { group: 'Герой', path: 'hero.iFrames', label: 'Неуязвимость после удара, с', min: 0, max: 1.5, step: 0.05 },
 
+  { group: 'Автоатака', path: 'attack.countDamage', label: 'Урон снаряда при удвоении их числа (×)', min: 0.4, max: 1, step: 0.01 },
   { group: 'Автоатака', path: 'attack.radius', label: 'Дальность выбора цели', min: 80, max: 400, step: 10 },
   { group: 'Автоатака', path: 'attack.reload', label: 'Перезарядка, с', min: 0.1, max: 2, step: 0.05 },
   { group: 'Автоатака', path: 'projectiles.bolt.damage', label: 'Урон снаряда', min: 1, max: 60, step: 1 },
@@ -87,7 +88,7 @@ export const TUNABLES = [
   { group: 'Управление', path: 'stick.deadzone', label: 'Мёртвая зона стика', min: 0, max: 0.4, step: 0.01 },
 
   { group: 'Поле билда', path: 'build.size', label: 'Сторона поля (перерасставляет ядра)', min: 5, max: 9, step: 1 },
-  { group: 'Поле билда', path: 'build.minCoreDistance', label: 'Мин. расстояние между ядрами', min: 2, max: 6, step: 1 },
+  { group: 'Поле билда', path: 'build.minCoreDistance', label: 'Мин. расстояние между ядрами', min: 2, max: 8, step: 1 },
 
   { group: 'Камера и экран', path: 'camera.viewWidth', label: 'Обзор: ширина экрана в единицах', min: 240, max: 800, step: 10 },
   { group: 'Камера и экран', path: 'camera.smoothTime', label: 'Плавность камеры, с', min: 0, max: 0.5, step: 0.01 },
