@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 6 · сборка 3 (меню и хранилище)';
+export const BUILD = 'этап 6 · сборка 4 (меню билда)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -28,7 +28,7 @@ export const CONFIG = {
         { label: 'Размер', path: 'projectiles.bolt.radius' },
         { label: 'Дальность', path: 'projectiles.bolt.range' },
         { label: 'Откидывание', path: 'projectiles.bolt.knockback' },
-        { label: 'Скорость стрельбы', path: 'attack.reload', unit: 'с', decimals: 2 },
+        { label: 'Скорость стрельбы', path: 'attack.reload', rate: 100 },
         { label: 'Радиус цели', path: 'attack.radius' },
       ],
     },

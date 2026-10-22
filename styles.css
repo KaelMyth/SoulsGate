@@ -369,3 +369,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 #slot-btn.flash { border-color: var(--accent); background: rgba(255, 177, 74, 0.35); color: #fff; }
+
+/* В меню билда кнопка умения не нужна. */
+#pause-screen:not([hidden]) ~ #slot-btn { display: none; }
