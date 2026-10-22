@@ -128,7 +128,7 @@ export class BuildGrid {
   /**
    * Суммарные модификаторы ядра: { стат: { percent, flat } }.
    * Правила: моды на разных гранях ядра складываются (+10% и +10% = +20%), моды цепочкой друг за другом
-   * умножаются (110, 121, 133.1). множители на ядре перемножаются (Х2 и Х2 это Х4),
+   * умножаются (110, 121, 133.1). множители в одной ветке перемножаются (Х2 за Х2 это Х4), ветки на разных гранях складываются,
    * «Х2» на моде удваивает накопленный бонус ветки до него (+21% → +42%).
    */
   modifiersFor(coreId) {
@@ -142,7 +142,7 @@ export class BuildGrid {
       if (!kids.has(p)) kids.set(p, []);
       kids.get(p).push(i);
     }
-    // Множители на ядре (Х2, Х3): перемножаются между собой, на разных гранях и цепочкой (Х2 за Х2 это Х4).
+    // Множители на ядре (Х2, Х3): в одной ветке перемножаются по очереди (Х2 за Х2 это Х4, Х2 за Х3 это Х6).
     const mult = (i) => {
       let f = this.cells[i].mod.def.effect.value;
       for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f *= mult(k);
@@ -164,7 +164,9 @@ export class BuildGrid {
       if (!stat) continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       if (this.cells[i].mod.def.effect.kind === 'double') {
-        factor[stat] = (factor[stat] || 1) * mult(i);
+        // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),
+        // а множители в одной ветке по очереди перемножаются (Х2 за Х2 это ×4).
+        factor[stat] = (factor[stat] || 1) + (mult(i) - 1);
         m.percent = (factor[stat] - 1) * 100;
       } else {
         m.percent += walk(i, 0) * 100;
