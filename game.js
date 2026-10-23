@@ -18,6 +18,7 @@ import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
+import { Boss } from './systems_boss.js';
 import { Xp, createGem, resetGem } from './systems_xp.js';
 import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
@@ -88,6 +89,7 @@ export class Game {
     });
     this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
+    this.boss = new Boss({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.autoattack = new AutoAttack({
@@ -109,6 +111,7 @@ export class Game {
       gems: this.gems,
       autoattack: this.autoattack,
       defense: this.defense,
+      boss: this.boss,
       clouds: this.steamClouds,
       hud: this.hud,
     });
@@ -206,6 +209,12 @@ export class Game {
     });
     // Вышел босс: мир замирает, камера плывёт к нему (см. updateCine).
     this.bus.on('boss:spawned', ({ enemy }) => this.startBossIntro(enemy));
+    // Вспышки к атакам босса: кольцо на старте рывка, взрыв в области пересечения разломов.
+    this.bus.on('boss:dash', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.25, enemy.radius, enemy.radius * 2, enemy.def.edge));
+    this.bus.on('boss:blast', ({ x, y, hit }) => {
+      this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
+      this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
+    });
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
     this.bus.on('hero:hit-incoming', (inc) => {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
@@ -476,6 +485,7 @@ export class Game {
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
+      this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
@@ -719,6 +729,7 @@ export class Game {
     this.defense.reset();
     this.swipe.reset();
     this.hitStop = 0;
+    this.boss.reset();
     this.cine = null;
     this.hud.bossTitle = '';
     this.hud.bossTitleAlpha = 0;

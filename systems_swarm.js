@@ -127,6 +127,7 @@ export class Swarm {
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
         if (!e.active) continue;
+        if (e.def.passThroughHero && e.atk.state === 'strike') continue; // рывок босса идёт сквозь героя
         const dx = e.x - hero.x;
         const dy = e.y - hero.y;
         const min = hero.radius + e.radius - 2;

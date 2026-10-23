@@ -54,6 +54,7 @@ export class Renderer {
     this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
     this.defense = deps.defense || null;
+    this.boss = deps.boss || null; // разломы, телеграфы и взрыв босса (systems_boss.js)
     this.clouds = deps.clouds || [];
     this.hud = deps.hud || null;
     this.dpr = 1;
@@ -154,6 +155,7 @@ export class Renderer {
 
     // Зоны атак на земле (под врагами): видно, откуда придёт удар.
     this.drawTelegraphs(C, alpha);
+    this.drawBossGround(C);
 
     // Враги.
     const en = this.enemies.items;
@@ -286,6 +288,107 @@ export class Renderer {
       ctx.strokeStyle = C.teleEdge;
       ctx.stroke();
       ctx.restore();
+    }
+  }
+
+  /** Многоугольник как путь; k < 1 уменьшает его к центру (cx, cy): так рисуется заполнение телеграфа. */
+  polyPath(poly, cx, cy, k) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    for (let i = 0; i < poly.length; i++) {
+      const x = cx + (poly[i].x - cx) * k;
+      const y = cy + (poly[i].y - cy) * k;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  /** Всё, что босс кладёт на землю: разломы, линия-телеграф рывка, телеграф и вспышка взрыва. */
+  drawBossGround(C) {
+    const b = this.boss;
+    if (!b) return;
+    const ctx = this.ctx;
+
+    // Разломы: полоса холода, тёмная трещина с ледяной жилой и иней по бокам. Таят в конце цикла.
+    if (b.fissures.length) {
+      ctx.save();
+      ctx.globalAlpha = b.fissureAlpha();
+      ctx.lineJoin = 'round';
+      for (let i = 0; i < b.fissures.length; i++) {
+        const f = b.fissures[i];
+        ctx.beginPath();
+        ctx.moveTo(f.x1, f.y1);
+        ctx.lineTo(f.x2, f.y2);
+        ctx.lineWidth = f.hw * 2;
+        ctx.strokeStyle = C.frostMist;
+        ctx.stroke();
+        ctx.beginPath();
+        for (let k = 0; k < f.pts.length; k++) {
+          if (k === 0) ctx.moveTo(f.pts[k].x, f.pts[k].y);
+          else ctx.lineTo(f.pts[k].x, f.pts[k].y);
+        }
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = C.crack;
+        ctx.stroke();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = C.fissureCore;
+        ctx.stroke();
+        ctx.beginPath();
+        for (let k = 0; k < f.ticks.length; k++) {
+          const t = f.ticks[k];
+          ctx.moveTo(t.x, t.y);
+          ctx.lineTo(t.x + t.nx * t.len, t.y + t.ny * t.len);
+        }
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Линия рывка: узкая, видна сразу, к концу задержки контур мигает.
+    const tl = b.tele;
+    if (tl) {
+      const len = Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1);
+      const blink = tl.t / Math.max(0.01, tl.total) > 0.6 && (Math.floor(tl.t * 24) & 1);
+      ctx.save();
+      ctx.translate(tl.x1, tl.y1);
+      ctx.rotate(Math.atan2(tl.y2 - tl.y1, tl.x2 - tl.x1));
+      ctx.fillStyle = C.teleProgress;
+      ctx.fillRect(0, -tl.hw, len, tl.hw * 2);
+      ctx.lineWidth = blink ? 2.5 : 1.5;
+      ctx.strokeStyle = C.teleEdge;
+      ctx.strokeRect(0, -tl.hw, len, tl.hw * 2);
+      ctx.restore();
+    }
+
+    // Область пересечения разломов: телеграф заполняется к центру, потом вспышка взрыва.
+    const bl = b.blast;
+    if (bl) {
+      if (bl.phase === 'tele') {
+        const k = Math.min(1, bl.t / Math.max(0.01, bl.total));
+        this.polyPath(bl.poly, bl.x, bl.y, 1);
+        ctx.fillStyle = C.teleFill;
+        ctx.fill();
+        this.polyPath(bl.poly, bl.x, bl.y, k);
+        ctx.fillStyle = C.teleProgress;
+        ctx.fill();
+        this.polyPath(bl.poly, bl.x, bl.y, 1);
+        ctx.lineWidth = k > 0.7 && (Math.floor(k * 18) & 1) ? 2.5 : 1.5;
+        ctx.strokeStyle = C.teleEdge;
+        ctx.stroke();
+      } else {
+        const a = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total));
+        ctx.save();
+        ctx.globalAlpha = 0.25 + 0.75 * a;
+        this.polyPath(bl.poly, bl.x, bl.y, 1);
+        ctx.fillStyle = C.blastFill;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
