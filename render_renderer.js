@@ -9,6 +9,20 @@ const EMPTY = { items: [] };
 // Угловатый контур панциря (x, y в долях радиуса, нос в +x), общий для жуков в стиле low-poly.
 const SHELL = [0.56, -0.5, 0.1, -0.78, -0.6, -0.62, -0.98, -0.15, -0.98, 0.15, -0.6, 0.62, 0.1, 0.78, 0.56, 0.5];
 
+// Жук-носорог (бык): широкий панцирь, пластина-«шея» и большой рог с двумя отростками. Единицы: доли радиуса.
+const BULL_SHELL = [0.62, -0.62, 0.15, -0.9, -0.65, -0.78, -1.05, -0.2, -1.05, 0.2, -0.65, 0.78, 0.15, 0.9, 0.62, 0.62];
+const BULL_PRON = [0.82, -0.4, 0.5, -0.62, 0.22, -0.52, 0.22, 0.52, 0.5, 0.62, 0.82, 0.4];
+const BULL_HORN = [0.8, -0.24, 1.3, -0.15, 1.78, 0, 1.3, 0.15, 0.8, 0.24];
+const BULL_PRONG_L = [1.3, -0.15, 1.62, -0.38, 1.52, -0.06];
+const BULL_PRONG_R = [1.3, 0.15, 1.62, 0.38, 1.52, 0.06];
+
+/** Добавляет в текущий путь многоугольник из плоского списка долей радиуса. */
+function tracePoly(ctx, pts, r) {
+  ctx.moveTo(pts[0] * r, pts[1] * r);
+  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i] * r, pts[i + 1] * r);
+  ctx.closePath();
+}
+
 function mulberry32(seed) {
   let a = seed | 0;
   return function () {
@@ -66,6 +80,12 @@ export class Renderer {
     this.clock = 0;               // время кадра в секундах: для мерцания пламени и пульса глаз
     this.glow = null;             // мягкое тёплое пятно света, рисуется один раз и переиспользуется
     this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
+    this.glowRed = null;          // то же, красное: для быка
+    this.strip = null;            // мягкая красная полоса телеграфа (без чётких краёв), один спрайт
+    this.dust = null;             // спрайт облачка пыли
+    this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
+    this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
+    for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
     this.beetleState = new WeakMap(); // у каждого жука свой угол поворота и фаза анимации (только для вида)
   }
 
@@ -85,7 +105,9 @@ export class Renderer {
   draw(alpha) {
     const { ctx, dpr, w, h, arena, hero, camera } = this;
     const C = this.cfg.render.colors;
-    this.clock = performance.now() / 1000;
+    const now = performance.now() / 1000;
+    this.dt = Math.min(0.1, now - this.clock);
+    this.clock = now;
     const s = camera.scale;
     const camX = camera.prevX + (camera.x - camera.prevX) * alpha;
     const camY = camera.prevY + (camera.y - camera.prevY) * alpha;
@@ -174,6 +196,8 @@ export class Renderer {
       if (ex + r < viewL || ex - r > viewR || ey + r < viewT || ey - r > viewB) continue;
       this.drawEnemy(e, ex, ey, C);
     }
+
+    this.drawDust(this.dt);
 
     // Метка на цели автоатаки.
     const target = this.autoattack && this.autoattack.target;
@@ -271,6 +295,10 @@ export class Renderer {
       const y = e.prevY + (e.y - e.prevY) * alpha;
       const k = tg.progress;
       const blink = k > 0.7 && (Math.floor(k * 18) & 1); // последняя часть замаха: контур мигает
+      if (tg.shape !== 'circle') {
+        this.drawSoftStrip(tg, x, y, k); // рывок по линии: размытая красная полоса без чётких краёв
+        continue;
+      }
       ctx.save();
       ctx.translate(x, y);
       if (tg.shape === 'circle') {
@@ -317,6 +345,9 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.shooter) {
       // Жук-стрелок: фиолетовый, с брюшком, которое растёт при заряде выстрела.
       this.drawShooter(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.bull) {
+      // Бык: жук-носорог с красным акцентом, размытием в рывке и пылью при торможении.
+      this.drawBull(e, x, y, hit);
     } else {
       // Попадание: враг белеет и на мгновение раздувается.
       const rr = hit ? r * 1.15 : e.atk.state === 'windup' ? r * (1 + 0.08 * Math.sin(e.atk.t * 30)) : r;
@@ -395,7 +426,7 @@ export class Renderer {
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
   getGlow(violet) {
-    const key = violet ? 'glowViolet' : 'glow';
+    const key = violet === 'red' ? 'glowRed' : violet ? 'glowViolet' : 'glow';
     if (this[key]) return this[key];
     const size = 64;
     let c;
@@ -407,7 +438,12 @@ export class Renderer {
     }
     const g = c.getContext('2d');
     const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    if (violet) {
+    if (violet === 'red') {
+      gr.addColorStop(0, 'rgba(255,218,205,1)');
+      gr.addColorStop(0.3, 'rgba(255,84,66,0.55)');
+      gr.addColorStop(0.7, 'rgba(220,40,36,0.14)');
+      gr.addColorStop(1, 'rgba(200,30,30,0)');
+    } else if (violet) {
       gr.addColorStop(0, 'rgba(240,222,255,1)');
       gr.addColorStop(0.3, 'rgba(176,112,255,0.55)');
       gr.addColorStop(0.7, 'rgba(130,62,230,0.14)');
@@ -891,6 +927,335 @@ export class Renderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** Мягкая красная полоса телеграфа: вдоль и поперёк плавно тает в ноль, чётких краёв нет. Считается один раз. */
+  getStrip() {
+    if (this.strip) return this.strip;
+    const W = 256;
+    const H = 64;
+    let c;
+    if (typeof OffscreenCanvas === 'function') {
+      c = new OffscreenCanvas(W, H);
+    } else {
+      c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+    }
+    const g = c.getContext('2d');
+    const img = g.createImageData(W, H);
+    const sm = (v) => {
+      const q = v < 0 ? 0 : v > 1 ? 1 : v;
+      return q * q * (3 - 2 * q);
+    };
+    for (let y = 0; y < H; y++) {
+      const v = (y / (H - 1)) * 2 - 1;
+      const fy = Math.exp(-3.2 * v * v); // поперёк: колокол, у краёв почти ноль
+      for (let x = 0; x < W; x++) {
+        const u = x / (W - 1);
+        const a = sm(u / 0.14) * sm((1 - u) / 0.2) * fy; // вдоль: нарастание в начале и затухание в конце
+        const i = (y * W + x) * 4;
+        img.data[i] = 255;
+        img.data[i + 1] = 70;
+        img.data[i + 2] = 58;
+        img.data[i + 3] = Math.round(a * 255);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    this.strip = c;
+    return c;
+  }
+
+  /** Телеграф рывка: размытая красная полоса; за время замаха она наливается от жука вперёд, в конце пульсирует. */
+  drawSoftStrip(tg, x, y, k) {
+    const ctx = this.ctx;
+    const strip = this.getStrip();
+    const L = tg.length;
+    const w = tg.width;
+    const h = w * 2.2; // по краям спрайт тает, поэтому он шире зоны
+    const pulse = k > 0.7 ? 0.85 + 0.15 * Math.sin(this.clock * 38) : 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.atan2(tg.dirY, tg.dirX));
+    ctx.globalAlpha = (0.16 + 0.08 * k) * pulse;
+    ctx.drawImage(strip, -0.05 * L, -h / 2, L * 1.1, h);
+    ctx.globalAlpha = (0.22 + 0.3 * k) * pulse;
+    ctx.drawImage(strip, -0.05 * L, -h / 2, Math.max(2, L * 1.1 * k), h);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  /** Мягкое светлое облачко для пыли. */
+  getDust() {
+    if (this.dust) return this.dust;
+    const size = 64;
+    let c;
+    if (typeof OffscreenCanvas === 'function') {
+      c = new OffscreenCanvas(size, size);
+    } else {
+      c = document.createElement('canvas');
+      c.width = c.height = size;
+    }
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gr.addColorStop(0, 'rgba(214,226,244,0.9)');
+    gr.addColorStop(0.5, 'rgba(184,201,226,0.45)');
+    gr.addColorStop(1, 'rgba(160,182,214,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, size, size);
+    this.dust = c;
+    return c;
+  }
+
+  /** Облачко пыли в точке остановки: несколько клубов летят вперёд по ходу рывка и в стороны, тормозят и тают. */
+  spawnDust(x, y, dirX, dirY) {
+    const base = Math.atan2(dirY, dirX);
+    let made = 0;
+    for (let i = 0; i < this.puffs.length && made < 9; i++) {
+      const p = this.puffs[i];
+      if (p.on) continue;
+      const a = base + (Math.random() - 0.5) * 2.6;
+      const sp = 30 + Math.random() * 90;
+      p.on = true;
+      p.x = x - dirX * 4 + (Math.random() - 0.5) * 8;
+      p.y = y - dirY * 4 + (Math.random() - 0.5) * 8;
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp;
+      p.age = 0;
+      p.life = 0.5 + Math.random() * 0.4;
+      p.size = 7 + Math.random() * 7;
+      made++;
+    }
+  }
+
+  drawDust(dt) {
+    const ctx = this.ctx;
+    const sprite = this.getDust();
+    const drag = Math.exp(-4 * dt);
+    for (let i = 0; i < this.puffs.length; i++) {
+      const p = this.puffs[i];
+      if (!p.on) continue;
+      p.age += dt;
+      if (p.age >= p.life) {
+        p.on = false;
+        continue;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= drag;
+      p.vy *= drag;
+      const k = p.age / p.life;
+      const s = p.size * (1 + 1.2 * k); // клуб раздувается и редеет
+      ctx.globalAlpha = 0.55 * (1 - k) * (1 - k);
+      ctx.drawImage(sprite, p.x - s, p.y - s, s * 2, s * 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Бык, жук-носорог, вид сверху: тёмно-синий панцирь, красный акцент (кайма, швы, глаза, кончик рога).
+   * Замах: жук напрягается и дрожит, красное разгорается. Рывок: тело вытягивается, за ним шлейф теней и
+   * линии скорости. Конец рывка: облачко пыли. Оглушение: холодный оттенок, над головой кружат звёздочки.
+   */
+  drawBull(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    const A = e.atk;
+    const as = A.state;
+    const att = e.def.attack;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU };
+      this.beetleState.set(e, st);
+    }
+    // Давно не рисовали или это другой враг из пула: прошлое состояние забываем, пыли не будет.
+    if (t - (st.t || 0) > 0.5 || st.pa === undefined) st.pa = as;
+    st.t = t;
+    if (st.pa === 'strike' && as !== 'strike') this.spawnDust(x, y, A.dirX, A.dirY); // рывок закончился: тормозит
+    st.pa = as;
+
+    const frozen = e.freezeT > 0;
+    const moving = e.hx !== 0 || e.hy !== 0;
+    if (!frozen) {
+      const target = as !== 'idle' ? Math.atan2(A.dirY, A.dirX)
+        : moving ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+      let da = (target - st.a) % TAU;
+      if (da > Math.PI) da -= TAU;
+      else if (da < -Math.PI) da += TAU;
+      st.a += da * (as === 'strike' ? 0.8 : 0.25);
+    }
+
+    const striking = as === 'strike';
+    const stunned = as === 'stun';
+    const kW = as === 'windup' && att ? Math.min(1, A.t / Math.max(0.01, att.windup)) : 0; // как далеко зашёл замах
+    const rage = striking ? 1 : kW; // насколько разгорелось красное
+    const f1 = frozen ? 0.5 : 0.5 + 0.5 * Math.sin(t * 14 + st.ph);
+    const glow = this.getGlow('red');
+    const sh = frozen ? 0 : (kW * 0.05 + (stunned ? 0.03 : 0)) * r; // дрожь: замах и оглушение
+
+    ctx.save();
+    ctx.translate(x + Math.sin(t * 63) * sh, y + Math.cos(t * 57) * sh);
+    ctx.rotate(st.a);
+    const press = as === 'windup' ? 1 + 0.04 * Math.sin(t * 30) * kW : 1; // в замахе тело «пульсирует»
+    const vs = (hit ? 1.12 : 1) * 1.1 * press; // жук крупнее собственного круга: он тяжёлый
+    ctx.scale(vs, vs);
+
+    if (striking) {
+      // Скорость: линии позади и шлейф красноватых теней, каждая тень — на кадр раньше.
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = '#ff8a80';
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      for (let j = 0; j < 3; j++) {
+        const yy = (-0.5 + j * 0.5) * r;
+        const len = (2.4 + 1.2 * Math.abs(Math.sin(t * 31 + j * 2))) * r;
+        ctx.moveTo(-1.15 * r, yy);
+        ctx.lineTo(-1.15 * r - len, yy);
+      }
+      ctx.stroke();
+      ctx.fillStyle = '#d8453a';
+      for (let i = 1; i <= 4; i++) {
+        ctx.globalAlpha = 0.34 - i * 0.07;
+        ctx.save();
+        ctx.translate(-i * 0.85 * r, 0);
+        ctx.beginPath();
+        tracePoly(ctx, BULL_SHELL, r);
+        tracePoly(ctx, BULL_HORN, r);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      ctx.scale(1.18, 0.92); // сам жук вытянут по ходу движения
+    }
+
+    // Лапы: толстые, угловатые; в рывке не рисуем (там и так смазано).
+    if (!striking) {
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const lx = (0.4 - i * 0.5) * r;
+        const sw = moving && !frozen ? Math.sin(t * 18 + st.ph + i * 2.1) * 0.22 * r : 0;
+        ctx.moveTo(lx, -0.6 * r);
+        ctx.lineTo(lx + 0.2 * r, -0.95 * r);
+        ctx.lineTo(lx + 0.2 * r + sw, -1.1 * r);
+        ctx.moveTo(lx, 0.6 * r);
+        ctx.lineTo(lx + 0.2 * r, 0.95 * r);
+        ctx.lineTo(lx + 0.2 * r - sw, 1.1 * r);
+      }
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#2c3550';
+      ctx.stroke();
+    }
+
+    // Панцирь: тёмно-синий, верхняя грань светлее, по контуру красная кайма.
+    ctx.beginPath();
+    tracePoly(ctx, BULL_SHELL, r);
+    ctx.fillStyle = hit ? '#ffffff' : '#141a28';
+    ctx.fill();
+    if (!hit) {
+      ctx.fillStyle = '#222c45';
+      ctx.beginPath();
+      ctx.moveTo(0.62 * r, -0.62 * r);
+      ctx.lineTo(0.15 * r, -0.9 * r);
+      ctx.lineTo(-0.65 * r, -0.78 * r);
+      ctx.lineTo(-1.05 * r, -0.2 * r);
+      ctx.lineTo(-1.05 * r, 0);
+      ctx.lineTo(0.4 * r, 0);
+      ctx.closePath();
+      ctx.fill();
+      // Жар под панцирем и красные швы: разгораются в замахе и рывке.
+      ctx.globalAlpha = frozen ? 0.06 : 0.1 + 0.4 * rage;
+      ctx.drawImage(glow, -1.5 * r, -1.1 * r, 2.4 * r, 2.2 * r);
+      ctx.globalAlpha = frozen ? 0.3 : 0.5 + 0.45 * rage + 0.05 * f1;
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = '#ff4a3d';
+      ctx.beginPath();
+      ctx.moveTo(0.3 * r, 0);
+      ctx.lineTo(-1.05 * r, 0);
+      ctx.moveTo(0.1 * r, 0);
+      ctx.lineTo(-0.5 * r, -0.5 * r);
+      ctx.moveTo(0.1 * r, 0);
+      ctx.lineTo(-0.5 * r, 0.5 * r);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.beginPath();
+    tracePoly(ctx, BULL_SHELL, r);
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = hit ? 1 : 0.55 + 0.4 * rage;
+    ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (stunned && !hit) {
+      ctx.globalAlpha = 0.4; // оглушён: панцирь холодеет
+      ctx.fillStyle = '#8fa8c8';
+      ctx.beginPath();
+      tracePoly(ctx, BULL_SHELL, r);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Передняя пластина.
+    ctx.beginPath();
+    tracePoly(ctx, BULL_PRON, r);
+    ctx.fillStyle = hit ? '#ffffff' : '#1c2438';
+    ctx.fill();
+    ctx.lineWidth = 1.3;
+    ctx.globalAlpha = hit ? 1 : 0.7;
+    ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Рог: тёмный, с двумя отростками и красной каймой.
+    ctx.beginPath();
+    tracePoly(ctx, BULL_HORN, r);
+    tracePoly(ctx, BULL_PRONG_L, r);
+    tracePoly(ctx, BULL_PRONG_R, r);
+    ctx.fillStyle = hit ? '#ffffff' : '#0e121c';
+    ctx.fill();
+    ctx.lineWidth = 1.1;
+    ctx.globalAlpha = hit ? 1 : 0.8;
+    ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Оглушение: над головой кружат звёздочки.
+    if (stunned) {
+      ctx.fillStyle = '#e9f2ff';
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const ang = t * 5 + i * 2.094;
+        const sx = 0.7 * r + Math.cos(ang) * 0.75 * r;
+        const sy = Math.sin(ang) * 0.55 * r;
+        ctx.moveTo(sx + 0.1 * r, sy);
+        ctx.arc(sx, sy, 0.1 * r, 0, TAU);
+      }
+      ctx.fill();
+    }
+
+    // Глаза и кончик рога: красное свечение сложением цветов; в замахе и рывке разгорается, в оглушении гаснет.
+    const power = stunned ? 0.12 : frozen ? 0.2 : as === 'recovery' ? 0.4 : 0.45 + 0.5 * rage + 0.08 * f1;
+    const ex = 0.84 * r;
+    const ey = 0.36 * r;
+    const er = 0.1 * r * (1 + 0.5 * rage);
+    ctx.fillStyle = '#ffd0c8';
+    ctx.globalAlpha = stunned ? 0.4 : 1;
+    ctx.beginPath();
+    ctx.arc(ex, -ey, er, 0, TAU);
+    ctx.arc(ex, ey, er, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = power;
+    const gs = r * (1.3 + 0.7 * rage);
+    ctx.drawImage(glow, ex - gs / 2, -ey - gs / 2, gs, gs);
+    ctx.drawImage(glow, ex - gs / 2, ey - gs / 2, gs, gs);
+    ctx.globalAlpha = power * 0.7;
+    const hs = r * 0.9;
+    ctx.drawImage(glow, 1.72 * r - hs / 2, -hs / 2, hs, hs);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
   }
 
   drawHero(hx, hy, C) {
