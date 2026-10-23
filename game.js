@@ -417,12 +417,18 @@ export class Game {
   }
 
   onShotHitEnemy(p, e) {
+    if (p.hits.length && p.hits.includes(e)) return; // этого уже пробили
     const speed = Math.hypot(p.vx, p.vy) || 1;
     // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
     if (p.frost && e.active) this.chill(e, p.burnDmg > 0 ? p.steam : 0, p.burnDmg, p.burnInt);
-    p.active = false; // снаряд потрачен
+    if (p.pierce > 0) {
+      p.pierce--;
+      p.hits.push(e); // летит дальше
+    } else {
+      p.active = false; // снаряд потрачен
+    }
   }
 
   onEnemyShotHitHero(p) {

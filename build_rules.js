@@ -12,9 +12,11 @@ export function parentAccepts(modDef, core, carry) {
     if (e.kind === 'double') return !!core.def.multStat;
     if (e.kind === 'burn') return !!core.def.canBurn;
     if (e.kind === 'frost') return !!core.def.canFrost;
+    if (e.kind === 'pierce') return !!core.def.canPierce;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
+  if (e.kind === 'pierce') return false; // «Пробитие» крепится только к ядру
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
   if (e.kind === 'frost') return carry === 'burn';

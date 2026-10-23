@@ -132,6 +132,7 @@ export class BuildGrid {
       const e = c.mod.def.effect;
       if (e.kind === 'double') carry.set(ci, pcore ? pcore.def.multStat : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
+      else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
       else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
@@ -235,10 +236,20 @@ export class BuildGrid {
     }
     if (burns) res.burn = { count: burns, damage: bDmg, rate: bRate / burns };
     if (frosts) res.frost = { count: frosts };
+    // Пробитие: само по себе 1 враг насквозь, множители на нём (Х2, Х3, цепочкой перемножаются) увеличивают число.
+    let pierce = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'pierce' || owner.get(i) !== coreId) continue;
+      let f = 1;
+      for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+      pierce += f;
+    }
+    if (pierce) res.pierce = { count: pierce };
     if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
     for (const i of kids.get(-1) || []) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       if (this.cells[i].mod.def.effect.kind === 'double') {
         // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),
