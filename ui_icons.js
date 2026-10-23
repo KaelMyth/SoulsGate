@@ -29,6 +29,11 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Лазер: луч с искрами.
+  laser: [
+    ['path', { d: 'M3 16h26', stroke: 'currentColor', 'stroke-width': 4.5, 'stroke-linecap': 'round', fill: 'none' }],
+    ['path', { d: 'M9 8l3 4M16 6v5M23 8l-3 4M9 24l3-4M16 26v-5M23 24l-3-4', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none' }],
+  ],
   // Горение: пламя.
   flame: [
     ['path', { d: 'M16 3c1 6 8 9 8 16a8 8 0 0 1-16 0c0-4 2-6 4-9 1 3 2 4 3 4 0-4-1-7 1-11z', fill: 'currentColor' }],

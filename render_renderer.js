@@ -72,6 +72,7 @@ export class Renderer {
     this.autoattack = deps.autoattack || null;
     this.defense = deps.defense || null;
     this.clouds = deps.clouds || [];
+    this.lasers = deps.lasers || [];
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -216,6 +217,8 @@ export class Renderer {
       this.drawBlock(hx, hy, C);
       if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
     }
+
+    this.drawLasers(ctx);
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
@@ -1411,6 +1414,35 @@ export class Renderer {
     ctx.lineWidth = parry ? 3 : 2;
     ctx.strokeStyle = parry ? C.parry : C.blockEdge;
     ctx.stroke();
+  }
+
+  /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
+  drawLasers(ctx) {
+    const ls = this.lasers;
+    if (!ls || !ls.length) return;
+    const L = this.cfg.laser;
+    ctx.lineCap = 'round';
+    for (const l of ls) {
+      const fade = Math.min(1, (l.life - l.age) / 0.25);
+      l.pulse = Math.max(0, l.pulse - 0.06);
+      const x1 = l.x + l.dx * l.len;
+      const y1 = l.y + l.dy * l.len;
+      const w = l.width * (1 + l.pulse * 0.25);
+      const glow = l.big ? 2.6 : 1.7;
+      ctx.globalAlpha = fade * (l.big ? 0.4 : 0.25);
+      ctx.strokeStyle = L.color;
+      ctx.lineWidth = w * glow;
+      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.globalAlpha = fade * (l.big ? 0.95 : 0.7);
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = w * (l.big ? 0.6 : 0.35);
+      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   }
 
   /** Облака пара на земле: мягкое пятно с медленно ползущими клубами, к концу жизни тает. */

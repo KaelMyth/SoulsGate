@@ -132,10 +132,12 @@ export class BuildGrid {
       const e = c.mod.def.effect;
       if (e.kind === 'double') carry.set(ci, pcore ? pcore.def.multStat : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
+      else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
       else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
+      else if (pc.startsWith('laser')) carry.set(ci, 'laser:' + e.stat);
       else carry.set(ci, e.stat);
     }
     return { owner, parent, carry };
@@ -246,10 +248,28 @@ export class BuildGrid {
       pierce += f;
     }
     if (pierce) res.pierce = { count: pierce };
+    // Лазер: Мощь на нём усиливает урон тика, Ускорение учащает тики.
+    let lasers = 0;
+    let lDmg = 0;
+    let lRate = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'laser' || owner.get(i) !== coreId) continue;
+      let d = 0;
+      let r = 0;
+      for (const k of kids.get(i) || []) {
+        if (carry.get(k) === 'laser:damage') d += walk(k, 0);
+        else if (carry.get(k) === 'laser:rate') r += walk(k, 0);
+      }
+      lasers++;
+      lDmg += 1 + d;
+      lRate += 1 + r;
+    }
+    if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
     if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
     for (const i of kids.get(-1) || []) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       if (this.cells[i].mod.def.effect.kind === 'double') {
         // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),
