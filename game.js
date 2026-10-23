@@ -207,6 +207,13 @@ export class Game {
       const s = e.source;
       if (e.targetKind === 'hero' && s && s.owner && s.owner.def && s.owner.def.shot) this.splat(e.target.x, e.target.y, s.vx, s.vy);
     });
+    // Удар врага с атакой (рывок быка) попал по герою: красные искры летят по ходу удара. Только вид.
+    this.bus.on('damage:dealt', (e) => {
+      const en = e.source && e.source.enemy;
+      if (e.targetKind === 'hero' && en && en.def && en.def.attack) {
+        this.hitSparks(e.target.x, e.target.y, en.atk.dirX, en.atk.dirY, 16, config.render.colors.sparkRed);
+      }
+    });
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
     this.bus.on('hero:hit-incoming', (inc) => {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
@@ -275,6 +282,16 @@ export class Game {
       if (this.effects.count >= this.config.render.maxEffects) return;
       const a = this.rnd() * Math.PI * 2;
       initEffect(this.effects.spawn(), x, y, 0.3 + this.rnd() * 0.2, 6, 26 + this.rnd() * 34, color, a);
+    }
+  }
+
+  /** Искры веером по направлению удара (от героя вперёд, а не во все стороны). */
+  hitSparks(x, y, dirX, dirY, n, color) {
+    const base = Math.atan2(dirY, dirX);
+    for (let i = 0; i < n; i++) {
+      if (this.effects.count >= this.config.render.maxEffects) return;
+      const a = base + (this.rnd() - 0.5) * 2.2;
+      initEffect(this.effects.spawn(), x, y, 0.3 + this.rnd() * 0.25, 8, 36 + this.rnd() * 50, color, a);
     }
   }
 
