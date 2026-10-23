@@ -9,6 +9,7 @@ function setBurn(p, cfg, m) {
   if (!m || !m.burn) return;
   p.burnDmg = p.damage * cfg.burn.damageFrac * m.burn.damage;
   p.burnInt = cfg.burn.interval / m.burn.rate;
+  if (m.frost && m.steam) p.steam = m.steam.damage; // связка: на 5 зарядах взрыв пара вместо заморозки
 }
 
 /**

@@ -1,3 +1,4 @@
+import { parentAccepts } from './build_rules.js';
 // Сетка билда: клетки и то, что в них лежит. Это только данные: рисует их ui/builder.js,
 // а правила графа (обход от ядра, теги, пул) придут отдельным вычислителем и будут читать эту же сетку.
 //
@@ -105,14 +106,36 @@ export class BuildGrid {
         if (!n.mod || owner.has(ni)) continue;
         owner.set(ni, id);
         parent.set(ni, c.core ? -1 : ci);
-        const e = n.mod.def.effect;
-        const pc = c.core ? '' : carry.get(ci);
-        if (e.kind === 'double') carry.set(ni, c.core ? c.core.def.multStat : pc);
-        else if (e.kind === 'frost') carry.set(ni, 'frost'); // мороз: без своей ветки
-        else if (e.kind === 'burn') carry.set(ni, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
-        else carry.set(ni, pc.startsWith('burn') ? 'burn:' + e.stat : e.stat);
         queue.push(n);
       }
+    }
+    // Связка «Горение + Мороз» (в любом порядке): оба мода становятся её частью, на Мороз можно вешать урон.
+    const linked = new Set();
+    for (const c of queue) {
+      if (c.core) continue;
+      const i = c.y * this.size + c.x;
+      const p = parent.get(i);
+      if (p < 0) continue;
+      const a = c.mod.def.effect.kind;
+      const b = this.cells[p].mod.def.effect.kind;
+      if ((a === 'burn' && b === 'frost') || (a === 'frost' && b === 'burn')) {
+        if (a === 'frost') linked.add(i); else linked.add(p);
+      }
+    }
+    // Что несёт каждый мод: родители раньше детей (порядок обхода в ширину).
+    for (const c of queue) {
+      if (c.core) continue;
+      const ci = c.y * this.size + c.x;
+      const p = parent.get(ci);
+      const pc = p < 0 ? '' : carry.get(p);
+      const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
+      const e = c.mod.def.effect;
+      if (e.kind === 'double') carry.set(ci, pcore ? pcore.def.multStat : pc);
+      else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
+      else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
+      else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
+      else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
+      else carry.set(ci, e.stat);
     }
     return { owner, parent, carry };
   }
@@ -124,8 +147,26 @@ export class BuildGrid {
 
   /** Моды, не связанные с ядром (после снятия соседа): их надо вернуть в хранилище. */
   orphans() {
-    const owner = this.branches();
-    return this.cells.filter((c) => c.mod && !owner.has(c.y * this.size + c.x));
+    const { owner, parent, carry } = this.tree();
+    // Мод тоже теряет место, если его родитель перестал ему подходить (сняли Горение: на Морозе повисли Мощи).
+    const bad = new Map();
+    const invalid = (i) => {
+      if (bad.has(i)) return bad.get(i);
+      const p = parent.get(i);
+      let r = false;
+      if (p !== undefined && p !== -2) {
+        const cell = this.cells[i];
+        const core = p < 0 ? this.coreById(owner.get(i)) : null;
+        r = !parentAccepts(cell.mod.def, core, p < 0 ? null : carry.get(p)) || (p >= 0 && invalid(p));
+      }
+      bad.set(i, r);
+      return r;
+    };
+    return this.cells.filter((c) => {
+      if (!c.mod) return false;
+      const i = c.y * this.size + c.x;
+      return !owner.has(i) || invalid(i);
+    });
   }
 
   /**
@@ -167,24 +208,37 @@ export class BuildGrid {
     let burns = 0;
     let bDmg = 0;
     let bRate = 0;
-    for (const i of kids.get(-1) || []) {
-      if (this.cells[i].mod.def.effect.kind !== 'burn') continue;
-      let d = 0;
-      let r = 0;
-      for (const k of kids.get(i) || []) {
-        if (carry.get(k) === 'burn:damage') d += walk(k, 0);
-        else if (carry.get(k) === 'burn:rate') r += walk(k, 0);
+    let frosts = 0;
+    let steams = 0;
+    let sDmg = 0;
+    for (const [i, kind] of this.cells.map((c, idx) => [idx, c.mod && owner.get(idx) === coreId ? c.mod.def.effect.kind : null])) {
+      if (kind === 'burn') {
+        let d = 0;
+        let r = 0;
+        for (const k of kids.get(i) || []) {
+          if (carry.get(k) === 'burn:damage') d += walk(k, 0);
+          else if (carry.get(k) === 'burn:rate') r += walk(k, 0);
+        }
+        burns++;
+        bDmg += 1 + d;
+        bRate += 1 + r;
+      } else if (kind === 'frost') {
+        frosts++;
+        if (carry.get(i) === 'steam') {
+          // Связка с огнём: Мощь на Морозе усиливает горение, которое вешает облако пара.
+          let d = 0;
+          for (const k of kids.get(i) || []) if (carry.get(k) === 'steam:damage') d += walk(k, 0);
+          steams++;
+          sDmg += 1 + d;
+        }
       }
-      burns++;
-      bDmg += 1 + d;
-      bRate += 1 + r;
     }
     if (burns) res.burn = { count: burns, damage: bDmg, rate: bRate / burns };
-    const frosts = (kids.get(-1) || []).filter((i) => this.cells[i].mod.def.effect.kind === 'frost').length;
     if (frosts) res.frost = { count: frosts };
+    if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
     for (const i of kids.get(-1) || []) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       if (this.cells[i].mod.def.effect.kind === 'double') {
         // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),

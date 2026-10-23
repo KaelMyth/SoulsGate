@@ -15,11 +15,14 @@ export function parentAccepts(modDef, core, carry) {
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
-  if (e.kind === 'double') return carry !== 'burn' && carry !== 'frost'; // на самом «Горении» множитель не нужен: он усиливает то, что на нём
-  if (e.kind === 'burn' || e.kind === 'frost') return false; // «Горение» и «Мороз» крепятся только к ядру
-  if (carry === 'frost') return false; // к «Морозу» ничего не крепится
+  if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
+  // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
+  if (e.kind === 'frost') return carry === 'burn';
+  if (e.kind === 'burn') return carry === 'frost' || carry === 'steam';
+  if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
-  if (carry.startsWith('burn:')) return carry === 'burn:' + e.stat; // дальше по цепочке: то же самое
+  if (carry === 'steam') return e.stat === 'damage'; // к «Морозу» в связке: урон горения облака пара
+  if (carry.startsWith('burn:') || carry.startsWith('steam:')) return carry.endsWith(':' + e.stat); // дальше по цепочке: то же самое
   return carry === e.stat;
 }
 

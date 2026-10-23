@@ -10,6 +10,7 @@ export function createProjectile() {
     knockback: 0, // насколько откидывает врага при попадании, единиц
     parryable: false, // можно ли парировать (снаряды стрелков)
     frost: false, // замораживающий снаряд (мод «Мороз»)
+    steam: 0,     // связка Мороз+Горение: множитель горения облака пара (0 = нет связки)
     burnDmg: 0, burnInt: 0, // поджог при попадании: урон тика и интервал (0 = не поджигает)
     travelled: 0,
     color: '#fff',
@@ -38,6 +39,7 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.burnDmg = 0;
   p.burnInt = 0;
   p.frost = false;
+  p.steam = 0;
   p.travelled = 0;
   p.color = def.color;
   p.owner = owner;

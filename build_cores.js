@@ -72,7 +72,13 @@ export function coreStats(core, config, mods) {
   if (core.def.canFrost && mods && mods.frost) {
     const f = config.frost;
     rows.push({ label: 'Мороз: замедление за попадание', text: Math.round(f.slowPerStack * 100) + '%', bonus: '' });
-    rows.push({ label: 'Мороз: заморозка', text: f.maxStacks + ' попаданий → ' + f.freezeTime + ' с', bonus: '' });
+    if (mods.steam && mods.burn) {
+      const bs = burnStats(config, mods.burn, (rows.find((r) => r.key === 'damage') || { value: 0 }).value);
+      rows.push({ label: 'Мороз: ' + f.maxStacks + ' попаданий', text: 'взрыв пара', bonus: '' });
+      rows.push({ label: 'Пар: урон тика горения', text: String(Math.round(bs.tick * mods.steam.damage * 100) / 100), bonus: mods.steam.damage !== 1 ? '×' + Math.round(mods.steam.damage * 100) / 100 : '' });
+    } else {
+      rows.push({ label: 'Мороз: заморозка', text: f.maxStacks + ' попаданий → ' + f.freezeTime + ' с', bonus: '' });
+    }
   }
   return rows;
 }

@@ -310,20 +310,56 @@ export class Game {
     e.burnT = b.duration;
   }
 
-  /** Холод от попадания: +1 заряд, каждый замедляет; на maxStacks цель замерзает на freezeTime. */
-  chill(e) {
+  /**
+   * Холод от попадания: +1 заряд, каждый замедляет; на maxStacks цель замерзает на freezeTime.
+   * Если у снаряда связка с Горением (steam > 0), на последнем заряде вместо заморозки взрыв пара.
+   * quiet: заряд от облака пара: он не взрывает цель сам (цепочки взрывов не нужны), копится максимум до maxStacks − 1.
+   */
+  chill(e, steam = 0, burnDmg = 0, burnInt = 0, quiet = false) {
     const f = this.config.frost;
     if (e.freezeT > 0) return; // уже заморожен: заряды не копятся
+    if (quiet && e.frostStacks >= f.maxStacks - 1) return;
     e.frostStacks++;
     e.frostT = f.stackTime;
     if (e.frostStacks >= f.maxStacks) {
-      e.freezeT = f.freezeTime;
       e.frostStacks = 0;
+      e.speedMul = 1;
+      if (steam > 0) {
+        this.steamBurst(e.x, e.y, burnDmg * steam, burnInt);
+        return;
+      }
+      e.freezeT = f.freezeTime;
       e.speedMul = 0;
       e.kbVx = e.kbVy = 0;
       this.burst(e.x, e.y, 0.35, e.radius, e.radius * 2.6, f.color);
     } else {
       e.speedMul = 1 - e.frostStacks * f.slowPerStack;
+    }
+  }
+
+  /** Взрыв пара: небольшое облако, на всех внутри вешается горение (dmg за тик) и один заряд Мороза. */
+  steamBurst(x, y, dmg, interval) {
+    const st = this.config.steam;
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    const n = grid.query(x, y, st.radius + 40);
+    const buf = grid.buf;
+    for (let k = 0; k < n; k++) {
+      const e = en[buf[k]];
+      if (!e || !e.active) continue;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const r = st.radius + e.radius;
+      if (dx * dx + dy * dy > r * r) continue;
+      this.ignite(e, dmg, interval);
+      this.chill(e, 0, 0, 0, true);
+    }
+    // Облако: несколько расплывающихся бледных колец вместо одного.
+    this.burst(x, y, st.life, st.radius * 0.35, st.radius, st.color);
+    for (let i = 0; i < 5; i++) {
+      const a = this.rnd() * Math.PI * 2;
+      const d = this.rnd() * st.radius * 0.55;
+      this.burst(x + Math.cos(a) * d, y + Math.sin(a) * d, st.life * (0.7 + this.rnd() * 0.4), st.radius * 0.2, st.radius * 0.6, st.color);
     }
   }
 
@@ -364,7 +400,7 @@ export class Game {
     // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
-    if (p.frost && e.active) this.chill(e);
+    if (p.frost && e.active) this.chill(e, p.burnDmg > 0 ? p.steam : 0, p.burnDmg, p.burnInt);
     p.active = false; // снаряд потрачен
   }
 
