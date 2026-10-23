@@ -12,14 +12,20 @@ export class PauseUI {
       id: 'pause-btn', type: 'button', 'aria-label': 'Пауза', onclick: () => handlers.onToggle(),
     }, '❚❚');
     this.builder = new BuilderUI(grid, config, storage);
-    // Тестовый набор: любой мод из конфига кладётся в хранилище нажатием (только режим «Тестирование»).
-    this.tools = h('div', { class: 'test-tools' }, h('span', {}, 'Тест: добавить мод'));
+    // Тестовый набор (только режим «Тестирование»): одна кнопка открывает список всех модов из конфига,
+    // нажатие на мод кладёт его в хранилище. Список выпадает вверх и листается: модов будет много.
+    this.toolsList = h('div', { class: 'tools-list', hidden: '' });
     for (const key of Object.keys(config.mods)) {
-      this.tools.append(h('button', {
-        type: 'button', class: 'tool', 'data-spawn': key,
-        onclick: () => { this.storage.addAlways({ key, def: config.mods[key] }); this.builder.rebuild(); },
-      }, '+ ' + config.mods[key].name));
+      const def = config.mods[key];
+      this.toolsList.append(h('button', {
+        type: 'button', class: 'tool-item', 'data-spawn': key,
+        onclick: () => { this.storage.addAlways({ key, def }); this.builder.rebuild(); },
+      }, h('b', {}, def.name), h('span', {}, def.description)));
     }
+    this.toolsBtn = h('button', {
+      type: 'button', id: 'tools-toggle', class: 'tools-toggle', onclick: () => this.showTools(this.toolsList.hidden),
+    }, '＋ Добавить мод (тест) ▴');
+    this.tools = h('div', { class: 'test-tools' }, this.toolsBtn, this.toolsList);
     this.main = h('div', { class: 'card', id: 'pause-main' },
       this.builder.root,
       this.tools,
@@ -37,6 +43,11 @@ export class PauseUI {
   /** Набор для тестов виден только в режиме «Тестирование». */
   setTestTools(on) {
     this.tools.hidden = !on;
+    if (!on) this.showTools(false);
+  }
+
+  showTools(on) {
+    this.toolsList.hidden = !on;
   }
 
   showMenu(on) {
@@ -49,6 +60,7 @@ export class PauseUI {
     this.button.textContent = on ? '▶︎' : '❚❚';
     this.button.classList.toggle('on', on);
     this.showMenu(false);
+    this.showTools(false);
     if (on) this.builder.refresh();
   }
 
