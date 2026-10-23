@@ -38,7 +38,8 @@ export function coreStats(core, config, mods) {
     const m = s.key && mods ? mods[s.key] : null;
     let bonus = '';
     if (m && typeof v === 'number') {
-      v = v * (1 + m.percent / 100) + m.flat;
+      // Скорость стрельбы хранится как перезарядка в секундах: +10% скорости это перезарядка, делённая на 1.1.
+      v = s.rate ? v / (1 + m.percent / 100) : v * (1 + m.percent / 100) + m.flat;
       const pc = Math.round(m.percent * 10) / 10;
       bonus = s.key === core.def.multStat ? '×' + (1 + pc / 100) : (pc ? '+' + pc + '%' : '') + (m.flat ? (pc ? ' ' : '') + '+' + m.flat : '');
     }

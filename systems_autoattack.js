@@ -58,8 +58,11 @@ export class AutoAttack {
       return;
     }
     const atk = this.cfg.attack;
+    // Моды скорости атаки (Ускорение) делят перезарядку.
+    const mm = this.modifiers ? this.modifiers(atk.core) : null;
+    const reload = atk.reload / (mm && mm.rate ? 1 + mm.rate.percent / 100 : 1);
     // Ползунок перезарядки действует сразу: остаток старого таймера не длиннее новой перезарядки.
-    if (this.timer > atk.reload) this.timer = atk.reload;
+    if (this.timer > reload) this.timer = reload;
     this.timer -= dt;
     const def = this.cfg.projectiles[atk.projectile];
     const arena = atk.requireLineOfSight ? this.arena : null;
@@ -77,7 +80,7 @@ export class AutoAttack {
         this.acc = 1;
         return;
       }
-      this.acc = Math.min(this.acc + dt * count / atk.reload, 4);
+      this.acc = Math.min(this.acc + dt * count / reload, 4);
       while (this.acc >= 1 && !(lim && this.shots.count >= lim.maxShots)) {
         this.fireStream(target, m, count);
         this.acc -= 1;
@@ -88,7 +91,7 @@ export class AutoAttack {
     this.acc = 1;
     if (target && this.timer <= 0 && !full) {
       this.fire(target);
-      this.timer += atk.reload; // переносим остаток: ритм выстрелов не плывёт
+      this.timer += reload; // переносим остаток: ритм выстрелов не плывёт
       if (this.timer < 0) this.timer = 0;
     } else if ((!target || full) && this.timer < 0) {
       this.timer = 0; // цель нет: первый выстрел по новой цели без задержки

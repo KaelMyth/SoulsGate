@@ -20,6 +20,10 @@ const ICONS = {
   x3: [
     ['text', { x: 16, y: 23, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 800, fill: 'currentColor', 'font-family': 'sans-serif' }, '×3'],
   ],
+  // Ускорение: молния.
+  haste: [
+    ['path', { d: 'M19 3 8 18h7l-2 11 11-15h-7z', fill: 'currentColor' }],
+  ],
   // Мощь: стрелка вверх.
   power: [
     ['path', { d: 'M16 4 6 16h7v11h6V16h7z', fill: 'currentColor' }],
