@@ -49,10 +49,12 @@ export class DebugPanel {
   buildSliders() {
     const wrap = h('div', {});
     let group = null;
+    let body = wrap; // ползунки лежат внутри раздела, раздел открывается нажатием на заголовок
     for (const def of this.o.tunables) {
       if (def.group && def.group !== group) {
         group = def.group;
-        wrap.append(h('h4', { class: 'dbg-group' }, group));
+        body = h('div', { class: 'dbg-body' });
+        wrap.append(h('details', { class: 'dbg-sect' }, h('summary', { class: 'dbg-group' }, group), body));
       }
       const value = getPath(this.o.config, def.path);
       const valueEl = h('span', { class: 'val' }, formatValue(def, value));
@@ -70,7 +72,7 @@ export class DebugPanel {
         this.o.bus.emit('config:changed', { path: def.path, value: v });
       });
       input.addEventListener('change', () => this.save());
-      wrap.append(h('div', { class: 'dbg-row' }, h('div', { class: 'top' }, h('span', {}, def.label), valueEl), input));
+      body.append(h('div', { class: 'dbg-row' }, h('div', { class: 'top' }, h('span', {}, def.label), valueEl), input));
       this.rows.push({ def, input, valueEl });
     }
     return wrap;
