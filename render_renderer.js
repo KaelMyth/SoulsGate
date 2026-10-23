@@ -6,6 +6,9 @@ import { getTelegraph } from './systems_attacks.js';
 const TAU = Math.PI * 2;
 const EMPTY = { items: [] };
 
+// Угловатый контур панциря (x, y в долях радиуса, нос в +x), общий для жуков в стиле low-poly.
+const SHELL = [0.56, -0.5, 0.1, -0.78, -0.6, -0.62, -0.98, -0.15, -0.98, 0.15, -0.6, 0.62, 0.1, 0.78, 0.56, 0.5];
+
 function mulberry32(seed) {
   let a = seed | 0;
   return function () {
@@ -62,6 +65,7 @@ export class Renderer {
     this.rockShapes = deps.arena.rocks.map((_, i) => buildRockShape(i + 1));
     this.clock = 0;               // время кадра в секундах: для мерцания пламени и пульса глаз
     this.glow = null;             // мягкое тёплое пятно света, рисуется один раз и переиспользуется
+    this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
     this.beetleState = new WeakMap(); // у каждого жука свой угол поворота и фаза анимации (только для вида)
   }
 
@@ -191,13 +195,17 @@ export class Renderer {
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
-    this.drawShots(this.enemyShots.items, alpha, viewL, viewR, viewT, viewB);
+    this.drawEnemyShots(this.enemyShots.items, alpha, viewL, viewR, viewT, viewB, C);
 
     // Эффекты-всплески.
     const fx = this.effects.items;
     for (let i = 0; i < fx.length; i++) {
       const f = fx[i];
       if (!f.active) continue;
+      if (f.kind === 1) {
+        this.drawGlob(f);
+        continue;
+      }
       const t = Math.min(1, f.age / f.life);
       ctx.globalAlpha = 1 - t;
       ctx.beginPath();
@@ -306,6 +314,9 @@ export class Renderer {
     if (e.def === this.cfg.enemies.beetle) {
       // Жук: пламенный жук с светящимися глазами (отдельная отрисовка).
       this.drawBeetle(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.shooter) {
+      // Жук-стрелок: фиолетовый, с брюшком, которое растёт при заряде выстрела.
+      this.drawShooter(e, x, y, hit);
     } else {
       // Попадание: враг белеет и на мгновение раздувается.
       const rr = hit ? r * 1.15 : e.atk.state === 'windup' ? r * (1 + 0.08 * Math.sin(e.atk.t * 30)) : r;
@@ -368,7 +379,7 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, y, r + 3 + k * 8, 0, TAU);
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#ffe27a';
+      ctx.strokeStyle = e.def === this.cfg.enemies.shooter ? '#e2cfff' : '#ffe27a';
       ctx.stroke();
     }
 
@@ -383,8 +394,9 @@ export class Renderer {
   }
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
-  getGlow() {
-    if (this.glow) return this.glow;
+  getGlow(violet) {
+    const key = violet ? 'glowViolet' : 'glow';
+    if (this[key]) return this[key];
     const size = 64;
     let c;
     if (typeof OffscreenCanvas === 'function') {
@@ -395,13 +407,20 @@ export class Renderer {
     }
     const g = c.getContext('2d');
     const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    gr.addColorStop(0, 'rgba(255,236,170,1)');
-    gr.addColorStop(0.3, 'rgba(255,160,60,0.55)');
-    gr.addColorStop(0.7, 'rgba(255,100,20,0.14)');
-    gr.addColorStop(1, 'rgba(255,80,0,0)');
+    if (violet) {
+      gr.addColorStop(0, 'rgba(240,222,255,1)');
+      gr.addColorStop(0.3, 'rgba(176,112,255,0.55)');
+      gr.addColorStop(0.7, 'rgba(130,62,230,0.14)');
+      gr.addColorStop(1, 'rgba(110,40,220,0)');
+    } else {
+      gr.addColorStop(0, 'rgba(255,236,170,1)');
+      gr.addColorStop(0.3, 'rgba(255,160,60,0.55)');
+      gr.addColorStop(0.7, 'rgba(255,100,20,0.14)');
+      gr.addColorStop(1, 'rgba(255,80,0,0)');
+    }
     g.fillStyle = gr;
     g.fillRect(0, 0, size, size);
-    this.glow = c;
+    this[key] = c;
     return c;
   }
 
@@ -581,6 +600,297 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     ctx.restore();
+  }
+
+  /**
+   * Жук-стрелок, вид сверху: фиолетовый панцирь и брюшко. Брюшко маленькое, пока жук спокоен;
+   * пока он целится (e.aim), оно растёт, наливается светом и дрожит, а после выстрела резко сдувается
+   * (на миг даже меньше обычного) и приходит в норму. Состояние брюшка хранится здесь, в рендерере.
+   */
+  drawShooter(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU };
+      this.beetleState.set(e, st);
+    }
+    // Давно не рисовали (был за экраном) или это уже другой враг из пула: брюшко начинает с малого.
+    const BASE = 0.2;
+    let dt = t - (st.t || 0);
+    if (st.ab === undefined || dt > 0.5) {
+      st.ab = BASE;
+      st.rec = 0;
+      st.was = false;
+      dt = 0;
+    }
+    st.t = t;
+    if (dt > 0.1) dt = 0.1;
+
+    const frozen = e.freezeT > 0;
+    const moving = e.hx !== 0 || e.hy !== 0;
+    if (!frozen) {
+      const target = moving ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+      let da = (target - st.a) % TAU;
+      if (da > Math.PI) da -= TAU;
+      else if (da < -Math.PI) da += TAU;
+      st.a += da * 0.25;
+    }
+
+    // Заряд: k растёт от 0 до 1 за время прицеливания; брюшко следует за ним вверх сразу, а вниз сдувается резко.
+    const aiming = e.aim > 0;
+    const k = aiming ? Math.min(1, 1 - e.aim / Math.max(0.01, e.aimTotal)) : 0;
+    if (st.was && !aiming) st.rec = 1; // только что выстрелил
+    st.was = aiming;
+    const goal = aiming ? BASE + (1 - BASE) * k * k : BASE * (1 - 0.4 * st.rec);
+    if (goal >= st.ab) st.ab = goal;
+    else st.ab += (goal - st.ab) * (1 - Math.exp(-dt / 0.04));
+    st.rec = Math.max(0, st.rec - dt / 0.35);
+    const s = st.ab;
+
+    const ph = st.ph;
+    const f2 = frozen ? 0.5 : 0.5 + 0.5 * Math.sin(t * 19 + ph * 2);
+    const glow = this.getGlow(true);
+    const ra = r * (0.36 + 0.64 * s);          // радиус брюшка
+    const cx = -(0.5 * r + ra * 0.9);          // центр брюшка по оси жука
+    const wob = !frozen && s > 0.5 ? 0.07 * k * Math.sin(t * 45 + ph) : 0; // дрожит перед выстрелом
+    const rad = ra * (1 + wob);
+    const sh = frozen ? 0 : k * 0.05 * r;      // весь жук трясётся, когда заряд почти полный
+
+    ctx.save();
+    ctx.translate(x + Math.sin(t * 61) * sh, y + Math.cos(t * 53) * sh);
+    ctx.rotate(st.a);
+    const kk = hit ? 1.15 : 1;
+    ctx.scale(kk, kk);
+
+    // Мягкий свет от глаз на пол перед жуком; сильнее, пока целится.
+    ctx.globalAlpha = frozen ? 0.04 : 0.12 + 0.1 * k + 0.03 * f2;
+    ctx.drawImage(glow, r * 0.2, -r * 1.05, r * 3.0, r * 2.1);
+
+    // Лапки: угловатые, холодный фиолетово-серый.
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const lx = (0.3 - i * 0.35) * r;
+      const sw = moving && !frozen ? Math.sin(t * 20 + ph + i * 2.1) * 0.2 * r : 0;
+      ctx.moveTo(lx, -0.4 * r);
+      ctx.lineTo(lx + 0.18 * r, -0.78 * r);
+      ctx.lineTo(lx + 0.18 * r + sw, -0.97 * r);
+      ctx.moveTo(lx, 0.4 * r);
+      ctx.lineTo(lx + 0.18 * r, 0.78 * r);
+      ctx.lineTo(lx + 0.18 * r - sw, 0.97 * r);
+    }
+    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = '#4a3a73';
+    ctx.stroke();
+
+    // Брюшко: восьмиугольник, внутри светится слизь; чем больше заряд, тем ярче.
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const ang = i * (TAU / 8) + 0.2;
+      const rr = rad * (i & 1 ? 0.9 : 1);
+      const px = cx + Math.cos(ang) * rr;
+      const py = Math.sin(ang) * rr;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : '#241a40';
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = hit ? 1 : 0.75;
+    ctx.strokeStyle = hit ? '#ffffff' : '#a06bff';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (!hit) {
+      const a5 = 5 * (TAU / 8) + 0.2;
+      const a6 = 6 * (TAU / 8) + 0.2;
+      ctx.fillStyle = '#3a2c62';
+      ctx.beginPath();
+      ctx.moveTo(cx, 0);
+      ctx.lineTo(cx + Math.cos(a5) * rad * 0.9, Math.sin(a5) * rad * 0.9);
+      ctx.lineTo(cx + Math.cos(a6) * rad, Math.sin(a6) * rad);
+      ctx.closePath();
+      ctx.fill();
+      // Слизь внутри: свечение и яркое ядро, растут с зарядом.
+      ctx.globalAlpha = frozen ? 0.08 : 0.12 + 0.6 * s * s;
+      ctx.drawImage(glow, cx - rad * 1.5, -rad * 1.5, rad * 3, rad * 3);
+      ctx.globalAlpha = frozen ? 0.1 : 0.1 + 0.55 * k;
+      ctx.fillStyle = '#d9b8ff';
+      ctx.beginPath();
+      ctx.arc(cx, 0, rad * 0.38, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Грудь: угловатый панцирь поменьше, верхняя грань светлее.
+    ctx.beginPath();
+    for (let i = 0; i < 16; i += 2) {
+      const px = (SHELL[i] * 0.8 + 0.2) * r;
+      const py = SHELL[i + 1] * 0.8 * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : '#1b1530';
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = hit ? 1 : 0.7;
+    ctx.strokeStyle = hit ? '#ffffff' : '#a06bff';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (!hit) {
+      ctx.fillStyle = '#2f2450';
+      ctx.beginPath();
+      ctx.moveTo((SHELL[0] * 0.8 + 0.2) * r, SHELL[1] * 0.8 * r);
+      ctx.lineTo((SHELL[2] * 0.8 + 0.2) * r, SHELL[3] * 0.8 * r);
+      ctx.lineTo((SHELL[4] * 0.8 + 0.2) * r, SHELL[5] * 0.8 * r);
+      ctx.lineTo((SHELL[6] * 0.8 + 0.2) * r, SHELL[7] * 0.8 * r);
+      ctx.lineTo((SHELL[6] * 0.8 + 0.2) * r, 0);
+      ctx.lineTo((0.3 * 0.8 + 0.2) * r, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Голова: тёмный шестиугольник.
+    ctx.fillStyle = hit ? '#ffffff' : '#120d22';
+    ctx.beginPath();
+    ctx.moveTo(1.18 * r, 0);
+    ctx.lineTo(1.0 * r, -0.3 * r);
+    ctx.lineTo(0.68 * r, -0.28 * r);
+    ctx.lineTo(0.6 * r, 0);
+    ctx.lineTo(0.68 * r, 0.28 * r);
+    ctx.lineTo(1.0 * r, 0.3 * r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 1.1;
+    ctx.globalAlpha = hit ? 1 : 0.7;
+    ctx.strokeStyle = hit ? '#ffffff' : '#a06bff';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Глаза: светлое ядро и фиолетовое свечение; перед выстрелом разгораются сильнее.
+    const ex = 0.96 * r;
+    const ey = 0.15 * r;
+    const er = 0.1 * r * (1 + 0.4 * k);
+    ctx.fillStyle = '#f1e0ff';
+    ctx.beginPath();
+    ctx.arc(ex, -ey, er, 0, TAU);
+    ctx.arc(ex, ey, er, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = frozen ? 0.2 : 0.55 + 0.25 * f2 + 0.2 * k;
+    const gs = r * (1.5 + 0.6 * k);
+    ctx.drawImage(glow, ex - gs / 2, -ey - gs / 2, gs, gs);
+    ctx.drawImage(glow, ex - gs / 2, ey - gs / 2, gs, gs);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+  }
+
+  /** Снаряды врагов: липкие светящиеся капли слизи с тянущимся хвостом. Парируемые обведены светлым. */
+  drawEnemyShots(list, alpha, viewL, viewR, viewT, viewB, C) {
+    const ctx = this.ctx;
+    const t = this.clock;
+    const glow = this.getGlow(true);
+    // Сначала свечение (сложением цветов), потом сами капли.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.6;
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (!p.active) continue;
+      const px = p.prevX + (p.x - p.prevX) * alpha;
+      const py = p.prevY + (p.y - p.prevY) * alpha;
+      if (px < viewL - 30 || px > viewR + 30 || py < viewT - 30 || py > viewB + 30) continue;
+      const g = p.radius * 3.2;
+      ctx.drawImage(glow, px - g, py - g, g * 2, g * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (!p.active) continue;
+      const px = p.prevX + (p.x - p.prevX) * alpha;
+      const py = p.prevY + (p.y - p.prevY) * alpha;
+      if (px < viewL - 30 || px > viewR + 30 || py < viewT - 30 || py > viewB + 30) continue;
+      const r = p.radius;
+      const ph = p.travelled * 0.15; // фаза качания зависит от пройденного пути: состояние снаряду не нужно
+      const w1 = 1 + 0.1 * Math.sin(t * 18 + ph);
+      const w2 = 1 + 0.08 * Math.cos(t * 15 + ph * 1.3);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(Math.atan2(p.vy, p.vx));
+      ctx.fillStyle = C.snot;
+      // Липкий хвост, тянущийся за каплей.
+      ctx.beginPath();
+      ctx.moveTo(-0.2 * r, -0.7 * r);
+      ctx.quadraticCurveTo(-1.4 * r, -0.45 * r, -2.6 * r * w2, 0);
+      ctx.quadraticCurveTo(-1.4 * r, 0.45 * r, -0.2 * r, 0.7 * r);
+      ctx.closePath();
+      ctx.fill();
+      // Оторвавшиеся капельки.
+      ctx.beginPath();
+      ctx.arc(-3.0 * r, Math.sin(ph * 2) * 0.25 * r, 0.28 * r, 0, TAU);
+      ctx.moveTo(-3.5 * r, Math.cos(ph * 2) * 0.2 * r);
+      ctx.arc(-3.7 * r, Math.cos(ph * 2) * 0.2 * r, 0.18 * r, 0, TAU);
+      ctx.fill();
+      // Тело-капля с лёгким дрожанием формы.
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 1.05 * r * w1, 0.9 * r * w2, 0, 0, TAU);
+      ctx.fill();
+      if (p.parryable) {
+        ctx.lineWidth = 1.3;
+        ctx.strokeStyle = '#f3eaff';
+        ctx.stroke();
+      }
+      // Блик: капля выглядит влажной.
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = C.snotCore;
+      ctx.beginPath();
+      ctx.ellipse(0.25 * r, -0.25 * r, 0.42 * r, 0.28 * r, -0.4, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  /** Капля слизи (эффект соплей при попадании): вытягивается по скорости, тянет за собой нить, тает. */
+  drawGlob(f) {
+    const ctx = this.ctx;
+    const k = Math.min(1, f.age / f.life);
+    const a = 1 - k * k;
+    const s = f.size * (1 - 0.45 * k);
+    const sp = Math.hypot(f.vx, f.vy);
+    if (sp > 15) {
+      ctx.globalAlpha = a * 0.9;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = s * 0.9;
+      ctx.strokeStyle = f.color;
+      ctx.beginPath();
+      ctx.moveTo(f.x - f.vx * 0.05, f.y - f.vy * 0.05);
+      ctx.lineTo(f.x, f.y);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
+    ctx.globalAlpha = a * 0.35;
+    const g = s * 2.2;
+    ctx.drawImage(this.getGlow(true), f.x - g, f.y - g, g * 2, g * 2);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = f.color;
+    const stretch = 1 + Math.min(0.7, sp / 250);
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y, s * stretch, s / Math.sqrt(stretch), Math.atan2(f.vy, f.vx), 0, TAU);
+    ctx.fill();
+    if (s > 5) {
+      ctx.globalAlpha = a * 0.8;
+      ctx.fillStyle = this.cfg.render.colors.snotCore;
+      ctx.beginPath();
+      ctx.arc(f.x - s * 0.25, f.y - s * 0.3, s * 0.3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   drawHero(hx, hy, C) {

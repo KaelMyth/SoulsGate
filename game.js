@@ -10,7 +10,7 @@ import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
 import { createEnemy, resetEnemy, updateEnemy } from './world_enemy.js';
 import { createProjectile, resetProjectile, updateProjectile } from './world_projectile.js';
-import { createEffect, resetEffect, initEffect, updateEffect } from './world_effects.js';
+import { createEffect, resetEffect, initEffect, initGlob, updateEffect } from './world_effects.js';
 import { Combat } from './systems_combat.js';
 import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
@@ -202,6 +202,11 @@ export class Game {
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
     });
+    // Липкий снаряд стрелка попал в героя: сопли. Только вид, на урон не влияет.
+    this.bus.on('damage:dealt', (e) => {
+      const s = e.source;
+      if (e.targetKind === 'hero' && s && s.owner && s.owner.def && s.owner.def.shot) this.splat(e.target.x, e.target.y, s.vx, s.vy);
+    });
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
     this.bus.on('hero:hit-incoming', (inc) => {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
@@ -270,6 +275,22 @@ export class Game {
       if (this.effects.count >= this.config.render.maxEffects) return;
       const a = this.rnd() * Math.PI * 2;
       initEffect(this.effects.spawn(), x, y, 0.3 + this.rnd() * 0.2, 6, 26 + this.rnd() * 34, color, a);
+    }
+  }
+
+  /** Сопли: пятно на герое и капли, разлетающиеся во все стороны (чуть дальше по ходу снаряда). Рисует renderer.drawGlob. */
+  splat(x, y, dirX, dirY) {
+    const color = this.config.render.colors.snot;
+    const len = Math.hypot(dirX, dirY) || 1;
+    const bx = dirX / len;
+    const by = dirY / len;
+    if (this.effects.count < this.config.render.maxEffects) initGlob(this.effects.spawn(), x, y, 0.9, 0, 0, 11, color, 0);
+    for (let i = 0; i < 9; i++) {
+      if (this.effects.count >= this.config.render.maxEffects) return;
+      const a = this.rnd() * Math.PI * 2;
+      const sp = 70 + this.rnd() * 130;
+      initGlob(this.effects.spawn(), x, y, 0.45 + this.rnd() * 0.35,
+        Math.cos(a) * sp + bx * 50, Math.sin(a) * sp + by * 50, 2.2 + this.rnd() * 3.2, color, 4.5);
     }
   }
 
