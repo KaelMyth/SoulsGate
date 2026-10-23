@@ -443,50 +443,86 @@ export class Renderer {
     ctx.globalAlpha = frozen ? 0.05 : 0.17 + 0.05 * f2;
     ctx.drawImage(glow, r * 0.2, -r * 1.15, r * 3.4, r * 2.3);
 
-    // Пламя за спиной: внешний оранжевый язык и внутренний жёлтый, кончик качается.
+    // Пламя на спине: небольшой язык, как на референсах. Контраст даёт оранжевое на холодном тёмном панцире.
     if (!frozen) {
-      const sway = Math.sin(t * 9 + ph) * 0.14 * r;
-      const tipX = -(1.6 + 0.35 * f1) * r;
+      const sway = Math.sin(t * 9 + ph) * 0.12 * r;
+      const tipX = -(1.3 + 0.3 * f1) * r;
       ctx.globalAlpha = 0.9;
       ctx.fillStyle = '#ff6a1f';
       ctx.beginPath();
-      ctx.moveTo(-0.5 * r, -0.45 * r);
-      ctx.quadraticCurveTo(-1.15 * r, -0.4 * r + sway * 0.5, tipX, sway);
-      ctx.quadraticCurveTo(-1.15 * r, 0.4 * r + sway * 0.5, -0.5 * r, 0.45 * r);
+      ctx.moveTo(-0.55 * r, -0.34 * r);
+      ctx.quadraticCurveTo(-1.0 * r, -0.3 * r + sway * 0.5, tipX, sway);
+      ctx.quadraticCurveTo(-1.0 * r, 0.3 * r + sway * 0.5, -0.55 * r, 0.34 * r);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = '#ffc25a';
       ctx.beginPath();
-      ctx.moveTo(-0.5 * r, -0.22 * r);
-      ctx.quadraticCurveTo(-0.95 * r, -0.2 * r + sway * 0.4, -(1.15 + 0.25 * f2) * r, sway * 0.7);
-      ctx.quadraticCurveTo(-0.95 * r, 0.2 * r + sway * 0.4, -0.5 * r, 0.22 * r);
+      ctx.moveTo(-0.55 * r, -0.16 * r);
+      ctx.quadraticCurveTo(-0.85 * r, -0.14 * r + sway * 0.4, -(1.0 + 0.22 * f2) * r, sway * 0.7);
+      ctx.quadraticCurveTo(-0.85 * r, 0.14 * r + sway * 0.4, -0.55 * r, 0.16 * r);
       ctx.closePath();
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // Ноги: три пары коротких штрихов, на ходу покачиваются.
+    // Ноги: три пары угловатых лапок с коленом, на ходу покачиваются. Холодный серо-синий цвет.
     ctx.beginPath();
     for (let i = 0; i < 3; i++) {
-      const lx = (0.4 - i * 0.45) * r;
-      const sw = moving && !frozen ? Math.sin(t * 22 + ph + i * 2.1) * 0.25 * r : 0;
-      ctx.moveTo(lx, -0.55 * r);
-      ctx.lineTo(lx + sw, -0.98 * r);
-      ctx.moveTo(lx, 0.55 * r);
-      ctx.lineTo(lx - sw, 0.98 * r);
+      const lx = (0.35 - i * 0.45) * r;
+      const sw = moving && !frozen ? Math.sin(t * 22 + ph + i * 2.1) * 0.22 * r : 0;
+      ctx.moveTo(lx, -0.45 * r);
+      ctx.lineTo(lx + 0.18 * r, -0.82 * r);
+      ctx.lineTo(lx + 0.18 * r + sw, -1.0 * r);
+      ctx.moveTo(lx, 0.45 * r);
+      ctx.lineTo(lx + 0.18 * r, 0.82 * r);
+      ctx.lineTo(lx + 0.18 * r - sw, 1.0 * r);
     }
     ctx.lineWidth = 1.4;
-    ctx.strokeStyle = '#a8481c';
+    ctx.lineJoin = 'miter';
+    ctx.strokeStyle = '#3a4663';
     ctx.stroke();
 
-    // Панцирь: тёмный овал с оранжевой каймой.
-    ctx.fillStyle = hit ? '#ffffff' : '#2b1511';
+    // Панцирь: угловатый многоугольник (low-poly). Верхняя половина светлее: одна грань для объёма.
     ctx.beginPath();
-    ctx.ellipse(-0.1 * r, 0, 0.92 * r, 0.72 * r, 0, 0, TAU);
+    ctx.moveTo(0.56 * r, -0.5 * r);
+    ctx.lineTo(0.1 * r, -0.78 * r);
+    ctx.lineTo(-0.6 * r, -0.62 * r);
+    ctx.lineTo(-0.98 * r, -0.15 * r);
+    ctx.lineTo(-0.98 * r, 0.15 * r);
+    ctx.lineTo(-0.6 * r, 0.62 * r);
+    ctx.lineTo(0.1 * r, 0.78 * r);
+    ctx.lineTo(0.56 * r, 0.5 * r);
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : '#171e2d';
     ctx.fill();
-    ctx.lineWidth = 1.6;
+    if (!hit) {
+      ctx.fillStyle = '#2a3652';
+      ctx.beginPath();
+      ctx.moveTo(0.56 * r, -0.5 * r);
+      ctx.lineTo(0.1 * r, -0.78 * r);
+      ctx.lineTo(-0.6 * r, -0.62 * r);
+      ctx.lineTo(-0.98 * r, -0.15 * r);
+      ctx.lineTo(-0.98 * r, 0);
+      ctx.lineTo(0.3 * r, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Тонкая оранжевая кайма по контуру: подсветка от жара.
+    ctx.beginPath();
+    ctx.moveTo(0.56 * r, -0.5 * r);
+    ctx.lineTo(0.1 * r, -0.78 * r);
+    ctx.lineTo(-0.6 * r, -0.62 * r);
+    ctx.lineTo(-0.98 * r, -0.15 * r);
+    ctx.lineTo(-0.98 * r, 0.15 * r);
+    ctx.lineTo(-0.6 * r, 0.62 * r);
+    ctx.lineTo(0.1 * r, 0.78 * r);
+    ctx.lineTo(0.56 * r, 0.5 * r);
+    ctx.closePath();
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = hit ? 1 : 0.7;
     ctx.strokeStyle = hit ? '#ffffff' : '#ff7a2e';
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
     // Жар под панцирем и раскалённый шов посередине.
     if (!hit) {
@@ -509,15 +545,24 @@ export class Renderer {
     ctx.moveTo(1.0 * r, 0.15 * r);
     ctx.lineTo(1.22 * r, 0.4 * r - Math.sin(t * 7 + ph) * 0.05 * r);
     ctx.lineWidth = 1.1;
-    ctx.strokeStyle = '#ff9a3c';
+    ctx.strokeStyle = '#3a4663';
     ctx.stroke();
-    ctx.fillStyle = hit ? '#ffffff' : '#1c0c09';
+    // Голова: маленький угловатый шестиугольник, темнее панциря.
+    ctx.fillStyle = hit ? '#ffffff' : '#0f141f';
     ctx.beginPath();
-    ctx.arc(0.78 * r, 0, 0.36 * r, 0, TAU);
+    ctx.moveTo(1.12 * r, 0);
+    ctx.lineTo(0.92 * r, -0.34 * r);
+    ctx.lineTo(0.52 * r, -0.32 * r);
+    ctx.lineTo(0.42 * r, 0);
+    ctx.lineTo(0.52 * r, 0.32 * r);
+    ctx.lineTo(0.92 * r, 0.34 * r);
+    ctx.closePath();
     ctx.fill();
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = hit ? 1 : 0.7;
     ctx.strokeStyle = hit ? '#ffffff' : '#ff7a2e';
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
     // Глаза: яркое ядро и мягкое свечение вокруг (сложением цветов, поэтому светятся).
     const ex = 0.92 * r;
