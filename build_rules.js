@@ -13,18 +13,20 @@ export function parentAccepts(modDef, core, carry) {
     if (e.kind === 'burn') return !!core.def.canBurn;
     if (e.kind === 'frost') return !!core.def.canFrost;
     if (e.kind === 'pierce') return !!core.def.canPierce;
+    if (e.kind === 'laser') return !!core.def.canLaser;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
-  if (e.kind === 'pierce') return false; // «Пробитие» крепится только к ядру
-  if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
+  if (e.kind === 'pierce' || e.kind === 'laser') return false; // «Пробитие» и «Лазер» крепятся только к ядру
+  if (e.kind === 'double') return !['burn', 'frost', 'steam', 'laser'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
-  if (e.kind === 'frost') return carry === 'burn';
-  if (e.kind === 'burn') return carry === 'frost' || carry === 'steam';
+  if (e.kind === 'frost') return carry === 'burn' || carry === 'laser';
+  if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser';
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
+  if (carry === 'laser') return e.stat === 'damage' || e.stat === 'rate'; // к «Лазеру»: урон тика и число тиков
   if (carry === 'steam') return e.stat === 'damage'; // к «Морозу» в связке: урон горения облака пара
-  if (carry.startsWith('burn:') || carry.startsWith('steam:')) return carry.endsWith(':' + e.stat); // дальше по цепочке: то же самое
+  if (carry.startsWith('burn:') || carry.startsWith('steam:') || carry.startsWith('laser:')) return carry.endsWith(':' + e.stat); // дальше по цепочке: то же самое
   return carry === e.stat;
 }
 

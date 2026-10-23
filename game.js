@@ -88,7 +88,10 @@ export class Game {
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
+    this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
+    this.laserSource = { laser: true, active: true };
     this.autoattack = new AutoAttack({
+      lasers: this.lasers,
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
       grid: this.swarm.grid,
       rnd: this.rnd,
@@ -108,6 +111,7 @@ export class Game {
       autoattack: this.autoattack,
       defense: this.defense,
       clouds: this.steamClouds,
+      lasers: this.lasers,
       hud: this.hud,
     });
     this.spawner = new Spawner({
@@ -198,6 +202,7 @@ export class Game {
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
+        else if (e.source && e.source.laser) { /* тики луча без вспышек: хватает мигания врага */ }
         else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
@@ -393,6 +398,63 @@ export class Game {
     }
   }
 
+  /** Лучи: стоят на месте, бьют тиками всех, кто в полосе; на каждом тике урон, и если есть, горение и заряд Мороза. */
+  updateLasers(dt) {
+    const ls = this.lasers;
+    for (let i = ls.length - 1; i >= 0; i--) {
+      const l = ls[i];
+      if (l.age === 0 && !l.cut) {
+        // Скалы обрезают луч: ищем, докуда он доходит.
+        l.cut = true;
+        const pad = l.width * 0.3;
+        if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * l.len, l.y + l.dy * l.len, pad)) {
+          let lo = 0;
+          let hi = l.len;
+          for (let k = 0; k < 8; k++) {
+            const mid = (lo + hi) / 2;
+            if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * mid, l.y + l.dy * mid, pad)) hi = mid; else lo = mid;
+          }
+          l.len = lo;
+        }
+      }
+      l.age += dt;
+      while (l.done < l.ticks && l.age >= l.done * l.interval) {
+        this.laserTick(l);
+        l.done++;
+      }
+      if (l.age >= l.life) ls.splice(i, 1);
+    }
+  }
+
+  laserTick(l) {
+    l.pulse = 1;
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    const hx = l.x + l.dx * l.len * 0.5;
+    const hy = l.y + l.dy * l.len * 0.5;
+    const n = grid.query(hx, hy, l.len * 0.5 + l.width + 30);
+    const buf = grid.buf;
+    const hit = [];
+    for (let k = 0; k < n; k++) {
+      const e = en[buf[k]];
+      if (!e || !e.active) continue;
+      const px = e.x - l.x;
+      const py = e.y - l.y;
+      const t = px * l.dx + py * l.dy;
+      if (t < -e.radius || t > l.len + e.radius) continue;
+      const d = Math.abs(px * l.dy - py * l.dx); // расстояние до оси луча
+      if (d <= l.width * 0.5 + e.radius) hit.push(e);
+    }
+    // Бьём после поиска: убийство меняет пул и общий буфер сетки.
+    for (const e of hit) {
+      if (!e.active) continue;
+      this.combat.damageEnemy(e, l.tick, this.laserSource, null);
+      if (!e.active) continue;
+      if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
+      if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
+    }
+  }
+
   updateSteam(dt) {
     const st = this.config.steam;
     const cl = this.steamClouds;
@@ -499,6 +561,7 @@ export class Game {
       this.updateBurning(dt);
       this.updateFrost(dt);
       this.updateSteam(dt);
+      this.updateLasers(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
@@ -658,6 +721,7 @@ export class Game {
     this.enemyShots.clear();
     this.effects.clear();
     this.steamClouds.length = 0;
+    this.lasers.length = 0;
     this.gems.clear();
     this.xp.reset();
     this.hero.reset();

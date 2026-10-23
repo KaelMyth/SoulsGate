@@ -63,6 +63,14 @@ export const TUNABLES = [
   { group: 'Облако пара (Мороз + Горение)', path: 'steam.duration', label: 'Сколько лежит на земле, с', min: 1, max: 12, step: 0.5 },
   { group: 'Облако пара (Мороз + Горение)', path: 'steam.tick', label: 'Как часто обновляет огонь, с', min: 0.1, max: 1.5, step: 0.1 },
 
+  { group: 'Лазер', path: 'laser.tickFrac', label: 'Урон тика (доля урона снаряда)', min: 0.05, max: 1, step: 0.05 },
+  { group: 'Лазер', path: 'laser.duration', label: 'Длительность, с', min: 0.25, max: 4, step: 0.25 },
+  { group: 'Лазер', path: 'laser.interval', label: 'Интервал тиков, с', min: 0.05, max: 1, step: 0.05 },
+  { group: 'Лазер', path: 'laser.bigDuration', label: 'Длительность большого (9+ снарядов), с', min: 0.5, max: 6, step: 0.5 },
+  { group: 'Лазер', path: 'laser.width', label: 'Толщина луча', min: 4, max: 30, step: 1 },
+  { group: 'Лазер', path: 'laser.widthPerCount', label: 'Прибавка толщины за снаряд (доля)', min: 0, max: 1, step: 0.05 },
+  { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
+
   { group: 'Блок и парирование', path: 'block.duration', label: 'Длительность блока, с', min: 0.5, max: 3, step: 0.1 },
   { group: 'Блок и парирование', path: 'block.parryWindow', label: 'Окно парирования, с', min: 0.1, max: 1, step: 0.05 },
   { group: 'Блок и парирование', path: 'block.cooldown', label: 'Перезарядка блока, с', min: 0.3, max: 5, step: 0.1 },
