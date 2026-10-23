@@ -6,7 +6,7 @@
 //   «double» мод (Х2): ядро должно иметь multStat, мод-родитель должен нести какой-то стат.
 
 /** Подходит ли мод modDef родителю: ядру (core) или моду (carry: стат, который тот несёт). */
-export function parentAccepts(modDef, core, carry) {
+export function parentAccepts(modDef, core, carry, ownerCore) {
   const e = modDef.effect;
   if (core) {
     if (e.kind === 'double') return !!core.def.multStat;
@@ -17,6 +17,7 @@ export function parentAccepts(modDef, core, carry) {
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
+  if (carry === 'xroot') return parentAccepts(modDef, ownerCore || null, null); // Х2/Х3 на ядре: ветка, на неё вешают всё, что берёт ядро
   if (e.kind === 'pierce' || e.kind === 'laser') return false; // «Пробитие» и «Лазер» крепятся только к ядру
   if (e.kind === 'double') return !['burn', 'frost', 'steam', 'laser'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
@@ -44,7 +45,7 @@ export function canPlace(grid, modDef, x, y) {
   }
   const n = nodes[0];
   const core = grid.coreById(t.owner.get(n.y * grid.size + n.x));
-  const ok = parentAccepts(modDef, n.core || null, t.carry.get(n.y * grid.size + n.x));
+  const ok = parentAccepts(modDef, n.core || null, t.carry.get(n.y * grid.size + n.x), core);
   return { ok, reason: ok ? '' : 'incompatible', core };
 }
 
