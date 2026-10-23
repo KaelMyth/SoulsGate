@@ -90,6 +90,8 @@ export class Game {
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
     this.laserSource = { laser: true, active: true };
+    this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
+    this.rayT = [];
     this.autoattack = new AutoAttack({
       lasers: this.lasers,
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
@@ -415,25 +417,23 @@ export class Game {
     }
   }
 
-  /** Лучи: стоят на месте, бьют тиками всех, кто в полосе; на каждом тике урон, и если есть, горение и заряд Мороза. */
+  /**
+   * Луч растёт из точки атаки, дальний конец следует за целью. Без Пробития он упирается в первого врага на пути,
+   * с Пробитием проходит насквозь столько врагов, сколько дано. Скалы обрезают луч.
+   */
   updateLasers(dt) {
     const ls = this.lasers;
     for (let i = ls.length - 1; i >= 0; i--) {
       const l = ls[i];
-      if (l.age === 0 && !l.cut) {
-        // Скалы обрезают луч: ищем, докуда он доходит.
-        l.cut = true;
-        const pad = l.width * 0.3;
-        if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * l.len, l.y + l.dy * l.len, pad)) {
-          let lo = 0;
-          let hi = l.len;
-          for (let k = 0; k < 8; k++) {
-            const mid = (lo + hi) / 2;
-            if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * mid, l.y + l.dy * mid, pad)) hi = mid; else lo = mid;
-          }
-          l.len = lo;
-        }
+      const tg = l.target;
+      if (tg && !tg.active) l.target = null; // цель погибла: луч замирает в последнем направлении
+      else if (tg) {
+        const ax = tg.x - l.x;
+        const ay = tg.y - l.y;
+        const d = Math.hypot(ax, ay);
+        if (d > 1e-3) { l.dx = ax / d; l.dy = ay / d; }
       }
+      this.scanLaser(l);
       l.age += dt;
       while (l.done < l.ticks && l.age >= l.done * l.interval) {
         this.laserTick(l);
@@ -443,26 +443,55 @@ export class Game {
     }
   }
 
-  laserTick(l) {
-    l.pulse = 1;
+  /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */
+  scanLaser(l) {
+    const maxLen = this.config.laser.length;
+    let cut = maxLen;
+    const pad = l.width * 0.3;
+    const ex = l.x + l.dx * maxLen;
+    const ey = l.y + l.dy * maxLen;
+    if (this.arena.segmentBlocked(l.x, l.y, ex, ey, pad)) {
+      let lo = 0;
+      let hi = maxLen;
+      for (let k = 0; k < 7; k++) {
+        const mid = (lo + hi) / 2;
+        if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * mid, l.y + l.dy * mid, pad)) hi = mid; else lo = mid;
+      }
+      cut = lo;
+    }
     const en = this.enemies.items;
     const grid = this.swarm.grid;
-    const hx = l.x + l.dx * l.len * 0.5;
-    const hy = l.y + l.dy * l.len * 0.5;
-    const n = grid.query(hx, hy, l.len * 0.5 + l.width + 30);
+    const n = grid.query(l.x + l.dx * cut * 0.5, l.y + l.dy * cut * 0.5, cut * 0.5 + l.width + 30);
     const buf = grid.buf;
-    const hit = [];
+    const E = this.rayE;
+    const T = this.rayT;
+    E.length = 0;
+    T.length = 0;
     for (let k = 0; k < n; k++) {
       const e = en[buf[k]];
       if (!e || !e.active) continue;
       const px = e.x - l.x;
       const py = e.y - l.y;
       const t = px * l.dx + py * l.dy;
-      if (t < -e.radius || t > l.len + e.radius) continue;
-      const d = Math.abs(px * l.dy - py * l.dx); // расстояние до оси луча
-      if (d <= l.width * 0.5 + e.radius) hit.push(e);
+      if (t < 0 || t > cut) continue;
+      if (Math.abs(px * l.dy - py * l.dx) > l.width * 0.5 + e.radius) continue;
+      let j = E.length; // вставка по возрастанию t: врагов на луче единицы
+      E.push(e);
+      T.push(t);
+      while (j > 0 && T[j - 1] > t) { T[j] = T[j - 1]; E[j] = E[j - 1]; j--; }
+      T[j] = t;
+      E[j] = e;
     }
-    // Бьём после поиска: убийство меняет пул и общий буфер сетки.
+    l.hits = Math.min(E.length, l.pierce + 1); // сколько врагов луч бьёт: первые pierce + 1
+    l.len = E.length > l.pierce ? T[l.pierce] : cut;
+  }
+
+  laserTick(l) {
+    l.pulse = 1;
+    const E = this.rayE;
+    const hit = [];
+    for (let k = 0; k < l.hits; k++) hit.push(E[k]);
+    // Бьём после поиска: убийство меняет пул врагов.
     for (const e of hit) {
       if (!e.active) continue;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);

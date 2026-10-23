@@ -161,7 +161,8 @@ export class AutoAttack {
     const ls = laserStats(this.cfg, m.laser, dmg, count);
     const b = m.burn;
     this.lasers.push({
-      x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: L.length,
+      x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
+      target, pierce: m.pierce ? Math.round(m.pierce.count) : 0, // конец луча следует за целью; сквозь стольких врагов он проходит
       width: ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0, tick: ls.tick, big: ls.big,
       burnDmg: b ? dmg * countPenalty(this.cfg, count) * count * this.cfg.burn.damageFrac * b.damage : 0,
       burnInt: b ? this.cfg.burn.interval / b.rate : 0,
