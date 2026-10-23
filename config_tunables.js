@@ -54,6 +54,12 @@ export const TUNABLES = [
   { group: 'Волны', path: 'limits.maxEnemies', label: 'Жёсткий потолок живых врагов', min: 50, max: 2000, step: 50 },
   { group: 'Волны', path: 'limits.maxShots', label: 'Жёсткий потолок снарядов', min: 5, max: 400, step: 5 },
 
+  { group: 'Миниборс Тартас', path: 'waves.boss.wave', label: 'Волна босса (после зачистки; 1 = проверить сразу)', min: 1, max: 10, step: 1 },
+  { group: 'Миниборс Тартас', path: 'enemies.tartas.hp', label: 'Здоровье (у нового босса)', min: 100, max: 5000, step: 100 },
+  { group: 'Миниборс Тартас', path: 'enemies.tartas.speed', label: 'Скорость подхода', min: 10, max: 150, step: 5 },
+  { group: 'Миниборс Тартас', path: 'waves.boss.intro.panTime', label: 'Вступление: камера плывёт к боссу, с', min: 0.3, max: 3, step: 0.1 },
+  { group: 'Миниборс Тартас', path: 'waves.boss.intro.titleHold', label: 'Вступление: имя висит, с', min: 0.2, max: 4, step: 0.1 },
+
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.enabled', label: 'Краш-тест включён (0 нет, 1 да)', min: 0, max: 1, step: 1 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.capGrowth', label: 'Прирост потолка врагов, в секунду', min: 0.5, max: 30, step: 0.5 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.minInterval', label: 'Мин. интервал появления, с', min: 0.02, max: 1, step: 0.02 },

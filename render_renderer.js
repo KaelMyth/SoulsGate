@@ -508,7 +508,34 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
     }
+    this.drawBossTitle(C);
     if (!hud.gameMode) this.drawCooldowns(C); // в игре перезарядки показаны дугами вокруг героя
+  }
+
+  /** Имя босса при вступлении: по центру чуть ниже босса (он в центре кадра), проявляется и гаснет; кадр слегка темнеет. */
+  drawBossTitle(C) {
+    const hud = this.hud;
+    if (!hud.bossTitle || !(hud.bossTitleAlpha > 0)) return;
+    const ctx = this.ctx;
+    const a = Math.min(1, hud.bossTitleAlpha);
+    ctx.save();
+    ctx.globalAlpha = 0.28 * a;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, this.w, this.h);
+    ctx.globalAlpha = a;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Подгоняем размер, чтобы имя помещалось по ширине узкого экрана.
+    ctx.font = '700 30px ui-sans-serif, system-ui, sans-serif';
+    const tw = ctx.measureText(hud.bossTitle).width;
+    const size = Math.max(14, Math.floor(30 * Math.min(1, (this.w * 0.88) / Math.max(1, tw))));
+    ctx.font = '700 ' + size + 'px ui-sans-serif, system-ui, sans-serif';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(7,10,16,0.85)';
+    ctx.strokeText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
+    ctx.fillStyle = '#d6ecff';
+    ctx.fillText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
+    ctx.restore();
   }
 
   /** Сфера блока вокруг героя. Окно парирования подсвечено, к концу блока сфера мигает. */
