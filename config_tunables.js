@@ -50,10 +50,11 @@ export const TUNABLES = [
   { group: 'Волны', path: 'waves.hp.perWave', label: 'Здоровье врагов: прирост за волну', min: 0, max: 50, step: 1 },
   { group: 'Волны', path: 'waves.hp.jumpPct', label: 'Здоровье врагов: скачок каждые 5 волн (доля)', min: 0, max: 1, step: 0.05 },
   { group: 'Волны', path: 'waves.intermission', label: 'Передышка между волнами, с', min: 0.5, max: 6, step: 0.5 },
-  { group: 'Волны', path: 'waves.startWave', label: 'Прыгнуть на волну (10 = краш-тест)', min: 1, max: 10, step: 1 },
+  { group: 'Волны', path: 'waves.startWave', label: 'Прыгнуть на волну (10 = краш-тест, если включён)', min: 1, max: 10, step: 1 },
   { group: 'Волны', path: 'limits.maxEnemies', label: 'Жёсткий потолок живых врагов', min: 50, max: 2000, step: 50 },
   { group: 'Волны', path: 'limits.maxShots', label: 'Жёсткий потолок снарядов', min: 5, max: 400, step: 5 },
 
+  { group: 'Краш-тест (волна 10)', path: 'waves.crash.enabled', label: 'Краш-тест включён (0 нет, 1 да)', min: 0, max: 1, step: 1 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.capGrowth', label: 'Прирост потолка врагов, в секунду', min: 0.5, max: 30, step: 0.5 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.minInterval', label: 'Мин. интервал появления, с', min: 0.02, max: 1, step: 0.02 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.godMode', label: 'Герой бессмертен (0 нет, 1 да)', min: 0, max: 1, step: 1 },

@@ -74,8 +74,10 @@ export class Spawner {
     this.spawnTimer = 0;
   }
 
+  /** Идёт ли краш-тест: он выключен по умолчанию (waves.crash.enabled), а когда включён, начинается с startWave. */
   get crash() {
-    return this.wave >= this.cfg.waves.crash.startWave;
+    const c = this.cfg.waves.crash;
+    return c.enabled >= 1 && this.wave >= c.startWave;
   }
 
   /** Строка таблицы для волны; после конца таблицы держится последняя. */
