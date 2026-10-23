@@ -311,6 +311,27 @@ export class Renderer {
     ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
     ctx.stroke();
 
+    // Мороз: голубая кайма по числу зарядов; заморожен: ледяная заливка и белая кайма.
+    if (e.freezeT > 0) {
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = this.cfg.frost.color;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, r + 1, 0, TAU);
+      ctx.stroke();
+    } else if (e.frostStacks > 0) {
+      ctx.lineWidth = 1 + e.frostStacks * 0.6;
+      ctx.strokeStyle = this.cfg.frost.color;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 1.5, 0, TAU);
+      ctx.stroke();
+    }
+
     // Горит: тонкое огненное кольцо с мерцанием и язычок над врагом (минималистично).
     if (e.burnT > 0) {
       const f = 0.6 + 0.4 * Math.sin(e.burnT * 22);

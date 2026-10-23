@@ -148,6 +148,21 @@ export class Spawner {
     }
   }
 
+  /**
+   * Здоровье врага на текущей волне: с каждой волны +perWave, на каждой jumpEvery-й волне скачок
+   * на jumpPct от накопленного. Считается шаг за шагом (скачок берёт долю уже набранного здоровья).
+   */
+  hpFor(base) {
+    const c = this.cfg.waves.hp;
+    if (!c) return base;
+    let h = base;
+    for (let w = 2; w <= this.wave; w++) {
+      h += c.perWave;
+      if (c.jumpEvery > 0 && w % c.jumpEvery === 0) h *= 1 + c.jumpPct;
+    }
+    return h;
+  }
+
   spawnOne() {
     if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return false;
     const e = this.enemies.spawn();
@@ -158,6 +173,7 @@ export class Spawner {
     const r = this.rnd();
     const kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
     initEnemy(e, this.cfg.enemies[kind], this.pt.x, this.pt.y);
+    e.hp = e.maxHp = this.hpFor(this.cfg.enemies[kind].hp);
     this.arena.resolveCircle(e); // не внутри скалы
     e.prevX = e.x;
     e.prevY = e.y;

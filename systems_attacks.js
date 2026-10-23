@@ -35,7 +35,7 @@ export class Attacks {
     const hero = this.hero;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
-      if (!e.active) continue;
+      if (!e.active || e.freezeT > 0) continue; // замороженный враг не атакует
       const A = e.def.attack;
       if (!A) continue;
       const a = e.atk;

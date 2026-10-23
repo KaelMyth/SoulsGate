@@ -69,6 +69,11 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Горение: урон тика', text: String(Math.round(bs.tick * 100) / 100), bonus: '' });
     rows.push({ label: 'Горение: тиков за ' + config.burn.duration + ' с', text: String(bs.ticks), bonus: '' });
   }
+  if (core.def.canFrost && mods && mods.frost) {
+    const f = config.frost;
+    rows.push({ label: 'Мороз: замедление за попадание', text: Math.round(f.slowPerStack * 100) + '%', bonus: '' });
+    rows.push({ label: 'Мороз: заморозка', text: f.maxStacks + ' попаданий → ' + f.freezeTime + ' с', bonus: '' });
+  }
   return rows;
 }
 

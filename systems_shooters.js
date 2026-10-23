@@ -18,7 +18,7 @@ export class Shooters {
     if (!hero.active) return;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
-      if (!e.active || !e.def.shot) continue;
+      if (!e.active || !e.def.shot || e.freezeT > 0) continue; // замороженный стрелок молчит
       const def = e.def;
       const dx = hero.x - e.x;
       const dy = hero.y - e.y;

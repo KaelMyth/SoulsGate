@@ -310,6 +310,39 @@ export class Game {
     e.burnT = b.duration;
   }
 
+  /** Холод от попадания: +1 заряд, каждый замедляет; на maxStacks цель замерзает на freezeTime. */
+  chill(e) {
+    const f = this.config.frost;
+    if (e.freezeT > 0) return; // уже заморожен: заряды не копятся
+    e.frostStacks++;
+    e.frostT = f.stackTime;
+    if (e.frostStacks >= f.maxStacks) {
+      e.freezeT = f.freezeTime;
+      e.frostStacks = 0;
+      e.speedMul = 0;
+      e.kbVx = e.kbVy = 0;
+      this.burst(e.x, e.y, 0.35, e.radius, e.radius * 2.6, f.color);
+    } else {
+      e.speedMul = 1 - e.frostStacks * f.slowPerStack;
+    }
+  }
+
+  /** Таяние: заморозка кончается (заряды сброшены), заряды тают, если давно не попадали. */
+  updateFrost(dt) {
+    const en = this.enemies.items;
+    for (let i = 0; i < en.length; i++) {
+      const e = en[i];
+      if (!e.active) continue;
+      if (e.freezeT > 0) {
+        e.freezeT -= dt;
+        if (e.freezeT <= 0) { e.freezeT = 0; e.frostStacks = 0; e.speedMul = 1; }
+      } else if (e.frostStacks > 0) {
+        e.frostT -= dt;
+        if (e.frostT <= 0) { e.frostStacks = 0; e.speedMul = 1; }
+      }
+    }
+  }
+
   /** Тики горения: урон раз в burnInt, пока горит. Без откидывания; источник помечен, чтобы вспышка была огненной. */
   updateBurning(dt) {
     const en = this.enemies.items;
@@ -331,6 +364,7 @@ export class Game {
     // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
+    if (p.frost && e.active) this.chill(e);
     p.active = false; // снаряд потрачен
   }
 
@@ -340,6 +374,7 @@ export class Game {
   }
 
   onEnemyTouchHero(e) {
+    if (e.freezeT > 0) return; // замороженный враг не бьёт
     if (e.atk.state === 'strike') return; // рывок бьёт сам, касание поверх не считаем (иначе урон дважды)
     if (e.touchTimer > 0) return;
     // Если герой неуязвим, пауза не запускается: враг ударит сразу, как только можно.
@@ -378,6 +413,7 @@ export class Game {
       this.collisions.detect();
       this.hitEnemiesWithShots();
       this.updateBurning(dt);
+      this.updateFrost(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();

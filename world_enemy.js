@@ -22,6 +22,8 @@ export function createEnemy() {
     aim: 0,           // стрелок: сколько ещё секунд целится (светится и стоит)
     aimTotal: 1,
     fireTimer: 0,     // стрелок: до следующего прицеливания
+    speedMul: 1,      // множитель скорости (мороз замедляет)
+    frostStacks: 0, frostT: 0, freezeT: 0, // мороз: заряды замедления, до таяния, заморозка (с)
     burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, // горение: осталось, до тика, урон тика, интервал
   };
 }
@@ -42,6 +44,10 @@ export function initEnemy(e, def, x, y) {
   e.burnT = 0;
   e.burnTick = 0;
   e.burnDmg = 0;
+  e.frostStacks = 0;
+  e.speedMul = 1;
+  e.frostT = 0;
+  e.freezeT = 0;
   e.kbVx = e.kbVy = 0;
   e.hx = e.hy = 0;
   e.swX = e.swY = 0;
@@ -83,6 +89,11 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   e.prevY = e.y;
   if (e.touchTimer > 0) e.touchTimer -= dt;
   if (e.flash > 0) e.flash -= dt;
+  if (e.freezeT > 0) { // заморожен: стоит как вкопанный, ни ходьбы, ни откидывания
+    e.hx = e.hy = 0;
+    e.kbVx = e.kbVy = 0;
+    return;
+  }
 
   const dx = hero.x - e.x;
   const dy = hero.y - e.y;
@@ -115,7 +126,7 @@ export function updateEnemy(e, dt, hero, arena, nav) {
         my /= ml;
       }
     }
-    let step = e.def.speed * dt;
+    let step = e.def.speed * dt * e.speedMul;
     if (direct && step > gap) step = gap; // не вдавливаемся в героя
     e.x += mx * step;
     e.y += my * step;

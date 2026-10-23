@@ -108,6 +108,7 @@ export class BuildGrid {
         const e = n.mod.def.effect;
         const pc = c.core ? '' : carry.get(ci);
         if (e.kind === 'double') carry.set(ni, c.core ? c.core.def.multStat : pc);
+        else if (e.kind === 'frost') carry.set(ni, 'frost'); // мороз: без своей ветки
         else if (e.kind === 'burn') carry.set(ni, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
         else carry.set(ni, pc.startsWith('burn') ? 'burn:' + e.stat : e.stat);
         queue.push(n);
@@ -179,9 +180,11 @@ export class BuildGrid {
       bRate += 1 + r;
     }
     if (burns) res.burn = { count: burns, damage: bDmg, rate: bRate / burns };
+    const frosts = (kids.get(-1) || []).filter((i) => this.cells[i].mod.def.effect.kind === 'frost').length;
+    if (frosts) res.frost = { count: frosts };
     for (const i of kids.get(-1) || []) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn') continue;
+      if (!stat || stat === 'burn' || stat === 'frost') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       if (this.cells[i].mod.def.effect.kind === 'double') {
         // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),

@@ -11,11 +11,13 @@ export function parentAccepts(modDef, core, carry) {
   if (core) {
     if (e.kind === 'double') return !!core.def.multStat;
     if (e.kind === 'burn') return !!core.def.canBurn;
+    if (e.kind === 'frost') return !!core.def.canFrost;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
-  if (e.kind === 'double') return carry !== 'burn'; // на самом «Горении» множитель не нужен: он усиливает то, что на нём
-  if (e.kind === 'burn') return false; // «Горение» крепится только к ядру
+  if (e.kind === 'double') return carry !== 'burn' && carry !== 'frost'; // на самом «Горении» множитель не нужен: он усиливает то, что на нём
+  if (e.kind === 'burn' || e.kind === 'frost') return false; // «Горение» и «Мороз» крепятся только к ядру
+  if (carry === 'frost') return false; // к «Морозу» ничего не крепится
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
   if (carry.startsWith('burn:')) return carry === 'burn:' + e.stat; // дальше по цепочке: то же самое
   return carry === e.stat;
