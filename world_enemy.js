@@ -22,6 +22,7 @@ export function createEnemy() {
     aim: 0,           // стрелок: сколько ещё секунд целится (светится и стоит)
     aimTotal: 1,
     fireTimer: 0,     // стрелок: до следующего прицеливания
+    burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, // горение: осталось, до тика, урон тика, интервал
   };
 }
 
@@ -38,6 +39,9 @@ export function initEnemy(e, def, x, y) {
   e.def = def; // ссылка, не копия: скорость из панели действует на живых врагов сразу
   e.touchTimer = 0;
   e.flash = 0;
+  e.burnT = 0;
+  e.burnTick = 0;
+  e.burnDmg = 0;
   e.kbVx = e.kbVy = 0;
   e.hx = e.hy = 0;
   e.swX = e.swY = 0;

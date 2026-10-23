@@ -31,9 +31,21 @@ export function projectileCount(config, mods) {
   return Math.max(1, Math.round(m ? config.attack.count * (1 + m.percent / 100) + m.flat : config.attack.count));
 }
 
+/** Строки карточки для горения: урон тика и число тиков. dmg: урон одного снаряда с модами и штрафом. */
+export function burnStats(config, burn, dmg) {
+  const b = config.burn;
+  const tick = dmg * b.damageFrac * burn.damage;
+  const interval = b.interval / burn.rate;
+  return {
+    tick,
+    interval,
+    ticks: Math.floor(b.duration / interval + 1e-9),
+  };
+}
+
 export function coreStats(core, config, mods) {
   const pen = core.def.multStat === 'count' ? countPenalty(config, projectileCount(config, mods)) : 1;
-  return (core.def.stats || []).map((s) => {
+  const rows = (core.def.stats || []).map((s) => {
     let v = getPath(config, s.path);
     const m = s.key && mods ? mods[s.key] : null;
     let bonus = '';
@@ -48,8 +60,16 @@ export function coreStats(core, config, mods) {
       v *= pen;
       bonus += (bonus ? ' ' : '') + '−' + Math.round((1 - pen) * 100) + '% (снарядов больше)';
     }
-    return { label: s.label, text: formatStat(s, v), bonus };
+    return { label: s.label, key: s.key, value: v, text: formatStat(s, v), bonus };
   });
+  if (core.def.canBurn && mods && mods.burn) {
+    const dmgRow = rows.find((r) => r.key === 'damage');
+    const base = dmgRow ? dmgRow.value : 0;
+    const bs = burnStats(config, mods.burn, base);
+    rows.push({ label: 'Горение: урон тика', text: String(Math.round(bs.tick * 100) / 100), bonus: '' });
+    rows.push({ label: 'Горение: тиков за ' + config.burn.duration + ' с', text: String(bs.ticks), bonus: '' });
+  }
+  return rows;
 }
 
 /** Применить модификатор стата к числу (для боя). */

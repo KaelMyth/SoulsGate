@@ -20,6 +20,10 @@ const ICONS = {
   x3: [
     ['text', { x: 16, y: 23, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 800, fill: 'currentColor', 'font-family': 'sans-serif' }, '×3'],
   ],
+  // Горение: пламя.
+  flame: [
+    ['path', { d: 'M16 3c1 6 8 9 8 16a8 8 0 0 1-16 0c0-4 2-6 4-9 1 3 2 4 3 4 0-4-1-7 1-11z', fill: 'currentColor' }],
+  ],
   // Ускорение: молния.
   haste: [
     ['path', { d: 'M19 3 8 18h7l-2 11 11-15h-7z', fill: 'currentColor' }],

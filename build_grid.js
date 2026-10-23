@@ -106,8 +106,10 @@ export class BuildGrid {
         owner.set(ni, id);
         parent.set(ni, c.core ? -1 : ci);
         const e = n.mod.def.effect;
-        if (e.kind === 'double') carry.set(ni, c.core ? c.core.def.multStat : carry.get(ci));
-        else carry.set(ni, e.stat);
+        const pc = c.core ? '' : carry.get(ci);
+        if (e.kind === 'double') carry.set(ni, c.core ? c.core.def.multStat : pc);
+        else if (e.kind === 'burn') carry.set(ni, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
+        else carry.set(ni, pc.startsWith('burn') ? 'burn:' + e.stat : e.stat);
         queue.push(n);
       }
     }
@@ -126,7 +128,7 @@ export class BuildGrid {
   }
 
   /**
-   * Суммарные модификаторы ядра: { стат: { percent, flat } }.
+   * Суммарные модификаторы ядра: { стат: { percent, flat } } и, если есть «Горение», burn: { count, damage, rate } (множители).
    * Правила: моды на разных гранях ядра складываются (+10% и +10% = +20%), моды цепочкой друг за другом
    * умножаются (110, 121, 133.1). множители в одной ветке перемножаются (Х2 за Х2 это Х4), ветки на разных гранях складываются,
    * «Х2» на моде удваивает накопленный бонус ветки до него (+21% → +42%).
@@ -159,9 +161,27 @@ export class BuildGrid {
     };
     const res = {};
     const factor = {};
+    // Горение: у каждого мода «Горение» своя ветка. Мощь в ней усиливает урон тика, Ускорение учащает тики.
+    // Несколько «Горений» складывают урон тика и усредняют частоту.
+    let burns = 0;
+    let bDmg = 0;
+    let bRate = 0;
+    for (const i of kids.get(-1) || []) {
+      if (this.cells[i].mod.def.effect.kind !== 'burn') continue;
+      let d = 0;
+      let r = 0;
+      for (const k of kids.get(i) || []) {
+        if (carry.get(k) === 'burn:damage') d += walk(k, 0);
+        else if (carry.get(k) === 'burn:rate') r += walk(k, 0);
+      }
+      burns++;
+      bDmg += 1 + d;
+      bRate += 1 + r;
+    }
+    if (burns) res.burn = { count: burns, damage: bDmg, rate: bRate / burns };
     for (const i of kids.get(-1) || []) {
       const stat = carry.get(i);
-      if (!stat) continue;
+      if (!stat || stat === 'burn') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       if (this.cells[i].mod.def.effect.kind === 'double') {
         // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),

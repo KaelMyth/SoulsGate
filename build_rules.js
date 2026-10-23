@@ -10,10 +10,15 @@ export function parentAccepts(modDef, core, carry) {
   const e = modDef.effect;
   if (core) {
     if (e.kind === 'double') return !!core.def.multStat;
+    if (e.kind === 'burn') return !!core.def.canBurn;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
-  return e.kind === 'double' ? true : carry === e.stat;
+  if (e.kind === 'double') return carry !== 'burn'; // на самом «Горении» множитель не нужен: он усиливает то, что на нём
+  if (e.kind === 'burn') return false; // «Горение» крепится только к ядру
+  if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
+  if (carry.startsWith('burn:')) return carry === 'burn:' + e.stat; // дальше по цепочке: то же самое
+  return carry === e.stat;
 }
 
 /** Можно ли поставить мод modDef в клетку (x, y). { ok, reason, core } */

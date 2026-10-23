@@ -3,6 +3,13 @@
 import { initProjectile } from './world_projectile.js';
 import { applyMod, countPenalty, projectileCount } from './build_cores.js';
 
+/** Горение из модов: снаряд при попадании поджигает (урон тика от урона снаряда, интервал из частоты). */
+function setBurn(p, cfg, m) {
+  if (!m || !m.burn) return;
+  p.burnDmg = p.damage * cfg.burn.damageFrac * m.burn.damage;
+  p.burnInt = cfg.burn.interval / m.burn.rate;
+}
+
 /**
  * Ближайший активный враг в пределах radius от (x, y) или null.
  * Если передана арена, враги за скалой (снаряд в них не долетит) не выбираются;
@@ -125,6 +132,7 @@ export class AutoAttack {
         if (!p) break; // потолок снарядов
         initProjectile(p, def, hero.x + nx * side + fx * back, hero.y + ny * side + fy * back, dx, dy, hero);
         p.damage = applyMod(p.damage, m && m.damage) * pen;
+        setBurn(p, this.cfg, m);
         if (!first) first = p;
         fired++;
       }
@@ -153,6 +161,7 @@ export class AutoAttack {
     if (!p) return;
     initProjectile(p, def, hero.x - fy * side + fx * back, hero.y + fx * side + fy * back, dx * c - dy * sn, dx * sn + dy * c, hero);
     p.damage = applyMod(p.damage, m && m.damage) * countPenalty(this.cfg, count);
+    setBurn(p, this.cfg, m);
     hero.facing = Math.atan2(dy, dx);
     this.bus.emit('projectile:fired', { projectile: p, target, count: 1 });
   }

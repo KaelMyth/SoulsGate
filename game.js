@@ -140,6 +140,7 @@ export class Game {
     });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
+    this.burnSource = { burn: true, active: true };
     this.mode = 'test';
     this.testValues = null;
     this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m));
@@ -193,7 +194,10 @@ export class Game {
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
     });
     this.bus.on('damage:dealt', (e) => {
-      if (e.targetKind === 'enemy') this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
+      if (e.targetKind === 'enemy') {
+        if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
+        else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
+      }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
     });
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
@@ -295,10 +299,38 @@ export class Game {
     }
   }
 
+  /** Поджечь врага: горит burn.duration секунд; повторное попадание обновляет время, берётся более сильный огонь. */
+  ignite(e, dmg, interval) {
+    const b = this.config.burn;
+    if (e.burnT <= 0 || dmg >= e.burnDmg) {
+      e.burnDmg = dmg;
+      e.burnInt = Math.max(0.05, interval);
+    }
+    if (e.burnT <= 0) e.burnTick = e.burnInt;
+    e.burnT = b.duration;
+  }
+
+  /** Тики горения: урон раз в burnInt, пока горит. Без откидывания; источник помечен, чтобы вспышка была огненной. */
+  updateBurning(dt) {
+    const en = this.enemies.items;
+    for (let i = 0; i < en.length; i++) {
+      const e = en[i];
+      if (!e.active || e.burnT <= 0) continue;
+      e.burnT -= dt;
+      e.burnTick -= dt;
+      while (e.burnTick <= 0 && e.active) {
+        this.combat.damageEnemy(e, e.burnDmg, this.burnSource, null);
+        e.burnTick += e.burnInt;
+      }
+      if (e.burnT <= 0) e.burnT = 0;
+    }
+  }
+
   onShotHitEnemy(p, e) {
     const speed = Math.hypot(p.vx, p.vy) || 1;
     // Откидывание: по направлению полёта снаряда, силу берём из самого снаряда.
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
+    if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
     p.active = false; // снаряд потрачен
   }
 
@@ -345,6 +377,7 @@ export class Game {
       this.xp.update(dt);
       this.collisions.detect();
       this.hitEnemiesWithShots();
+      this.updateBurning(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();

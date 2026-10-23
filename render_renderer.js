@@ -311,6 +311,23 @@ export class Renderer {
     ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
     ctx.stroke();
 
+    // Горит: тонкое огненное кольцо с мерцанием и язычок над врагом (минималистично).
+    if (e.burnT > 0) {
+      const f = 0.6 + 0.4 * Math.sin(e.burnT * 22);
+      ctx.beginPath();
+      ctx.arc(x, y, r + 2.5, 0, TAU);
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = f;
+      ctx.strokeStyle = this.cfg.burn.color;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y - r - 2);
+      ctx.quadraticCurveTo(x, y - r - 6 - 4 * f, x + 3, y - r - 2);
+      ctx.fillStyle = this.cfg.burn.color;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
     // Стрелок целится: расширяющееся кольцо, сигнал «сейчас выстрелит, можно парировать».
     if (aiming) {
       const k = 1 - e.aim / Math.max(0.01, e.aimTotal);
