@@ -7,7 +7,10 @@
 // в секунду, а интервал появления падает до minInterval. Он нужен, чтобы найти число врагов,
 // на котором телефон перестаёт держать 60 FPS.
 //
-// События: 'wave:started' { wave, crash }, 'wave:cleared' { wave }.
+// Миниборс (config.waves.boss): когда на волне босса убиты все враги, выходит босс, и новые враги не появляются,
+// пока он жив. Убили босса: передышка и обычные волны дальше.
+//
+// События: 'wave:started' { wave, crash }, 'wave:cleared' { wave }, 'boss:spawned' { enemy }, 'boss:defeated' { wave }.
 import { initEnemy } from './world_enemy.js';
 
 const MAX_SPAWNS_PER_STEP = 20; // страховка: даже при интервале 0 за шаг не больше стольких
@@ -54,6 +57,7 @@ export class Spawner {
     this.arena = o.arena;
     this.rnd = o.rnd;
     this.bus = o.bus || null;
+    this.hero = o.hero || null; // нужен, чтобы босс появился рядом с героем
     this.pt = { x: 0, y: 0 };
     this.alive = 0;
     this.reset();
@@ -74,8 +78,10 @@ export class Spawner {
     this.spawnTimer = 0;
   }
 
+  /** Идёт ли краш-тест: он выключен по умолчанию (waves.crash.enabled), а когда включён, начинается с startWave. */
   get crash() {
-    return this.wave >= this.cfg.waves.crash.startWave;
+    const c = this.cfg.waves.crash;
+    return c.enabled >= 1 && this.wave >= c.startWave;
   }
 
   /** Строка таблицы для волны; после конца таблицы держится последняя. */
@@ -125,6 +131,18 @@ export class Spawner {
       return;
     }
 
+    // Бой с боссом: новые враги не выходят, пока босс жив. Убили босса: обычные волны идут дальше.
+    if (this.phase === 'boss') {
+      this.alive = this.countAlive();
+      if (this.alive === 0) {
+        if (this.bus) this.bus.emit('boss:defeated', { wave: this.wave });
+        this.wave++;
+        this.phase = 'intermission';
+        this.timer = this.cfg.waves.intermission;
+      }
+      return;
+    }
+
     if (this.crash) this.crashTime += dt;
     this.alive = this.countAlive();
     const total = this.waveCount();
@@ -142,10 +160,49 @@ export class Spawner {
 
     if (!this.crash && this.spawned >= total && this.alive === 0) {
       if (this.bus) this.bus.emit('wave:cleared', { wave: this.wave });
+      // Волна босса: после зачистки вместо передышки выходит босс.
+      const B = this.cfg.waves.boss;
+      if (B && this.wave === B.wave && this.cfg.enemies[B.enemy]) {
+        this.spawnBoss(this.cfg.enemies[B.enemy]);
+        return;
+      }
       this.wave++;
       this.phase = 'intermission';
       this.timer = this.cfg.waves.intermission;
     }
+  }
+
+  /**
+   * Босс появляется на def.spawnDistance от героя (в первом подходящем направлении внутри арены),
+   * не в скале. Событие 'boss:spawned' { enemy } запускает вступление (камера и надпись).
+   */
+  spawnBoss(def) {
+    const e = this.enemies.spawn();
+    initEnemy(e, def, 0, 0);
+    e.hp = e.maxHp = def.hp; // здоровье босса не растёт от номера волны
+    const cx = this.hero ? this.hero.x : this.camera.x;
+    const cy = this.hero ? this.hero.y : this.camera.y;
+    const dist = def.spawnDistance || 280;
+    const a0 = this.rnd() * TAU;
+    let placed = false;
+    for (let i = 0; i < 16 && !placed; i++) {
+      const a = a0 + (i / 16) * TAU;
+      e.x = cx + Math.cos(a) * dist;
+      e.y = cy + Math.sin(a) * dist;
+      this.arena.resolveCircle(e);
+      // Подходит, если после выталкивания из скал и стен босс всё ещё достаточно далеко от героя.
+      placed = Math.hypot(e.x - cx, e.y - cy) > dist * 0.7;
+    }
+    if (!placed) { // тесная арена: ставим в центр
+      e.x = 0;
+      e.y = 0;
+      this.arena.resolveCircle(e);
+    }
+    e.prevX = e.x;
+    e.prevY = e.y;
+    this.phase = 'boss';
+    this.alive = this.countAlive();
+    if (this.bus) this.bus.emit('boss:spawned', { enemy: e });
   }
 
   /**
