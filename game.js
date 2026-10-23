@@ -59,6 +59,7 @@ export class Game {
       insets: this.insets, kills: 0,
       wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
     };
+    this.steamClouds = []; // облака пара на земле: { x, y, age, tick, hit:Set, dmg, int }
     this.crashResult = null; // { enemies, fps, wave, time }: первая просадка FPS в краш-тесте
     this.sagTimer = 0;
     this.sagCount = 0;
@@ -106,6 +107,7 @@ export class Game {
       gems: this.gems,
       autoattack: this.autoattack,
       defense: this.defense,
+      clouds: this.steamClouds,
       hud: this.hud,
     });
     this.spawner = new Spawner({
@@ -337,29 +339,48 @@ export class Game {
     }
   }
 
-  /** Взрыв пара: небольшое облако, на всех внутри вешается горение (dmg за тик) и один заряд Мороза. */
+  /** Взрыв пара: облако остаётся на земле steam.duration секунд; всем внутри горение и по одному заряду Мороза. */
   steamBurst(x, y, dmg, interval) {
+    const st = this.config.steam;
+    const cl = this.steamClouds;
+    if (cl.length >= 12) cl.shift(); // облаков не больше 12: самое старое тает сразу
+    const c = { x, y, age: 0, tick: 0, hit: new Set(), dmg, int: interval, seed: this.rnd() * 100 };
+    cl.push(c);
+    this.applySteam(c);
+    this.burst(x, y, 0.3, st.radius * 0.3, st.radius, st.color); // вспышка на старте
+  }
+
+  /** Облако действует на тех, кто внутри: горение обновляется, заряд Мороза вешается один раз на врага за облако. */
+  applySteam(c) {
     const st = this.config.steam;
     const en = this.enemies.items;
     const grid = this.swarm.grid;
-    const n = grid.query(x, y, st.radius + 40);
+    const n = grid.query(c.x, c.y, st.radius + 40);
     const buf = grid.buf;
     for (let k = 0; k < n; k++) {
       const e = en[buf[k]];
       if (!e || !e.active) continue;
-      const dx = e.x - x;
-      const dy = e.y - y;
+      const dx = e.x - c.x;
+      const dy = e.y - c.y;
       const r = st.radius + e.radius;
       if (dx * dx + dy * dy > r * r) continue;
-      this.ignite(e, dmg, interval);
-      this.chill(e, 0, 0, 0, true);
+      this.ignite(e, c.dmg, c.int);
+      if (!c.hit.has(e)) {
+        c.hit.add(e);
+        this.chill(e, 0, 0, 0, true);
+      }
     }
-    // Облако: несколько расплывающихся бледных колец вместо одного.
-    this.burst(x, y, st.life, st.radius * 0.35, st.radius, st.color);
-    for (let i = 0; i < 5; i++) {
-      const a = this.rnd() * Math.PI * 2;
-      const d = this.rnd() * st.radius * 0.55;
-      this.burst(x + Math.cos(a) * d, y + Math.sin(a) * d, st.life * (0.7 + this.rnd() * 0.4), st.radius * 0.2, st.radius * 0.6, st.color);
+  }
+
+  updateSteam(dt) {
+    const st = this.config.steam;
+    const cl = this.steamClouds;
+    for (let i = cl.length - 1; i >= 0; i--) {
+      const c = cl[i];
+      c.age += dt;
+      if (c.age >= st.duration) { cl.splice(i, 1); continue; }
+      c.tick -= dt;
+      if (c.tick <= 0) { c.tick = st.tick; this.applySteam(c); }
     }
   }
 
@@ -450,6 +471,7 @@ export class Game {
       this.hitEnemiesWithShots();
       this.updateBurning(dt);
       this.updateFrost(dt);
+      this.updateSteam(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
@@ -608,6 +630,7 @@ export class Game {
     this.heroShots.clear();
     this.enemyShots.clear();
     this.effects.clear();
+    this.steamClouds.length = 0;
     this.gems.clear();
     this.xp.reset();
     this.hero.reset();
@@ -653,6 +676,7 @@ export class Game {
       cfg.waves.crash.startWave = this.testValues['waves.crash.startWave'];
     }
     this.mode = mode;
+    this.hud.gameMode = mode === 'game';
     this.panel.setAvailable(mode === 'test');
     this.pauseUI.setTestTools(mode === 'test');
     this.modeScreen.hide();

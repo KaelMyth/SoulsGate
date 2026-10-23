@@ -59,6 +59,10 @@ export const TUNABLES = [
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.godMode', label: 'Герой бессмертен (0 нет, 1 да)', min: 0, max: 1, step: 1 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.fpsThreshold', label: 'Порог просадки FPS', min: 20, max: 59, step: 1 },
 
+  { group: 'Облако пара (Мороз + Горение)', path: 'steam.radius', label: 'Радиус облака', min: 30, max: 160, step: 5 },
+  { group: 'Облако пара (Мороз + Горение)', path: 'steam.duration', label: 'Сколько лежит на земле, с', min: 1, max: 12, step: 0.5 },
+  { group: 'Облако пара (Мороз + Горение)', path: 'steam.tick', label: 'Как часто обновляет огонь, с', min: 0.1, max: 1.5, step: 0.1 },
+
   { group: 'Блок и парирование', path: 'block.duration', label: 'Длительность блока, с', min: 0.5, max: 3, step: 0.1 },
   { group: 'Блок и парирование', path: 'block.parryWindow', label: 'Окно парирования, с', min: 0.1, max: 1, step: 0.05 },
   { group: 'Блок и парирование', path: 'block.cooldown', label: 'Перезарядка блока, с', min: 0.3, max: 5, step: 0.1 },

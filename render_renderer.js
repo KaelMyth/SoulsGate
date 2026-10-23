@@ -54,6 +54,7 @@ export class Renderer {
     this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
     this.defense = deps.defense || null;
+    this.clouds = deps.clouds || [];
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -138,13 +139,15 @@ export class Renderer {
     const hy = hero.prevY + (hero.y - hero.prevY) * alpha;
 
     // Дальность автоатаки: еле заметное кольцо, по нему видно, кого герой достанет.
-    if (hero.active) {
+    if (hero.active && !(this.hud && this.hud.gameMode)) {
       ctx.beginPath();
       ctx.arc(hx, hy, this.cfg.attack.radius, 0, TAU);
       ctx.lineWidth = 1.5 / s;
       ctx.strokeStyle = C.range;
       ctx.stroke();
     }
+
+    this.drawClouds(ctx);
 
     // Камни опыта лежат на земле под врагами и героем.
     this.drawGems(alpha, viewL, viewR, viewT, viewB);
@@ -179,6 +182,7 @@ export class Renderer {
     if (hero.active) {
       this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
+      if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
     }
 
     // Снаряды.
@@ -504,7 +508,7 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
     }
-    this.drawCooldowns(C);
+    if (!hud.gameMode) this.drawCooldowns(C); // в игре перезарядки показаны дугами вокруг героя
   }
 
   /** Сфера блока вокруг героя. Окно парирования подсвечено, к концу блока сфера мигает. */
@@ -522,6 +526,62 @@ export class Renderer {
     ctx.lineWidth = parry ? 3 : 2;
     ctx.strokeStyle = parry ? C.parry : C.blockEdge;
     ctx.stroke();
+  }
+
+  /** Облака пара на земле: мягкое пятно с медленно ползущими клубами, к концу жизни тает. */
+  drawClouds(ctx) {
+    const cl = this.clouds;
+    if (!cl.length) return;
+    const st = this.cfg.steam;
+    for (const c of cl) {
+      const life = c.age / st.duration;
+      const fade = Math.min(1, (1 - life) * 4); // последняя четверть жизни: тает
+      const grow = Math.min(1, c.age / 0.25 + 0.3); // в начале быстро расползается
+      const R = st.radius * grow;
+      const gr = ctx.createRadialGradient(c.x, c.y, R * 0.1, c.x, c.y, R);
+      gr.addColorStop(0, 'rgba(225,236,247,0.42)');
+      gr.addColorStop(0.7, 'rgba(210,225,240,0.26)');
+      gr.addColorStop(1, 'rgba(200,218,236,0)');
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = gr;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R, 0, TAU);
+      ctx.fill();
+      // клубы
+      ctx.fillStyle = 'rgba(235,243,250,0.16)';
+      for (let i = 0; i < 4; i++) {
+        const a = c.seed + i * 1.57 + c.age * 0.5 * (i % 2 ? 1 : -1);
+        const d = R * (0.35 + 0.15 * Math.sin(c.age * 1.3 + i));
+        ctx.beginPath();
+        ctx.arc(c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, R * 0.3, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Режим «Игра»: две дуги вокруг героя, слева блок, справа рывок. Видны только пока идёт перезарядка. */
+  drawCooldownArcs(hx, hy, C) {
+    const d = this.defense;
+    if (!d) return;
+    const ctx = this.ctx;
+    const r = this.hero.radius + 9;
+    const half = 0.9; // половина угла дуги, рад
+    const arc = (center, frac, color) => {
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath();
+      ctx.arc(hx, hy, r, center - half, center + half);
+      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r, center - half, center - half + 2 * half * Math.max(0, Math.min(1, frac)));
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    if (!d.blocking && d.blockCd > 0) arc(Math.PI, 1 - d.blockCd / d.blockCdMax, C.blockEdge);
+    if (d.dashCd > 0) arc(0, 1 - d.dashCd / d.dashCdMax, C.accent || C.hpHero);
   }
 
   /** Индикаторы перезарядки блока и рывка в левом нижнем углу. */
