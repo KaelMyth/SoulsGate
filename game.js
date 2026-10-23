@@ -18,6 +18,7 @@ import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
+import { Boss } from './systems_boss.js';
 import { Xp, createGem, resetGem } from './systems_xp.js';
 import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
@@ -51,13 +52,15 @@ export class Game {
     this.insets = readSafeInsets(o.probe);
 
     // Состояние забега.
-    this.state = 'playing'; // 'playing' | 'paused' | 'dead'
+    this.state = 'playing'; // 'playing' | 'paused' | 'dead' | 'menu' | 'cutscene' (вступление босса: мир замер, камера на боссе)
+    this.cine = null;       // состояние вступления босса: { t, fromX, fromY, boss }
     this.deadTimer = 0;
     this.kills = 0;
     this.runTime = 0;
     this.hud = {
       insets: this.insets, kills: 0,
       wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
+      bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
     this.steamClouds = []; // облака пара на земле: { x, y, age, tick, hit:Set, dmg, int }
     this.crashResult = null; // { enemies, fps, wave, time }: первая просадка FPS в краш-тесте
@@ -86,6 +89,7 @@ export class Game {
     });
     this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
+    this.boss = new Boss({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
@@ -112,12 +116,13 @@ export class Game {
       gems: this.gems,
       autoattack: this.autoattack,
       defense: this.defense,
+      boss: this.boss,
       clouds: this.steamClouds,
       lasers: this.lasers,
       hud: this.hud,
     });
     this.spawner = new Spawner({
-      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus,
+      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero,
     });
 
     // Слои столкновений: кто с кем взаимодействует, объявлено здесь, а не размазано по коду.
@@ -221,6 +226,14 @@ export class Game {
         this.hitSparks(e.target.x, e.target.y, en.atk.dirX, en.atk.dirY, 16, config.render.colors.sparkRed);
       }
     });
+    // Вышел босс: мир замирает, камера плывёт к нему (см. updateCine).
+    this.bus.on('boss:spawned', ({ enemy }) => this.startBossIntro(enemy));
+    // Вспышки к атакам босса: кольцо на старте рывка, взрыв в области пересечения разломов.
+    this.bus.on('boss:dash', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.25, enemy.radius, enemy.radius * 2, enemy.def.edge));
+    this.bus.on('boss:blast', ({ x, y, hit }) => {
+      this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
+      this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
+    });
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
     this.bus.on('hero:hit-incoming', (inc) => {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
@@ -249,7 +262,7 @@ export class Game {
       if (e.path === 'build.size' || e.path === 'build.minCoreDistance') this.relayoutBuild();
       else if (this.pauseUI.visible) this.pauseUI.refresh();
       // Ползунок «Прыгнуть на волну»: перенос сразу, без перезапуска забега.
-      if (e.path === 'waves.startWave' && this.state !== 'dead') this.jumpToWave(e.value);
+      if (e.path === 'waves.startWave' && this.state !== 'dead' && this.state !== 'cutscene') this.jumpToWave(e.value);
     });
     window.addEventListener('resize', () => this.onResize());
     window.addEventListener('orientationchange', () => this.onResize());
@@ -364,6 +377,7 @@ export class Game {
    */
   chill(e, steam = 0, burnDmg = 0, burnInt = 0, quiet = false) {
     const f = this.config.frost;
+    const immune = !!(e.def && e.def.immuneFrost); // босс-рыцарь: холод не замедляет и не замораживает, заряды (для пара) копятся
     if (e.freezeT > 0) return; // уже заморожен: заряды не копятся
     if (quiet && e.frostStacks >= f.maxStacks - 1) return;
     e.frostStacks++;
@@ -375,11 +389,12 @@ export class Game {
         this.steamBurst(e.x, e.y, burnDmg * steam, burnInt);
         return;
       }
+      if (immune) return;
       e.freezeT = f.freezeTime;
       e.speedMul = 0;
       e.kbVx = e.kbVy = 0;
       this.burst(e.x, e.y, 0.35, e.radius, e.radius * 2.6, f.color);
-    } else {
+    } else if (!immune) {
       e.speedMul = 1 - e.frostStacks * f.slowPerStack;
     }
   }
@@ -577,6 +592,10 @@ export class Game {
 
   update(dt) {
     if (this.state === 'paused' || this.state === 'menu') return; // пауза и меню: мир стоит, отрисовка продолжается
+    if (this.state === 'cutscene') { // вступление босса: мир замер, двигается только камера и надпись
+      this.updateCine(dt);
+      return;
+    }
     if (this.state === 'playing' && this.hitStop > 0) {
       // Остановка времени при парировании: мир замер, но искры летят.
       this.hitStop -= dt;
@@ -597,6 +616,7 @@ export class Game {
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
+      this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
@@ -634,6 +654,72 @@ export class Game {
     this.enemyShots.sweep();
     this.effects.sweep();
     this.gems.sweep();
+  }
+
+  /** Вступление босса: игра замирает, камера плывёт к боссу. Дальше всё ведёт updateCine. */
+  startBossIntro(boss) {
+    if (this.state !== 'playing') return;
+    this.state = 'cutscene';
+    this.stick.cancel();
+    this.cine = { t: 0, fromX: this.camera.x, fromY: this.camera.y, boss };
+    this.hud.bossTitle = boss.def.title || boss.def.name || '';
+    this.hud.bossTitleAlpha = 0;
+  }
+
+  /**
+   * Время вступления: камера плывёт к боссу (panTime) → имя проявляется (titleIn), висит (titleHold),
+   * гаснет (titleOut) → камера возвращается на героя (returnTime) → игра продолжается. Времена в config.waves.boss.intro.
+   */
+  updateCine(dt) {
+    const c = this.cine;
+    if (!c) { this.state = 'playing'; return; }
+    const I = this.config.waves.boss.intro;
+    const cam = this.camera;
+    c.t += dt;
+    const tPan = I.panTime;
+    const tIn = tPan + I.titleIn;
+    const tHold = tIn + I.titleHold;
+    const tOut = tHold + I.titleOut;
+    const tEnd = tOut + I.returnTime;
+    const ease = (k) => { k = k < 0 ? 0 : k > 1 ? 1 : k; return k * k * (3 - 2 * k); }; // плавный старт и остановка
+
+    cam.refresh();
+    cam.prevX = cam.x;
+    cam.prevY = cam.y;
+    const boss = c.boss;
+    if (c.t < tPan) {
+      const k = ease(c.t / Math.max(0.001, tPan));
+      cam.x = c.fromX + (boss.x - c.fromX) * k;
+      cam.y = c.fromY + (boss.y - c.fromY) * k;
+    } else if (c.t < tOut) {
+      cam.x = boss.x;
+      cam.y = boss.y;
+    } else {
+      const k = ease((c.t - tOut) / Math.max(0.001, I.returnTime));
+      cam.x = boss.x + (this.hero.x - boss.x) * k;
+      cam.y = boss.y + (this.hero.y - boss.y) * k;
+    }
+    if (this.config.camera.clampToArena) cam.clampTo(this.arena);
+
+    // Надпись: проявляется, висит, гаснет.
+    let a = 0;
+    if (c.t >= tPan && c.t < tIn) a = (c.t - tPan) / Math.max(0.001, I.titleIn);
+    else if (c.t >= tIn && c.t < tHold) a = 1;
+    else if (c.t >= tHold && c.t < tOut) a = 1 - (c.t - tHold) / Math.max(0.001, I.titleOut);
+    this.hud.bossTitleAlpha = a;
+
+    if (c.t >= tEnd) this.endBossIntro();
+  }
+
+  endBossIntro() {
+    this.cine = null;
+    this.hud.bossTitle = '';
+    this.hud.bossTitleAlpha = 0;
+    this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
+    this.stepper.reset(); // время вступления не «догоняем»
+    this.meter.interrupt();
+    this.state = 'playing';
+    this.bus.emit('boss:intro-finished', {});
   }
 
   /** Двигает снаряды; те, что упёрлись в скалу, гаснут искрой. */
@@ -776,6 +862,10 @@ export class Game {
     this.defense.reset();
     this.swipe.reset();
     this.hitStop = 0;
+    this.boss.reset();
+    this.cine = null;
+    this.hud.bossTitle = '';
+    this.hud.bossTitleAlpha = 0;
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.autoattack.reset();
     this.spawner.reset();
