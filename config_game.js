@@ -405,6 +405,8 @@ export const CONFIG = {
       hpFill: '#e5534b',
       hpHero: '#4fd18b',
       hurt: '#ff6b6b',
+      snot: '#a874ff',     // липкие снаряды стрелка и сопли при попадании
+      snotCore: '#e4d0ff', // блик и ядро слизи
       hud: '#cfe0f5',
     },
   },
