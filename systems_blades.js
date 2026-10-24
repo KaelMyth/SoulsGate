@@ -2,9 +2,18 @@
 // все летят во врагов. На одного врага не больше perTarget клинков, остальные выбирают других.
 // Клинок самонаводится на цель, при попадании бьёт и исчезает. Сам щит мод не меняет.
 
+import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { bladeInterval, laserStats } from './build_cores.js';
 
 const TAU = Math.PI * 2;
+
+/** Последовательность 0, 1/2, 1/4, 3/4, 1/8 ...: каждый следующий в самом свободном месте круга. */
+function vdc(n) {
+  let r = 0;
+  let f = 0.5;
+  for (; n > 0; n >>= 1, f /= 2) if (n & 1) r += f;
+  return r;
+}
 
 function angDiff(a, b) {
   let d = (b - a) % TAU;
@@ -22,7 +31,12 @@ export class Blades {
     this.grid = o.grid;
     this.combat = o.combat;
     this.modifiers = o.modifiers || null;
-    this.lasers = o.lasers || []; // общий список лучей игры: сюда клинки-сферы выпускают лазеры
+    this.arena = o.arena || null;     // для точки появления фантомного клинка
+    this.rnd = o.rnd || Math.random;
+    this.spot = { x: 0, y: 0, d: 0 };
+    this.pellets = o.pellets || null; // «Дробь» на клинках: при попадании клинок разбрасывает дробинки
+    this.lasers = o.lasers || [];
+    this.shotAngle = 0;               // куда направлен первый из четырёх разлётов; сдвигается с каждым попаданием // общий список лучей игры: сюда клинки-сферы выпускают лазеры
     this.ignite = o.ignite || null; // (враг, урон тика, интервал) от Горения на клинках
     this.chill = o.chill || null;   // (враг, пар, урон тика, интервал) от Мороза на клинках
     this.items = []; // { x, y, a (угол полёта или место на орбите), state: 'orbit' | 'fly', target, vx, vy, age }
@@ -37,6 +51,11 @@ export class Blades {
     this.items.length = 0;
     this.timer = 0;
     this.spin = 0;
+    this.shotAngle = 0;
+    this.slot = 0;      // сколько клинков уже появилось в этой пачке: от этого зависит, на какой стороне появится следующий
+    this.wave = false;  // идёт запуск пачки: новые не копятся, клинки уходят по одному
+    this.gap = 0;       // таймер между запусками
+    this.dtNow = 0;
   }
 
   orbiting() {
@@ -69,9 +88,12 @@ export class Blades {
     const cand = this.gather(B.range);
     if (!cand.length) return false;
     const counts = this.counts;
-    counts.clear();
+    if (!this.wave) { counts.clear(); this.wave = true; this.gap = 0; }
+    this.gap -= this.dtNow;
     for (const b of this.items) {
       if (b.state !== 'orbit') continue;
+      if (this.gap > 0) break;   // клинки уходят по одному, а не все разом
+      this.gap += B.launchGap;
       let pick = null;
       for (const c of cand) {
         if ((counts.get(c.e) || 0) < B.perTarget) { pick = c.e; break; }
@@ -89,6 +111,7 @@ export class Blades {
         else b.state = 'gone';
       } else b.state = 'fly';
     }
+    if (this.gap < 0) this.gap = 0;
     return true;
   }
 
@@ -111,14 +134,19 @@ export class Blades {
 
     // Копим клинки, пока их на орбите меньше максимума.
     let orbit = this.orbiting();
-    if (orbit < max) {
+    this.dtNow = dt;
+    if (this.wave && orbit === 0) { this.wave = false; this.slot = 0; } // пачка ушла целиком: можно копить заново
+    if (!this.wave && orbit < max) {
       this.timer += dt;
       while (this.timer >= interval && orbit < max) {
         this.timer -= interval;
-        this.items.push({ x: hero.x, y: hero.y, a: this.spin, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
+        // Следующий клинок появляется на противоположной стороне от предыдущего (доли круга 0, 1/2, 1/4, 3/4, 1/8 ...).
+        const off = vdc(this.slot++) * TAU;
+        const a = this.spin + off;
+        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
         orbit++;
       }
-    } else {
+    } else if (orbit > 0) {
       this.timer = 0;
       this.launch(m, dmg, max); // нет врагов в зоне: остаёмся на орбите и ждём
     }
@@ -137,11 +165,9 @@ export class Blades {
     }
 
     // Орбита: клинки равномерно по кругу, плавно занимают место.
-    orbit = this.orbiting();
-    let i = 0;
     for (const b of this.items) {
       if (b.state !== 'orbit') continue;
-      const want = this.spin + (i++ * TAU) / Math.max(1, orbit);
+      const want = this.spin + b.off; // у каждого клинка своё место на круге
       const k = Math.min(1, dt * 12);
       b.a += angDiff(b.a, want) * k;
       const tx = hero.x + Math.cos(b.a) * B.orbit;
@@ -176,14 +202,34 @@ export class Blades {
         const dx = t.x - b.x;
         const dy = t.y - b.y;
         if (dx * dx + dy * dy <= r * r) {
-          this.combat.damageEnemy(t, dmg, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
-          if (t.active) this.applyEffects(t, m, dmg);
+          const bd = b.mul ? dmg * b.mul : dmg; // фантомный клинок бьёт чуть иначе (phantom.damageFrac)
+          this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          if (t.active) this.applyEffects(t, m, bd);
+          if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
+          if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
           items.splice(j, 1);
           continue;
         }
       }
       if (b.age >= B.life) items.splice(j, 1);
     }
+  }
+
+  /**
+   * Фантомный клинок: после попадания с шансом (падает вдвое с поколением) рядом с врагом, не у героя,
+   * появляется новый клинок и летит в него. Несёт те же эффекты; сам может породить следующий (до phantom.maxChain).
+   */
+  tryPhantomBlade(b, t, m) {
+    const F = this.cfg.phantom;
+    const B = this.cfg.blades;
+    if (!this.arena || this.items.length >= B.maxAlive) return;
+    if (!phantomRoll(F, this.rnd, Math.min(1, F.chance * m.phantom.mult), b.gen | 0)) return;
+    const s = this.spot;
+    if (!phantomSpot(this.arena, this.rnd, F, t, B.size, s)) return;
+    this.items.push({
+      x: s.x, y: s.y, a: Math.atan2(t.y - s.y, t.x - s.x), off: 0, state: 'fly', target: t,
+      vx: 0, vy: 0, age: 0, gen: (b.gen | 0) + 1, mul: F.damageFrac, sphere: false,
+    });
   }
 
   /** Луч из сферы b в цель t: те же правила, что у лазера снаряда, урон луча от урона клинка. */
@@ -202,8 +248,35 @@ export class Blades {
       width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick, big: big.big,
       burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
+      gen: 0, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0,
     });
     return true;
+  }
+
+  /**
+   * «Дробь» на клинках: из места попадания в 4 стороны разлетаются дробинки с разной силой (скорость и дальность),
+   * а каждое новое попадание поворачивает разлёт на shotShift. Половина дробинок несёт Горение и Мороз.
+   */
+  scatter(t, fromAngle, m, dmg) {
+    const B = this.cfg.blades;
+    const S = this.cfg.shot;
+    const P = this.pellets;
+    const n = B.shotCount;
+    const full = P.free();
+    if (!full) return;
+    const pd = dmg * S.damageFrac;
+    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
+    const st = bd > 0 && m.frost && m.steam ? m.steam.damage : 0;
+    this.shotAngle += B.shotShift;
+    for (let k = 0; k < n && k < full; k++) {
+      const a = this.shotAngle + (k * TAU) / n;
+      const f = B.shotPower[k % B.shotPower.length]; // сила: у каждой своя
+      const fx = (k & 1) === 0;
+      const off = t.radius + S.radius + 2;
+      P.add(t.x + Math.cos(a) * off, t.y + Math.sin(a) * off, Math.cos(a) * S.speed * f, Math.sin(a) * S.speed * f, S.range * f, pd,
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0);
+    }
   }
 
   /** Горение и Мороз на клинках: как у снаряда, сила от урона клинка. */

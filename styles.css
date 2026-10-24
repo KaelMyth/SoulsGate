@@ -3,9 +3,13 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
-  --ink: #cfe0f5;
+  --ink: #dbe7f7;
+  --ice: #bcd4f2;
+  --ice-dim: #7f98bb;
+  --serif: "Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif;
   --bg: #0b0f16;
   --line: #3b5675;
+  --hair: rgba(160, 195, 240, 0.34);
   --accent: #ffb14a;
 }
 
@@ -207,83 +211,9 @@ body {
 #dbg-panel .dbg-group::before { content: '▸ '; }
 #dbg-panel .dbg-sect[open] > .dbg-group::before { content: '▾ '; }
 
-/* ---------- Экран смерти ---------- */
-#death-screen {
-  position: fixed;
-  z-index: 25;
-  top: 0; left: 0; right: 0; bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-  background: rgba(7, 10, 16, 0.78);
-  touch-action: manipulation;
-}
-#death-screen[hidden] { display: none; }
-#death-screen .card {
-  box-sizing: border-box;
-  width: min(80vw, 320px);
-  padding: 24px 20px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(11, 15, 22, 0.95);
-  text-align: center;
-}
-#death-screen h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
-#death-stats { margin: 0 0 20px; font-size: 15px; line-height: 1.6; white-space: pre-line; }
-#death-restart {
-  width: 100%;
-  min-height: 56px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--accent);
-  color: #1a1206;
-  font: 600 18px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  touch-action: manipulation;
-}
-
-/* ---------- Пауза ---------- */
-#pause-btn {
-  position: fixed;
-  z-index: 20;
-  top: calc(var(--safe-top) + 132px);
-  left: calc(var(--safe-left) + 8px);
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(11, 15, 22, 0.55);
-  color: var(--ink);
-  font-size: 16px;
-  line-height: 1;
-  touch-action: manipulation;
-}
-#pause-btn.on { display: none; } /* на паузе есть «Продолжить» */
-
 /* Ниже кнопки ⚙ и панели (z-index 20): на паузе можно крутить ползунки. */
-#pause-screen {
-  position: fixed;
-  z-index: 15;
-  top: 0; left: 0; right: 0; bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-  background: rgba(0, 0, 0, 0.93);
-  touch-action: manipulation;
-}
 #pause-screen[hidden] { display: none; }
-#pause-screen .card {
-  box-sizing: border-box;
-  width: min(80vw, 320px);
-  padding: 24px 20px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(11, 15, 22, 0.95);
-  text-align: center;
-}
-#pause-screen h2 { margin: 0 0 4px; font-size: 24px; font-weight: 600; }
+#pause-screen h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
 #pause-screen p { margin: 0 0 18px; font-size: 14px; color: #9fb3cc; }
 #pause-screen { overflow-y: auto; }
 #pause-screen .card { width: min(94vw, 420px); margin: auto; padding: 16px 12px 20px; }
@@ -338,100 +268,39 @@ body {
 .core-info .hint { margin: 10px 0; text-align: center; }
 .core-info .stat { display: flex; justify-content: space-between; font-size: 13px; line-height: 1.35; color: #9fb3cc; }
 .core-info .stat b { color: var(--ink); font-weight: 600; }
-#pause-screen button {
-  display: block;
-  width: 100%;
-  min-height: 52px;
-  margin-top: 10px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--accent);
-  color: #1a1206;
-  font: 600 17px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  touch-action: manipulation;
-}
-#pause-screen button.secondary {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink);
-  font-weight: 500;
-}
-
-/* ---------- Слот умения (заглушка) ---------- */
-#slot-btn {
-  position: fixed;
-  z-index: 20;
-  left: 50%;
-  bottom: calc(var(--safe-bottom, 0px) + 24px);
-  transform: translateX(-50%);
-  width: 76px;
-  height: 76px;
-  padding: 0;
-  border: 2px solid var(--line);
-  border-radius: 50%;
-  background: rgba(11, 15, 22, 0.55);
-  color: var(--ink);
-  font-size: 13px;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-#slot-btn.flash { border-color: var(--accent); background: rgba(255, 177, 74, 0.35); color: #fff; }
 
 /* В меню билда кнопка умения не нужна. */
-#pause-screen:not([hidden]) ~ #slot-btn { display: none; }
+#pause-screen:not([hidden]) ~ #slot-row { display: none; }
 
 /* Моды: ряд хранилища, мод на поле, подсветка граней (зелёная: можно прикрепить, красная: ядру не подходит). */
-.shelf .slot-cell { display: flex; align-items: center; justify-content: center; color: #8cf0b4; }
-.shelf .slot-cell.has { border-style: solid; border-color: #3ddc84; background: #1b3326; touch-action: pan-x; }
-.shelf .slot-cell.selected { border-color: var(--accent); background: #2a3b2c; }
+.shelf .slot-cell { display: flex; align-items: center; justify-content: center; color: #bfeaf0; }
+.shelf .slot-cell.has { border-style: solid; border-color: #6fd3d8; background: #12303a; touch-action: pan-x; }
+.shelf .slot-cell.selected { border-color: var(--accent); background: #1d4553; }
 .shelf .slot-cell .icon-svg { width: 62%; height: 62%; pointer-events: none; }
-.drag-ghost { position: fixed; z-index: 60; left: 0; top: 0; width: 48px; height: 48px; pointer-events: none; color: #8cf0b4;
+.drag-ghost { position: fixed; z-index: 60; left: 0; top: 0; width: 48px; height: 48px; pointer-events: none; color: #bfeaf0;
   filter: drop-shadow(0 4px 8px rgba(0,0,0,.7)); }
 .drag-ghost .icon-svg { width: 100%; height: 100%; }
 
 .board .cell { --st: inset 0 0 0 0 transparent; --sr: inset 0 0 0 0 transparent; --sb: inset 0 0 0 0 transparent; --sl: inset 0 0 0 0 transparent;
   box-shadow: var(--st), var(--sr), var(--sb), var(--sl); }
-.board .cell.fg-t { --st: inset 0 3px 0 0 #3ddc84; }
-.board .cell.fg-r { --sr: inset -3px 0 0 0 #3ddc84; }
-.board .cell.fg-b { --sb: inset 0 -3px 0 0 #3ddc84; }
-.board .cell.fg-l { --sl: inset 3px 0 0 0 #3ddc84; }
+.board .cell.fg-t { --st: inset 0 3px 0 0 #6fd3d8; }
+.board .cell.fg-r { --sr: inset -3px 0 0 0 #6fd3d8; }
+.board .cell.fg-b { --sb: inset 0 -3px 0 0 #6fd3d8; }
+.board .cell.fg-l { --sl: inset 3px 0 0 0 #6fd3d8; }
 .board .cell.fr-t { --st: inset 0 3px 0 0 #ff5a5a; }
 .board .cell.fr-r { --sr: inset -3px 0 0 0 #ff5a5a; }
 .board .cell.fr-b { --sb: inset 0 -3px 0 0 #ff5a5a; }
 .board .cell.fr-l { --sl: inset 3px 0 0 0 #ff5a5a; }
-#pause-screen .board .cell.target { background: #1b3a2a; border-color: #2f7a52; }
-#pause-screen .board .cell.mod { background: #21402e; border-color: #3ddc84; color: #8cf0b4; touch-action: none; }
-#pause-screen .board .cell.mod.selected { background: #2f5a41; border-color: var(--accent); }
-.core-info .mod-title { color: #8cf0b4; }
+#pause-screen .board .cell.target { background: #12303a; border-color: #2f6f80; }
+#pause-screen .board .cell.mod { background: #163845; border-color: #6fd3d8; color: #bfeaf0; touch-action: none; }
+#pause-screen .board .cell.mod.selected { background: #21505f; border-color: var(--accent); }
+.core-info .mod-title { color: #bfeaf0; }
 .core-info .mod-desc { margin: 0 0 6px; text-align: center; color: var(--ink); font-size: 14px; }
-.core-info .stat em { color: #8cf0b4; font-style: normal; font-weight: 500; font-size: 12px; }
+.core-info .stat em { color: #bfeaf0; font-style: normal; font-weight: 500; font-size: 12px; }
 #pause-screen .core-info button.small { min-height: 40px; width: auto; margin: 6px auto 0; padding: 0 18px; font-size: 15px; background: transparent; border: 1px solid var(--line); color: var(--ink); }
 
 /* Скрытые отладочные элементы в режиме «Игра». */
 #dbg-btn[hidden], #dbg-fps[hidden] { display: none; }
-
-/* Стартовый экран выбора режима: поверх всего. */
-#mode-screen {
-  position: fixed; z-index: 40; top: 0; left: 0; right: 0; bottom: 0;
-  display: flex; align-items: center; justify-content: center;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-  background: rgba(0, 0, 0, 0.93);
-  touch-action: manipulation;
-}
-#mode-screen[hidden] { display: none; }
-#mode-screen .card {
-  box-sizing: border-box; width: min(80vw, 320px); padding: 28px 20px;
-  border: 1px solid var(--line); border-radius: 16px;
-  background: rgba(11, 15, 22, 0.95); text-align: center;
-}
-#mode-screen h2 { margin: 0 0 6px; font-size: 26px; font-weight: 600; }
-#mode-screen p { margin: 0 0 14px; font-size: 14px; color: #9fb3cc; }
-#mode-screen button {
-  display: block; width: 100%; min-height: 56px; margin-top: 10px; border: 0; border-radius: 14px;
-  background: var(--accent); color: #1a1206;
-  font: 600 18px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; touch-action: manipulation;
-}
-#mode-screen button.secondary { border: 1px solid var(--line); background: transparent; color: var(--ink); font-weight: 500; }
 
 /* Набор для тестов в меню Билда: кнопка и выпадающий вверх список модов. */
 #pause-screen .card { position: relative; }
@@ -439,13 +308,13 @@ body {
 .test-tools[hidden] { display: none; }
 #pause-screen .test-tools .tools-toggle {
   display: block; width: 100%; min-height: 40px; margin: 0; padding: 0 12px;
-  border: 1px solid #3ddc84; border-radius: 10px; background: #1b3326; color: #8cf0b4; font-size: 14px; font-weight: 500;
+  border: 1px solid #6fd3d8; border-radius: 10px; background: #12303a; color: #bfeaf0; font-size: 14px; font-weight: 500;
 }
 .tools-list {
   position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 5;
   max-height: 42vh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
   display: flex; flex-direction: column; gap: 4px; padding: 6px;
-  border: 1px solid #3ddc84; border-radius: 12px; background: #0b0f16; box-shadow: 0 8px 24px rgba(0,0,0,.7);
+  border: 1px solid #6fd3d8; border-radius: 12px; background: #0b0f16; box-shadow: 0 8px 24px rgba(0,0,0,.7);
 }
 .tools-list[hidden] { display: none; }
 #pause-screen .tools-list .tool-item {
@@ -454,3 +323,116 @@ body {
   font-size: 15px; font-weight: 600;
 }
 .tool-item span { font-size: 11px; font-weight: 400; color: #9fb3cc; line-height: 1.25; }
+
+/* ---------- Тема интерфейса: холодная палитра, тонкие линии, ромбы ---------- */
+body { font-family: var(--serif); }
+
+/* Кнопка-текст с разделителем-ромбом снизу, как в меню концепта. */
+.ui-btn, #pause-screen button:not(.cell):not(.small):not(.tools-toggle):not(.tool-item), #death-screen button {
+  position: relative; display: block; width: 100%; min-height: 54px; margin: 6px 0 0; padding: 12px 0 24px;
+  border: 0; background: transparent; color: var(--ink);
+  font: 500 21px/1.1 var(--serif); letter-spacing: 0.04em; text-align: center;
+  touch-action: manipulation; transition: color .15s, text-shadow .15s;
+}
+.ui-btn::after, #pause-screen button:not(.cell):not(.small):not(.tools-toggle):not(.tool-item)::after, #death-screen button::after {
+  content: ''; position: absolute; left: 12%; right: 12%; bottom: 9px; height: 1px;
+  background: linear-gradient(90deg, transparent 0, var(--hair) 30%, var(--hair) calc(50% - 10px), transparent calc(50% - 10px),
+    transparent calc(50% + 10px), var(--hair) calc(50% + 10px), var(--hair) 70%, transparent 100%);
+}
+.ui-btn::before, #pause-screen button:not(.cell):not(.small):not(.tools-toggle):not(.tool-item)::before, #death-screen button::before {
+  content: ''; position: absolute; left: 50%; bottom: 5.5px; width: 6px; height: 6px; margin-left: -3.5px;
+  border: 1px solid var(--ice-dim); transform: rotate(45deg); transition: background .15s, border-color .15s;
+}
+.ui-btn:active, #pause-screen button:not(.cell):not(.small):not(.tools-toggle):not(.tool-item):active, #death-screen button:active { color: #fff; text-shadow: 0 0 14px rgba(255, 177, 74, 0.8); }
+.ui-btn:active::before, #pause-screen button:not(.cell):not(.small):not(.tools-toggle):not(.tool-item):active::before, #death-screen button:active::before { background: var(--accent); border-color: var(--accent); }
+.ui-btn.secondary, #pause-screen button.secondary:not(.cell):not(.small):not(.tools-toggle):not(.tool-item) { color: var(--ice-dim); font-size: 18px; }
+
+/* Панель: тонкая рамка, ромб по центру верхней кромки. */
+.card {
+  position: relative; box-sizing: border-box; text-align: center;
+  border: 1px solid var(--hair); border-radius: 2px;
+  background: linear-gradient(180deg, rgba(22, 33, 56, 0.96), rgba(10, 16, 30, 0.97));
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55), inset 0 0 40px rgba(90, 130, 200, 0.06);
+}
+.card::before {
+  content: ''; position: absolute; left: 50%; top: -5px; width: 8px; height: 8px; margin-left: -4px;
+  background: #0f1729; border: 1px solid var(--ice-dim); transform: rotate(45deg);
+}
+.card h2 { margin: 0 0 6px; font: 500 26px/1.2 var(--serif); letter-spacing: 0.06em; color: var(--ink); }
+
+/* ---------- Пауза ---------- */
+#pause-btn {
+  position: fixed; z-index: 20; top: calc(var(--safe-top) + 6px); left: calc(var(--safe-left) + 6px);
+  width: 48px; height: 48px; padding: 0; border: 0; background: transparent; color: var(--ice);
+  opacity: 0.78; touch-action: manipulation; transition: opacity .15s, color .15s;
+}
+#pause-btn svg { width: 30px; height: 30px; display: block; margin: auto; filter: drop-shadow(0 0 6px rgba(120, 170, 255, 0.35)); }
+#pause-btn:active { opacity: 1; color: #fff; }
+#pause-btn.on { display: none; } /* на паузе есть «Продолжить» */
+
+/* Ниже кнопки ⚙ и панели (z-index 20): на паузе можно крутить ползунки. */
+#pause-screen {
+  position: fixed; z-index: 15; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: radial-gradient(ellipse at 50% 40%, rgba(18, 28, 50, 0.95), rgba(4, 7, 14, 0.97));
+  touch-action: manipulation;
+}
+#pause-screen .card { padding: 18px 12px 12px; }
+#menu-card { padding: 22px 16px 12px; width: min(80vw, 320px); }
+
+/* ---------- Слоты умений: невидимые зоны нажатия, ромбы рисует canvas (render_renderer.js, drawHud) ---------- */
+#slot-row {
+  position: fixed; z-index: 20; left: 50%; bottom: calc(var(--safe-bottom, 0px) + 14px); transform: translateX(-50%);
+  display: flex; gap: 4px;
+}
+.slot-btn {
+  width: 60px; height: 60px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: transparent;
+  font-size: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Экран смерти ---------- */
+#death-screen {
+  position: fixed; z-index: 25; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: radial-gradient(ellipse at 50% 45%, rgba(40, 14, 20, 0.55), rgba(4, 7, 14, 0.9) 70%);
+  touch-action: manipulation; animation: ui-fade .6s ease-out both;
+}
+#death-screen[hidden] { display: none; }
+#death-screen .card { width: min(84vw, 340px); padding: 30px 20px 14px; background: none; border: 0; box-shadow: none; }
+#death-screen .card::before { display: none; }
+#death-screen h2 { font-size: 34px; letter-spacing: 0.14em; text-transform: uppercase; color: #f1d6d4; text-shadow: 0 0 22px rgba(229, 83, 75, 0.55); }
+#death-screen .card > h2::after {
+  content: ''; display: block; width: 62%; height: 9px; margin: 12px auto 0;
+  background: linear-gradient(90deg, transparent, rgba(229, 83, 75, 0.7) 40%, transparent 40%, transparent 60%, rgba(229, 83, 75, 0.7) 60%, transparent) center / 100% 1px no-repeat;
+}
+#death-stats { margin: 14px 0 20px; font: italic 17px/1.7 var(--serif); color: var(--ice); white-space: pre-line; }
+@keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- Главное меню: сцена у костра (ui_menu-scene.js, ui_menu-fx.js) ---------- */
+#mode-screen {
+  --W: min(100vw, calc(100vh * 941 / 1672)); /* ширина сцены: вся ширина экрана или по высоте, что меньше */
+  position: fixed; z-index: 40; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; background: #0e1628;
+  touch-action: manipulation;
+}
+#mode-screen[hidden] { display: none; }
+#mode-screen .stage {
+  position: absolute; left: 50%; top: 50%; width: var(--W); height: calc(var(--W) * 1672 / 941); transform: translate(-50%, -50%);
+}
+#mode-screen .scene, #mode-screen .logo { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+#mode-screen .logo { filter: drop-shadow(0 0 10px rgba(150, 190, 255, 0.3)); }
+#mode-screen .fx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+#mode-screen .menu { position: absolute; left: 61.5%; top: 32.2%; width: 33%; }
+#mode-screen .menu .ui-btn {
+  width: 100%; height: calc(var(--W) * 0.138); min-height: 0; margin: 0; padding: 0;
+  font-size: calc(var(--W) * 0.046); line-height: calc(var(--W) * 0.07); color: #d3e2f8; text-shadow: 0 2px 10px rgba(5, 9, 20, 0.9);
+}
+#mode-screen .menu .ui-btn::after { bottom: auto; top: calc(var(--W) * 0.083); left: 2%; right: 2%; }
+#mode-screen .menu .ui-btn::before { bottom: auto; top: calc(var(--W) * 0.083 - 3px); }
+#mode-screen .menu .ui-btn.idle { pointer-events: none; }
+#mode-screen .test-link {
+  position: absolute; left: 61.5%; width: 33%; top: 66%; padding: 6px 0; border: 0; background: transparent; color: #8fa6c8;
+  font: italic calc(var(--W) * 0.03) var(--serif); opacity: 0.7; text-align: center; touch-action: manipulation;
+}
+@media (prefers-reduced-motion: reduce) { #mode-screen .fx { display: none; } }

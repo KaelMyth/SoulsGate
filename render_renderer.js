@@ -4,10 +4,14 @@
 import { getTelegraph } from './systems_attacks.js';
 
 const TAU = Math.PI * 2;
+const SERIF = '"Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif'; // шрифт надписей интерфейса
 const EMPTY = { items: [] };
 
 // Угловатый контур панциря (x, y в долях радиуса, нос в +x), общий для жуков в стиле low-poly.
 const SHELL = [0.56, -0.5, 0.1, -0.78, -0.6, -0.62, -0.98, -0.15, -0.98, 0.15, -0.6, 0.62, 0.1, 0.78, 0.56, 0.5];
+
+// Плечи мага (восьмиугольник): x вперёд по курсу, y вправо, доли радиуса.
+const HERO_BODY = [0.52, 0, 0.36, -0.64, -0.05, -1.0, -0.52, -0.72, -0.62, 0, -0.52, 0.72, -0.05, 1.0, 0.36, 0.64];
 
 // Жук-носорог (бык): широкий панцирь, пластина-«шея» и большой рог с двумя отростками. Единицы: доли радиуса.
 const BULL_SHELL = [0.62, -0.62, 0.15, -0.9, -0.65, -0.78, -1.05, -0.2, -1.05, 0.2, -0.65, 0.78, 0.15, 0.9, 0.62, 0.62];
@@ -503,6 +507,10 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.aura = deps.aura || null;
+    this.fires = deps.fires || [];
+    this.lightdash = deps.lightdash || null;
+    this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -515,6 +523,21 @@ export class Renderer {
     this.glow = null;             // мягкое тёплое пятно света, рисуется один раз и переиспользуется
     this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
     this.glowRed = null;          // то же, красное: для быка
+    this.glowBlue = null;         // то же, голубое: кристалл посоха героя
+    this.glowGold = null;         // то же, золотое: щит в окне парирования, подсветка цели
+    this.ui = { hp: 1, hpTrail: 1, hpShow: 0, xp: 0, boss: 1, bossTrail: 1, bossK: 0, slots: [0, 0, 0] }; // сглаженные значения интерфейса
+    this.tglow = { cur: null, curK: 0, prev: null, prevK: 0 }; // подсветка цели автоатаки: текущая и затухающая прежняя
+    this.shield = {               // вид щита: появление, цвет золото-синий, вспышка парирования и отклики на удары
+      k: 0, pk: 0, flash: 0,
+      rip: [{ on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false },
+        { on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false }],
+    };
+    this.hs = {                   // вид героя: сглаженные угол и курс, фаза шага и история позиций для шлейфа
+      a: -Math.PI / 2, mx: 0, my: 0, phase: 0, lx: 0, ly: 0, has: false,
+      head: 0, cnt: 0, tx: new Float32Array(32), ty: new Float32Array(32), tt: new Float64Array(32), ti: 0,
+    };
+    this.hbuf = new Float32Array(33 * 5); // буфер точек ленты шлейфа (x, y, нормаль, ширина): без выделений памяти в кадре
+    this.hring = new Float32Array(16);     // контур плеч героя
     this.strip = null;            // мягкая красная полоса телеграфа (без чётких краёв), один спрайт
     this.dust = null;             // спрайт облачка пыли
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
@@ -602,6 +625,7 @@ export class Renderer {
     }
 
     this.drawClouds(ctx);
+    this.drawFires(ctx);
 
     // Камни опыта лежат на земле под врагами и героем.
     this.drawGems(alpha, viewL, viewR, viewT, viewB);
@@ -609,6 +633,11 @@ export class Renderer {
     // Зоны атак на земле (под врагами): видно, откуда придёт удар.
     this.drawTelegraphs(C, alpha);
     this.drawBossGround(C);
+
+    // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
+    const target = this.autoattack && this.autoattack.target;
+    this.updateTargetGlow(target && target.active ? target : null, this.dt);
+    this.drawTargetGlow(alpha, false);
 
     // Враги.
     const en = this.enemies.items;
@@ -624,29 +653,23 @@ export class Renderer {
 
     this.drawDust(this.dt);
 
-    // Метка на цели автоатаки.
-    const target = this.autoattack && this.autoattack.target;
-    if (target && target.active) {
-      const tx = target.prevX + (target.x - target.prevX) * alpha;
-      const ty = target.prevY + (target.y - target.prevY) * alpha;
-      ctx.beginPath();
-      ctx.arc(tx, ty, target.radius + 5, 0, TAU);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = C.target;
-      ctx.stroke();
-    }
+    this.drawTargetGlow(alpha, true);
 
     if (hero.active) {
-      this.drawHero(hx, hy, C);
+      this.drawAura(ctx, hx, hy);
+      if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // молния вместо героя
+      else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
-      if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
+      this.drawHeroArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
+    this.drawBolts(ctx);
     this.drawBlades(ctx);
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
+    this.drawPellets(ctx, alpha, viewL, viewR, viewT, viewB);
     this.drawEnemyShots(this.enemyShots.items, alpha, viewL, viewR, viewT, viewB, C);
 
     // Эффекты-всплески.
@@ -952,7 +975,7 @@ export class Renderer {
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
   getGlow(violet) {
-    const key = violet === 'red' ? 'glowRed' : violet ? 'glowViolet' : 'glow';
+    const key = violet === 'red' ? 'glowRed' : violet === 'blue' ? 'glowBlue' : violet === 'gold' ? 'glowGold' : violet ? 'glowViolet' : 'glow';
     if (this[key]) return this[key];
     const size = 64;
     let c;
@@ -964,7 +987,17 @@ export class Renderer {
     }
     const g = c.getContext('2d');
     const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    if (violet === 'red') {
+    if (violet === 'gold') {
+      gr.addColorStop(0, 'rgba(255,248,214,1)');
+      gr.addColorStop(0.3, 'rgba(255,214,96,0.55)');
+      gr.addColorStop(0.7, 'rgba(255,184,40,0.14)');
+      gr.addColorStop(1, 'rgba(255,170,20,0)');
+    } else if (violet === 'blue') {
+      gr.addColorStop(0, 'rgba(236,248,255,1)');
+      gr.addColorStop(0.3, 'rgba(120,190,255,0.55)');
+      gr.addColorStop(0.7, 'rgba(70,140,255,0.14)');
+      gr.addColorStop(1, 'rgba(50,110,255,0)');
+    } else if (violet === 'red') {
       gr.addColorStop(0, 'rgba(255,218,205,1)');
       gr.addColorStop(0.3, 'rgba(255,84,66,0.55)');
       gr.addColorStop(0.7, 'rgba(220,40,36,0.14)');
@@ -1784,58 +1817,446 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Запоминает, где герой был: из этих точек рисуется шлейф. Точки живут life секунд; при телепорте история сбрасывается. */
+  updateHeroTrail(hx, hy, speed, life) {
+    const h = this.hs;
+    const N = h.tx.length;
+    const t = this.clock;
+    if (h.has && Math.hypot(hx - h.lx, hy - h.ly) > 90) h.cnt = 0;
+    h.lx = hx;
+    h.ly = hy;
+    h.has = true;
+    while (h.cnt > 0 && t - h.tt[(h.head - h.cnt + N) % N] > life) h.cnt--;
+    if (speed < 12) return;
+    const nw = (h.head - 1 + N) % N;
+    if (h.cnt > 0 && Math.hypot(hx - h.tx[nw], hy - h.ty[nw]) < 2.2) return;
+    h.tx[h.head] = hx;
+    h.ty[h.head] = hy;
+    h.tt[h.head] = t;
+    h.head = (h.head + 1) % N;
+    if (h.cnt < N) h.cnt++;
+  }
+
+  /**
+   * Шлейф: сужающаяся светящаяся лента по прошлым положениям, светлая нить посередине и искры, оседающие
+   * по краям. Интенсивность (alpha 0..1) плавно растёт при разгоне и гаснет после остановки.
+   */
+  drawHeroTrail(hx, hy, r, wmul, life, alpha, C) {
+    const h = this.hs;
+    if (h.cnt < 1 || alpha < 0.02) return;
+    const ctx = this.ctx;
+    const N = h.tx.length;
+    const t = this.clock;
+    const m = h.cnt + 1;
+    const b = this.hbuf; // на точку: x, y, нормаль (nx, ny), полуширина
+    const at = (i) => (i === 0 ? hx : h.tx[(h.head - i + N) % N]);
+    const bt = (i) => (i === 0 ? hy : h.ty[(h.head - i + N) % N]);
+    for (let i = 0; i < m; i++) {
+      const a = Math.max(0, i - 2); // нормаль по соседям через одну точку: на поворотах лента не ломается углом
+      const c = Math.min(m - 1, i + 2);
+      let dx = at(a) - at(c);
+      let dy = bt(a) - bt(c);
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len;
+      dy /= len;
+      const k = i === 0 ? 1 : Math.max(0, 1 - (t - h.tt[(h.head - i + N) % N]) / life);
+      // Волна вдоль ленты: она вьётся и бежит от героя назад; у головы волны нет, лента растёт из героя.
+      const wv = i === 0 ? 0 : Math.sin(i * 0.85 - t * 13) * r * 0.17 * Math.min(1, i / 3) * k * alpha;
+      b[i * 5] = at(i) - dy * wv;
+      b[i * 5 + 1] = bt(i) + dx * wv;
+      b[i * 5 + 2] = -dy;
+      b[i * 5 + 3] = dx;
+      b[i * 5 + 4] = r * 0.55 * wmul * Math.pow(k, 0.8);
+    }
+    const ox = b[(m - 1) * 5];
+    const oy = b[(m - 1) * 5 + 1];
+    if (Math.hypot(ox - hx, oy - hy) < 1) return;
+    const c3 = hexRgb(C.trail);
+    const col = (a) => 'rgba(' + c3[0] + ',' + c3[1] + ',' + c3[2] + ',' + a.toFixed(3) + ')';
+    const band = (f) => { // лента шириной f от базовой
+      ctx.beginPath();
+      ctx.moveTo(b[0] - b[2] * b[4] * f, b[1] - b[3] * b[4] * f);
+      for (let i = 1; i < m; i++) ctx.lineTo(b[i * 5] - b[i * 5 + 2] * b[i * 5 + 4] * f, b[i * 5 + 1] - b[i * 5 + 3] * b[i * 5 + 4] * f);
+      for (let i = m - 1; i >= 0; i--) ctx.lineTo(b[i * 5] + b[i * 5 + 2] * b[i * 5 + 4] * f, b[i * 5 + 1] + b[i * 5 + 3] * b[i * 5 + 4] * f);
+      ctx.closePath();
+      ctx.fill();
+    };
+    const gr = ctx.createLinearGradient(hx, hy, ox, oy);
+    gr.addColorStop(0, col(0.15 * alpha));
+    gr.addColorStop(1, col(0));
+    ctx.fillStyle = gr;
+    band(1.8); // мягкое свечение вокруг
+    const gm = ctx.createLinearGradient(hx, hy, ox, oy);
+    gm.addColorStop(0, col(0.42 * alpha));
+    gm.addColorStop(1, col(0));
+    ctx.fillStyle = gm;
+    band(1);
+    // Светлая нить по центру ленты.
+    const gl = ctx.createLinearGradient(hx, hy, ox, oy);
+    gl.addColorStop(0, 'rgba(240,250,255,' + (0.8 * alpha).toFixed(3) + ')');
+    gl.addColorStop(1, 'rgba(240,250,255,0)');
+    ctx.strokeStyle = gl;
+    ctx.lineWidth = r * 0.2 * wmul;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    for (let i = 1; i < m; i++) ctx.lineTo(b[i * 5], b[i * 5 + 1]);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    // Искры: оседают по краям ленты и мерцают.
+    ctx.fillStyle = '#e6f4ff';
+    for (let i = 1; i < m; i++) {
+      const k = b[i * 5 + 4] / (r * 0.55 * wmul);
+      const off = Math.sin(t * 7 + i * 1.7) * b[i * 5 + 4] * 1.5;
+      ctx.globalAlpha = Math.min(1, 0.8 * k * alpha * (0.55 + 0.45 * Math.sin(t * 17 + i * 2.3)));
+      ctx.beginPath();
+      ctx.arc(b[i * 5] + b[i * 5 + 2] * off, b[i * 5 + 1] + b[i * 5 + 3] * off, 0.6 + 1.3 * k, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Герой-маг, вид сверху с лёгким наклоном (как на референсе): остроконечная шляпа с широкими полями,
+   * тёмный плащ с хвостом, посох с голубым кристаллом. Тело и посох повёрнуты по hero.facing (на цель),
+   * хвост плаща и шлейф идут против реального движения. Всё состояние вида лежит в this.hs, игре ничего не пишем.
+   */
   drawHero(hx, hy, C) {
     const ctx = this.ctx;
     const hero = this.hero;
     const r = hero.radius;
-    // После удара герой мигает: видно, что он сейчас неуязвим.
-    if (hero.invuln > 0 && (Math.floor(hero.invuln * 16) & 1)) ctx.globalAlpha = 0.4;
+    const t = this.clock;
+    const dt = this.dt;
+    const h = this.hs;
+    const am = hero.invuln > 0 && (Math.floor(hero.invuln * 16) & 1) ? 0.4 : 1; // после удара мигает: герой неуязвим
+    const parry = !!(this.defense && this.defense.parrying);
+    const dash = !!hero.dashing;
+    const slow = hero.slowT > 0;
+    const burn = hero.burnT > 0;
 
+    // Курс, скорость и угол сглаживаем: от рывков стика вид не дёргается.
+    const sp = Math.hypot(hero.vx, hero.vy);
+    const sf = Math.min(1.6, sp / Math.max(1, hero.cfg.speed));
+    const kv = 1 - Math.exp(-dt / 0.08);
+    const tmx = sp > 5 ? hero.vx / sp : 0;
+    const tmy = sp > 5 ? hero.vy / sp : 0;
+    h.mx += (tmx * Math.min(1, sf) - h.mx) * kv;
+    h.my += (tmy * Math.min(1, sf) - h.my) * kv;
+    let da = (hero.facing - h.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    h.a += da * (1 - Math.exp(-dt / 0.07)); // посох: следит за целью, чуть мягче, чтобы не дёргался от смены целей
+    // Корпус (плечи и плащ) смотрит по ходу движения, а не на цель: цель меняется каждый выстрел, и корпус бы дёргался.
+    // Стоим на месте: корпус замирает как был.
+    if (h.b === undefined) h.b = hero.facing;
+    if (sp > 20) {
+      let db = (Math.atan2(hero.vy, hero.vx) - h.b) % TAU;
+      if (db > Math.PI) db -= TAU;
+      else if (db < -Math.PI) db += TAU;
+      h.b += db * (1 - Math.exp(-dt / 0.16));
+    }
+    h.phase += sp * dt * 0.09;
+    const want = sf > 0.05 ? Math.min(1.2, sf + (dash ? 0.4 : 0)) : 0;
+    h.ti += (want - h.ti) * (1 - Math.exp(-dt / (want > h.ti ? 0.06 : 0.3)));
+    const ml = Math.hypot(h.mx, h.my);
+
+    // Шлейф рисуется под героем.
+    this.updateHeroTrail(hx, hy, sp, dash ? 0.55 : 0.42);
+    this.drawHeroTrail(hx, hy, r, 0.5 + 0.7 * Math.min(1.4, h.ti) + (dash ? 0.4 : 0), dash ? 0.55 : 0.42, Math.min(1, h.ti), C);
+
+    const cD = hexRgb(C.heroCloak);
+    const cL = hexRgb(C.heroCloakLight);
+    const hD = hexRgb(C.heroHat);
+    const hL = hexRgb(C.heroHatLight);
+    const gold = '#ffe27a';
+
+    // Тень на снегу.
+    ctx.globalAlpha = am;
     ctx.fillStyle = C.shadow;
     ctx.beginPath();
-    ctx.ellipse(hx, hy + r * 0.6, r * 1.05, r * 0.55, 0, 0, TAU);
+    ctx.ellipse(hx + r * 0.22, hy + r * 0.64, r * 1.1, r * 0.5, 0, 0, TAU);
     ctx.fill();
 
-    // Окно парирования: герой меняет цвет.
-    ctx.fillStyle = this.defense && this.defense.parrying ? C.parry : C.hero;
+    // Свечение за спиной: окно парирования (золотое) и статусы от разломов Тартаса.
+    ctx.globalCompositeOperation = 'lighter';
+    if (parry) {
+      ctx.globalAlpha = 0.55 * am;
+      ctx.drawImage(this.getGlow(), hx - r * 2.4, hy - r * 2.4, r * 4.8, r * 4.8);
+    }
+    if (slow) {
+      ctx.globalAlpha = 0.4 * am;
+      ctx.drawImage(this.getGlow('blue'), hx - r * 2.2, hy - r * 2.2, r * 4.4, r * 4.4);
+    }
+    if (burn) {
+      ctx.globalAlpha = (0.4 + 0.1 * Math.sin(t * 20)) * am;
+      ctx.drawImage(this.getGlow(), hx - r * 2.2, hy - r * 2.2, r * 4.4, r * 4.4);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.save();
+    ctx.translate(hx, hy + Math.sin(h.phase * 2) * 0.05 * r * Math.min(1, ml));
+    if (dash) { // рывок: тело вытягивается по ходу
+      const ma = Math.atan2(hero.vy, hero.vx);
+      ctx.rotate(ma);
+      ctx.scale(1.25, 0.84);
+      ctx.rotate(-ma);
+    }
+    const sc = 1.15 * (1 + 0.015 * Math.sin(t * 2.4)); // чуть крупнее круга столкновения; дышит
+    ctx.scale(sc, sc);
+    const by0 = 0.14 * r; // плечи ниже центра, шляпа выше: так виден маг, а не диск
+    ctx.translate(0, by0);
+
+    // Хвост плаща: тянется против движения, на ходу длиннее и колышется.
+    let tdx = -Math.cos(h.b); // стоим: хвост за корпусом, а не за целью
+    let tdy = -Math.sin(h.b);
+    if (ml > 0.08) {
+      tdx = -h.mx / ml;
+      tdy = -h.my / ml;
+    }
+    const tl = r * (0.55 + 1.0 * Math.min(1.2, ml * 1.2));
+    const fl = Math.sin(t * 11 + h.phase) * 0.14 * r * (0.3 + ml);
+    const qx = -tdy;
+    const qy = tdx;
+    ctx.globalAlpha = am;
+    ctx.fillStyle = mixRgb(cD, cL, 0.18);
     ctx.beginPath();
-    ctx.arc(hx, hy, r, 0, TAU);
+    ctx.moveTo(qx * 0.64 * r + tdx * 0.1 * r, qy * 0.64 * r + tdy * 0.1 * r);
+    ctx.lineTo(qx * (0.6 * r + fl * 0.4) + tdx * 0.55 * tl, qy * (0.6 * r + fl * 0.4) + tdy * 0.55 * tl);
+    ctx.lineTo(tdx * tl + qx * fl, tdy * tl + qy * fl);
+    ctx.lineTo(-qx * (0.6 * r - fl * 0.5) + tdx * 0.5 * tl, -qy * (0.6 * r - fl * 0.5) + tdy * 0.5 * tl);
+    ctx.lineTo(-qx * 0.64 * r + tdx * 0.1 * r, -qy * 0.64 * r + tdy * 0.1 * r);
+    ctx.closePath();
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = C.heroEdge;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(8,12,24,0.6)';
     ctx.stroke();
 
-    // ЗАГЛУШКА ГРАФИКИ: статусы героя от разломов Тартаса, по кольцу на статус (замедлен: голубое, горит: оранжевое).
-    // Данные: hero.slowT и hero.burnT (секунд до конца), цвета из config.frost / config.burn.
-    if (hero.slowT > 0) {
-      ctx.lineWidth = 2;
+    // Плечи и плащ: восьмиугольник, повёрнутый по курсу; грани освещены слева сверху.
+    const cb = Math.cos(h.b);
+    const sb = Math.sin(h.b);
+    const ca = Math.cos(h.a); // посох: по цели
+    const sa = Math.sin(h.a);
+    const ring = this.hring;
+    for (let i = 0; i < 8; i++) {
+      ring[i * 2] = (HERO_BODY[i * 2] * cb - HERO_BODY[i * 2 + 1] * sb) * r;
+      ring[i * 2 + 1] = (HERO_BODY[i * 2] * sb + HERO_BODY[i * 2 + 1] * cb) * r;
+    }
+    const c0x = -0.05 * r;
+    const c0y = -0.06 * r;
+    for (let i = 0; i < 8; i++) {
+      const j = (i + 1) & 7;
+      const mx = (ring[i * 2] + ring[j * 2]) / 2 - c0x;
+      const my = (ring[i * 2 + 1] + ring[j * 2 + 1]) / 2 - c0y;
+      const l = (mx * LIGHT_X + my * LIGHT_Y) / (Math.hypot(mx, my) || 1);
+      const col = mixRgb(cD, cL, 0.36 + 0.5 * l + (parry ? 0.12 : 0));
+      ctx.fillStyle = col;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(c0x, c0y);
+      ctx.lineTo(ring[i * 2], ring[i * 2 + 1]);
+      ctx.lineTo(ring[j * 2], ring[j * 2 + 1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(ring[0], ring[1]);
+    for (let i = 1; i < 8; i++) ctx.lineTo(ring[i * 2], ring[i * 2 + 1]);
+    ctx.closePath();
+    ctx.lineWidth = parry ? 1.8 : 1.1;
+    ctx.strokeStyle = parry ? gold : 'rgba(8,12,24,0.7)';
+    ctx.stroke();
+    if (slow) { // замедлен: тело подёрнуто инеем
+      ctx.globalAlpha = 0.32 * am;
+      ctx.fillStyle = this.cfg.frost.color;
+      ctx.fill();
+      ctx.globalAlpha = am;
+    }
+
+    // Посох в правой руке: идёт вперёд, кристалл на конце. Рука в рукаве.
+    const wx = (lx, ly) => (lx * ca - ly * sa) * r;
+    const wy = (lx, ly) => (lx * sa + ly * ca) * r;
+    const hxl = wx(0.3, 0.58);
+    const hyl = wy(0.3, 0.58);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = mixRgb(cD, cL, 0.3);
+    ctx.lineWidth = 0.36 * r;
+    ctx.beginPath();
+    ctx.moveTo(wx(0.0, 0.42), wy(0.0, 0.42));
+    ctx.lineTo(hxl, hyl);
+    ctx.stroke();
+    const stx = wx(2.0, 0.12);
+    const sty = wy(2.0, 0.12);
+    ctx.strokeStyle = '#1c2133';
+    ctx.lineWidth = 0.17 * r;
+    ctx.beginPath();
+    ctx.moveTo(wx(-0.45, 0.66), wy(-0.45, 0.66));
+    ctx.lineTo(stx, sty);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,140,190,0.55)'; // блик на древке
+    ctx.lineWidth = 0.05 * r;
+    ctx.beginPath();
+    ctx.moveTo(wx(-0.45, 0.66) - 0.04 * r, wy(-0.45, 0.66) - 0.05 * r);
+    ctx.lineTo(stx - 0.04 * r, sty - 0.05 * r);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.fillStyle = '#2a3354';
+    ctx.beginPath();
+    ctx.arc(hxl, hyl, 0.15 * r, 0, TAU);
+    ctx.fill();
+
+    // Шляпа стоит над плечами: плоские поля и высокий конус, кончик клонится против движения.
+    ctx.translate(0, -by0);
+    const hcx = tdx * 0.06 * r * ml;
+    const hcy = -0.4 * r;
+    const lean = tdx * 0.55 * r * ml;
+    const tipx = hcx + lean - 0.08 * r;
+    const tipy = hcy - (1.05 - 0.15 * ml) * r + tdy * 0.2 * r * ml;
+    const brx = 0.82 * r;
+    const bry = 0.54 * r;
+    ctx.beginPath();
+    ctx.ellipse(hcx, hcy, brx, bry, 0, 0, TAU);
+    ctx.fillStyle = mixRgb(hD, hL, 0.28);
+    ctx.fill();
+    ctx.lineWidth = parry ? 1.8 : 1.1;
+    ctx.strokeStyle = parry ? gold : 'rgba(8,12,24,0.8)';
+    ctx.stroke();
+    ctx.beginPath(); // светлая кромка полей на освещённой стороне
+    ctx.ellipse(hcx, hcy, brx * 0.98, bry * 0.98, 0, -2.16 - 0.9, -2.16 + 0.9);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(160,190,250,0.6)';
+    ctx.stroke();
+    const blx = hcx - 0.46 * r;
+    const brx2 = hcx + 0.46 * r;
+    const bfy = hcy + 0.26 * r;
+    ctx.fillStyle = mixRgb(hD, hL, 0.82 + (parry ? 0.1 : 0)); // освещённая грань конуса
+    ctx.beginPath();
+    ctx.moveTo(tipx, tipy);
+    ctx.lineTo(blx, hcy);
+    ctx.lineTo(hcx, bfy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = mixRgb(hD, hL, 0.3); // теневая грань
+    ctx.beginPath();
+    ctx.moveTo(tipx, tipy);
+    ctx.lineTo(hcx, bfy);
+    ctx.lineTo(brx2, hcy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath(); // лента на шляпе
+    ctx.moveTo(blx, hcy);
+    ctx.quadraticCurveTo(hcx, hcy + 0.52 * r, brx2, hcy);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = parry ? gold : 'rgba(150,190,255,0.7)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(blx, hcy);
+    ctx.lineTo(tipx, tipy);
+    ctx.lineTo(brx2, hcy);
+    ctx.lineWidth = parry ? 1.5 : 1;
+    ctx.strokeStyle = parry ? gold : 'rgba(8,12,24,0.75)';
+    ctx.stroke();
+    if (slow) {
+      ctx.globalAlpha = 0.28 * am;
+      ctx.fillStyle = this.cfg.frost.color;
+      ctx.beginPath();
+      ctx.ellipse(hcx, hcy, brx, bry, 0, 0, TAU);
+      ctx.moveTo(blx, hcy);
+      ctx.lineTo(tipx, tipy);
+      ctx.lineTo(brx2, hcy);
+      ctx.fill();
+      ctx.globalAlpha = am;
+    }
+    ctx.translate(0, by0);
+
+    // Огонь на плаще (горит): три язычка у края хвоста.
+    if (burn) {
+      for (let i = 0; i < 3; i++) {
+        const f = 0.5 + 0.5 * Math.sin(t * 24 + i * 2.3);
+        const bx = tdx * (0.3 + 0.28 * i) * r + qx * (i - 1) * 0.42 * r;
+        const by = tdy * (0.3 + 0.28 * i) * r + qy * (i - 1) * 0.42 * r - 0.1 * r;
+        const hh = r * (0.5 + 0.4 * f);
+        ctx.fillStyle = this.cfg.burn.color;
+        ctx.beginPath();
+        ctx.moveTo(bx - 0.2 * r, by);
+        ctx.quadraticCurveTo(bx - 0.05 * r, by - hh * 0.6, bx + (f - 0.5) * 0.3 * r, by - hh);
+        ctx.quadraticCurveTo(bx + 0.1 * r, by - hh * 0.5, bx + 0.2 * r, by);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffd27a';
+        ctx.beginPath();
+        ctx.moveTo(bx - 0.08 * r, by);
+        ctx.quadraticCurveTo(bx, by - hh * 0.45, bx + (f - 0.5) * 0.15 * r, by - hh * 0.65);
+        ctx.quadraticCurveTo(bx + 0.04 * r, by - hh * 0.3, bx + 0.08 * r, by);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Кристалл на посохе: гранёный, пульсирует; в окне парирования золотой.
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4.2);
+    const k1 = parry ? '#ffd45a' : C.crystal;
+    const k2 = parry ? '#fff3b8' : C.crystalCore;
+    ctx.fillStyle = k1;
+    ctx.beginPath();
+    ctx.moveTo(stx + wx(0.52, 0), sty + wy(0.52, 0));
+    ctx.lineTo(stx + wx(0, -0.2), sty + wy(0, -0.2));
+    ctx.lineTo(stx + wx(-0.2, 0), sty + wy(-0.2, 0));
+    ctx.lineTo(stx + wx(0, 0.2), sty + wy(0, 0.2));
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = k2; // освещённая грань
+    ctx.beginPath();
+    ctx.moveTo(stx + wx(0.52, 0), sty + wy(0.52, 0));
+    ctx.lineTo(stx + wx(0, -0.2), sty + wy(0, -0.2));
+    ctx.lineTo(stx + wx(-0.2, 0), sty + wy(-0.2, 0));
+    ctx.lineTo(stx, sty);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(8,12,24,0.55)';
+    ctx.stroke();
+
+    // Свечение кристалла и искры вокруг него (сложением цветов).
+    ctx.globalCompositeOperation = 'lighter';
+    const gl = this.getGlow(parry ? false : 'blue');
+    const gs = r * (2.5 + 0.6 * pulse);
+    ctx.globalAlpha = (0.6 + 0.2 * pulse) * am;
+    ctx.drawImage(gl, stx + wx(0.15, 0) - gs / 2, sty + wy(0.15, 0) - gs / 2, gs, gs);
+    ctx.fillStyle = '#eaf6ff';
+    for (let i = 0; i < 3; i++) {
+      const a = t * 2.6 + i * 2.1;
+      const d = r * (0.5 + 0.12 * i);
+      ctx.globalAlpha = (0.45 + 0.4 * Math.sin(t * 9 + i * 3)) * am;
+      ctx.beginPath();
+      ctx.arc(stx + Math.cos(a) * d, sty + Math.sin(a) * d * 0.8, 0.07 * r + 0.3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Замедлен: вокруг кружат ледяные осколки.
+    if (slow) {
+      ctx.fillStyle = '#e4f4ff';
       ctx.strokeStyle = this.cfg.frost.color;
-      ctx.beginPath();
-      ctx.arc(hx, hy, r + 2, 0, TAU);
-      ctx.stroke();
+      ctx.lineWidth = 0.8;
+      ctx.globalAlpha = 0.9 * am;
+      for (let i = 0; i < 4; i++) {
+        const a = t * 1.3 + i * (TAU / 4);
+        const px = Math.cos(a) * r * 1.2;
+        const py = Math.sin(a) * r * 1.0;
+        ctx.beginPath();
+        ctx.moveTo(px, py - 0.22 * r);
+        ctx.lineTo(px + 0.12 * r, py);
+        ctx.lineTo(px, py + 0.22 * r);
+        ctx.lineTo(px - 0.12 * r, py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
     }
-    if (hero.burnT > 0) {
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = this.cfg.burn.color;
-      ctx.beginPath();
-      ctx.arc(hx, hy, r + 5, 0, TAU);
-      ctx.stroke();
-    }
-
-    const cos = Math.cos(hero.facing);
-    const sin = Math.sin(hero.facing);
-    const tipX = hx + cos * r * 1.9;
-    const tipY = hy + sin * r * 1.9;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = C.staff;
-    ctx.beginPath();
-    ctx.moveTo(hx + cos * r * 0.3, hy + sin * r * 0.3);
-    ctx.lineTo(tipX, tipY);
-    ctx.stroke();
-    ctx.fillStyle = C.accent;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, r * 0.3, 0, TAU);
-    ctx.fill();
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
 
@@ -1955,91 +2376,752 @@ export class Renderer {
     ctx.fill();
   }
 
-  /** Полоска здоровья героя и счётчик убитых в левом верхнем углу (с учётом выреза iPhone). */
+  /**
+   * Вокруг героя: слева дуга перезарядки блока, справа рывка, сверху полудуга здоровья с цифрами.
+   * Дуги перезарядки видны, только пока идёт перезарядка. Здоровье скрыто при полном запасе. Мировые координаты.
+   */
+  drawHeroArcs(hx, hy, C) {
+    const ctx = this.ctx;
+    const d = this.defense;
+    const U = this.ui;
+    const hero = this.hero;
+    const sc = (ctx.getTransform().a || 1) / this.dpr; // css-пикселей на единицу мира: цифры одного размера при любом зуме
+    const r = hero.radius + 9;
+    const half = 0.9; // половина угла дуги, рад
+    const arc = (rr, a0, a1, frac, color, w) => {
+      ctx.lineCap = 'round';
+      ctx.lineWidth = w;
+      ctx.strokeStyle = 'rgba(190,215,250,0.16)';
+      ctx.beginPath();
+      ctx.arc(hx, hy, rr, a0, a1);
+      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, rr, a0, a0 + (a1 - a0) * Math.max(0, Math.min(1, frac)));
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    if (d) {
+      if (!d.blocking && d.blockCd > 0) arc(r, Math.PI - half, Math.PI + half, 1 - d.blockCd / d.blockCdMax, '#8cc8ff', 3);
+      if (d.dashCd > 0) arc(r, -half, half, 1 - d.dashCd / d.dashCdMax, '#b79cff', 3);
+    }
+    // Здоровье: плавно проявляется, когда оно не полное, и исчезает при полном.
+    const maxHp = this.cfg.hero.maxHp || 1;
+    const full = hero.hp >= maxHp - 1e-6;
+    U.hpShow += ((full ? 0 : 1) - U.hpShow) * (1 - Math.exp(-this.dt / (full ? 0.5 : 0.1)));
+    if (full) U.hp = U.hpTrail = 1;
+    if (U.hpShow < 0.02) return;
+    const hpT = Math.max(0, Math.min(1, hero.hp / maxHp));
+    U.hp += (hpT - U.hp) * (1 - Math.exp(-this.dt / 0.07));
+    U.hpTrail = hpT > U.hpTrail ? hpT : U.hpTrail + (U.hp - U.hpTrail) * (1 - Math.exp(-this.dt / 0.55));
+    const R = r + 12;
+    const a0 = Math.PI * 1.08;
+    const a1 = Math.PI * 1.92;
+    const pulse = hpT < 0.3 ? 0.5 + 0.5 * Math.sin(this.clock * 6) : 0;
+    ctx.globalAlpha = U.hpShow;
+    arc(R, a0, a1, 1, 'rgba(0,0,0,0)', 4.5);
+    if (U.hpTrail > U.hp) arc(R, a0, a1, U.hpTrail, 'rgba(255,200,190,0.55)', 4.5);
+    arc(R, a0, a1, U.hp, pulse > 0 ? 'rgb(255,' + Math.round(95 + 60 * pulse) + ',' + Math.round(85 + 60 * pulse) + ')' : '#e5534b', 4.5);
+    ctx.font = '500 ' + (13 / sc).toFixed(2) + 'px ' + SERIF;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const txt = Math.ceil(hero.hp) + ' / ' + maxHp;
+    ctx.fillStyle = 'rgba(6,10,22,0.7)';
+    ctx.fillText(txt, hx + 0.8 / sc, hy - R - 7 / sc + 0.8 / sc);
+    ctx.fillStyle = C.hud;
+    ctx.fillText(txt, hx, hy - R - 7 / sc);
+    ctx.globalAlpha = 1;
+  }
+
+  /** Текст с разрядкой: canvas.letterSpacing есть не во всех Safari, поэтому ставим буквы по одной. */
+  tracked(text, x, y, sp, align) {
+    const ctx = this.ctx;
+    let total = -sp;
+    const ws = this.trackW || (this.trackW = []);
+    for (let i = 0; i < text.length; i++) {
+      ws[i] = ctx.measureText(text[i]).width;
+      total += ws[i] + sp;
+    }
+    let px = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+    ctx.textAlign = 'left';
+    for (let i = 0; i < text.length; i++) {
+      ctx.fillText(text[i], px, y);
+      px += ws[i] + sp;
+    }
+    return total;
+  }
+
+  /** Тонкая линия и ромбик между ними: общий мотив интерфейса. */
+  hairline(x1, x2, y, alpha) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#cfe0f8';
+    ctx.fillRect(Math.min(x1, x2), Math.round(y), Math.abs(x2 - x1), 1);
+    ctx.globalAlpha = 1;
+  }
+
+  rhomb(cx, cy, r, fill) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r, cy);
+    ctx.lineTo(cx, cy + r);
+    ctx.lineTo(cx - r, cy);
+    ctx.closePath();
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(207,224,248,0.75)';
+      ctx.stroke();
+    }
+  }
+
+  /** Игровой интерфейс: волна и счёт сверху, босс-бар, здоровье и опыт слева внизу, три умения справа внизу. */
   drawHud(C) {
     const hud = this.hud;
     if (!hud) return;
     const ctx = this.ctx;
-    const hero = this.hero;
-    const maxHp = this.cfg.hero.maxHp || 1;
-    const x = hud.insets.left + 12;
-    const y = hud.insets.top + 12;
-    const w = 150;
-    const hh = 16;
-    ctx.fillStyle = C.hpBg;
-    ctx.fillRect(x, y, w, hh);
-    ctx.fillStyle = C.hpHero;
-    ctx.fillRect(x, y, w * Math.max(0, Math.min(1, hero.hp / maxHp)), hh);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = C.border;
-    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, hh - 1);
-    ctx.fillStyle = C.hud;
-    ctx.font = '11px ui-monospace, Menlo, monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x + 6, y + hh / 2 + 0.5);
-    // Шкала опыта и уровень под полоской здоровья.
-    const xy = y + hh + 4;
-    ctx.fillStyle = C.hpBg;
-    ctx.fillRect(x, xy, w, 8);
-    ctx.fillStyle = hud.xpMax ? C.accent : '#4fd18b';
-    ctx.fillRect(x, xy, w * Math.max(0, Math.min(1, hud.xpFraction || 0)), 8);
-    ctx.strokeStyle = C.border;
-    ctx.strokeRect(x + 0.5, xy + 0.5, w - 1, 7);
-    ctx.fillStyle = C.hud;
-    ctx.font = '11px ui-monospace, Menlo, monospace';
-    ctx.fillText((hud.xpMax ? 'Ур. макс' : 'Ур. ' + (hud.level || 1)) + ' · Убито: ' + hud.kills, x, y + hh + 24);
-    this.drawWaveHud(C, x, y + hh + 40);
-    // Повышение уровня: надпись над героем-HUD, плавно гаснет.
-    if (hud.levelFlash > 0) {
-      ctx.globalAlpha = Math.min(1, hud.levelFlash);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#7dffb0';
-      ctx.font = '700 18px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillText('Уровень ' + hud.level + '!', this.w / 2, this.h * 0.42);
-      ctx.globalAlpha = 1;
-      ctx.textAlign = 'left';
+    const U = this.ui;
+    const dt = this.dt;
+    const ins = hud.insets;
+    const w = this.w;
+    const h = this.h;
+    const cx = w / 2;
+    const k = (tau) => 1 - Math.exp(-dt / tau);
+
+    // Сглаженные значения: полоска плавно едет, а «след урона» догоняет её медленнее.
+    U.xp += ((hud.xpFraction || 0) - U.xp) * k(0.12);
+    for (let i = 0; i < 3; i++) U.slots[i] = Math.max(0, U.slots[i] - dt * 4);
+    if (hud.slotFlash > 0) {
+      U.slots[hud.slotFlash - 1] = 1;
+      hud.slotFlash = 0;
     }
+    const boss = this.boss && this.boss.enemy && this.boss.enemy.active ? this.boss.enemy : null;
+    const bossT = boss ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0;
+    const showBoss = !!boss && !(hud.bossTitleAlpha > 0);
+    U.bossK += ((showBoss ? 1 : 0) - U.bossK) * k(0.18);
+    if (boss) {
+      U.boss += (bossT - U.boss) * k(0.07);
+      U.bossTrail = bossT > U.bossTrail ? bossT : U.bossTrail + (U.boss - U.bossTrail) * k(0.6);
+    } else if (U.bossK < 0.02) {
+      U.boss = U.bossTrail = 1;
+    }
+
+    ctx.save();
+    ctx.textBaseline = 'middle';
+
+    // Номер волны сверху по центру: тонкие линии, ромб и подпись. Пока идёт бой с боссом, на его месте полоса босса.
+    const top = ins.top + (hud.gameMode ? 0 : 52); // в «Тестировании» сверху кнопка ⚙ и FPS
+    const waveA = 1 - U.bossK;
+    if (hud.wave !== undefined && waveA > 0.02) {
+      const y0 = top + 24;
+      const label = (hud.crash ? 'КРАШ-ТЕСТ ' : 'ВОЛНА ') + hud.wave;
+      ctx.globalAlpha = waveA;
+      ctx.font = '500 17px ' + SERIF;
+      ctx.fillStyle = 'rgba(6,10,22,0.55)';
+      this.tracked(label, cx + 1, y0 + 1, 3.2, 'center');
+      ctx.fillStyle = C.hud;
+      const tw = this.tracked(label, cx, y0, 3.2, 'center');
+      this.hairline(cx - tw / 2 - 16, cx - tw / 2 - 70, y0 + 1, 0.38);
+      this.hairline(cx + tw / 2 + 16, cx + tw / 2 + 70, y0 + 1, 0.38);
+      this.hairline(cx - 10, cx - 78, y0 + 17, 0.32);
+      this.hairline(cx + 10, cx + 78, y0 + 17, 0.32);
+      this.rhomb(cx, y0 + 17.5, 3.5, null);
+      ctx.fillStyle = C.hud;
+      if (hud.crash) {
+        ctx.globalAlpha = waveA * 0.7;
+        ctx.font = 'italic 12px ' + SERIF;
+        this.tracked('врагов ' + hud.alive + (hud.cap ? ' / потолок ' + hud.cap : ''), cx, y0 + 36, 0.6, 'center');
+        if (hud.crashResult) {
+          ctx.fillStyle = C.hurt;
+          this.tracked(hud.crashResult, cx, y0 + 52, 0.4, 'center');
+        }
+      } else if (hud.waveLeft >= 0 && !hud.intermission) {
+        ctx.globalAlpha = waveA * 0.62;
+        ctx.font = 'italic 12px ' + SERIF;
+        this.tracked('осталось ' + hud.waveLeft, cx, y0 + 36, 0.6, 'center');
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Босс: имя и красная полоса с ромбами по краям.
+    if (U.bossK > 0.02 && boss) {
+      const bw = Math.min(w - 2 * (ins.left + 70), 340);
+      const x = cx - bw / 2;
+      const y = top + 40;
+      ctx.globalAlpha = U.bossK;
+      ctx.fillStyle = C.hud;
+      const name = String(boss.def && (boss.def.title || boss.def.name) || '').toUpperCase();
+      ctx.font = '500 13px ' + SERIF;
+      const nameW = ctx.measureText(name).width + 3 * (name.length - 1);
+      const ns = Math.max(0.6, Math.min(1, (bw - 8) / Math.max(1, nameW))); // длинное имя ужимаем, чтобы не наезжало на соседей
+      ctx.font = '500 ' + Math.max(9, Math.round(13 * ns)) + 'px ' + SERIF;
+      const tw = this.tracked(name, cx, y - 14, 3 * ns, 'center');
+      this.hairline(cx - tw / 2 - 12, x + 4, y - 13, 0.34);
+      this.hairline(cx + tw / 2 + 12, x + bw - 4, y - 13, 0.34);
+      ctx.fillStyle = 'rgba(5,9,20,0.78)';
+      ctx.fillRect(x, y, bw, 7);
+      ctx.fillStyle = 'rgba(255,190,180,0.55)';
+      ctx.fillRect(x, y, bw * U.bossTrail, 7);
+      ctx.fillStyle = '#d63f3a';
+      ctx.fillRect(x, y, bw * U.boss, 7);
+      ctx.fillStyle = 'rgba(255,140,125,0.55)';
+      ctx.fillRect(x, y, bw * U.boss, 2.5);
+      ctx.strokeStyle = 'rgba(190,215,250,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 0.5, y - 0.5, bw + 1, 8);
+      this.rhomb(x - 8, y + 3.5, 3.5, null);
+      this.rhomb(x + bw + 8, y + 3.5, 3.5, null);
+      this.rhomb(cx, y + 13, 3.5, null);
+      ctx.globalAlpha = 1;
+    }
+
+    // Счёт (убитые) справа сверху: огранённый камень и число. В режиме «Тестирование» отступаем от кнопки ⚙ и FPS.
+    {
+      const rx = w - ins.right - 16;
+      const y = top + 26;
+      ctx.font = '500 22px ' + SERIF;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(6,10,22,0.55)';
+      ctx.fillText(String(hud.kills), rx + 1, y + 1);
+      ctx.fillStyle = C.hud;
+      ctx.fillText(String(hud.kills), rx, y);
+      const gx = rx - ctx.measureText(String(hud.kills)).width - 14;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(this.getGlow(), gx - 16, y - 16, 32, 32);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.moveTo(gx, y - 9);
+      ctx.lineTo(gx + 7, y);
+      ctx.lineTo(gx, y + 9);
+      ctx.lineTo(gx - 7, y);
+      ctx.closePath();
+      ctx.fillStyle = '#e8943a';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(gx, y - 9);
+      ctx.lineTo(gx + 7, y);
+      ctx.lineTo(gx, y);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd79a';
+      ctx.fill();
+    }
+
+    // Опыт: тонкая полоса у нижней кромки, уровень слева над ней. Здоровье и перезарядки рисуются у героя (drawHeroArcs).
+    const rowY = h - ins.bottom - 44;
+    const bx = ins.left + 16;
+    const bwid = w - ins.left - ins.right - 32;
+    this.drawBar(bx, h - ins.bottom - 8, bwid, 3, U.xp, U.xp, hud.xpMax ? C.accent : '#4f93ee', hud.xpMax ? '#ffe0b0' : '#a9d3ff', null, 0);
+    ctx.font = 'italic 12px ' + SERIF;
+    ctx.fillStyle = C.hud;
+    ctx.globalAlpha = 0.7;
+    ctx.textAlign = 'left';
+    ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), bx, h - ins.bottom - 22);
+    ctx.globalAlpha = 1;
+
+    // Три слота умений по центру: снежинка, вихрь, пламя. Умения будут разные; пока это заглушки.
+    this.drawAbility(cx - 64, rowY, 1, '#6fb6ff', '#d6efff', 0, U.slots[0] > 0.01, false, U.slots[0]);
+    this.drawAbility(cx, rowY, 1, '#a98bff', '#e4d8ff', 1, U.slots[1] > 0.01, true, U.slots[1]);
+    this.drawAbility(cx + 64, rowY, 1, '#ffb14a', '#ffe2b0', 2, U.slots[2] > 0.01, false, U.slots[2]);
+
+    // Повышение уровня: надпись плавно гаснет.
+    if (hud.levelFlash > 0) {
+      const a = Math.min(1, hud.levelFlash);
+      ctx.globalAlpha = a;
+      ctx.font = '500 24px ' + SERIF;
+      ctx.fillStyle = '#e8f1ff';
+      const tw = this.tracked('УРОВЕНЬ ' + hud.level, cx, this.h * 0.4, 5, 'center');
+      this.hairline(cx - tw / 2 - 14, cx - tw / 2 - 80, this.h * 0.4 + 1, 0.4);
+      this.hairline(cx + tw / 2 + 14, cx + tw / 2 + 80, this.h * 0.4 + 1, 0.4);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
     this.drawBossTitle(C);
-    if (!hud.gameMode) this.drawCooldowns(C); // в игре перезарядки показаны дугами вокруг героя
+    this.drawIntermission(C);
+  }
+
+  /** Полоса с тонкой рамкой, «следом урона» (trail) и ромбиками по краям. flash: мигание при малом здоровье, 0..1. */
+  drawBar(x, y, w, hh, v, trail, col, light, trailCol, flash) {
+    const ctx = this.ctx;
+    ctx.fillStyle = 'rgba(5,9,20,0.78)';
+    ctx.fillRect(x, y, w, hh);
+    if (trailCol && trail > v) {
+      ctx.fillStyle = trailCol;
+      ctx.fillRect(x, y, w * trail, hh);
+    }
+    ctx.fillStyle = col;
+    ctx.fillRect(x, y, w * v, hh);
+    ctx.fillStyle = light;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(x, y, w * v, Math.max(1, hh * 0.3));
+    if (flash > 0) {
+      ctx.globalAlpha = flash * 0.35;
+      ctx.fillStyle = '#ffd0c8';
+      ctx.fillRect(x, y, w * v, hh);
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(190,215,250,0.38)';
+    ctx.strokeRect(x - 0.5, y - 0.5, w + 1, hh + 1);
+    this.rhomb(x - 8, y + hh / 2, 3, null);
+    this.rhomb(x + w + 8, y + hh / 2, 3, null);
   }
 
   /**
-   * ЗАГЛУШКА ГРАФИКИ: имя босса при вступлении, простой текст ниже центра кадра (босс в центре).
-   * Данные: hud.bossTitle (текст) и hud.bossTitleAlpha (0..1, проявляется и гаснет).
+   * Ромб умения. frac: готовность 0..1 (заливка поднимается снизу), hot: умение сейчас действует, flash: вспышка нажатия.
+   * kind: 0 блок (сфера), 1 рывок (шевроны), 2 умение (кристалл). glow: false или имя спрайта свечения.
    */
+  drawAbility(cx, cy, frac, col, light, kind, hot, glow, flash) {
+    const ctx = this.ctx;
+    const R = 30;
+    const ready = frac >= 0.999;
+    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 3 + kind);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R);
+    ctx.lineTo(cx + R, cy);
+    ctx.lineTo(cx, cy + R);
+    ctx.lineTo(cx - R, cy);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(7,12,26,0.74)';
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.globalAlpha = ready ? 0.26 : 0.34;
+    ctx.fillStyle = col;
+    ctx.fillRect(cx - R, cy + R - 2 * R * frac, 2 * R, 2 * R * frac);
+    ctx.restore();
+    if ((ready || hot) && glow !== undefined) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (hot ? 0.55 : 0.2 + 0.1 * pulse) + (flash || 0) * 0.4;
+      ctx.drawImage(this.getGlow(glow === 'gold' ? 'gold' : glow === 'blue' ? 'blue' : glow === true ? true : undefined), cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ready || hot ? col : 'rgba(150,185,230,0.38)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R * 0.82);
+    ctx.lineTo(cx + R * 0.82, cy);
+    ctx.lineTo(cx, cy + R * 0.82);
+    ctx.lineTo(cx - R * 0.82, cy);
+    ctx.closePath();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(190,215,250,0.2)';
+    ctx.stroke();
+    // Значок. Пока умение перезаряжается, он тусклый.
+    ctx.globalAlpha = ready || hot ? 1 : 0.5;
+    ctx.strokeStyle = hot ? light : ready ? col : '#9fb3cc';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (kind === 0) { // снежинка
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const a = i * Math.PI / 3 - Math.PI / 2;
+        ctx.moveTo(cx - Math.cos(a) * 11, cy - Math.sin(a) * 11);
+        ctx.lineTo(cx + Math.cos(a) * 11, cy + Math.sin(a) * 11);
+      }
+      ctx.stroke();
+    } else if (kind === 1) { // вихрь
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, 0.4, TAU - 0.5);
+      ctx.arc(cx, cy, 5.5, TAU - 0.5, 0.9, true);
+      ctx.stroke();
+    } else { // пламя
+      ctx.beginPath();
+      ctx.moveTo(cx + 1, cy - 13);
+      ctx.lineTo(cx + 9, cy + 1);
+      ctx.lineTo(cx + 5, cy + 11);
+      ctx.lineTo(cx - 5, cy + 11);
+      ctx.lineTo(cx - 9, cy + 2);
+      ctx.lineTo(cx - 3, cy - 3);
+      ctx.closePath();
+      ctx.globalAlpha *= 0.5;
+      ctx.fill();
+      ctx.globalAlpha = ready || hot ? 1 : 0.5;
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
+    ctx.globalAlpha = 1;
+  }
+
+  /** Имя босса при вступлении: засечный шрифт с разрядкой и линиями по сторонам. hud.bossTitleAlpha: 0..1. */
   drawBossTitle(C) {
     const hud = this.hud;
     if (!hud.bossTitle || !(hud.bossTitleAlpha > 0)) return;
     const ctx = this.ctx;
+    const cx = this.w / 2;
+    const y = this.h / 2 + 72;
     ctx.save();
     ctx.globalAlpha = Math.min(1, hud.bossTitleAlpha);
-    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '700 28px ui-sans-serif, system-ui, sans-serif';
-    const tw = ctx.measureText(hud.bossTitle).width;
-    const size = Math.max(14, Math.floor(28 * Math.min(1, (this.w * 0.88) / Math.max(1, tw)))); // влезть в узкий экран
-    ctx.font = '700 ' + size + 'px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = C.hud;
-    ctx.fillText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
+    const text = hud.bossTitle.toUpperCase();
+    let size = 30;
+    ctx.font = '500 ' + size + 'px ' + SERIF;
+    const sp = 6;
+    const full = ctx.measureText(text).width + sp * (text.length - 1);
+    size = Math.max(14, Math.floor(size * Math.min(1, (this.w * 0.86) / Math.max(1, full))));
+    ctx.font = '500 ' + size + 'px ' + SERIF;
+    ctx.fillStyle = '#e8f1ff';
+    const tw = this.tracked(text, cx, y, sp * size / 30, 'center');
+    const lw = Math.min(70, (this.w - tw) / 2 - 24);
+    if (lw > 12) {
+      this.hairline(cx - tw / 2 - 14, cx - tw / 2 - 14 - lw, y, 0.4);
+      this.hairline(cx + tw / 2 + 14, cx + tw / 2 + 14 + lw, y, 0.4);
+    }
+    this.hairline(cx - 70, cx - 8, y + size * 0.9, 0.35);
+    this.hairline(cx + 8, cx + 70, y + size * 0.9, 0.35);
+    this.rhomb(cx, y + size * 0.9 + 0.5, 3.5, null);
     ctx.restore();
   }
 
-  /** Сфера блока вокруг героя. Окно парирования подсвечено, к концу блока сфера мигает. */
+  /** Передышка между волнами: крупная надпись по центру, гаснет к концу. */
+  drawIntermission(C) {
+    const hud = this.hud;
+    if (!(hud.intermission > 0)) return;
+    const ctx = this.ctx;
+    const cx = this.w / 2;
+    const y = this.h * 0.28;
+    const t = Math.min(1, hud.intermission / Math.max(0.01, hud.intermissionTotal));
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, t * 3);
+    ctx.textBaseline = 'middle';
+    ctx.font = '500 34px ' + SERIF;
+    ctx.fillStyle = '#e8f1ff';
+    const tw = this.tracked('ВОЛНА ' + hud.wave, cx, y, 7, 'center');
+    this.hairline(cx - 12, cx - 12 - Math.min(90, tw / 2), y + 30, 0.4);
+    this.hairline(cx + 12, cx + 12 + Math.min(90, tw / 2), y + 30, 0.4);
+    this.rhomb(cx, y + 30.5, 4, '#ffb14a');
+    if (hud.crash) {
+      ctx.font = 'italic 14px ' + SERIF;
+      ctx.fillStyle = C.hurt;
+      this.tracked('краш-тест: врагов всё больше, смотри на FPS', cx, y + 54, 0.5, 'center');
+    }
+    ctx.restore();
+  }
+
+  /** Подсветка цели: новая цель разгорается за ~0.08 с, прежняя гаснет за ~0.1 с, без резкой смены. */
+  updateTargetGlow(target, dt) {
+    const T = this.tglow;
+    if (target) {
+      if (T.cur !== target) {
+        T.prev = T.cur;
+        T.prevK = T.curK;
+        T.cur = target;
+        T.curK = 0;
+      }
+      T.curK += (1 - T.curK) * (1 - Math.exp(-dt / 0.08));
+    } else if (T.cur) {
+      T.prev = T.cur;
+      T.prevK = T.curK;
+      T.cur = null;
+      T.curK = 0;
+    }
+    T.prevK *= Math.exp(-dt / 0.1);
+    if (T.prevK < 0.02) T.prev = null;
+  }
+
+  /**
+   * Мягкое жёлтое свечение цели (спрайт золотого света, сложение цветов). over = false: подсветка под врагом,
+   * true: слабый тон поверх, чтобы сам враг чуть теплел. Никаких линий и кругов с краем.
+   */
+  drawTargetGlow(alpha, over) {
+    const T = this.tglow;
+    const ctx = this.ctx;
+    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 5);
+    let sprite = null;
+    for (let i = 0; i < 2; i++) {
+      const e = i === 0 ? T.cur : T.prev;
+      const k = i === 0 ? T.curK : T.prevK;
+      if (!e || !e.active || k < 0.02) continue;
+      if (!sprite) {
+        sprite = this.getGlow('gold');
+        ctx.globalCompositeOperation = 'lighter';
+      }
+      const x = e.prevX + (e.x - e.prevX) * alpha;
+      const y = e.prevY + (e.y - e.prevY) * alpha;
+      const g = e.radius * (over ? 1.7 : 2.6 + 0.2 * pulse);
+      ctx.globalAlpha = k * (over ? 0.15 : 0.4 + 0.08 * pulse);
+      ctx.drawImage(sprite, x - g, y - g, g * 2, g * 2);
+    }
+    if (sprite) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** Удар по щиту: игра сообщает, откуда прилетело (sx, sy; не число: направление случайное) и было ли это парирование. */
+  shieldHit(sx, sy, parried) {
+    const S = this.shield;
+    const a = Number.isFinite(sx) && Number.isFinite(sy) ? Math.atan2(sy - this.hero.y, sx - this.hero.x) : Math.random() * TAU;
+    let r = S.rip[0];
+    for (let i = 0; i < S.rip.length; i++) {
+      if (!S.rip[i].on) {
+        r = S.rip[i];
+        break;
+      }
+    }
+    r.on = true;
+    r.a = a;
+    r.t = 0;
+    r.parry = !!parried;
+    if (parried) S.flash = 1;
+  }
+
+  /**
+   * Щит блока: светящаяся стеклянная сфера. Яркая кромка, вращающийся каркас-«глобус», блик света, свет на снегу
+   * вокруг. В окне парирования золотая, потом плавно синеет. Появляется и гаснет плавно, перед концом мигает.
+   * На удар и парирование: вспышка по сфере и яркое пятно на кромке там, откуда прилетело (shieldHit).
+   */
   drawBlock(hx, hy, C) {
     const d = this.defense;
-    if (!d || !d.blocking) return;
+    if (!d) return;
+    const S = this.shield;
+    const dt = this.dt;
+    const t = this.clock;
+    const blocking = d.blocking;
+    const parrying = blocking && d.parrying;
+    S.k += ((blocking ? 1 : 0) - S.k) * (1 - Math.exp(-dt / (blocking ? 0.05 : 0.09)));
+    S.pk += ((parrying ? 1 : 0) - S.pk) * (1 - Math.exp(-dt / (parrying ? 0.03 : 0.14)));
+    S.flash = Math.max(0, S.flash - dt / 0.32);
+    for (let i = 0; i < S.rip.length; i++) {
+      const q = S.rip[i];
+      if (q.on) {
+        q.t += dt;
+        if (q.t >= 0.45) q.on = false;
+      }
+    }
+    if (S.k < 0.02) return;
     const ctx = this.ctx;
-    const left = this.cfg.block.duration - d.blockTime;
-    if (left < 0.3 && Math.floor(left * 20) % 2 === 0) return; // мигает: блок вот-вот кончится
-    const parry = d.parrying;
+    const k = S.k;
+    const pk = S.pk;
+    let am = k;
+    if (blocking) {
+      const left = d.blockDuration - d.blockTime;
+      if (left < 0.3 && Math.floor(left * 20) % 2 === 0) am *= 0.35; // блок вот-вот кончится: щит мигает
+    }
+    const R = d.blockRadius * (0.72 + 0.28 * k + 0.08 * S.flash) * (1 + 0.012 * Math.sin(t * 3));
+    const cB = hexRgb(C.shield);
+    const cBL = hexRgb(C.shieldLight);
+    const cG = hexRgb(C.shieldParry);
+    const cGL = hexRgb(C.shieldParryLight);
+    const mx = (a, b) => [a[0] + (b[0] - a[0]) * pk, a[1] + (b[1] - a[1]) * pk, a[2] + (b[2] - a[2]) * pk];
+    const col = mx(cB, cG);
+    const lit = mx(cBL, cGL);
+    const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a.toFixed(3) + ')';
+
+    ctx.save();
+    ctx.translate(hx, hy);
+
+    // Свет на снегу вокруг: синий и золотой смешиваются по фазе парирования.
+    ctx.globalCompositeOperation = 'lighter';
+    const gs = R * 1.75;
+    if (pk < 0.98) {
+      ctx.globalAlpha = am * (1 - pk) * (0.3 + 0.2 * S.flash);
+      ctx.drawImage(this.getGlow('blue'), -gs, -gs, gs * 2, gs * 2);
+    }
+    if (pk > 0.02) {
+      ctx.globalAlpha = am * pk * (0.4 + 0.2 * S.flash);
+      ctx.drawImage(this.getGlow('gold'), -gs, -gs, gs * 2, gs * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Тело: почти прозрачное в середине, плотнее и ярче к краю (как у стекла).
+    const gr = ctx.createRadialGradient(-R * 0.25, -R * 0.3, R * 0.05, 0, 0, R);
+    gr.addColorStop(0, rgba(lit, 0.17));
+    gr.addColorStop(0.55, rgba(col, 0.07));
+    gr.addColorStop(0.86, rgba(col, 0.2));
+    gr.addColorStop(1, rgba(lit, 0.5));
+    ctx.globalAlpha = am;
+    ctx.fillStyle = gr;
     ctx.beginPath();
-    ctx.arc(hx, hy, d.blockRadius, 0, TAU);
-    ctx.fillStyle = parry ? 'rgba(255,226,122,0.26)' : C.block;
+    ctx.arc(0, 0, R, 0, TAU);
     ctx.fill();
-    ctx.lineWidth = parry ? 3 : 2;
-    ctx.strokeStyle = parry ? C.parry : C.blockEdge;
+
+    // Каркас: три вращающихся меридиана и экватор, поэтому сфера читается объёмом.
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(lit, 0.32);
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, Math.max(0.5, R * Math.abs(Math.cos(t * 0.7 + i * 1.0472))), R, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = rgba(lit, 0.24);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R, R * 0.3, -0.35, 0, TAU);
     ctx.stroke();
+
+    // Блик света слева сверху (свет в игре падает оттуда) и маленький отсвет с обратной стороны.
+    ctx.save();
+    ctx.translate(-R * 0.36, -R * 0.42);
+    ctx.rotate(-0.6);
+    ctx.scale(1, 0.5);
+    const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.34);
+    sg.addColorStop(0, 'rgba(255,255,255,0.7)');
+    sg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.34, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = rgba(lit, 0.4);
+    ctx.beginPath();
+    ctx.arc(R * 0.46, R * 0.5, R * 0.05, 0, TAU);
+    ctx.fill();
+
+    // Кромка: мягкое внешнее свечение, чёткая линия, ярче на освещённой стороне.
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = rgba(col, 0.16);
+    ctx.stroke();
+    ctx.lineWidth = 1.5 + 1.3 * pk;
+    ctx.strokeStyle = rgba(lit, 0.9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, R, Math.PI * 0.95, Math.PI * 1.55);
+    ctx.lineWidth = 2.6;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+
+    // Вспышка на парировании: вся сфера наливается светом.
+    ctx.globalCompositeOperation = 'lighter';
+    if (S.flash > 0) {
+      ctx.globalAlpha = am * 0.3 * S.flash;
+      ctx.fillStyle = rgba(cGL, 1);
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, TAU);
+      ctx.fill();
+    }
+    // Отклики на удары: пятно света на кромке и дуга, разбегающаяся в стороны.
+    for (let i = 0; i < S.rip.length; i++) {
+      const q = S.rip[i];
+      if (!q.on) continue;
+      const p = q.t / 0.45;
+      const ex = Math.cos(q.a) * R * 0.97;
+      const ey = Math.sin(q.a) * R * 0.97;
+      const gl = this.getGlow(q.parry ? 'gold' : 'blue');
+      const g2 = R * (0.75 - 0.25 * p);
+      ctx.globalAlpha = am * (1 - p) * 0.95;
+      ctx.drawImage(gl, ex - g2, ey - g2, g2 * 2, g2 * 2);
+      const spread = 0.35 + 0.9 * p;
+      ctx.globalAlpha = am * (1 - p);
+      ctx.lineWidth = 3.2 * (1 - p) + 0.8;
+      ctx.strokeStyle = q.parry ? 'rgba(255,240,170,1)' : 'rgba(210,238,255,1)';
+      ctx.beginPath();
+      ctx.arc(0, 0, R, q.a - spread, q.a + spread);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** Герой-молния: яркий шар с ореолом. */
+  drawLightHero(ctx, hx, hy) {
+    const col = this.cfg.lightdash.color;
+    const r = this.hero.radius;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 2.2, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 0.9, 0, TAU);
+    ctx.fill();
+  }
+
+  /** Отрезки молнии: ломаная с дрожью (зависит от времени, поэтому мерцает), гаснет за 0.25 с. */
+  drawBolts(ctx) {
+    const ld = this.lightdash;
+    if (!ld || !ld.bolts.length) return;
+    const col = this.cfg.lightdash.color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < ld.bolts.length; i++) {
+      const b = ld.bolts[i];
+      const k = Math.max(0, 1 - b.age / 0.25);
+      const dx = b.x1 - b.x0;
+      const dy = b.y1 - b.y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const seg = Math.max(3, Math.round(len / 28));
+      const frame = Math.floor(this.clock * 30);
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.globalAlpha = k * (pass ? 1 : 0.45);
+        ctx.strokeStyle = pass ? '#ffffff' : col;
+        ctx.lineWidth = pass ? 2 : 7;
+        ctx.beginPath();
+        ctx.moveTo(b.x0, b.y0);
+        for (let s = 1; s < seg; s++) {
+          const f = s / seg;
+          const j = Math.sin((s * 12.9898 + i * 78.233 + frame * 3.7) * 43758.5453) * 11;
+          ctx.lineTo(b.x0 + dx * f + nx * j, b.y0 + dy * f + ny * j);
+        }
+        ctx.lineTo(b.x1, b.y1);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
+  drawFires(ctx) {
+    const fs = this.fires;
+    if (!fs.length) return;
+    const F = this.cfg.firedash;
+    const t = this.clock;
+    for (let i = 0; i < fs.length; i++) {
+      const f = fs[i];
+      const k = 1 - f.age / F.fireLife;
+      const fl = 0.8 + 0.2 * Math.sin(t * 17 + i * 1.9);
+      ctx.globalAlpha = 0.28 * Math.min(1, k * 2);
+      ctx.fillStyle = F.color;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, F.fireRadius * (0.8 + 0.2 * k), 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.75 * Math.min(1, k * 2);
+      ctx.fillStyle = '#ffd36a';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y - 3 * fl, F.fireRadius * 0.38 * fl * (0.5 + 0.5 * k), 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Смертельная аура: мягкое поле с пульсацией на тике и медленно бегущим пунктирным краем. */
+  drawAura(ctx, hx, hy) {
+    const au = this.aura;
+    if (!au || !au.active) return;
+    const R = au.radius;
+    const col = this.cfg.aura.color;
+    const t = this.clock;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.globalAlpha = 0.1 + 0.1 * au.pulse;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.5 + 0.3 * au.pulse;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 18;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * (1 + 0.02 * au.pulse), 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
@@ -2055,11 +3137,13 @@ export class Renderer {
       const y1 = l.y + l.dy * l.len;
       const w = l.width * (1 + l.pulse * 0.25);
       const glow = l.big ? 2.6 : 1.7;
+      const lc = l.gen ? this.cfg.phantom.color : L.color; // фантомный луч фиолетовый
       ctx.globalAlpha = fade * (l.big ? 0.4 : 0.25);
-      ctx.strokeStyle = L.color;
+      ctx.strokeStyle = lc;
       ctx.lineWidth = w * glow;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.globalAlpha = fade * (l.big ? 0.95 : 0.7);
+      ctx.strokeStyle = lc;
       ctx.lineWidth = w;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.globalAlpha = fade;
@@ -2069,6 +3153,24 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     ctx.lineCap = 'butt';
+  }
+
+  /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
+  drawPellets(ctx, alpha, viewL, viewR, viewT, viewB) {
+    const P = this.pellets;
+    if (!P || !P.n) return;
+    const S = this.cfg.shot;
+    const r = S.radius;
+    const d = r * 2;
+    ctx.fillStyle = S.color;
+    ctx.beginPath();
+    for (let i = 0; i < P.n; i++) {
+      const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+      const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+      if (x < viewL - 8 || x > viewR + 8 || y < viewT - 8 || y > viewB + 8) continue;
+      ctx.rect(x - r, y - r, d, d);
+    }
+    ctx.fill();
   }
 
   /** Спектральные клинки: голубые треугольники (с Лазером сферы), остриём по ходу полёта (на орбите остриём наружу). */
@@ -2081,6 +3183,7 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.2;
     for (const b of bl) {
+      ctx.fillStyle = b.gen ? this.cfg.phantom.color : B.color; // фантомные клинки фиолетовые
       if (b.sphere) { // с Лазером клинки это сферы
         ctx.beginPath();
         ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
@@ -2131,96 +3234,5 @@ export class Renderer {
       }
     }
     ctx.globalAlpha = 1;
-  }
-
-  /** Режим «Игра»: две дуги вокруг героя, слева блок, справа рывок. Видны только пока идёт перезарядка. */
-  drawCooldownArcs(hx, hy, C) {
-    const d = this.defense;
-    if (!d) return;
-    const ctx = this.ctx;
-    const r = this.hero.radius + 9;
-    const half = 0.9; // половина угла дуги, рад
-    const arc = (center, frac, color) => {
-      ctx.lineCap = 'round';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-      ctx.beginPath();
-      ctx.arc(hx, hy, r, center - half, center + half);
-      ctx.stroke();
-      ctx.strokeStyle = color;
-      ctx.beginPath();
-      ctx.arc(hx, hy, r, center - half, center - half + 2 * half * Math.max(0, Math.min(1, frac)));
-      ctx.stroke();
-      ctx.lineCap = 'butt';
-    };
-    if (!d.blocking && d.blockCd > 0) arc(Math.PI, 1 - d.blockCd / d.blockCdMax, C.blockEdge);
-    if (d.dashCd > 0) arc(0, 1 - d.dashCd / d.dashCdMax, C.accent || C.hpHero);
-  }
-
-  /** Индикаторы перезарядки блока и рывка в левом нижнем углу. */
-  drawCooldowns(C) {
-    const d = this.defense;
-    if (!d) return;
-    const ctx = this.ctx;
-    const x = this.hud.insets.left + 12;
-    const bottom = this.h - (this.hud.insets.bottom || 0) - 16;
-    const w = 92;
-    const bar = (y, label, frac, color) => {
-      ctx.fillStyle = C.hpBg;
-      ctx.fillRect(x, y, w, 8);
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), 8);
-      ctx.fillStyle = C.hud;
-      ctx.font = '10px ui-monospace, Menlo, monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(label, x, y - 2);
-    };
-    const blockFrac = d.blocking
-      ? 1 - d.blockTime / this.cfg.block.duration
-      : d.blockCd > 0 ? 1 - d.blockCd / d.blockCdMax : 1;
-    bar(bottom - 34, d.blocking ? (d.parrying ? 'Блок · парирование!' : 'Блок') : 'Блок', blockFrac,
-      d.blocking ? (d.parrying ? C.parry : C.blockEdge) : d.blockCd > 0 ? C.border : C.hpHero);
-    const dashFrac = d.dashCd > 0 ? 1 - d.dashCd / d.dashCdMax : 1;
-    bar(bottom - 8, 'Рывок', dashFrac, d.dashCd > 0 ? C.border : C.hpHero);
-  }
-
-  /** Номер волны, счётчик врагов, крупная надпись на передышке и результат краш-теста. */
-  drawWaveHud(C, x, y) {
-    const hud = this.hud;
-    const ctx = this.ctx;
-    if (hud.wave === undefined) return;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font = '600 13px ui-monospace, Menlo, monospace';
-    ctx.fillStyle = C.accent;
-    ctx.fillText(hud.crash ? 'Волна ' + hud.wave + ' · КРАШ-ТЕСТ' : 'Волна ' + hud.wave, x, y);
-    ctx.font = '11px ui-monospace, Menlo, monospace';
-    ctx.fillStyle = C.hud;
-    if (hud.crash) {
-      ctx.fillText('Врагов ' + hud.alive + (hud.cap ? ' / потолок ' + hud.cap : ''), x, y + 16);
-      if (hud.crashResult) {
-        ctx.fillStyle = C.hurt;
-        ctx.fillText(hud.crashResult, x, y + 32);
-      }
-    } else if (hud.waveLeft >= 0 && !hud.intermission) {
-      ctx.fillText('Осталось ' + hud.waveLeft, x, y + 16);
-    }
-
-    // Передышка: крупная надпись по центру, плавно гаснет к концу.
-    if (hud.intermission > 0) {
-      const t = Math.min(1, hud.intermission / Math.max(0.01, hud.intermissionTotal));
-      ctx.globalAlpha = Math.min(1, t * 3);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = C.accent;
-      ctx.font = '700 34px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillText('Волна ' + hud.wave, this.w / 2, this.h * 0.28);
-      if (hud.crash) {
-        ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillStyle = C.hurt;
-        ctx.fillText('краш-тест: врагов всё больше, смотри на FPS', this.w / 2, this.h * 0.28 + 30);
-      }
-      ctx.globalAlpha = 1;
-    }
   }
 }

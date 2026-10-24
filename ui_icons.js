@@ -29,6 +29,38 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Молниеносный рывок: зигзаг молнии.
+  lightdash: [
+    ['path', { d: 'M19 3L7 18h8l-3 11 13-16h-8z', fill: 'currentColor' }],
+  ],
+  // Огненный рывок: стрелка рывка с пламенем.
+  firedash: [
+    ['path', { d: 'M3 22h18M15 16l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
+    ['path', { d: 'M23 4c1 4 5 6 5 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 2 3 4 1-2 2-5 2-8z', fill: 'currentColor' }],
+  ],
+  // Смертельная аура: кольца вокруг центра.
+  aura: [
+    ['circle', { cx: 16, cy: 16, r: 3.2, fill: 'currentColor' }],
+    ['circle', { cx: 16, cy: 16, r: 8, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }],
+    ['circle', { cx: 16, cy: 16, r: 13, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-dasharray': '3 3' }],
+  ],
+  // Фантомный выстрел: снаряд и его бледная копия.
+  phantom: [
+    ['circle', { cx: 11, cy: 16, r: 5, fill: 'currentColor' }],
+    ['circle', { cx: 23, cy: 16, r: 5, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-dasharray': '3 2.5' }],
+    ['path', { d: 'M16.5 16h1', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }],
+  ],
+  // Дробь: веер точек.
+  shot: [
+    ['circle', { cx: 8, cy: 16, r: 2.6, fill: 'currentColor' }],
+    ['circle', { cx: 18, cy: 8, r: 2.4, fill: 'currentColor' }],
+    ['circle', { cx: 18, cy: 16, r: 2.4, fill: 'currentColor' }],
+    ['circle', { cx: 18, cy: 24, r: 2.4, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 4, r: 2, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 12, r: 2, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 20, r: 2, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 28, r: 2, fill: 'currentColor' }],
+  ],
   // Спектральный клинок: треугольник.
   blades: [
     ['path', { d: 'M27 16 7 6l4 10-4 10z', fill: 'currentColor' }],
