@@ -41,7 +41,8 @@ export function projectileCount(config, mods) {
 }
 
 /**
- * Лазер: из урона снаряда (с модами, без штрафа), числа снарядов и модов лазера. Ширина и урон растут с числом снарядов.
+ * Лазер: из урона снаряда (с модами, без штрафа), числа снарядов и модов лазера. Число снарядов это число лазеров за раз,
+ * каждый со штрафом урона как у снаряда; толщина от числа не зависит.
  * tick: урон тика, ticks: сколько тиков за жизнь, life: длительность, width: толщина, big: лазер большой (много снарядов).
  */
 export function laserStats(config, laser, dmg, count) {
@@ -50,11 +51,11 @@ export function laserStats(config, laser, dmg, count) {
   const life = big ? L.bigDuration : L.duration;
   const interval = L.interval / laser.rate;
   return {
-    tick: dmg * countPenalty(config, count) * count * L.tickFrac * laser.damage,
+    tick: dmg * countPenalty(config, count) * L.tickFrac * laser.damage,
     interval,
     life,
     ticks: Math.max(1, Math.round(life / interval)),
-    width: L.width * (1 + (count - 1) * L.widthPerCount),
+    width: L.width,
     big,
   };
 }
@@ -105,7 +106,7 @@ export function coreStats(core, config, mods) {
     const ls = laserStats(config, mods.laser, base, cnt);
     rows.push({ label: 'Лазер: урон тика', text: String(Math.round(ls.tick * 100) / 100), bonus: '' });
     rows.push({ label: 'Лазер: тиков за ' + ls.life + ' с', text: String(ls.ticks), bonus: ls.big ? 'большой' : '' });
-    rows.push({ label: 'Лазер: толщина', text: String(Math.round(ls.width)), bonus: '' });
+    rows.push({ label: 'Лазер: одновременно', text: String(cnt), bonus: '' });
   }
   if (core.def.canBlades && mods && mods.blades) {
     const bm = mods.blades;
