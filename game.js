@@ -1,4 +1,5 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
+import { Aura } from './systems_aura.js';
 import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
 import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
@@ -129,6 +130,13 @@ export class Game {
       chill: (e, s, d, i) => this.chill(e, s, d, i),
     });
 
+    this.aura = new Aura({
+      config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+      ignite: (e, d, i) => this.ignite(e, d, i),
+      chill: (e, s, d, i) => this.chill(e, s, d, i),
+    });
+
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -144,6 +152,7 @@ export class Game {
       boss: this.boss,
       clouds: this.steamClouds,
       blades: this.blades.items,
+      aura: this.aura,
       pellets: this.pellets,
       lasers: this.lasers,
       hud: this.hud,
@@ -236,7 +245,7 @@ export class Game {
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
-        else if (e.source && (e.source.laser || e.source.pellet)) { /* тики луча без вспышек: хватает мигания врага */ }
+        else if (e.source && (e.source.laser || e.source.pellet || e.source.aura)) { /* тики луча без вспышек: хватает мигания врага */ }
         else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
@@ -738,6 +747,7 @@ export class Game {
       this.updateSteam(dt);
       this.updateLasers(dt);
       this.blades.update(dt);
+      this.aura.update(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();

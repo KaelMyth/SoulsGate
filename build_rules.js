@@ -15,6 +15,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     if (e.kind === 'pierce') return !!core.def.canPierce;
     if (e.kind === 'laser') return !!core.def.canLaser;
     if (e.kind === 'blades') return !!core.def.canBlades;
+    if (e.kind === 'aura') return !!core.def.canAura;
     if (e.kind === 'shot') return !!core.def.canShot;
     if (e.kind === 'phantom') return !!core.def.canPhantom;
     return (core.def.stats || []).some((s) => s.key === e.stat);
@@ -25,17 +26,18 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'laser') return carry === 'blades'; // «Лазер» к ядру снаряда или на «Клинки» (клинки становятся сферами с лучами)
   if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
-  if (e.kind === 'pierce' || e.kind === 'blades') return false; // «Пробитие» и «Клинки» крепятся только к ядру
+  if (e.kind === 'pierce' || e.kind === 'blades' || e.kind === 'aura') return false; // «Пробитие» и «Клинки» крепятся только к ядру
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
-  if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades';
-  if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades';
+  if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura';
+  if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura';
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
+  if (carry === 'aura') return e.stat === 'damage' || e.stat === 'rate'; // к «Ауре»: урон тика и число тиков
   if (carry === 'blades') return e.stat === 'damage' || e.stat === 'rate'; // к «Клинкам»: урон и скорость появления
   if (carry === 'laser') return e.stat === 'damage' || e.stat === 'rate'; // к «Лазеру»: урон тика и число тиков
   if (carry === 'steam') return e.stat === 'damage'; // к «Морозу» в связке: урон горения облака пара
-  if (carry.startsWith('burn:') || carry.startsWith('steam:') || carry.startsWith('laser:') || carry.startsWith('blades:')) return carry.endsWith(':' + e.stat); // дальше по цепочке: то же самое
+  if (carry.startsWith('burn:') || carry.startsWith('steam:') || carry.startsWith('laser:') || carry.startsWith('blades:') || carry.startsWith('aura:')) return carry.endsWith(':' + e.stat); // дальше по цепочке: то же самое
   return carry === e.stat;
 }
 

@@ -27,6 +27,7 @@ export class HeroDefense {
     this.bus = o.bus;
     this.modifiers = o.modifiers || null; // (id) => { стат: { percent, flat } }: моды билда
     this.state = 'move';
+    this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
     // Блок ставится один раз за остановку: новый блок только после нового касания стика.
@@ -68,6 +69,11 @@ export class HeroDefense {
     return this.state === 'block' && this.blockTime < this.cfg.block.parryWindow;
   }
 
+  /** Сколько длится блок: с аурой только окно парирования. */
+  get blockDuration() {
+    return this.auraOn ? this.cfg.block.parryWindow : this.cfg.block.duration;
+  }
+
   /** Радиус сферы блока (для рисования и для снарядов). */
   get blockRadius() {
     return this.hero.radius * this.cfg.block.radiusScale;
@@ -88,6 +94,7 @@ export class HeroDefense {
   }
 
   blockReduction() {
+    if (this.auraOn) return 0; // аура убирает гашение урона
     const n = this.blockPower();
     const r = n > 0 ? 1 - 9 / n : 0;
     return Math.min(this.cfg.block.maxReduction, Math.max(0, r));
@@ -141,6 +148,8 @@ export class HeroDefense {
 
   update(dt) {
     if (this.blockCd > 0) this.blockCd -= dt;
+    const am = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
+    this.auraOn = !!(am && am.aura);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;
     const stickUp = !this.stick.active;
@@ -174,7 +183,7 @@ export class HeroDefense {
     } else if (this.state === 'block') {
       this.blockTime += dt;
       if (!stickUp) this.endBlock(true); // взялся за стик: блок снят
-      else if (this.blockTime >= this.cfg.block.duration) this.endBlock(false);
+      else if (this.blockTime >= this.blockDuration) this.endBlock(false);
     }
   }
 
