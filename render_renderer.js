@@ -507,6 +507,7 @@ export class Renderer {
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
     this.aura = deps.aura || null;
+    this.fires = deps.fires || [];
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
@@ -620,6 +621,7 @@ export class Renderer {
     }
 
     this.drawClouds(ctx);
+    this.drawFires(ctx);
 
     // Камни опыта лежат на земле под врагами и героем.
     this.drawGems(alpha, viewL, viewR, viewT, viewB);
@@ -2605,6 +2607,30 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
+  drawFires(ctx) {
+    const fs = this.fires;
+    if (!fs.length) return;
+    const F = this.cfg.firedash;
+    const t = this.clock;
+    for (let i = 0; i < fs.length; i++) {
+      const f = fs[i];
+      const k = 1 - f.age / F.fireLife;
+      const fl = 0.8 + 0.2 * Math.sin(t * 17 + i * 1.9);
+      ctx.globalAlpha = 0.28 * Math.min(1, k * 2);
+      ctx.fillStyle = F.color;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, F.fireRadius * (0.8 + 0.2 * k), 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.75 * Math.min(1, k * 2);
+      ctx.fillStyle = '#ffd36a';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y - 3 * fl, F.fireRadius * 0.38 * fl * (0.5 + 0.5 * k), 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** Смертельная аура: мягкое поле с пульсацией на тике и медленно бегущим пунктирным краем. */

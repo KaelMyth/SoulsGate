@@ -29,6 +29,11 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Огненный рывок: стрелка рывка с пламенем.
+  firedash: [
+    ['path', { d: 'M3 22h18M15 16l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
+    ['path', { d: 'M23 4c1 4 5 6 5 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 2 3 4 1-2 2-5 2-8z', fill: 'currentColor' }],
+  ],
   // Смертельная аура: кольца вокруг центра.
   aura: [
     ['circle', { cx: 16, cy: 16, r: 3.2, fill: 'currentColor' }],

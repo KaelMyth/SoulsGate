@@ -66,6 +66,8 @@ export class Game {
       wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
       bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
+    this.fires = [];       // костры огненного рывка: { x, y, age, tick }
+    this.fireLast = null;  // где стоял последний костёр шлейфа
     this.steamClouds = []; // облака пара на земле: { x, y, age, tick, hit:Set, dmg, int }
     this.crashResult = null; // { enemies, fps, wave, time }: первая просадка FPS в краш-тесте
     this.sagTimer = 0;
@@ -153,6 +155,7 @@ export class Game {
       clouds: this.steamClouds,
       blades: this.blades.items,
       aura: this.aura,
+      fires: this.fires,
       pellets: this.pellets,
       lasers: this.lasers,
       hud: this.hud,
@@ -589,6 +592,48 @@ export class Game {
     this.burst(s.x, s.y, 0.3, 4, 16, F.color);
   }
 
+  /** Огненный шлейф: пока идёт огненный рывок, через trailStep оставляем костёр; костры горят fireLife с и поджигают врагов внутри. */
+  updateFires(dt) {
+    const F = this.config.firedash;
+    const h = this.hero;
+    const fires = this.fires;
+    if (this.defense.fireDash && h.active && (h.dashing || h.glideTime > 0)) {
+      const last = this.fireLast || (this.fireLast = { x: h.x, y: h.y });
+      const dx = h.x - last.x;
+      const dy = h.y - last.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= F.trailStep) {
+        const n = Math.floor(d / F.trailStep);
+        for (let k = 1; k <= n && fires.length < F.maxFires; k++) {
+          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0 });
+        }
+        last.x += (dx / d) * F.trailStep * n;
+        last.y += (dy / d) * F.trailStep * n;
+      }
+    } else this.fireLast = null;
+    if (!fires.length) return;
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    for (let i = fires.length - 1; i >= 0; i--) {
+      const f = fires[i];
+      f.age += dt;
+      if (f.age >= F.fireLife) { fires.splice(i, 1); continue; }
+      f.tick -= dt;
+      if (f.tick > 0) continue;
+      f.tick = F.fireTick;
+      const n = grid.query(f.x, f.y, F.fireRadius + 40);
+      const buf = grid.buf;
+      for (let k = 0; k < n; k++) {
+        const e = en[buf[k]];
+        if (!e || !e.active) continue;
+        const dx = e.x - f.x;
+        const dy = e.y - f.y;
+        const r = F.fireRadius + e.radius;
+        if (dx * dx + dy * dy <= r * r) this.ignite(e, F.burnDamage, this.config.burn.interval);
+      }
+    }
+  }
+
   updateSteam(dt) {
     const st = this.config.steam;
     const cl = this.steamClouds;
@@ -697,6 +742,7 @@ export class Game {
   }
 
   onEnemyTouchHero(e) {
+    if (this.hero.phase) return; // огненный рывок идёт сквозь врагов
     if (e.freezeT > 0) return; // замороженный враг не бьёт
     if (e.atk.state === 'strike') return; // рывок бьёт сам, касание поверх не считаем (иначе урон дважды)
     if (e.touchTimer > 0) return;
@@ -720,7 +766,10 @@ export class Game {
     }
     if (this.state === 'playing') {
       this.runTime += dt;
+      this.defense.fireDash = this.build.has('firedash');
       this.defense.update(dt);
+      this.hero.phase = !!(this.defense.fireDash && this.hero.dashing); // в огненном рывке герой проходит сквозь врагов
+      this.updateFires(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.camera.zoomTarget = this.boss.cameraZoom(); // атака клинками отдаляет экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
@@ -974,6 +1023,8 @@ export class Game {
     this.enemyShots.clear();
     this.effects.clear();
     this.steamClouds.length = 0;
+    this.fires.length = 0;
+    this.fireLast = null;
     this.lasers.length = 0;
     this.gems.clear();
     this.xp.reset();

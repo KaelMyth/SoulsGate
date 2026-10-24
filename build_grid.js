@@ -71,6 +71,12 @@ export class BuildGrid {
     return true;
   }
 
+  /** Стоит ли на поле мод вида kind (для вторичных ядер). */
+  has(kind) {
+    for (const c of this.cells) if (c.mod && c.mod.def.effect.kind === kind) return true;
+    return false;
+  }
+
   /** Снять мод из клетки, вернуть его (или null). */
   takeMod(x, y) {
     const c = this.cell(x, y);
@@ -103,7 +109,7 @@ export class BuildGrid {
       const id = owner.get(ci);
       for (const n of this.neighbors(c.x, c.y)) {
         const ni = n.y * this.size + n.x;
-        if (!n.mod || owner.has(ni)) continue;
+        if (!n.mod || owner.has(ni) || n.mod.def.effect.secondary) continue; // вторичное ядро в деревья не входит
         owner.set(ni, id);
         parent.set(ni, c.core ? -1 : ci);
         queue.push(n);
@@ -173,7 +179,7 @@ export class BuildGrid {
       return r;
     };
     return this.cells.filter((c) => {
-      if (!c.mod) return false;
+      if (!c.mod || c.mod.def.effect.secondary) return false; // вторичное ядро ни к чему не крепится
       const i = c.y * this.size + c.x;
       return !owner.has(i) || invalid(i);
     });
