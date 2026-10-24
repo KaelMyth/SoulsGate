@@ -1835,19 +1835,21 @@ export class Renderer {
     const at = (i) => (i === 0 ? hx : h.tx[(h.head - i + N) % N]);
     const bt = (i) => (i === 0 ? hy : h.ty[(h.head - i + N) % N]);
     for (let i = 0; i < m; i++) {
-      const a = Math.max(0, i - 1);
-      const c = Math.min(m - 1, i + 1);
+      const a = Math.max(0, i - 2); // нормаль по соседям через одну точку: на поворотах лента не ломается углом
+      const c = Math.min(m - 1, i + 2);
       let dx = at(a) - at(c);
       let dy = bt(a) - bt(c);
       const len = Math.hypot(dx, dy) || 1;
       dx /= len;
       dy /= len;
       const k = i === 0 ? 1 : Math.max(0, 1 - (t - h.tt[(h.head - i + N) % N]) / life);
-      b[i * 5] = at(i);
-      b[i * 5 + 1] = bt(i);
+      // Волна вдоль ленты: она вьётся и бежит от героя назад; у головы волны нет, лента растёт из героя.
+      const wv = i === 0 ? 0 : Math.sin(i * 0.85 - t * 13) * r * 0.17 * Math.min(1, i / 3) * k * alpha;
+      b[i * 5] = at(i) - dy * wv;
+      b[i * 5 + 1] = bt(i) + dx * wv;
       b[i * 5 + 2] = -dy;
       b[i * 5 + 3] = dx;
-      b[i * 5 + 4] = r * 0.78 * wmul * Math.pow(k, 0.8);
+      b[i * 5 + 4] = r * 0.55 * wmul * Math.pow(k, 0.8);
     }
     const ox = b[(m - 1) * 5];
     const oy = b[(m - 1) * 5 + 1];
@@ -1863,12 +1865,12 @@ export class Renderer {
       ctx.fill();
     };
     const gr = ctx.createLinearGradient(hx, hy, ox, oy);
-    gr.addColorStop(0, col(0.22 * alpha));
+    gr.addColorStop(0, col(0.15 * alpha));
     gr.addColorStop(1, col(0));
     ctx.fillStyle = gr;
     band(1.8); // мягкое свечение вокруг
     const gm = ctx.createLinearGradient(hx, hy, ox, oy);
-    gm.addColorStop(0, col(0.55 * alpha));
+    gm.addColorStop(0, col(0.42 * alpha));
     gm.addColorStop(1, col(0));
     ctx.fillStyle = gm;
     band(1);
@@ -1888,7 +1890,7 @@ export class Renderer {
     // Искры: оседают по краям ленты и мерцают.
     ctx.fillStyle = '#e6f4ff';
     for (let i = 1; i < m; i++) {
-      const k = b[i * 5 + 4] / (r * 0.78 * wmul);
+      const k = b[i * 5 + 4] / (r * 0.55 * wmul);
       const off = Math.sin(t * 7 + i * 1.7) * b[i * 5 + 4] * 1.5;
       ctx.globalAlpha = Math.min(1, 0.8 * k * alpha * (0.55 + 0.45 * Math.sin(t * 17 + i * 2.3)));
       ctx.beginPath();
