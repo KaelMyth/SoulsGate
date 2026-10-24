@@ -94,6 +94,11 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.width', label: 'Толщина луча', min: 4, max: 30, step: 1 },
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
+  { group: 'Фантомный выстрел', path: 'phantom.chance', label: 'Шанс при попадании', min: 0, max: 1, step: 0.05 },
+  { group: 'Фантомный выстрел', path: 'phantom.decay', label: 'Падение шанса за поколение (множитель)', min: 0.1, max: 1, step: 0.05 },
+  { group: 'Фантомный выстрел', path: 'phantom.maxChain', label: 'Макс. повторных проков', min: 0, max: 20, step: 1 },
+  { group: 'Фантомный выстрел', path: 'phantom.distance', label: 'Расстояние появления от врага', min: 40, max: 250, step: 5 },
+  { group: 'Фантомный выстрел', path: 'phantom.damageFrac', label: 'Урон фантома (доля)', min: 0.1, max: 2, step: 0.05 },
   { group: 'Дробь', path: 'shot.base', label: 'Дробинок на снаряд', min: 1, max: 32, step: 1 },
   { group: 'Дробь', path: 'shot.damageFrac', label: 'Урон дробинки (доля урона снаряда)', min: 0.02, max: 0.6, step: 0.01 },
   { group: 'Дробь', path: 'shot.spread', label: 'Ширина веера, градусов', min: 4, max: 120, step: 2 },

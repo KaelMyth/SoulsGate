@@ -29,6 +29,12 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Фантомный выстрел: снаряд и его бледная копия.
+  phantom: [
+    ['circle', { cx: 11, cy: 16, r: 5, fill: 'currentColor' }],
+    ['circle', { cx: 23, cy: 16, r: 5, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-dasharray': '3 2.5' }],
+    ['path', { d: 'M16.5 16h1', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }],
+  ],
   // Дробь: веер точек.
   shot: [
     ['circle', { cx: 8, cy: 16, r: 2.6, fill: 'currentColor' }],
