@@ -33,19 +33,447 @@ function mulberry32(seed) {
   };
 }
 
-/** Неровный многоугольник «в стиле low-poly», один раз на скалу. Всегда внутри её круга. */
-function buildRockShape(seed) {
-  const rnd = mulberry32(seed * 7919 + 13);
-  const n = 7 + Math.floor(rnd() * 3);
-  const pts = new Float32Array(n * 2);
-  const phase = rnd() * TAU;
-  for (let i = 0; i < n; i++) {
-    const a = phase + (i / n) * TAU;
-    const f = 0.82 + rnd() * 0.18;
-    pts[i * 2] = Math.cos(a) * f;
-    pts[i * 2 + 1] = Math.sin(a) * f;
+function makeCanvas(w, h) {
+  if (typeof OffscreenCanvas === 'function') return new OffscreenCanvas(w, h);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
+}
+
+function hexRgb(h) {
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** Смесь двух цветов [r, g, b] в строку rgb(); t от 0 (первый) до 1 (второй), за пределами обрезается. */
+function mixRgb(a, b, t) {
+  const q = t < 0 ? 0 : t > 1 ? 1 : t;
+  return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * q) + ',' + Math.round(a[1] + (b[1] - a[1]) * q)
+    + ',' + Math.round(a[2] + (b[2] - a[2]) * q) + ')';
+}
+
+// Свет падает слева сверху, как на концепт-артах.
+const LIGHT_X = -0.55;
+const LIGHT_Y = -0.83;
+
+/**
+ * Пол арены одной картинкой (1 пиксель на единицу мира): крупные мягкие грани low-poly, наметы,
+ * тёмные впадины и затемнение к краям. Строится один раз; в кадре из неё берётся видимый кусок.
+ */
+function buildFloorTexture(arena, C) {
+  const W = Math.ceil(arena.width);
+  const H = Math.ceil(arena.height);
+  const cv = makeCanvas(W, H);
+  const g = cv.getContext('2d');
+  const rnd = mulberry32(4242);
+  const dark = hexRgb(C.floorDark);
+  const light = hexRgb(C.floorLight);
+  g.fillStyle = C.floor;
+  g.fillRect(0, 0, W, H);
+
+  // Грани: сетка со смещёнными узлами, каждая клетка из двух треугольников.
+  const cell = 150;
+  const nx = Math.ceil(W / cell) + 2;
+  const ny = Math.ceil(H / cell) + 2;
+  const pts = new Float32Array((nx + 1) * (ny + 1) * 2);
+  for (let j = 0; j <= ny; j++) {
+    for (let i = 0; i <= nx; i++) {
+      const k = (j * (nx + 1) + i) * 2;
+      pts[k] = (i - 1) * cell + (rnd() - 0.5) * cell * 0.8;
+      pts[k + 1] = (j - 1) * cell + (rnd() - 0.5) * cell * 0.8;
+    }
   }
-  return pts;
+  const tone = (x, y) => 0.5 + 0.17 * Math.sin(x * 0.0061 + 1.3) + 0.15 * Math.sin(y * 0.0047 + 0.4)
+    + 0.08 * Math.sin((x + y) * 0.0113);
+  const tri = (a, b, c) => {
+    const col = mixRgb(dark, light, tone((pts[a] + pts[b] + pts[c]) / 3, (pts[a + 1] + pts[b + 1] + pts[c + 1]) / 3)
+      + (rnd() - 0.5) * 0.28);
+    g.fillStyle = col;
+    g.strokeStyle = col; // обводка тем же цветом скрывает швы между гранями
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(pts[a], pts[a + 1]);
+    g.lineTo(pts[b], pts[b + 1]);
+    g.lineTo(pts[c], pts[c + 1]);
+    g.closePath();
+    g.fill();
+    g.stroke();
+  };
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const p00 = (j * (nx + 1) + i) * 2;
+      const p10 = p00 + 2;
+      const p01 = ((j + 1) * (nx + 1) + i) * 2;
+      const p11 = p01 + 2;
+      if (rnd() < 0.5) {
+        tri(p00, p10, p11);
+        tri(p00, p11, p01);
+      } else {
+        tri(p00, p10, p01);
+        tri(p10, p11, p01);
+      }
+    }
+  }
+
+  // Впадины и светлые пятна: мягкие, едва заметные.
+  const patch = (x, y, rad, squash, rgba) => {
+    g.save();
+    g.translate(x, y);
+    g.scale(1, squash);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, rad);
+    gr.addColorStop(0, rgba);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr;
+    g.beginPath();
+    g.arc(0, 0, rad, 0, TAU);
+    g.fill();
+    g.restore();
+  };
+  for (let i = 0; i < 12; i++) patch(rnd() * W, rnd() * H, 80 + rnd() * 120, 0.55, 'rgba(8,12,22,0.13)');
+  for (let i = 0; i < 9; i++) patch(rnd() * W, rnd() * H, 90 + rnd() * 130, 0.5, 'rgba(200,214,236,0.07)');
+
+  // Наметы: длинные мягкие полосы вдоль ветра; края тают, чётких линий нет.
+  for (let i = 0; i < 18; i++) {
+    const len = 180 + rnd() * 320;
+    g.save();
+    g.translate(rnd() * W, rnd() * H);
+    g.rotate(-0.2 + (rnd() - 0.5) * 0.4);
+    g.scale(1, (10 + rnd() * 16) / len);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, len / 2);
+    gr.addColorStop(0, 'rgba(190,206,232,0.09)');
+    gr.addColorStop(1, 'rgba(190,206,232,0)');
+    g.fillStyle = gr;
+    g.beginPath();
+    g.arc(0, 0, len / 2, 0, TAU);
+    g.fill();
+    g.restore();
+  }
+
+  // Затемнение к краям арены: она тонет в темноте, и край виден без яркой линии.
+  const edge = 140;
+  const shade = (x0, y0, x1, y1, rx, ry, rw, rh) => {
+    const gr = g.createLinearGradient(x0, y0, x1, y1);
+    gr.addColorStop(0, 'rgba(10,14,24,0.55)');
+    gr.addColorStop(1, 'rgba(10,14,24,0)');
+    g.fillStyle = gr;
+    g.fillRect(rx, ry, rw, rh);
+  };
+  shade(0, 0, edge, 0, 0, 0, edge, H);
+  shade(W, 0, W - edge, 0, W - edge, 0, edge, H);
+  shade(0, 0, 0, edge, 0, 0, W, edge);
+  shade(0, H, 0, H - edge, 0, H - edge, W, edge);
+  return cv;
+}
+
+/**
+ * Мелкие детали пустоши: сухие кусты, камешки, наметы. Раскладываются один раз, вдали от скал и центра;
+ * в кадре рисуются только видимые. Кусты сразу хранят отрезки веток.
+ */
+function buildGroundDetails(arena) {
+  const rnd = mulberry32(777);
+  const out = [];
+  const free = (x, y, pad) => {
+    if (Math.hypot(x, y) < 70) return false;
+    if (x < arena.left + 40 || x > arena.right - 40 || y < arena.top + 40 || y > arena.bottom - 40) return false;
+    for (let i = 0; i < arena.rocks.length; i++) {
+      const rk = arena.rocks[i];
+      if (Math.hypot(x - rk.x, y - rk.y) < rk.r + pad) return false;
+    }
+    return true;
+  };
+  const spot = (pad) => {
+    for (let t = 0; t < 30; t++) {
+      const x = arena.left + rnd() * arena.width;
+      const y = arena.top + rnd() * arena.height;
+      if (free(x, y, pad)) return { x, y };
+    }
+    return null;
+  };
+  const branch = (seg, x, y, ang, len, depth) => {
+    const x1 = x + Math.cos(ang) * len;
+    const y1 = y + Math.sin(ang) * len;
+    seg.push(x, y, x1, y1);
+    if (depth <= 0) return;
+    branch(seg, x1, y1, ang - 0.35 - rnd() * 0.35, len * 0.7, depth - 1);
+    branch(seg, x1, y1, ang + 0.35 + rnd() * 0.35, len * 0.7, depth - 1);
+    if (rnd() < 0.4) branch(seg, x1, y1, ang + (rnd() - 0.5) * 0.3, len * 0.6, depth - 1);
+  };
+  for (let i = 0; i < 16; i++) {
+    const p = spot(30);
+    if (!p) continue;
+    const seg = [];
+    branch(seg, p.x, p.y, -Math.PI / 2 + (rnd() - 0.5) * 0.4, 9 + rnd() * 7, 3);
+    out.push({ kind: 0, x: p.x, y: p.y, r: 28, seg: new Float32Array(seg) });
+  }
+  for (let i = 0; i < 34; i++) {
+    const p = spot(14);
+    if (!p) continue;
+    const n = 5;
+    const poly = new Float32Array(n * 2);
+    const sz = 2.5 + rnd() * 4;
+    const ph = rnd() * TAU;
+    for (let k = 0; k < n; k++) {
+      const a = ph + (k / n) * TAU;
+      const f = 0.7 + rnd() * 0.35;
+      poly[k * 2] = Math.cos(a) * sz * f * 1.15;
+      poly[k * 2 + 1] = Math.sin(a) * sz * f * 0.8;
+    }
+    out.push({ kind: 1, x: p.x, y: p.y, r: sz * 1.4, poly, sz });
+  }
+  for (let i = 0; i < 22; i++) {
+    const p = spot(20);
+    if (!p) continue;
+    out.push({ kind: 2, x: p.x, y: p.y, r: 34, w: 14 + rnd() * 18, h: 4 + rnd() * 4 });
+  }
+  return out;
+}
+
+/**
+ * Скала как заснеженный хитиновый панцирь: тёмные грани-пластины, швы, каменные наросты и снег
+ * на освещённой стороне. Рисуется один раз в спрайт (2 пикселя на единицу): в кадре это один drawImage.
+ * Всё тело лежит внутри круга столкновения rock.r; тень и снег у подножия чуть шире.
+ */
+const ROCK_RES = 2;
+function buildRockSprite(rock, seed, C) {
+  const r = rock.r;
+  const S = Math.ceil(r * 2.8 * ROCK_RES);
+  const cv = makeCanvas(S, S);
+  const g = cv.getContext('2d');
+  g.setTransform(ROCK_RES, 0, 0, ROCK_RES, S / 2, S / 2);
+  g.lineJoin = 'round';
+  const rnd = mulberry32(seed * 7919 + 13);
+  const chD = hexRgb(C.chitin);
+  const chL = hexRgb(C.chitinLight);
+  const stD = hexRgb(C.stone);
+  const stL = hexRgb(C.stoneLight);
+  const snD = hexRgb(C.snow);
+  const snL = hexRgb(C.snowLight);
+  const dot = (x, y) => {
+    const l = Math.hypot(x, y) || 1;
+    return (x * LIGHT_X + y * LIGHT_Y) / l;
+  };
+  const poly = (list, fill, stroke, lw) => {
+    g.beginPath();
+    g.moveTo(list[0], list[1]);
+    for (let i = 2; i < list.length; i += 2) g.lineTo(list[i], list[i + 1]);
+    g.closePath();
+    if (fill) {
+      g.fillStyle = fill;
+      g.fill();
+    }
+    if (stroke) {
+      g.lineWidth = lw;
+      g.strokeStyle = stroke;
+      g.stroke();
+    }
+  };
+  const soft = (cx, cy, rad, sy, stops) => {
+    g.save();
+    g.translate(cx, cy);
+    g.scale(1, sy);
+    const gr = g.createRadialGradient(0, 0, rad * stops[0], 0, 0, rad);
+    for (let i = 1; i < stops.length; i += 2) gr.addColorStop(stops[i], stops[i + 1]);
+    g.fillStyle = gr;
+    g.beginPath();
+    g.arc(0, 0, rad, 0, TAU);
+    g.fill();
+    g.restore();
+  };
+
+  // Снег, намётанный у подножия со стороны света, и тень вправо-вниз. Без колец: края плавно тают.
+  soft(-0.3 * r, -0.22 * r, r * 1.3, 0.8, [0, 0, 'rgba(160,180,212,0.17)', 0.55, 'rgba(160,180,212,0.1)', 1, 'rgba(160,180,212,0)']);
+  soft(0.16 * r, 0.26 * r, r * 1.2, 0.74, [0.2, 0, 'rgba(6,9,18,0.46)', 0.6, 'rgba(6,9,18,0.26)', 1, 'rgba(6,9,18,0)']);
+
+  // Тело панциря: вытянутый многоугольник.
+  const n = 10;
+  const rot = rnd() * TAU;
+  const elong = 0.84 + rnd() * 0.1;
+  const cr = Math.cos(rot);
+  const sr = Math.sin(rot);
+  const body = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU + (rnd() - 0.5) * 0.35;
+    const f = 0.86 + rnd() * 0.11;
+    const lx = Math.cos(a) * f * r;
+    const ly = Math.sin(a) * f * r * elong;
+    body[i * 2] = lx * cr - ly * sr;
+    body[i * 2 + 1] = lx * sr + ly * cr;
+  }
+  const cx = -0.1 * r;
+  const cy = -0.12 * r;
+  // Грани веером от центра: освещённые светлее.
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const mx = (body[i * 2] + body[j * 2]) / 2 - cx;
+    const my = (body[i * 2 + 1] + body[j * 2 + 1]) / 2 - cy;
+    const col = mixRgb(chD, chL, 0.4 + 0.5 * dot(mx, my) + (rnd() - 0.5) * 0.15);
+    poly([cx, cy, body[i * 2], body[i * 2 + 1], body[j * 2], body[j * 2 + 1]], col, col, 0.6);
+  }
+  // Вторая пластина поменьше: ступенька панциря.
+  const inner = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const k = 0.58 + (rnd() - 0.5) * 0.12;
+    inner[i * 2] = cx + (body[i * 2] - cx) * k;
+    inner[i * 2 + 1] = cy + (body[i * 2 + 1] - cy) * k - 0.04 * r;
+  }
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const mx = (inner[i * 2] + inner[j * 2]) / 2 - cx;
+    const my = (inner[i * 2 + 1] + inner[j * 2 + 1]) / 2 - cy;
+    const col = mixRgb(chD, chL, 0.55 + 0.4 * dot(mx, my) + (rnd() - 0.5) * 0.15);
+    poly([cx, cy - 0.05 * r, inner[i * 2], inner[i * 2 + 1], inner[j * 2], inner[j * 2 + 1]], col, col, 0.6);
+  }
+  poly(inner, null, 'rgba(150,170,205,0.32)', 0.7);
+  // Шов вдоль панциря, поперечные пластины с фаской и глянцевый блик хитина.
+  const ax = cr;
+  const ay = sr;
+  g.lineCap = 'round';
+  const groove = (x0, y0, qx, qy, x1, y1, w) => {
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.quadraticCurveTo(qx, qy, x1, y1);
+    g.strokeStyle = 'rgba(6,9,18,0.62)';
+    g.lineWidth = w;
+    g.stroke();
+    g.beginPath();
+    g.moveTo(x0 - 0.7, y0 - 0.7);
+    g.quadraticCurveTo(qx - 0.7, qy - 0.7, x1 - 0.7, y1 - 0.7);
+    g.strokeStyle = 'rgba(150,172,214,0.26)'; // светлая кромка рядом с канавкой: объём
+    g.lineWidth = w * 0.5;
+    g.stroke();
+  };
+  g.save();
+  g.beginPath(); // канавки и блик не выходят за контур панциря
+  g.moveTo(body[0], body[1]);
+  for (let i = 1; i < n; i++) g.lineTo(body[i * 2], body[i * 2 + 1]);
+  g.closePath();
+  g.clip();
+  groove(cx - ax * 0.86 * r, cy - ay * 0.86 * r, cx - ay * 0.06 * r, cy + ax * 0.06 * r, cx + ax * 0.78 * r, cy + ay * 0.78 * r, 1.7);
+  for (let k = -1; k <= 1; k++) {
+    const px = cx + ax * k * 0.4 * r;
+    const py = cy + ay * k * 0.4 * r;
+    const half = 0.95 * r * elong;
+    groove(px - ay * half, py + ax * half, px + ax * 0.16 * r, py + ay * 0.16 * r, px + ay * half, py - ax * half, 1.2);
+  }
+  g.save();
+  g.translate(cx - 0.22 * r, cy - 0.18 * r);
+  g.rotate(rot);
+  g.scale(1, 0.34);
+  const spec = g.createRadialGradient(0, 0, 0, 0, 0, r * 0.62);
+  spec.addColorStop(0, 'rgba(170,200,255,0.3)');
+  spec.addColorStop(1, 'rgba(170,200,255,0)');
+  g.fillStyle = spec;
+  g.beginPath();
+  g.arc(0, 0, r * 0.62, 0, TAU);
+  g.fill();
+  g.restore();
+  g.restore(); // конец обрезки по телу
+  // Контур и светлая кромка на освещённой стороне.
+  poly(body, null, 'rgba(6,9,18,0.8)', 1.6);
+  g.strokeStyle = 'rgba(170,190,225,0.5)';
+  g.lineWidth = 1.1;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const mx = (body[i * 2] + body[j * 2]) / 2;
+    const my = (body[i * 2 + 1] + body[j * 2 + 1]) / 2;
+    if (dot(mx, my) < 0.3) continue;
+    g.beginPath();
+    g.moveTo(body[i * 2], body[i * 2 + 1]);
+    g.lineTo(body[j * 2], body[j * 2 + 1]);
+    g.stroke();
+  }
+
+  // Снежная шапка на освещённой стороне: рваный край, грани разной яркости.
+  const sx0 = -0.16 * r;
+  const sy0 = -0.2 * r;
+  const base = Math.atan2(LIGHT_Y, LIGHT_X);
+  const m = 9;
+  const cap = [];
+  for (let k = 0; k <= m; k++) {
+    const u = k / m;
+    const a = base - 1.45 + u * 2.9;
+    let rr = (k & 1 ? 0.78 : 0.5) * r * (0.85 + rnd() * 0.3) * (1 - 0.35 * Math.abs(u - 0.5) * 2);
+    let px = sx0 + Math.cos(a) * rr;
+    let py = sy0 + Math.sin(a) * rr;
+    const len = Math.hypot(px, py);
+    if (len > 0.88 * r) {
+      rr *= (0.88 * r) / len;
+      px = sx0 + Math.cos(a) * rr;
+      py = sy0 + Math.sin(a) * rr;
+    }
+    cap.push(px, py);
+  }
+  for (let k = 0; k < m; k++) {
+    const mx = (cap[k * 2] + cap[k * 2 + 2]) / 2 - sx0;
+    const my = (cap[k * 2 + 1] + cap[k * 2 + 3]) / 2 - sy0;
+    const col = mixRgb(snD, snL, 0.5 + 0.42 * dot(mx, my) + (rnd() - 0.5) * 0.16);
+    poly([sx0, sy0, cap[k * 2], cap[k * 2 + 1], cap[k * 2 + 2], cap[k * 2 + 3]], col, col, 0.6);
+  }
+  g.strokeStyle = 'rgba(25,34,52,0.35)';
+  g.lineWidth = 0.9;
+  g.beginPath();
+  g.moveTo(cap[0], cap[1]);
+  for (let k = 2; k < cap.length; k += 2) g.lineTo(cap[k], cap[k + 1]);
+  g.stroke();
+
+  // Каменные наросты: острые шипы и обломки, торчат из панциря вверх.
+  for (let i = 0; i < 3; i++) {
+    const a = rnd() * TAU;
+    const d = rnd() * 0.62 * r;
+    const bx = cx + Math.cos(a) * d;
+    const by = cy + Math.sin(a) * d;
+    const sz = (0.07 + rnd() * 0.06) * r;
+    const ph = rnd() * TAU;
+    const chunk = [];
+    for (let k = 0; k < 5; k++) {
+      const q = ph + (k / 5) * TAU;
+      const f = 0.7 + rnd() * 0.4;
+      chunk.push(bx + Math.cos(q) * sz * f, by + Math.sin(q) * sz * f * 0.85);
+    }
+    poly(chunk, mixRgb(stD, stL, 0.4 + rnd() * 0.2), 'rgba(6,9,18,0.55)', 0.8);
+    poly([chunk[0], chunk[1], chunk[2], chunk[3], bx, by], mixRgb(stD, stL, 0.78), null, 0);
+  }
+  const ns = r < 40 ? 3 : r < 55 ? 4 : 5 + (rnd() < 0.5 ? 1 : 0);
+  const spikes = [];
+  for (let k = 0; k < ns; k++) {
+    const pos = -0.6 + ((k + rnd() * 0.6) / ns) * 1.2;
+    const lat = (rnd() - 0.5) * 0.5;
+    const bx = cx + ax * pos * r - ay * lat * r;
+    const by = cy + ay * pos * r + ax * lat * r;
+    const dir = -Math.PI / 2 + (rnd() - 0.5) * 0.9;
+    let h = (k < 2 ? 0.4 + rnd() * 0.16 : 0.2 + rnd() * 0.2) * r;
+    let tipX = bx + Math.cos(dir) * h;
+    let tipY = by + Math.sin(dir) * h;
+    const len = Math.hypot(tipX, tipY);
+    if (len > 1.08 * r) {
+      h *= (1.08 * r - Math.hypot(bx, by)) / Math.max(1, len - Math.hypot(bx, by));
+      tipX = bx + Math.cos(dir) * h;
+      tipY = by + Math.sin(dir) * h;
+    }
+    spikes.push({ bx, by, tipX, tipY, dir, h, w: h * (0.5 + rnd() * 0.25) });
+  }
+  spikes.sort((p, q) => p.by - q.by); // дальние раньше ближних
+  for (const s of spikes) {
+    const px = -Math.sin(s.dir) * s.w * 0.5;
+    const py = Math.cos(s.dir) * s.w * 0.5;
+    let lx = s.bx - px;
+    let ly = s.by - py;
+    let rx = s.bx + px;
+    let ry = s.by + py;
+    if (lx > rx) {
+      [lx, rx] = [rx, lx];
+      [ly, ry] = [ry, ly];
+    }
+    poly([lx, ly, s.bx, s.by, s.tipX, s.tipY], mixRgb(stD, stL, 0.78), null, 0); // освещённая грань слева
+    poly([s.bx, s.by, rx, ry, s.tipX, s.tipY], mixRgb(stD, stL, 0.22), null, 0);
+    poly([lx, ly, rx, ry, s.tipX, s.tipY], null, 'rgba(6,9,18,0.6)', 1);
+    // Снег на кончике.
+    const t = 0.62;
+    poly([s.tipX, s.tipY, lx + (s.tipX - lx) * t, ly + (s.tipY - ly) * t, rx + (s.tipX - rx) * t, ry + (s.tipY - ry) * t],
+      mixRgb(snD, snL, 0.62), null, 0);
+  }
+  return { cv, half: S / 2 / ROCK_RES };
 }
 
 export class Renderer {
@@ -79,7 +507,10 @@ export class Renderer {
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
     this.h = 1;
-    this.rockShapes = deps.arena.rocks.map((_, i) => buildRockShape(i + 1));
+    this.floor = null;            // картинка пола арены: строится при первой отрисовке
+    this.details = null;          // сухие кусты, камешки и наметы на полу
+    this.rockSprites = [];        // спрайт каждой скалы: строится при первой отрисовке
+    this.flakes = [];             // снежинки: живут вокруг камеры, только для вида
     this.clock = 0;               // время кадра в секундах: для мерцания пламени и пульса глаз
     this.glow = null;             // мягкое тёплое пятно света, рисуется один раз и переиспользуется
     this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
@@ -128,45 +559,35 @@ export class Renderer {
     const viewT = camY - camera.viewH / 2;
     const viewB = camY + camera.viewH / 2;
 
-    // Пол.
+    // Пол: снежная пустошь. Подложка нужна, чтобы на стыке кусков картинки не мелькала пустота.
     ctx.fillStyle = C.floor;
     ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
-
-    // Сетка пола: без неё на пустой арене не видно, что камера движется.
-    const g = this.cfg.render.gridSize;
+    if (!this.floor) this.floor = buildFloorTexture(arena, C);
     const gx0 = Math.max(viewL, arena.left);
     const gx1 = Math.min(viewR, arena.right);
     const gy0 = Math.max(viewT, arena.top);
     const gy1 = Math.min(viewB, arena.bottom);
-    ctx.beginPath();
-    for (let x = Math.ceil(gx0 / g) * g; x <= gx1; x += g) {
-      ctx.moveTo(x, gy0);
-      ctx.lineTo(x, gy1);
+    if (gx1 > gx0 && gy1 > gy0) {
+      ctx.drawImage(this.floor, gx0 - arena.left, gy0 - arena.top, gx1 - gx0, gy1 - gy0, gx0, gy0, gx1 - gx0, gy1 - gy0);
     }
-    for (let y = Math.ceil(gy0 / g) * g; y <= gy1; y += g) {
-      ctx.moveTo(gx0, y);
-      ctx.lineTo(gx1, y);
-    }
-    ctx.lineWidth = 1 / s;
-    ctx.strokeStyle = C.grid;
-    ctx.stroke();
 
-    // Граница арены.
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = C.border;
-    ctx.strokeRect(arena.left - 3, arena.top - 3, arena.width + 6, arena.height + 6);
+    // Граница арены: тёмная кромка, основное затемнение к краям уже в картинке пола.
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = C.arenaEdge;
+    ctx.strokeRect(arena.left - 4, arena.top - 4, arena.width + 8, arena.height + 8);
 
-    // Скалы: тёмное тело и более светлая «верхняя грань».
+    this.drawGroundDetails(C, viewL, viewR, viewT, viewB);
+
+    // Скалы: заснеженные хитиновые панцири с каменными наростами (спрайт на каждую).
     for (let i = 0; i < arena.rocks.length; i++) {
       const rock = arena.rocks[i];
-      if (rock.x + rock.r < viewL || rock.x - rock.r > viewR) continue;
-      if (rock.y + rock.r < viewT || rock.y - rock.r > viewB) continue;
-      const pts = this.rockShapes[i];
-      ctx.fillStyle = C.rock;
-      this.polygon(pts, rock.x, rock.y, rock.r);
-      ctx.fillStyle = C.rockTop;
-      this.polygon(pts, rock.x, rock.y - rock.r * 0.14, rock.r * 0.66);
+      if (rock.x + rock.r * 1.4 < viewL || rock.x - rock.r * 1.4 > viewR) continue;
+      if (rock.y + rock.r * 1.4 < viewT || rock.y - rock.r * 1.4 > viewB) continue;
+      const sp = this.rockSprites[i] || (this.rockSprites[i] = buildRockSprite(rock, i + 1, C));
+      ctx.drawImage(sp.cv, rock.x - sp.half, rock.y - sp.half, sp.half * 2, sp.half * 2);
     }
+
+    this.drawSnow(ctx, viewL, viewR, viewT, viewB);
 
     const hx = hero.prevX + (hero.x - hero.prevX) * alpha;
     const hy = hero.prevY + (hero.y - hero.prevY) * alpha;
@@ -1425,17 +1846,81 @@ export class Renderer {
     }
   }
 
-  polygon(pts, cx, cy, scale) {
+  /** Сухие кусты, камешки и наметы на полу: рисуются только те, что в кадре. */
+  drawGroundDetails(C, viewL, viewR, viewT, viewB) {
     const ctx = this.ctx;
-    ctx.beginPath();
-    for (let k = 0; k < pts.length; k += 2) {
-      const px = cx + pts[k] * scale;
-      const py = cy + pts[k + 1] * scale;
-      if (k === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+    if (!this.details) this.details = buildGroundDetails(this.arena);
+    const list = this.details;
+    const dust = this.getDust();
+    const snD = hexRgb(C.snow);
+    const snL = hexRgb(C.snowLight);
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i];
+      if (d.x + d.r < viewL || d.x - d.r > viewR || d.y + d.r < viewT || d.y - d.r > viewB) continue;
+      if (d.kind === 2) {
+        ctx.globalAlpha = 0.2; // мягкий намёт: спрайт тающего пятна, без чётких краёв
+        ctx.drawImage(dust, d.x - d.w, d.y - d.h, d.w * 2, d.h * 2);
+        ctx.globalAlpha = 1;
+      } else if (d.kind === 1) {
+        ctx.fillStyle = 'rgba(6,9,18,0.28)';
+        ctx.beginPath();
+        ctx.ellipse(d.x + d.sz * 0.5, d.y + d.sz * 0.7, d.sz * 1.4, d.sz * 0.6, 0, 0, TAU);
+        ctx.fill();
+        ctx.beginPath();
+        for (let k = 0; k < d.poly.length; k += 2) {
+          if (k === 0) ctx.moveTo(d.x + d.poly[k], d.y + d.poly[k + 1]);
+          else ctx.lineTo(d.x + d.poly[k], d.y + d.poly[k + 1]);
+        }
+        ctx.closePath();
+        ctx.fillStyle = C.chitin;
+        ctx.fill();
+        ctx.beginPath(); // снежок сверху
+        ctx.ellipse(d.x - d.sz * 0.2, d.y - d.sz * 0.35, d.sz * 0.75, d.sz * 0.4, 0, 0, TAU);
+        ctx.fillStyle = mixRgb(snD, snL, 0.4);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        const sg = d.seg;
+        for (let k = 0; k < sg.length; k += 4) {
+          ctx.moveTo(sg[k], sg[k + 1]);
+          ctx.lineTo(sg[k + 2], sg[k + 3]);
+        }
+        ctx.lineWidth = 1.3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = C.chitin;
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
     }
-    ctx.closePath();
-    ctx.fill();
+  }
+
+  /** Лёгкий снегопад: снежинки живут в пределах экрана и дрейфуют по ветру. Ближние крупнее и ярче. */
+  drawSnow(ctx, viewL, viewR, viewT, viewB) {
+    const n = this.cfg.render.snowflakes | 0;
+    if (n <= 0) return;
+    const w = viewR - viewL;
+    const h = viewB - viewT;
+    let f = this.flakes;
+    if (f.length !== n) {
+      f = this.flakes = [];
+      for (let i = 0; i < n; i++) f.push({ x: viewL + Math.random() * w, y: viewT + Math.random() * h, z: 0.35 + Math.random() * 0.65 });
+    }
+    const dt = this.dt;
+    ctx.fillStyle = '#dbe6f5';
+    for (let i = 0; i < n; i++) {
+      const p = f[i];
+      p.x += (-10 + 6 * Math.sin(this.clock * 0.6 + i)) * p.z * dt;
+      p.y += 24 * p.z * dt;
+      if (p.x < viewL) p.x += w;
+      else if (p.x > viewR) p.x -= w;
+      if (p.y > viewB) p.y -= h;
+      else if (p.y < viewT) p.y += h;
+      ctx.globalAlpha = 0.14 + 0.26 * p.z;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 0.6 + 1.7 * p.z, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   drawStick(C) {
