@@ -1940,7 +1940,16 @@ export class Renderer {
     let da = (hero.facing - h.a) % TAU;
     if (da > Math.PI) da -= TAU;
     else if (da < -Math.PI) da += TAU;
-    h.a += da * (1 - Math.exp(-dt / 0.045));
+    h.a += da * (1 - Math.exp(-dt / 0.07)); // посох: следит за целью, чуть мягче, чтобы не дёргался от смены целей
+    // Корпус (плечи и плащ) смотрит по ходу движения, а не на цель: цель меняется каждый выстрел, и корпус бы дёргался.
+    // Стоим на месте: корпус замирает как был.
+    if (h.b === undefined) h.b = hero.facing;
+    if (sp > 20) {
+      let db = (Math.atan2(hero.vy, hero.vx) - h.b) % TAU;
+      if (db > Math.PI) db -= TAU;
+      else if (db < -Math.PI) db += TAU;
+      h.b += db * (1 - Math.exp(-dt / 0.16));
+    }
     h.phase += sp * dt * 0.09;
     const want = sf > 0.05 ? Math.min(1.2, sf + (dash ? 0.4 : 0)) : 0;
     h.ti += (want - h.ti) * (1 - Math.exp(-dt / (want > h.ti ? 0.06 : 0.3)));
@@ -1993,8 +2002,8 @@ export class Renderer {
     ctx.translate(0, by0);
 
     // Хвост плаща: тянется против движения, на ходу длиннее и колышется.
-    let tdx = -Math.cos(h.a);
-    let tdy = -Math.sin(h.a);
+    let tdx = -Math.cos(h.b); // стоим: хвост за корпусом, а не за целью
+    let tdy = -Math.sin(h.b);
     if (ml > 0.08) {
       tdx = -h.mx / ml;
       tdy = -h.my / ml;
@@ -2018,12 +2027,14 @@ export class Renderer {
     ctx.stroke();
 
     // Плечи и плащ: восьмиугольник, повёрнутый по курсу; грани освещены слева сверху.
-    const ca = Math.cos(h.a);
+    const cb = Math.cos(h.b);
+    const sb = Math.sin(h.b);
+    const ca = Math.cos(h.a); // посох: по цели
     const sa = Math.sin(h.a);
     const ring = this.hring;
     for (let i = 0; i < 8; i++) {
-      ring[i * 2] = (HERO_BODY[i * 2] * ca - HERO_BODY[i * 2 + 1] * sa) * r;
-      ring[i * 2 + 1] = (HERO_BODY[i * 2] * sa + HERO_BODY[i * 2 + 1] * ca) * r;
+      ring[i * 2] = (HERO_BODY[i * 2] * cb - HERO_BODY[i * 2 + 1] * sb) * r;
+      ring[i * 2 + 1] = (HERO_BODY[i * 2] * sb + HERO_BODY[i * 2 + 1] * cb) * r;
     }
     const c0x = -0.05 * r;
     const c0y = -0.06 * r;
