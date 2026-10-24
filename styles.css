@@ -270,7 +270,7 @@ body {
 .core-info .stat b { color: var(--ink); font-weight: 600; }
 
 /* В меню билда кнопка умения не нужна. */
-#pause-screen:not([hidden]) ~ #slot-btn { display: none; }
+#pause-screen:not([hidden]) ~ #slot-row { display: none; }
 
 /* Моды: ряд хранилища, мод на поле, подсветка граней (зелёная: можно прикрепить, красная: ядру не подходит). */
 .shelf .slot-cell { display: flex; align-items: center; justify-content: center; color: #bfeaf0; }
@@ -381,9 +381,12 @@ body { font-family: var(--serif); }
 #pause-screen .card { padding: 18px 12px 12px; }
 #menu-card { padding: 22px 16px 12px; width: min(80vw, 320px); }
 
-/* ---------- Слот умения: невидимая зона нажатия, ромб рисует canvas (render_renderer.js, drawHud) ---------- */
-#slot-btn {
-  position: fixed; z-index: 20; right: calc(var(--safe-right) + 12px); bottom: calc(var(--safe-bottom, 0px) + 14px);
+/* ---------- Слоты умений: невидимые зоны нажатия, ромбы рисует canvas (render_renderer.js, drawHud) ---------- */
+#slot-row {
+  position: fixed; z-index: 20; left: 50%; bottom: calc(var(--safe-bottom, 0px) + 14px); transform: translateX(-50%);
+  display: flex; gap: 4px;
+}
+.slot-btn {
   width: 60px; height: 60px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: transparent;
   font-size: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
