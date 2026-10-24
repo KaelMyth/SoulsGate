@@ -30,6 +30,7 @@ import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
+import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
 import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -97,7 +98,19 @@ export class Game {
     this.laserSource = { laser: true, active: true };
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
     this.rayT = [];
+    this.pelletSource = { pellet: true, active: true };
+    this.pellets = new Pellets({
+      config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
+      onHit: (e, dmg, vx, vy, bd, bi, fr, st) => {
+        const sp = Math.hypot(vx, vy) || 1;
+        this.combat.damageEnemy(e, dmg, this.pelletSource, { knockback: config.shot.knockback, dirX: vx / sp, dirY: vy / sp });
+        if (!e.active) return;
+        if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
+        if (fr) this.chill(e, bd > 0 ? st : 0, bd, bi);
+      },
+    });
     this.autoattack = new AutoAttack({
+      pellets: this.pellets,
       lasers: this.lasers,
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
       grid: this.swarm.grid,
@@ -107,6 +120,8 @@ export class Game {
 
     this.blades = new Blades({
       config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
+      lasers: this.lasers,
+      pellets: this.pellets,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
@@ -127,6 +142,7 @@ export class Game {
       boss: this.boss,
       clouds: this.steamClouds,
       blades: this.blades.items,
+      pellets: this.pellets,
       lasers: this.lasers,
       hud: this.hud,
     });
@@ -218,7 +234,7 @@ export class Game {
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
-        else if (e.source && e.source.laser) { /* тики луча без вспышек: хватает мигания врага */ }
+        else if (e.source && (e.source.laser || e.source.pellet)) { /* тики луча без вспышек: хватает мигания врага */ }
         else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
@@ -449,11 +465,13 @@ export class Game {
     const ls = this.lasers;
     for (let i = ls.length - 1; i >= 0; i--) {
       const l = ls[i];
-      l.x = this.hero.x; // ближний конец привязан к герою
-      l.y = this.hero.y;
+      const an = l.anchor; // луч сферы клинка привязан к ней, остальные к герою
+      if (an && an.state === 'gone') { ls.splice(i, 1); continue; }
+      l.x = an ? an.x : this.hero.x; // ближний конец привязан к герою или к сфере
+      l.y = an ? an.y : this.hero.y;
       const tg = l.target;
-      if (tg && !tg.active) l.target = null; // цель погибла: луч замирает в последнем направлении
-      else if (tg) {
+      if (tg && !tg.active) { this.endLaser(l, ls, i); continue; } // цель погибла: луч гаснет сразу
+      if (tg) {
         const ax = tg.x - l.x;
         const ay = tg.y - l.y;
         const d = Math.hypot(ax, ay);
@@ -465,8 +483,15 @@ export class Game {
         this.laserTick(l);
         l.done++;
       }
-      if (l.age >= l.life) ls.splice(i, 1);
+      if (l.target && !l.target.active) this.endLaser(l, ls, i); // убит тиком этого кадра
+      else if (l.age >= l.life) this.endLaser(l, ls, i);
     }
+  }
+
+  /** Луч закончился: убираем его, а сфера клинка, из которой он шёл, исчезает вместе с ним. */
+  endLaser(l, ls, i) {
+    if (l.anchor) l.anchor.state = 'gone';
+    ls.splice(i, 1);
   }
 
   /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */
@@ -617,6 +642,7 @@ export class Game {
       this.runTime += dt;
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      this.camera.zoomTarget = this.boss.cameraZoom(); // атака клинками отдаляет экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
@@ -635,6 +661,7 @@ export class Game {
       this.xp.update(dt);
       this.collisions.detect();
       this.hitEnemiesWithShots();
+      this.pellets.update(dt);
       this.updateBurning(dt);
       this.updateFrost(dt);
       this.updateSteam(dt);
@@ -862,6 +889,7 @@ export class Game {
     this.stepper.reset();
     this.enemies.clear();
     this.heroShots.clear();
+    this.pellets.clear();
     this.enemyShots.clear();
     this.effects.clear();
     this.steamClouds.length = 0;
@@ -877,6 +905,7 @@ export class Game {
     this.cine = null;
     this.hud.bossTitle = '';
     this.hud.bossTitleAlpha = 0;
+    this.camera.resetZoom();
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.autoattack.reset();
     this.spawner.reset();

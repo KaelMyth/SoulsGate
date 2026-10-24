@@ -506,6 +506,7 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -657,6 +658,7 @@ export class Renderer {
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
+    this.drawPellets(ctx, alpha, viewL, viewR, viewT, viewB);
     this.drawEnemyShots(this.enemyShots.items, alpha, viewL, viewR, viewT, viewB, C);
 
     // Эффекты-всплески.
@@ -804,6 +806,31 @@ export class Renderer {
         ctx.stroke();
       }
       ctx.restore();
+    }
+
+    // Клинки (вторая атака). Ждущий клинок: на земле его линия, сам он стоит на краю кольца.
+    // Летящий: короткая чёрточка по ходу полёта. Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state }, b.bladeCount;
+    // state 1 ждёт вылета, 2 летит, 3 закончил. Каждая группа рисуется одним проходом.
+    if (b.bladeCount > 0) {
+      const bl = b.blades;
+      ctx.beginPath();
+      for (let i = 0; i < b.bladeCount; i++) {
+        if (bl[i].state !== 1) continue;
+        ctx.moveTo(bl[i].x1, bl[i].y1);
+        ctx.lineTo(bl[i].x2, bl[i].y2);
+      }
+      ctx.lineWidth = bl[0].hw * 2;
+      ctx.strokeStyle = C.teleProgress;
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i < b.bladeCount; i++) {
+        if (bl[i].state === 3) continue;
+        ctx.moveTo(bl[i].x - bl[i].dx * 26, bl[i].y - bl[i].dy * 26);
+        ctx.lineTo(bl[i].x, bl[i].y);
+      }
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = C.fissureCore;
+      ctx.stroke();
     }
 
     // Линия рывка: узкий прямоугольник от босса через героя и дальше.
@@ -2435,7 +2462,25 @@ export class Renderer {
     ctx.lineCap = 'butt';
   }
 
-  /** Спектральные клинки: голубые треугольники, остриём по ходу полёта (на орбите остриём наружу). */
+  /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
+  drawPellets(ctx, alpha, viewL, viewR, viewT, viewB) {
+    const P = this.pellets;
+    if (!P || !P.n) return;
+    const S = this.cfg.shot;
+    const r = S.radius;
+    const d = r * 2;
+    ctx.fillStyle = S.color;
+    ctx.beginPath();
+    for (let i = 0; i < P.n; i++) {
+      const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+      const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+      if (x < viewL - 8 || x > viewR + 8 || y < viewT - 8 || y > viewB + 8) continue;
+      ctx.rect(x - r, y - r, d, d);
+    }
+    ctx.fill();
+  }
+
+  /** Спектральные клинки: голубые треугольники (с Лазером сферы), остриём по ходу полёта (на орбите остриём наружу). */
   drawBlades(ctx) {
     const bl = this.blades;
     if (!bl || !bl.length) return;
@@ -2445,7 +2490,14 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.2;
     for (const b of bl) {
-      const a = b.state === 'orbit' ? b.a : b.a;
+      if (b.sphere) { // с Лазером клинки это сферы
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        continue;
+      }
+      const a = b.a;
       const c = Math.cos(a);
       const n = Math.sin(a);
       ctx.beginPath();

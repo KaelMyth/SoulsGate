@@ -17,6 +17,9 @@ export class Camera {
     this.viewW = cfg.viewWidth; // сколько единиц мира видно
     this.viewH = cfg.viewWidth;
     this.scale = 1;             // CSS-пикселей на единицу мира
+    // Отдаление экрана (атака клинками босса): во сколько раз видно больше мира. zoom плывёт к zoomTarget.
+    this.zoom = 1;
+    this.zoomTarget = 1;
   }
 
   setScreen(pxW, pxH) {
@@ -27,7 +30,7 @@ export class Camera {
 
   /** Пересчёт масштаба: viewWidth меняется ползунком на лету. */
   refresh() {
-    this.viewW = this.cfg.viewWidth;
+    this.viewW = this.cfg.viewWidth * this.zoom;
     this.scale = this.pxW / this.viewW;
     this.viewH = this.pxH / this.scale;
   }
@@ -43,7 +46,17 @@ export class Camera {
     }
   }
 
+  /** Мгновенно вернуть обычный масштаб (новый забег). */
+  resetZoom() {
+    this.zoom = this.zoomTarget = 1;
+  }
+
   update(dt, tx, ty, arena) {
+    if (this.zoom !== this.zoomTarget) {
+      const kz = 1 - Math.exp(-dt / Math.max(0.001, this.cfg.zoomSmooth || 0.25));
+      this.zoom += (this.zoomTarget - this.zoom) * kz;
+      if (Math.abs(this.zoomTarget - this.zoom) < 0.002) this.zoom = this.zoomTarget;
+    }
     this.refresh();
     this.prevX = this.x;
     this.prevY = this.y;

@@ -25,6 +25,15 @@ export function countPenalty(config, count) {
   return count > 1 && typeof d === 'number' ? Math.pow(d, Math.log2(count)) : 1;
 }
 
+/**
+ * Базовый интервал появления клинков: чем больше клинков до залпа, тем он короче.
+ * 2 клинка: 0.5 с, 4: 0.4, 8: 0.3, 16: 0.2, 32: 0.1 (каждое удвоение на intervalStep короче), не короче minInterval.
+ */
+export function bladeInterval(config, max) {
+  const B = config.blades;
+  return Math.max(B.minInterval, B.interval - B.intervalStep * (Math.log2(Math.max(1, max)) - 1));
+}
+
 /** Число снарядов за выстрел с модами ядра (целое, не меньше 1). */
 export function projectileCount(config, mods) {
   const m = mods && mods.count;
@@ -32,7 +41,8 @@ export function projectileCount(config, mods) {
 }
 
 /**
- * Лазер: из урона снаряда (с модами, без штрафа), числа снарядов и модов лазера. Ширина и урон растут с числом снарядов.
+ * Лазер: из урона снаряда (с модами, без штрафа), числа снарядов и модов лазера. Число снарядов это число лазеров за раз,
+ * каждый со штрафом урона как у снаряда; толщина от числа не зависит.
  * tick: урон тика, ticks: сколько тиков за жизнь, life: длительность, width: толщина, big: лазер большой (много снарядов).
  */
 export function laserStats(config, laser, dmg, count) {
@@ -41,11 +51,11 @@ export function laserStats(config, laser, dmg, count) {
   const life = big ? L.bigDuration : L.duration;
   const interval = L.interval / laser.rate;
   return {
-    tick: dmg * countPenalty(config, count) * count * L.tickFrac * laser.damage,
+    tick: dmg * countPenalty(config, count) * L.tickFrac * laser.damage,
     interval,
     life,
     ticks: Math.max(1, Math.round(life / interval)),
-    width: L.width * (1 + (count - 1) * L.widthPerCount),
+    width: L.width,
     big,
   };
 }
@@ -63,7 +73,7 @@ export function burnStats(config, burn, dmg) {
 }
 
 export function coreStats(core, config, mods) {
-  const pen = core.def.multStat === 'count' ? countPenalty(config, projectileCount(config, mods)) : 1;
+  const pen = core.def.multStat === 'count' && !(mods && mods.shot) ? countPenalty(config, projectileCount(config, mods)) : 1;
   const rows = (core.def.stats || []).map((s) => {
     let v = getPath(config, s.path);
     const m = s.key && mods ? mods[s.key] : null;
@@ -96,16 +106,29 @@ export function coreStats(core, config, mods) {
     const ls = laserStats(config, mods.laser, base, cnt);
     rows.push({ label: 'Лазер: урон тика', text: String(Math.round(ls.tick * 100) / 100), bonus: '' });
     rows.push({ label: 'Лазер: тиков за ' + ls.life + ' с', text: String(ls.ticks), bonus: ls.big ? 'большой' : '' });
-    rows.push({ label: 'Лазер: толщина', text: String(Math.round(ls.width)), bonus: '' });
+    rows.push({ label: 'Лазер: одновременно', text: String(cnt), bonus: '' });
   }
   if (core.def.canBlades && mods && mods.blades) {
     const bm = mods.blades;
     const bdmg = config.blades.damage * bm.damage;
     rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
-    rows.push({ label: 'Клинки: новый раз в', text: Math.round(config.blades.interval / bm.rate * 100) / 100 + ' с', bonus: '' });
+    rows.push({ label: 'Клинки: новый раз в', text: Math.round(bladeInterval(config, Math.round(config.blades.max * bm.max)) / bm.rate * 100) / 100 + ' с', bonus: '' });
     rows.push({ label: 'Клинки: урон', text: String(Math.round(bdmg * 100) / 100), bonus: bm.damage !== 1 ? '+' + Math.round((bm.damage - 1) * 100) + '%' : '' });
+    if (mods.shot) rows.push({ label: 'Клинки: дробь при попадании', text: config.blades.shotCount + ' дробинок по ' + Math.round(bdmg * config.shot.damageFrac * 100) / 100, bonus: 'разлёт поворачивается' });
+    if (mods.laser) {
+      const ls = laserStats(config, mods.laser, bdmg, 1);
+      const lb = laserStats(config, mods.laser, bdmg, Math.round(config.blades.max * bm.max));
+      rows.push({ label: 'Клинки: лазер, урон тика', text: String(Math.round(ls.tick * 100) / 100), bonus: 'сферы' });
+      rows.push({ label: 'Клинки: лазер, тиков за ' + lb.life + ' с', text: String(lb.ticks), bonus: lb.big ? 'большой' : '' });
+    }
     if (mods.burn) rows.push({ label: 'Клинки: горение, урон тика', text: String(Math.round(bdmg * config.burn.damageFrac * mods.burn.damage * 100) / 100), bonus: '' });
     if (mods.frost) rows.push({ label: 'Клинки: Мороз', text: mods.steam && mods.burn ? 'взрыв пара' : config.frost.maxStacks + ' попаданий → заморозка', bonus: '' });
+  }
+  if (core.def.canShot && mods && mods.shot) {
+    const dmgRow = rows.find((r) => r.key === 'damage');
+    const n = Math.round(config.shot.base * projectileCount(config, mods));
+    rows.push({ label: 'Дробь: дробинок за выстрел', text: String(n), bonus: '' });
+    rows.push({ label: 'Дробь: урон дробинки', text: String(Math.round((dmgRow ? dmgRow.value : 0) * config.shot.damageFrac * 100) / 100), bonus: '' });
   }
   if (core.def.canPierce && mods && mods.pierce) {
     rows.push({ label: 'Пробитие: врагов насквозь', text: String(Math.round(mods.pierce.count)), bonus: '' });
