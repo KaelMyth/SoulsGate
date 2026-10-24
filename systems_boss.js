@@ -4,8 +4,9 @@
 // следующая атака выбирается случайно из пула, но не та, что была прошлой: тип в кд, пока не применится другой.
 //
 // Атака 2, клинки: босс стоит, камера отъезжает (cameraZoom), вокруг героя появляются кольцом 4, затем 8,
-// затем 16 клинков. Видны их линии через точку, где герой стоял; клинки вылетают по одному в случайном порядке
-// и пролетают линию почти мгновенно (как рывок). Каждый клинок бьёт один раз, его можно парировать.
+// затем 16 клинков. Они вылетают по одному в случайном порядке и пролетают линию почти мгновенно (как рывок).
+// Каждый следующий клинок целится в то место, где герой был в момент вылета предыдущего (линия видна launchInterval
+// секунд до вылета). Каждый клинок бьёт один раз, его можно парировать.
 // Состояния: idle → bladeIn → (bladeWave → bladeGap)×3 → recover → idle.
 //
 // Атака 1, рывки: босс идёт к герою; когда подошёл на startRange, начинается цикл из dashes рывков подряд:
@@ -208,6 +209,9 @@ export class Boss {
     this.bladeCount = 0;   // сколько клинков в текущей волне
     this.bladeWave = 0;    // номер текущей волны клинков (0, 1, 2)
     this.bladeOrder = [];  // случайный порядок вылета (перестановка индексов)
+    this.bladeNext = 0;    // сколько клинков волны уже вылетело (индекс следующего в bladeOrder)
+    this.bladeCx = 0;      // центр кольца текущей волны (где стоял герой при появлении)
+    this.bladeCy = 0;
     this.bus.on('boss:spawned', ({ enemy }) => this.attach(enemy));
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.enemy) this.detach(); });
   }
@@ -228,7 +232,7 @@ export class Boss {
     while (this.blades.length < max) {
       this.blades.push({
         x: 0, y: 0, x1: 0, y1: 0, x2: 0, y2: 0, dx: 1, dy: 0, len: 1, hw: 7, travel: 0, launchAt: 0,
-        state: 0, active: false, hit: false, parryable: true, enemy: null,
+        state: 0, aimed: false, active: false, hit: false, parryable: true, enemy: null,
       });
       this.bladeOrder.push(0);
     }
@@ -342,9 +346,11 @@ export class Boss {
   }
 
   /**
-   * Волна: клинки появляются кольцом вокруг героя (на B.radius) и целятся в то место, где герой стоит сейчас.
-   * Линии видны сразу; клинки вылетают по одному в случайном порядке с задержкой launchInterval.
-   * Если герой у стены, клинок ставится на границе арены, а линия всё равно идёт через центр.
+   * Волна: клинки появляются кольцом вокруг героя (на B.radius) и ждут. Вылетают по одному в случайном порядке.
+   * Прицел фиксируется по очереди: первый клинок целится в героя сразу, а каждый следующий в то место, где герой
+   * оказался в момент вылета предыдущего (aimBlade). Линия видна только у клинка, готового к вылету,
+   * и висит launchInterval секунд: за это время от неё нужно уйти.
+   * Если герой у стены, клинок ставится на границу арены, а линия всё равно идёт через героя.
    */
   spawnBladeWave(e, C) {
     const B = C.blades;
@@ -392,30 +398,79 @@ export class Boss {
       bl.travel = 0;
       bl.hit = false;
       bl.state = 1; // ждёт вылета
+      bl.aimed = false; // прицел ещё не зафиксирован: линия не показывается
       bl.active = true; // false: клинок парирован (защита гасит источник) или долетел
       bl.parryable = B.parryable !== false;
     }
-    for (let k = 0; k < n; k++) this.blades[order[k]].launchAt = B.telegraphDelay + k * B.launchInterval;
+    this.bladeCx = cx;
+    this.bladeCy = cy;
+    this.bladeNext = 0;
+    const first = this.blades[order[0]];
+    this.aimBlade(first, B);
+    first.launchAt = B.telegraphDelay;
     this.bladeCount = n;
     this.setState('bladeWave');
     this.bus.emit('boss:blades-spawn', { count: n, x: cx, y: cy, wave: this.bladeWave });
   }
 
-  /** Волна идёт: клинки по расписанию вылетают и пролетают линию почти мгновенно; задели героя: урон (парируется). */
+  /**
+   * Зафиксировать прицел клинка: линия из его места через героя там, где он стоит сейчас, и дальше на overshoot.
+   * После этого клинок летит строго по ней: герой может уйти.
+   */
+  aimBlade(bl, B) {
+    let dx = this.hero.x - bl.x1;
+    let dy = this.hero.y - bl.y1;
+    let d = Math.hypot(dx, dy);
+    if (d < 1e-3) { // герой точно в клинке: целимся к центру кольца
+      dx = this.bladeCx - bl.x1;
+      dy = this.bladeCy - bl.y1;
+      d = Math.hypot(dx, dy);
+      if (d < 1e-3) {
+        dx = 1;
+        dy = 0;
+        d = 0;
+      }
+    }
+    if (d > 0) {
+      dx /= d;
+      dy /= d;
+    }
+    bl.dx = dx;
+    bl.dy = dy;
+    bl.len = Math.max(1, this.clipToArena(bl.x1, bl.y1, dx, dy, d + B.overshoot, 0));
+    bl.x2 = bl.x1 + dx * bl.len;
+    bl.y2 = bl.y1 + dy * bl.len;
+    bl.aimed = true;
+  }
+
+  /**
+   * Волна идёт: клинки вылетают по очереди (случайный порядок) и пролетают линию почти мгновенно;
+   * в момент вылета следующий клинок целится в героя там, где он сейчас, и вылетит через launchInterval.
+   * Задели героя: урон (парируется).
+   */
   updateBladeWave(e, C, dt) {
     const B = C.blades;
     const hero = this.hero;
+    const n = this.bladeCount;
+    while (this.bladeNext < n) { // очередной клинок: пора ли вылетать (while на случай интервала короче шага)
+      const nb = this.blades[this.bladeOrder[this.bladeNext]];
+      if (this.t < nb.launchAt) break;
+      nb.state = 2;
+      this.bus.emit('boss:blade-fly', { blade: nb });
+      this.bladeNext++;
+      if (this.bladeNext < n) {
+        const nx = this.blades[this.bladeOrder[this.bladeNext]];
+        this.aimBlade(nx, B); // прицел по месту героя в момент этого вылета
+        nx.launchAt = nb.launchAt + B.launchInterval;
+      }
+    }
     let live = 0;
-    for (let i = 0; i < this.bladeCount; i++) {
+    for (let i = 0; i < n; i++) {
       const bl = this.blades[i];
       if (bl.state === 3) continue;
-      if (bl.state === 1) {
-        if (this.t < bl.launchAt) {
-          live++;
-          continue;
-        }
-        bl.state = 2;
-        this.bus.emit('boss:blade-fly', { blade: bl });
+      if (bl.state === 1) { // ждёт своей очереди
+        live++;
+        continue;
       }
       // Летит. Парированный клинок гаснет (защита снимает active у источника удара).
       if (!bl.active) {
