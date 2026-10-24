@@ -4,6 +4,7 @@
 import { getTelegraph } from './systems_attacks.js';
 
 const TAU = Math.PI * 2;
+const SERIF = '"Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif'; // шрифт надписей интерфейса
 const EMPTY = { items: [] };
 
 // Угловатый контур панциря (x, y в долях радиуса, нос в +x), общий для жуков в стиле low-poly.
@@ -524,6 +525,7 @@ export class Renderer {
     this.glowRed = null;          // то же, красное: для быка
     this.glowBlue = null;         // то же, голубое: кристалл посоха героя
     this.glowGold = null;         // то же, золотое: щит в окне парирования, подсветка цели
+    this.ui = { hp: 1, hpTrail: 1, xp: 0, boss: 1, bossTrail: 1, bossK: 0, slot: 0 }; // сглаженные значения интерфейса
     this.tglow = { cur: null, curK: 0, prev: null, prevK: 0 }; // подсветка цели автоатаки: текущая и затухающая прежняя
     this.shield = {               // вид щита: появление, цвет золото-синий, вспышка парирования и отклики на удары
       k: 0, pk: 0, flash: 0,
@@ -658,7 +660,6 @@ export class Renderer {
       if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // молния вместо героя
       else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
-      if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
@@ -2373,73 +2374,394 @@ export class Renderer {
     ctx.fill();
   }
 
-  /** Полоска здоровья героя и счётчик убитых в левом верхнем углу (с учётом выреза iPhone). */
+  /** Текст с разрядкой: canvas.letterSpacing есть не во всех Safari, поэтому ставим буквы по одной. */
+  tracked(text, x, y, sp, align) {
+    const ctx = this.ctx;
+    let total = -sp;
+    const ws = this.trackW || (this.trackW = []);
+    for (let i = 0; i < text.length; i++) {
+      ws[i] = ctx.measureText(text[i]).width;
+      total += ws[i] + sp;
+    }
+    let px = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+    ctx.textAlign = 'left';
+    for (let i = 0; i < text.length; i++) {
+      ctx.fillText(text[i], px, y);
+      px += ws[i] + sp;
+    }
+    return total;
+  }
+
+  /** Тонкая линия и ромбик между ними: общий мотив интерфейса. */
+  hairline(x1, x2, y, alpha) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#cfe0f8';
+    ctx.fillRect(Math.min(x1, x2), Math.round(y), Math.abs(x2 - x1), 1);
+    ctx.globalAlpha = 1;
+  }
+
+  rhomb(cx, cy, r, fill) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r, cy);
+    ctx.lineTo(cx, cy + r);
+    ctx.lineTo(cx - r, cy);
+    ctx.closePath();
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    } else {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(207,224,248,0.75)';
+      ctx.stroke();
+    }
+  }
+
+  /** Игровой интерфейс: волна и счёт сверху, босс-бар, здоровье и опыт слева внизу, три умения справа внизу. */
   drawHud(C) {
     const hud = this.hud;
     if (!hud) return;
     const ctx = this.ctx;
+    const U = this.ui;
+    const dt = this.dt;
     const hero = this.hero;
     const maxHp = this.cfg.hero.maxHp || 1;
-    const x = hud.insets.left + 12;
-    const y = hud.insets.top + 12;
-    const w = 150;
-    const hh = 16;
-    ctx.fillStyle = C.hpBg;
-    ctx.fillRect(x, y, w, hh);
-    ctx.fillStyle = C.hpHero;
-    ctx.fillRect(x, y, w * Math.max(0, Math.min(1, hero.hp / maxHp)), hh);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = C.border;
-    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, hh - 1);
-    ctx.fillStyle = C.hud;
-    ctx.font = '11px ui-monospace, Menlo, monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x + 6, y + hh / 2 + 0.5);
-    // Шкала опыта и уровень под полоской здоровья.
-    const xy = y + hh + 4;
-    ctx.fillStyle = C.hpBg;
-    ctx.fillRect(x, xy, w, 8);
-    ctx.fillStyle = hud.xpMax ? C.accent : '#4fd18b';
-    ctx.fillRect(x, xy, w * Math.max(0, Math.min(1, hud.xpFraction || 0)), 8);
-    ctx.strokeStyle = C.border;
-    ctx.strokeRect(x + 0.5, xy + 0.5, w - 1, 7);
-    ctx.fillStyle = C.hud;
-    ctx.font = '11px ui-monospace, Menlo, monospace';
-    ctx.fillText((hud.xpMax ? 'Ур. макс' : 'Ур. ' + (hud.level || 1)) + ' · Убито: ' + hud.kills, x, y + hh + 24);
-    this.drawWaveHud(C, x, y + hh + 40);
-    // Повышение уровня: надпись над героем-HUD, плавно гаснет.
-    if (hud.levelFlash > 0) {
-      ctx.globalAlpha = Math.min(1, hud.levelFlash);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#7dffb0';
-      ctx.font = '700 18px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillText('Уровень ' + hud.level + '!', this.w / 2, this.h * 0.42);
-      ctx.globalAlpha = 1;
-      ctx.textAlign = 'left';
+    const ins = hud.insets;
+    const w = this.w;
+    const h = this.h;
+    const cx = w / 2;
+    const k = (tau) => 1 - Math.exp(-dt / tau);
+
+    // Сглаженные значения: полоска плавно едет, а «след урона» догоняет её медленнее.
+    const hpT = Math.max(0, Math.min(1, hero.hp / maxHp));
+    U.hp += (hpT - U.hp) * k(0.07);
+    U.hpTrail = hpT > U.hpTrail ? hpT : U.hpTrail + (U.hp - U.hpTrail) * k(0.55);
+    U.xp += ((hud.xpFraction || 0) - U.xp) * k(0.12);
+    U.slot = Math.max(0, U.slot - dt * 4);
+    if (hud.slotFlash > 0) {
+      U.slot = 1;
+      hud.slotFlash = 0;
     }
+    const boss = this.boss && this.boss.enemy && this.boss.enemy.active ? this.boss.enemy : null;
+    const bossT = boss ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0;
+    const showBoss = !!boss && !(hud.bossTitleAlpha > 0);
+    U.bossK += ((showBoss ? 1 : 0) - U.bossK) * k(0.18);
+    if (boss) {
+      U.boss += (bossT - U.boss) * k(0.07);
+      U.bossTrail = bossT > U.bossTrail ? bossT : U.bossTrail + (U.boss - U.bossTrail) * k(0.6);
+    } else if (U.bossK < 0.02) {
+      U.boss = U.bossTrail = 1;
+    }
+
+    ctx.save();
+    ctx.textBaseline = 'middle';
+
+    // Номер волны сверху по центру: тонкие линии, ромб и подпись. Пока идёт бой с боссом, на его месте полоса босса.
+    const top = ins.top + (hud.gameMode ? 0 : 52); // в «Тестировании» сверху кнопка ⚙ и FPS
+    const waveA = 1 - U.bossK;
+    if (hud.wave !== undefined && waveA > 0.02) {
+      const y0 = top + 24;
+      const label = (hud.crash ? 'КРАШ-ТЕСТ ' : 'ВОЛНА ') + hud.wave;
+      ctx.globalAlpha = waveA;
+      ctx.font = '500 17px ' + SERIF;
+      ctx.fillStyle = 'rgba(6,10,22,0.55)';
+      this.tracked(label, cx + 1, y0 + 1, 3.2, 'center');
+      ctx.fillStyle = C.hud;
+      const tw = this.tracked(label, cx, y0, 3.2, 'center');
+      this.hairline(cx - tw / 2 - 16, cx - tw / 2 - 70, y0 + 1, 0.38);
+      this.hairline(cx + tw / 2 + 16, cx + tw / 2 + 70, y0 + 1, 0.38);
+      this.hairline(cx - 10, cx - 78, y0 + 17, 0.32);
+      this.hairline(cx + 10, cx + 78, y0 + 17, 0.32);
+      this.rhomb(cx, y0 + 17.5, 3.5, null);
+      ctx.fillStyle = C.hud;
+      if (hud.crash) {
+        ctx.globalAlpha = waveA * 0.7;
+        ctx.font = 'italic 12px ' + SERIF;
+        this.tracked('врагов ' + hud.alive + (hud.cap ? ' / потолок ' + hud.cap : ''), cx, y0 + 36, 0.6, 'center');
+        if (hud.crashResult) {
+          ctx.fillStyle = C.hurt;
+          this.tracked(hud.crashResult, cx, y0 + 52, 0.4, 'center');
+        }
+      } else if (hud.waveLeft >= 0 && !hud.intermission) {
+        ctx.globalAlpha = waveA * 0.62;
+        ctx.font = 'italic 12px ' + SERIF;
+        this.tracked('осталось ' + hud.waveLeft, cx, y0 + 36, 0.6, 'center');
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Босс: имя и красная полоса с ромбами по краям.
+    if (U.bossK > 0.02 && boss) {
+      const bw = Math.min(w - 2 * (ins.left + 70), 340);
+      const x = cx - bw / 2;
+      const y = top + 40;
+      ctx.globalAlpha = U.bossK;
+      ctx.fillStyle = C.hud;
+      const name = String(boss.def && (boss.def.title || boss.def.name) || '').toUpperCase();
+      ctx.font = '500 13px ' + SERIF;
+      const nameW = ctx.measureText(name).width + 3 * (name.length - 1);
+      const ns = Math.max(0.6, Math.min(1, (bw - 8) / Math.max(1, nameW))); // длинное имя ужимаем, чтобы не наезжало на соседей
+      ctx.font = '500 ' + Math.max(9, Math.round(13 * ns)) + 'px ' + SERIF;
+      const tw = this.tracked(name, cx, y - 14, 3 * ns, 'center');
+      this.hairline(cx - tw / 2 - 12, x + 4, y - 13, 0.34);
+      this.hairline(cx + tw / 2 + 12, x + bw - 4, y - 13, 0.34);
+      ctx.fillStyle = 'rgba(5,9,20,0.78)';
+      ctx.fillRect(x, y, bw, 7);
+      ctx.fillStyle = 'rgba(255,190,180,0.55)';
+      ctx.fillRect(x, y, bw * U.bossTrail, 7);
+      ctx.fillStyle = '#d63f3a';
+      ctx.fillRect(x, y, bw * U.boss, 7);
+      ctx.fillStyle = 'rgba(255,140,125,0.55)';
+      ctx.fillRect(x, y, bw * U.boss, 2.5);
+      ctx.strokeStyle = 'rgba(190,215,250,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 0.5, y - 0.5, bw + 1, 8);
+      this.rhomb(x - 8, y + 3.5, 3.5, null);
+      this.rhomb(x + bw + 8, y + 3.5, 3.5, null);
+      this.rhomb(cx, y + 13, 3.5, null);
+      ctx.globalAlpha = 1;
+    }
+
+    // Счёт (убитые) справа сверху: огранённый камень и число. В режиме «Тестирование» отступаем от кнопки ⚙ и FPS.
+    {
+      const rx = w - ins.right - 16;
+      const y = top + 26;
+      ctx.font = '500 22px ' + SERIF;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(6,10,22,0.55)';
+      ctx.fillText(String(hud.kills), rx + 1, y + 1);
+      ctx.fillStyle = C.hud;
+      ctx.fillText(String(hud.kills), rx, y);
+      const gx = rx - ctx.measureText(String(hud.kills)).width - 14;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(this.getGlow(), gx - 16, y - 16, 32, 32);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.moveTo(gx, y - 9);
+      ctx.lineTo(gx + 7, y);
+      ctx.lineTo(gx, y + 9);
+      ctx.lineTo(gx - 7, y);
+      ctx.closePath();
+      ctx.fillStyle = '#e8943a';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(gx, y - 9);
+      ctx.lineTo(gx + 7, y);
+      ctx.lineTo(gx, y);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd79a';
+      ctx.fill();
+    }
+
+    // Здоровье и опыт слева внизу.
+    const rowY = h - ins.bottom - 44;
+    const slotX = w - ins.right - 12 - 30;
+    const x0 = ins.left + 20;
+    const bw = Math.max(80, Math.min(190, slotX - 128 - 30 - 18 - x0));
+    this.drawBar(x0, rowY - 5, bw, 9, U.hp, U.hpTrail, '#d9453f', '#ff8379', 'rgba(255,200,190,0.55)', hpT < 0.3 ? 0.5 + 0.5 * Math.sin(this.clock * 6) : 0);
+    this.drawBar(x0, rowY + 9, bw, 4, U.xp, U.xp, hud.xpMax ? C.accent : '#4f93ee', hud.xpMax ? '#ffe0b0' : '#a9d3ff', null, 0);
+    ctx.font = '12px ' + SERIF;
+    ctx.fillStyle = C.hud;
+    ctx.globalAlpha = 0.7;
+    ctx.textAlign = 'left';
+    ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x0, rowY - 20);
+    ctx.textAlign = 'right';
+    ctx.font = 'italic 12px ' + SERIF;
+    ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), x0 + bw, rowY - 20);
+    ctx.globalAlpha = 1;
+
+    // Три умения: блок, рывок, слот. Справа, чтобы дотягивался большой палец.
+    const d = this.defense;
+    if (d) {
+      const blockFrac = d.blocking || d.blockCd <= 0 ? 1 : 1 - d.blockCd / d.blockCdMax;
+      const dashFrac = d.dashCd > 0 ? 1 - d.dashCd / d.dashCdMax : 1;
+      const parry = d.blocking && d.parrying;
+      this.drawAbility(slotX - 128, rowY, blockFrac, parry ? C.shieldParry : '#6fb6ff', parry ? C.shieldParryLight : '#d6efff', 0, d.blocking, parry ? 'gold' : 'blue');
+      this.drawAbility(slotX - 64, rowY, dashFrac, '#a98bff', '#e4d8ff', 1, this.hero.dashing, true);
+    }
+    this.drawAbility(slotX, rowY, 1, '#ffb14a', '#ffe2b0', 2, U.slot > 0.01, false, U.slot);
+
+    // Повышение уровня: надпись плавно гаснет.
+    if (hud.levelFlash > 0) {
+      const a = Math.min(1, hud.levelFlash);
+      ctx.globalAlpha = a;
+      ctx.font = '500 24px ' + SERIF;
+      ctx.fillStyle = '#e8f1ff';
+      const tw = this.tracked('УРОВЕНЬ ' + hud.level, cx, this.h * 0.4, 5, 'center');
+      this.hairline(cx - tw / 2 - 14, cx - tw / 2 - 80, this.h * 0.4 + 1, 0.4);
+      this.hairline(cx + tw / 2 + 14, cx + tw / 2 + 80, this.h * 0.4 + 1, 0.4);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
     this.drawBossTitle(C);
-    if (!hud.gameMode) this.drawCooldowns(C); // в игре перезарядки показаны дугами вокруг героя
+    this.drawIntermission(C);
+  }
+
+  /** Полоса с тонкой рамкой, «следом урона» (trail) и ромбиками по краям. flash: мигание при малом здоровье, 0..1. */
+  drawBar(x, y, w, hh, v, trail, col, light, trailCol, flash) {
+    const ctx = this.ctx;
+    ctx.fillStyle = 'rgba(5,9,20,0.78)';
+    ctx.fillRect(x, y, w, hh);
+    if (trailCol && trail > v) {
+      ctx.fillStyle = trailCol;
+      ctx.fillRect(x, y, w * trail, hh);
+    }
+    ctx.fillStyle = col;
+    ctx.fillRect(x, y, w * v, hh);
+    ctx.fillStyle = light;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(x, y, w * v, Math.max(1, hh * 0.3));
+    if (flash > 0) {
+      ctx.globalAlpha = flash * 0.35;
+      ctx.fillStyle = '#ffd0c8';
+      ctx.fillRect(x, y, w * v, hh);
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(190,215,250,0.38)';
+    ctx.strokeRect(x - 0.5, y - 0.5, w + 1, hh + 1);
+    this.rhomb(x - 8, y + hh / 2, 3, null);
+    this.rhomb(x + w + 8, y + hh / 2, 3, null);
   }
 
   /**
-   * ЗАГЛУШКА ГРАФИКИ: имя босса при вступлении, простой текст ниже центра кадра (босс в центре).
-   * Данные: hud.bossTitle (текст) и hud.bossTitleAlpha (0..1, проявляется и гаснет).
+   * Ромб умения. frac: готовность 0..1 (заливка поднимается снизу), hot: умение сейчас действует, flash: вспышка нажатия.
+   * kind: 0 блок (сфера), 1 рывок (шевроны), 2 умение (кристалл). glow: false или имя спрайта свечения.
    */
+  drawAbility(cx, cy, frac, col, light, kind, hot, glow, flash) {
+    const ctx = this.ctx;
+    const R = 30;
+    const ready = frac >= 0.999;
+    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 3 + kind);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R);
+    ctx.lineTo(cx + R, cy);
+    ctx.lineTo(cx, cy + R);
+    ctx.lineTo(cx - R, cy);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(7,12,26,0.74)';
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.globalAlpha = ready ? 0.26 : 0.34;
+    ctx.fillStyle = col;
+    ctx.fillRect(cx - R, cy + R - 2 * R * frac, 2 * R, 2 * R * frac);
+    ctx.restore();
+    if ((ready || hot) && glow !== undefined) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (hot ? 0.55 : 0.2 + 0.1 * pulse) + (flash || 0) * 0.4;
+      ctx.drawImage(this.getGlow(glow === 'gold' ? 'gold' : glow === 'blue' ? 'blue' : glow === true ? true : undefined), cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ready || hot ? col : 'rgba(150,185,230,0.38)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R * 0.82);
+    ctx.lineTo(cx + R * 0.82, cy);
+    ctx.lineTo(cx, cy + R * 0.82);
+    ctx.lineTo(cx - R * 0.82, cy);
+    ctx.closePath();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(190,215,250,0.2)';
+    ctx.stroke();
+    // Значок. Пока умение перезаряжается, он тусклый.
+    ctx.globalAlpha = ready || hot ? 1 : 0.5;
+    ctx.strokeStyle = hot ? light : ready ? col : '#9fb3cc';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (kind === 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 9, 0, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5.5, Math.PI * 1.1, Math.PI * 1.75);
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    } else if (kind === 1) {
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + i * 7 - 4, cy - 8);
+        ctx.lineTo(cx + i * 7 + 3, cy);
+        ctx.lineTo(cx + i * 7 - 4, cy + 8);
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 12);
+      ctx.lineTo(cx + 8, cy - 2);
+      ctx.lineTo(cx, cy + 12);
+      ctx.lineTo(cx - 8, cy - 2);
+      ctx.closePath();
+      ctx.globalAlpha *= 0.55;
+      ctx.fill();
+      ctx.globalAlpha = ready || hot ? 1 : 0.5;
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
+    ctx.globalAlpha = 1;
+  }
+
+  /** Имя босса при вступлении: засечный шрифт с разрядкой и линиями по сторонам. hud.bossTitleAlpha: 0..1. */
   drawBossTitle(C) {
     const hud = this.hud;
     if (!hud.bossTitle || !(hud.bossTitleAlpha > 0)) return;
     const ctx = this.ctx;
+    const cx = this.w / 2;
+    const y = this.h / 2 + 72;
     ctx.save();
     ctx.globalAlpha = Math.min(1, hud.bossTitleAlpha);
-    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '700 28px ui-sans-serif, system-ui, sans-serif';
-    const tw = ctx.measureText(hud.bossTitle).width;
-    const size = Math.max(14, Math.floor(28 * Math.min(1, (this.w * 0.88) / Math.max(1, tw)))); // влезть в узкий экран
-    ctx.font = '700 ' + size + 'px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = C.hud;
-    ctx.fillText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
+    const text = hud.bossTitle.toUpperCase();
+    let size = 30;
+    ctx.font = '500 ' + size + 'px ' + SERIF;
+    const sp = 6;
+    const full = ctx.measureText(text).width + sp * (text.length - 1);
+    size = Math.max(14, Math.floor(size * Math.min(1, (this.w * 0.86) / Math.max(1, full))));
+    ctx.font = '500 ' + size + 'px ' + SERIF;
+    ctx.fillStyle = '#e8f1ff';
+    const tw = this.tracked(text, cx, y, sp * size / 30, 'center');
+    const lw = Math.min(70, (this.w - tw) / 2 - 24);
+    if (lw > 12) {
+      this.hairline(cx - tw / 2 - 14, cx - tw / 2 - 14 - lw, y, 0.4);
+      this.hairline(cx + tw / 2 + 14, cx + tw / 2 + 14 + lw, y, 0.4);
+    }
+    this.hairline(cx - 70, cx - 8, y + size * 0.9, 0.35);
+    this.hairline(cx + 8, cx + 70, y + size * 0.9, 0.35);
+    this.rhomb(cx, y + size * 0.9 + 0.5, 3.5, null);
+    ctx.restore();
+  }
+
+  /** Передышка между волнами: крупная надпись по центру, гаснет к концу. */
+  drawIntermission(C) {
+    const hud = this.hud;
+    if (!(hud.intermission > 0)) return;
+    const ctx = this.ctx;
+    const cx = this.w / 2;
+    const y = this.h * 0.28;
+    const t = Math.min(1, hud.intermission / Math.max(0.01, hud.intermissionTotal));
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, t * 3);
+    ctx.textBaseline = 'middle';
+    ctx.font = '500 34px ' + SERIF;
+    ctx.fillStyle = '#e8f1ff';
+    const tw = this.tracked('ВОЛНА ' + hud.wave, cx, y, 7, 'center');
+    this.hairline(cx - 12, cx - 12 - Math.min(90, tw / 2), y + 30, 0.4);
+    this.hairline(cx + 12, cx + 12 + Math.min(90, tw / 2), y + 30, 0.4);
+    this.rhomb(cx, y + 30.5, 4, '#ffb14a');
+    if (hud.crash) {
+      ctx.font = 'italic 14px ' + SERIF;
+      ctx.fillStyle = C.hurt;
+      this.tracked('краш-тест: врагов всё больше, смотри на FPS', cx, y + 54, 0.5, 'center');
+    }
     ctx.restore();
   }
 
@@ -2870,96 +3192,5 @@ export class Renderer {
       }
     }
     ctx.globalAlpha = 1;
-  }
-
-  /** Режим «Игра»: две дуги вокруг героя, слева блок, справа рывок. Видны только пока идёт перезарядка. */
-  drawCooldownArcs(hx, hy, C) {
-    const d = this.defense;
-    if (!d) return;
-    const ctx = this.ctx;
-    const r = this.hero.radius + 9;
-    const half = 0.9; // половина угла дуги, рад
-    const arc = (center, frac, color) => {
-      ctx.lineCap = 'round';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-      ctx.beginPath();
-      ctx.arc(hx, hy, r, center - half, center + half);
-      ctx.stroke();
-      ctx.strokeStyle = color;
-      ctx.beginPath();
-      ctx.arc(hx, hy, r, center - half, center - half + 2 * half * Math.max(0, Math.min(1, frac)));
-      ctx.stroke();
-      ctx.lineCap = 'butt';
-    };
-    if (!d.blocking && d.blockCd > 0) arc(Math.PI, 1 - d.blockCd / d.blockCdMax, C.blockEdge);
-    if (d.dashCd > 0) arc(0, 1 - d.dashCd / d.dashCdMax, C.accent || C.hpHero);
-  }
-
-  /** Индикаторы перезарядки блока и рывка в левом нижнем углу. */
-  drawCooldowns(C) {
-    const d = this.defense;
-    if (!d) return;
-    const ctx = this.ctx;
-    const x = this.hud.insets.left + 12;
-    const bottom = this.h - (this.hud.insets.bottom || 0) - 16;
-    const w = 92;
-    const bar = (y, label, frac, color) => {
-      ctx.fillStyle = C.hpBg;
-      ctx.fillRect(x, y, w, 8);
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), 8);
-      ctx.fillStyle = C.hud;
-      ctx.font = '10px ui-monospace, Menlo, monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(label, x, y - 2);
-    };
-    const blockFrac = d.blocking
-      ? 1 - d.blockTime / d.blockDuration
-      : d.blockCd > 0 ? 1 - d.blockCd / d.blockCdMax : 1;
-    bar(bottom - 34, d.blocking ? (d.parrying ? 'Блок · парирование!' : 'Блок') : 'Блок', blockFrac,
-      d.blocking ? (d.parrying ? C.parry : C.blockEdge) : d.blockCd > 0 ? C.border : C.hpHero);
-    const dashFrac = d.dashCd > 0 ? 1 - d.dashCd / d.dashCdMax : 1;
-    bar(bottom - 8, 'Рывок', dashFrac, d.dashCd > 0 ? C.border : C.hpHero);
-  }
-
-  /** Номер волны, счётчик врагов, крупная надпись на передышке и результат краш-теста. */
-  drawWaveHud(C, x, y) {
-    const hud = this.hud;
-    const ctx = this.ctx;
-    if (hud.wave === undefined) return;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font = '600 13px ui-monospace, Menlo, monospace';
-    ctx.fillStyle = C.accent;
-    ctx.fillText(hud.crash ? 'Волна ' + hud.wave + ' · КРАШ-ТЕСТ' : 'Волна ' + hud.wave, x, y);
-    ctx.font = '11px ui-monospace, Menlo, monospace';
-    ctx.fillStyle = C.hud;
-    if (hud.crash) {
-      ctx.fillText('Врагов ' + hud.alive + (hud.cap ? ' / потолок ' + hud.cap : ''), x, y + 16);
-      if (hud.crashResult) {
-        ctx.fillStyle = C.hurt;
-        ctx.fillText(hud.crashResult, x, y + 32);
-      }
-    } else if (hud.waveLeft >= 0 && !hud.intermission) {
-      ctx.fillText('Осталось ' + hud.waveLeft, x, y + 16);
-    }
-
-    // Передышка: крупная надпись по центру, плавно гаснет к концу.
-    if (hud.intermission > 0) {
-      const t = Math.min(1, hud.intermission / Math.max(0.01, hud.intermissionTotal));
-      ctx.globalAlpha = Math.min(1, t * 3);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = C.accent;
-      ctx.font = '700 34px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillText('Волна ' + hud.wave, this.w / 2, this.h * 0.28);
-      if (hud.crash) {
-        ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillStyle = C.hurt;
-        ctx.fillText('краш-тест: врагов всё больше, смотри на FPS', this.w / 2, this.h * 0.28 + 30);
-      }
-      ctx.globalAlpha = 1;
-    }
   }
 }
