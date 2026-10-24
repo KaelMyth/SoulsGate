@@ -101,6 +101,7 @@ export const TUNABLES = [
   { group: 'Дробь', path: 'shot.range', label: 'Дальность', min: 60, max: 400, step: 10 },
   { group: 'Дробь', path: 'shot.knockback', label: 'Откидывание', min: 0, max: 30, step: 1 },
 
+  { group: 'Спектральные клинки', path: 'blades.shotShift', label: 'Поворот разлёта дроби за попадание, рад', min: 0, max: 1.57, step: 0.05 },
   { group: 'Спектральные клинки', path: 'blades.max', label: 'Клинков до залпа', min: 1, max: 12, step: 1 },
   { group: 'Спектральные клинки', path: 'blades.interval', label: 'Интервал появления при 2 клинках, с', min: 0.1, max: 2, step: 0.05 },
   { group: 'Спектральные клинки', path: 'blades.intervalStep', label: 'Интервал короче за каждое удвоение клинков, с', min: 0, max: 0.25, step: 0.01 },

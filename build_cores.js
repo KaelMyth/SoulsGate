@@ -114,6 +114,7 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
     rows.push({ label: 'Клинки: новый раз в', text: Math.round(bladeInterval(config, Math.round(config.blades.max * bm.max)) / bm.rate * 100) / 100 + ' с', bonus: '' });
     rows.push({ label: 'Клинки: урон', text: String(Math.round(bdmg * 100) / 100), bonus: bm.damage !== 1 ? '+' + Math.round((bm.damage - 1) * 100) + '%' : '' });
+    if (mods.shot) rows.push({ label: 'Клинки: дробь при попадании', text: config.blades.shotCount + ' дробинок по ' + Math.round(bdmg * config.shot.damageFrac * 100) / 100, bonus: 'разлёт поворачивается' });
     if (mods.laser) {
       const ls = laserStats(config, mods.laser, bdmg, 1);
       const lb = laserStats(config, mods.laser, bdmg, Math.round(config.blades.max * bm.max));

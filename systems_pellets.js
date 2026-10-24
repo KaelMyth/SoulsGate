@@ -9,7 +9,7 @@ export class Pellets {
     this.arena = o.arena;
     this.grid = o.grid;
     this.enemies = o.enemies;
-    this.onHit = o.onHit; // (enemy, damage, vx, vy, volley) => void
+    this.onHit = o.onHit; // (enemy, damage, vx, vy, burnDmg, burnInt, frost, steam) => void
     const N = o.config.shot.capacity;
     this.cap = N;
     this.n = 0;
@@ -21,6 +21,10 @@ export class Pellets {
     this.vy = new Float32Array(N);
     this.left = new Float32Array(N); // сколько ещё лететь
     this.dmg = new Float32Array(N);
+    this.bd = new Float32Array(N);   // горение: урон тика (0 = дробинка не поджигает)
+    this.bi = new Float32Array(N);   // горение: интервал тиков
+    this.st = new Float32Array(N);   // пар: множитель горения облака (0 = нет связки)
+    this.fr = new Uint8Array(N);     // 1 = дробинка вешает заряд Мороза
     this.reach = 0;
   }
 
@@ -34,7 +38,7 @@ export class Pellets {
   }
 
   /** Добавить дробинку (без проверки места: вызывающий смотрит free()). */
-  add(x, y, vx, vy, range, dmg) {
+  add(x, y, vx, vy, range, dmg, bd = 0, bi = 0, fr = 0, st = 0) {
     const i = this.n++;
     this.x[i] = this.px[i] = x;
     this.y[i] = this.py[i] = y;
@@ -42,6 +46,10 @@ export class Pellets {
     this.vy[i] = vy;
     this.left[i] = range;
     this.dmg[i] = dmg;
+    this.bd[i] = bd;
+    this.bi[i] = bi;
+    this.fr[i] = fr;
+    this.st[i] = st;
   }
 
   remove(i) {
@@ -51,6 +59,7 @@ export class Pellets {
     this.px[i] = this.px[last]; this.py[i] = this.py[last];
     this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last];
     this.left[i] = this.left[last]; this.dmg[i] = this.dmg[last];
+    this.bd[i] = this.bd[last]; this.bi[i] = this.bi[last]; this.fr[i] = this.fr[last]; this.st[i] = this.st[last];
   }
 
   update(dt) {
@@ -88,7 +97,7 @@ export class Pellets {
         const dy = y - e.y;
         const r = S.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
-          this.onHit(e, this.dmg[i], vx, vy);
+          this.onHit(e, this.dmg[i], vx, vy, this.bd[i], this.bi[i], this.fr[i], this.st[i]);
           hit = true;
           break;
         }

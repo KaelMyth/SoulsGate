@@ -163,12 +163,19 @@ export class AutoAttack {
     const n = Math.min(want, P.free()); // места нет: стреляем тем, что влезает
     const dmg = applyMod(def.damage, m.damage) * S.damageFrac;
     const half = (S.spread * Math.PI) / 360;
+    // Горение и Мороз: несут только каждая вторая дробинка, иначе заряды Мороза набирались бы за один залп.
+    const full = applyMod(def.damage, m.damage);
+    const bd = m.burn ? full * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
+    const st = bd > 0 && m.frost && m.steam ? m.steam.damage : 0;
     for (let i = 0; i < n; i++) {
       // Равномерный веер с небольшой дрожью: дробинки не стоят рядами, но и не слипаются в одну точку.
       const t = n > 1 ? (i + this.rnd() * 0.8) / n : 0.5;
       const a = base + (t * 2 - 1) * half;
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
-      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range, dmg);
+      const fx = (i & 1) === 0; // половина несёт эффекты
+      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range, dmg,
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0);
     }
     hero.facing = base;
     this.bus.emit('projectile:fired', { projectile: null, target, count: n });

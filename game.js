@@ -101,9 +101,12 @@ export class Game {
     this.pelletSource = { pellet: true, active: true };
     this.pellets = new Pellets({
       config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
-      onHit: (e, dmg, vx, vy) => {
+      onHit: (e, dmg, vx, vy, bd, bi, fr, st) => {
         const sp = Math.hypot(vx, vy) || 1;
         this.combat.damageEnemy(e, dmg, this.pelletSource, { knockback: config.shot.knockback, dirX: vx / sp, dirY: vy / sp });
+        if (!e.active) return;
+        if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
+        if (fr) this.chill(e, bd > 0 ? st : 0, bd, bi);
       },
     });
     this.autoattack = new AutoAttack({
@@ -118,6 +121,7 @@ export class Game {
     this.blades = new Blades({
       config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
       lasers: this.lasers,
+      pellets: this.pellets,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
