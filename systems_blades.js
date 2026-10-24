@@ -2,6 +2,7 @@
 // все летят во врагов. На одного врага не больше perTarget клинков, остальные выбирают других.
 // Клинок самонаводится на цель, при попадании бьёт и исчезает. Сам щит мод не меняет.
 
+import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { bladeInterval, laserStats } from './build_cores.js';
 
 const TAU = Math.PI * 2;
@@ -30,6 +31,9 @@ export class Blades {
     this.grid = o.grid;
     this.combat = o.combat;
     this.modifiers = o.modifiers || null;
+    this.arena = o.arena || null;     // для точки появления фантомного клинка
+    this.rnd = o.rnd || Math.random;
+    this.spot = { x: 0, y: 0, d: 0 };
     this.pellets = o.pellets || null; // «Дробь» на клинках: при попадании клинок разбрасывает дробинки
     this.lasers = o.lasers || [];
     this.shotAngle = 0;               // куда направлен первый из четырёх разлётов; сдвигается с каждым попаданием // общий список лучей игры: сюда клинки-сферы выпускают лазеры
@@ -198,8 +202,10 @@ export class Blades {
         const dx = t.x - b.x;
         const dy = t.y - b.y;
         if (dx * dx + dy * dy <= r * r) {
-          this.combat.damageEnemy(t, dmg, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
-          if (t.active) this.applyEffects(t, m, dmg);
+          const bd = b.mul ? dmg * b.mul : dmg; // фантомный клинок бьёт чуть иначе (phantom.damageFrac)
+          this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          if (t.active) this.applyEffects(t, m, bd);
+          if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
           if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
           items.splice(j, 1);
           continue;
@@ -207,6 +213,23 @@ export class Blades {
       }
       if (b.age >= B.life) items.splice(j, 1);
     }
+  }
+
+  /**
+   * Фантомный клинок: после попадания с шансом (падает вдвое с поколением) рядом с врагом, не у героя,
+   * появляется новый клинок и летит в него. Несёт те же эффекты; сам может породить следующий (до phantom.maxChain).
+   */
+  tryPhantomBlade(b, t, m) {
+    const F = this.cfg.phantom;
+    const B = this.cfg.blades;
+    if (!this.arena || this.items.length >= B.maxAlive) return;
+    if (!phantomRoll(F, this.rnd, Math.min(1, F.chance * m.phantom.mult), b.gen | 0)) return;
+    const s = this.spot;
+    if (!phantomSpot(this.arena, this.rnd, F, t, B.size, s)) return;
+    this.items.push({
+      x: s.x, y: s.y, a: Math.atan2(t.y - s.y, t.x - s.x), off: 0, state: 'fly', target: t,
+      vx: 0, vy: 0, age: 0, gen: (b.gen | 0) + 1, mul: F.damageFrac, sphere: false,
+    });
   }
 
   /** Луч из сферы b в цель t: те же правила, что у лазера снаряда, урон луча от урона клинка. */
@@ -225,6 +248,7 @@ export class Blades {
       width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick, big: big.big,
       burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
+      gen: 0, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0,
     });
     return true;
   }

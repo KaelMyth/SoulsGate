@@ -2618,11 +2618,13 @@ export class Renderer {
       const y1 = l.y + l.dy * l.len;
       const w = l.width * (1 + l.pulse * 0.25);
       const glow = l.big ? 2.6 : 1.7;
+      const lc = l.gen ? this.cfg.phantom.color : L.color; // фантомный луч фиолетовый
       ctx.globalAlpha = fade * (l.big ? 0.4 : 0.25);
-      ctx.strokeStyle = L.color;
+      ctx.strokeStyle = lc;
       ctx.lineWidth = w * glow;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.globalAlpha = fade * (l.big ? 0.95 : 0.7);
+      ctx.strokeStyle = lc;
       ctx.lineWidth = w;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.globalAlpha = fade;
@@ -2662,6 +2664,7 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.2;
     for (const b of bl) {
+      ctx.fillStyle = b.gen ? this.cfg.phantom.color : B.color; // фантомные клинки фиолетовые
       if (b.sphere) { // с Лазером клинки это сферы
         ctx.beginPath();
         ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
