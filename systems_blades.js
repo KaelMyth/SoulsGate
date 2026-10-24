@@ -2,6 +2,8 @@
 // все летят во врагов. На одного врага не больше perTarget клинков, остальные выбирают других.
 // Клинок самонаводится на цель, при попадании бьёт и исчезает. Сам щит мод не меняет.
 
+import { bladeInterval } from './build_cores.js';
+
 const TAU = Math.PI * 2;
 
 function angDiff(a, b) {
@@ -98,7 +100,7 @@ export class Blades {
     this.spin += B.spin * dt;
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
     const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
-    const interval = Math.max(0.05, B.interval / bm.rate);    // Ускорение на клинках
+    const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
     const dmg = B.damage * bm.damage;                          // Мощь на клинках
 
     // Копим клинки, пока их на орбите меньше максимума.
