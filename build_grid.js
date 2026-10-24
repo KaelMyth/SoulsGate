@@ -71,6 +71,12 @@ export class BuildGrid {
     return true;
   }
 
+  /** Стоит ли на поле мод вида kind (для вторичных ядер). */
+  has(kind) {
+    for (const c of this.cells) if (c.mod && c.mod.def.effect.kind === kind) return true;
+    return false;
+  }
+
   /** Снять мод из клетки, вернуть его (или null). */
   takeMod(x, y) {
     const c = this.cell(x, y);
@@ -103,7 +109,7 @@ export class BuildGrid {
       const id = owner.get(ci);
       for (const n of this.neighbors(c.x, c.y)) {
         const ni = n.y * this.size + n.x;
-        if (!n.mod || owner.has(ni)) continue;
+        if (!n.mod || owner.has(ni) || n.mod.def.effect.secondary) continue; // вторичное ядро в деревья не входит
         owner.set(ni, id);
         parent.set(ni, c.core ? -1 : ci);
         queue.push(n);
@@ -131,17 +137,20 @@ export class BuildGrid {
       const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
       const e = c.mod.def.effect;
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
-      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'dbl' ? 'dbl' : pc);
+      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'dbl' ? 'dbl' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
       else if (e.kind === 'shot') carry.set(ci, 'shot'); // «Дробь»: ничего не вешается, число дробинок множит Х2/Х3 на ядре
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
+      else if (e.kind === 'aura') carry.set(ci, 'aura'); // корень ветки ауры: Мощь, Ускорение, множители радиуса, Горение, Мороз
+      else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
       else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
       else if (pc.startsWith('laser')) carry.set(ci, 'laser:' + e.stat);
       else if (pc.startsWith('blades')) carry.set(ci, 'blades:' + e.stat);
+      else if (pc.startsWith('aura')) carry.set(ci, 'aura:' + e.stat);
       else carry.set(ci, e.stat);
     }
     return { owner, parent, carry };
@@ -170,7 +179,7 @@ export class BuildGrid {
       return r;
     };
     return this.cells.filter((c) => {
-      if (!c.mod) return false;
+      if (!c.mod || c.mod.def.effect.secondary) return false; // вторичное ядро ни к чему не крепится
       const i = c.y * this.size + c.x;
       return !owner.has(i) || invalid(i);
     });
@@ -252,6 +261,18 @@ export class BuildGrid {
       pierce += f;
     }
     if (pierce) res.pierce = { count: pierce };
+    // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
+    let ph = 0;
+    let phMul = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'phantom' || owner.get(i) !== coreId) continue;
+      let f = 1;
+      for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+      ph++;
+      phMul += f;
+    }
+    if (ph) res.phantom = { count: ph, mult: phMul };
     // Лазер: Мощь на нём усиливает урон тика, Ускорение учащает тики.
     let lasers = 0;
     let lDmg = 0;
@@ -270,6 +291,28 @@ export class BuildGrid {
       lRate += 1 + r;
     }
     if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    // Смертельная аура: Х2/Х3 на ней расширяют поле, Мощь усиливает тик, Ускорение учащает тики.
+    let auras = 0;
+    let aMul = 0;
+    let aDam = 0;
+    let aRate = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'aura' || owner.get(i) !== coreId) continue;
+      let d = 0;
+      let r = 0;
+      let f = 1;
+      for (const k of kids.get(i) || []) {
+        if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+        else if (carry.get(k) === 'aura:damage') d += walk(k, 0);
+        else if (carry.get(k) === 'aura:rate') r += walk(k, 0);
+      }
+      auras++;
+      aMul += f;
+      aDam += 1 + d;
+      aRate += 1 + r;
+    }
+    if (auras) res.aura = { count: auras, mult: aMul / auras, damage: aDam / auras, rate: aRate / auras };
     // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
     let blades = 0;
     let kMax = 0;
@@ -318,7 +361,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }

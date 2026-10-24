@@ -506,6 +506,9 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.aura = deps.aura || null;
+    this.fires = deps.fires || [];
+    this.lightdash = deps.lightdash || null;
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
@@ -620,6 +623,7 @@ export class Renderer {
     }
 
     this.drawClouds(ctx);
+    this.drawFires(ctx);
 
     // Камни опыта лежат на земле под врагами и героем.
     this.drawGems(alpha, viewL, viewR, viewT, viewB);
@@ -650,12 +654,15 @@ export class Renderer {
     this.drawTargetGlow(alpha, true);
 
     if (hero.active) {
-      this.drawHero(hx, hy, C);
+      this.drawAura(ctx, hx, hy);
+      if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // молния вместо героя
+      else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
       if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
+    this.drawBolts(ctx);
     this.drawBlades(ctx);
 
     // Снаряды.
@@ -1936,7 +1943,16 @@ export class Renderer {
     let da = (hero.facing - h.a) % TAU;
     if (da > Math.PI) da -= TAU;
     else if (da < -Math.PI) da += TAU;
-    h.a += da * (1 - Math.exp(-dt / 0.045));
+    h.a += da * (1 - Math.exp(-dt / 0.07)); // посох: следит за целью, чуть мягче, чтобы не дёргался от смены целей
+    // Корпус (плечи и плащ) смотрит по ходу движения, а не на цель: цель меняется каждый выстрел, и корпус бы дёргался.
+    // Стоим на месте: корпус замирает как был.
+    if (h.b === undefined) h.b = hero.facing;
+    if (sp > 20) {
+      let db = (Math.atan2(hero.vy, hero.vx) - h.b) % TAU;
+      if (db > Math.PI) db -= TAU;
+      else if (db < -Math.PI) db += TAU;
+      h.b += db * (1 - Math.exp(-dt / 0.16));
+    }
     h.phase += sp * dt * 0.09;
     const want = sf > 0.05 ? Math.min(1.2, sf + (dash ? 0.4 : 0)) : 0;
     h.ti += (want - h.ti) * (1 - Math.exp(-dt / (want > h.ti ? 0.06 : 0.3)));
@@ -1989,8 +2005,8 @@ export class Renderer {
     ctx.translate(0, by0);
 
     // Хвост плаща: тянется против движения, на ходу длиннее и колышется.
-    let tdx = -Math.cos(h.a);
-    let tdy = -Math.sin(h.a);
+    let tdx = -Math.cos(h.b); // стоим: хвост за корпусом, а не за целью
+    let tdy = -Math.sin(h.b);
     if (ml > 0.08) {
       tdx = -h.mx / ml;
       tdy = -h.my / ml;
@@ -2014,12 +2030,14 @@ export class Renderer {
     ctx.stroke();
 
     // Плечи и плащ: восьмиугольник, повёрнутый по курсу; грани освещены слева сверху.
-    const ca = Math.cos(h.a);
+    const cb = Math.cos(h.b);
+    const sb = Math.sin(h.b);
+    const ca = Math.cos(h.a); // посох: по цели
     const sa = Math.sin(h.a);
     const ring = this.hring;
     for (let i = 0; i < 8; i++) {
-      ring[i * 2] = (HERO_BODY[i * 2] * ca - HERO_BODY[i * 2 + 1] * sa) * r;
-      ring[i * 2 + 1] = (HERO_BODY[i * 2] * sa + HERO_BODY[i * 2 + 1] * ca) * r;
+      ring[i * 2] = (HERO_BODY[i * 2] * cb - HERO_BODY[i * 2 + 1] * sb) * r;
+      ring[i * 2 + 1] = (HERO_BODY[i * 2] * sb + HERO_BODY[i * 2 + 1] * cb) * r;
     }
     const c0x = -0.05 * r;
     const c0y = -0.06 * r;
@@ -2522,7 +2540,7 @@ export class Renderer {
     const pk = S.pk;
     let am = k;
     if (blocking) {
-      const left = this.cfg.block.duration - d.blockTime;
+      const left = d.blockDuration - d.blockTime;
       if (left < 0.3 && Math.floor(left * 20) % 2 === 0) am *= 0.35; // блок вот-вот кончится: щит мигает
     }
     const R = d.blockRadius * (0.72 + 0.28 * k + 0.08 * S.flash) * (1 + 0.012 * Math.sin(t * 3));
@@ -2640,6 +2658,108 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Герой-молния: яркий шар с ореолом. */
+  drawLightHero(ctx, hx, hy) {
+    const col = this.cfg.lightdash.color;
+    const r = this.hero.radius;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 2.2, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 0.9, 0, TAU);
+    ctx.fill();
+  }
+
+  /** Отрезки молнии: ломаная с дрожью (зависит от времени, поэтому мерцает), гаснет за 0.25 с. */
+  drawBolts(ctx) {
+    const ld = this.lightdash;
+    if (!ld || !ld.bolts.length) return;
+    const col = this.cfg.lightdash.color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < ld.bolts.length; i++) {
+      const b = ld.bolts[i];
+      const k = Math.max(0, 1 - b.age / 0.25);
+      const dx = b.x1 - b.x0;
+      const dy = b.y1 - b.y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const seg = Math.max(3, Math.round(len / 28));
+      const frame = Math.floor(this.clock * 30);
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.globalAlpha = k * (pass ? 1 : 0.45);
+        ctx.strokeStyle = pass ? '#ffffff' : col;
+        ctx.lineWidth = pass ? 2 : 7;
+        ctx.beginPath();
+        ctx.moveTo(b.x0, b.y0);
+        for (let s = 1; s < seg; s++) {
+          const f = s / seg;
+          const j = Math.sin((s * 12.9898 + i * 78.233 + frame * 3.7) * 43758.5453) * 11;
+          ctx.lineTo(b.x0 + dx * f + nx * j, b.y0 + dy * f + ny * j);
+        }
+        ctx.lineTo(b.x1, b.y1);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
+  drawFires(ctx) {
+    const fs = this.fires;
+    if (!fs.length) return;
+    const F = this.cfg.firedash;
+    const t = this.clock;
+    for (let i = 0; i < fs.length; i++) {
+      const f = fs[i];
+      const k = 1 - f.age / F.fireLife;
+      const fl = 0.8 + 0.2 * Math.sin(t * 17 + i * 1.9);
+      ctx.globalAlpha = 0.28 * Math.min(1, k * 2);
+      ctx.fillStyle = F.color;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, F.fireRadius * (0.8 + 0.2 * k), 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.75 * Math.min(1, k * 2);
+      ctx.fillStyle = '#ffd36a';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y - 3 * fl, F.fireRadius * 0.38 * fl * (0.5 + 0.5 * k), 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Смертельная аура: мягкое поле с пульсацией на тике и медленно бегущим пунктирным краем. */
+  drawAura(ctx, hx, hy) {
+    const au = this.aura;
+    if (!au || !au.active) return;
+    const R = au.radius;
+    const col = this.cfg.aura.color;
+    const t = this.clock;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.globalAlpha = 0.1 + 0.1 * au.pulse;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.5 + 0.3 * au.pulse;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 18;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * (1 + 0.02 * au.pulse), 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
   drawLasers(ctx) {
     const ls = this.lasers;
@@ -2653,11 +2773,13 @@ export class Renderer {
       const y1 = l.y + l.dy * l.len;
       const w = l.width * (1 + l.pulse * 0.25);
       const glow = l.big ? 2.6 : 1.7;
+      const lc = l.gen ? this.cfg.phantom.color : L.color; // фантомный луч фиолетовый
       ctx.globalAlpha = fade * (l.big ? 0.4 : 0.25);
-      ctx.strokeStyle = L.color;
+      ctx.strokeStyle = lc;
       ctx.lineWidth = w * glow;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.globalAlpha = fade * (l.big ? 0.95 : 0.7);
+      ctx.strokeStyle = lc;
       ctx.lineWidth = w;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.globalAlpha = fade;
@@ -2697,6 +2819,7 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.2;
     for (const b of bl) {
+      ctx.fillStyle = b.gen ? this.cfg.phantom.color : B.color; // фантомные клинки фиолетовые
       if (b.sphere) { // с Лазером клинки это сферы
         ctx.beginPath();
         ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
@@ -2793,7 +2916,7 @@ export class Renderer {
       ctx.fillText(label, x, y - 2);
     };
     const blockFrac = d.blocking
-      ? 1 - d.blockTime / this.cfg.block.duration
+      ? 1 - d.blockTime / d.blockDuration
       : d.blockCd > 0 ? 1 - d.blockCd / d.blockCdMax : 1;
     bar(bottom - 34, d.blocking ? (d.parrying ? 'Блок · парирование!' : 'Блок') : 'Блок', blockFrac,
       d.blocking ? (d.parrying ? C.parry : C.blockEdge) : d.blockCd > 0 ? C.border : C.hpHero);

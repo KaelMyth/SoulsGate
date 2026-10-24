@@ -7,6 +7,7 @@ import { applyMod, countPenalty, laserStats, projectileCount } from './build_cor
 function setBurn(p, cfg, m) {
   if (m && m.pierce) p.pierce = m.pierce.count; // пробитие: сколько врагов пройти насквозь
   if (m && m.frost) p.frost = true; // мороз (заряды замедления) у снаряда
+  if (m && m.phantom) p.phantom = Math.min(1, cfg.phantom.chance * m.phantom.mult); // фантомный выстрел: шанс при попадании
   if (!m || !m.burn) return;
   p.burnDmg = p.damage * cfg.burn.damageFrac * m.burn.damage;
   p.burnInt = cfg.burn.interval / m.burn.rate;
@@ -233,6 +234,7 @@ export class AutoAttack {
         frost: !!m.frost,
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
         pulse: 0,
+        gen: 0, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0, // фантом: шанс на каждый тик
       });
       fired++;
     }

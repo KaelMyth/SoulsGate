@@ -13,6 +13,8 @@ export function createProjectile() {
     pierce: 0,    // сколько врагов снаряд ещё может пройти насквозь
     hits: [],     // кого уже пробил (чтобы не бить одного дважды)
     steam: 0,     // связка Мороз+Горение: множитель горения облака пара (0 = нет связки)
+    gen: 0,       // поколение фантомного выстрела: 0 обычный, 1 порождён им, и так далее
+    phantom: 0,   // шанс породить фантом при попадании (0 = мод не стоит)
     burnDmg: 0, burnInt: 0, // поджог при попадании: урон тика и интервал (0 = не поджигает)
     travelled: 0,
     color: '#fff',
@@ -43,6 +45,8 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.frost = false;
   p.steam = 0;
   p.pierce = 0;
+  p.gen = 0;
+  p.phantom = 0;
   p.hits.length = 0;
   p.travelled = 0;
   p.color = def.color;
