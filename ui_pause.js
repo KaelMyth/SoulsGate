@@ -1,7 +1,20 @@
 // Кнопка паузы (на экране во время игры) и экран паузы: хранилище, поле билда, «Продолжить» и «Меню».
 // «Меню» открывает второе окно: «Новая игра» и «Выход» (выход возвращает на экран выбора режима).
 // Экран паузы лежит ниже кнопки ⚙ и отладочной панели, поэтому ползунки доступны во время паузы.
-import { h } from './ui_dom.js';
+import { h, svg } from './ui_dom.js';
+
+/** Шестерёнка низким полигоном: 8 зубцов и отверстие. */
+function gearIcon() {
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    for (const [a, r] of [[0, 9.4], [0.14, 12.4], [0.36, 12.4], [0.5, 9.4]]) {
+      const t = ((i + a) / 8) * Math.PI * 2;
+      pts.push((16 + Math.cos(t) * r).toFixed(1) + ',' + (16 + Math.sin(t) * r).toFixed(1));
+    }
+  }
+  return svg('svg', { viewBox: '0 0 32 32', 'aria-hidden': 'true' },
+    svg('path', { d: 'M' + pts.join('L') + 'ZM16 11.4l4.6 4.6-4.6 4.6-4.6-4.6z', fill: 'currentColor', 'fill-rule': 'evenodd' }));
+}
 import { BuilderUI } from './ui_builder.js';
 
 export class PauseUI {
@@ -10,7 +23,7 @@ export class PauseUI {
     this.storage = storage;
     this.button = h('button', {
       id: 'pause-btn', type: 'button', 'aria-label': 'Пауза', onclick: () => handlers.onToggle(),
-    }, '❚❚');
+    }, gearIcon());
     this.builder = new BuilderUI(grid, config, storage);
     // Тестовый набор (только режим «Тестирование»): одна кнопка открывает список всех модов из конфига,
     // нажатие на мод кладёт его в хранилище. Список выпадает вверх и листается: модов будет много.
@@ -57,7 +70,6 @@ export class PauseUI {
 
   setPaused(on) {
     this.screen.hidden = !on;
-    this.button.textContent = on ? '▶︎' : '❚❚';
     this.button.classList.toggle('on', on);
     this.showMenu(false);
     this.showTools(false);

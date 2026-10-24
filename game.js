@@ -193,6 +193,7 @@ export class Game {
     this.slotPresses = 0;
     this.slot = new SlotUI(o.uiRoot, (n) => {
       this.slotPresses = n;
+      this.hud.slotFlash = 1;
       this.bus.emit('slot:pressed', { count: n });
     });
 
