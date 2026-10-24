@@ -770,65 +770,44 @@ export class Renderer {
     ctx.closePath();
   }
 
-  /** Всё, что босс кладёт на землю: разломы, линия-телеграф рывка, телеграф и вспышка взрыва. */
+  /**
+   * ЗАГЛУШКА ГРАФИКИ (Тартас): всё, что босс кладёт на землю, простыми формами без деталей.
+   * Данные берём из systems_boss.js (fissures, tele, blast), цвета из config.render.colors.
+   * Графика может заменить любую из трёх частей, не трогая логику.
+   */
   drawBossGround(C) {
     const b = this.boss;
     if (!b) return;
     const ctx = this.ctx;
 
-    // Разломы: полоса холода, тёмная трещина с ледяной жилой и иней по бокам. Таят в конце цикла.
+    // Разломы: плоская полоса вдоль отрезка. Таят в конце цикла (fissureAlpha).
     if (b.fissures.length) {
       ctx.save();
       ctx.globalAlpha = b.fissureAlpha();
-      ctx.lineJoin = 'round';
+      ctx.strokeStyle = C.frostMist;
       for (let i = 0; i < b.fissures.length; i++) {
         const f = b.fissures[i];
         ctx.beginPath();
         ctx.moveTo(f.x1, f.y1);
         ctx.lineTo(f.x2, f.y2);
         ctx.lineWidth = f.hw * 2;
-        ctx.strokeStyle = C.frostMist;
-        ctx.stroke();
-        ctx.beginPath();
-        for (let k = 0; k < f.pts.length; k++) {
-          if (k === 0) ctx.moveTo(f.pts[k].x, f.pts[k].y);
-          else ctx.lineTo(f.pts[k].x, f.pts[k].y);
-        }
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = C.crack;
-        ctx.stroke();
-        ctx.lineWidth = 1.6;
-        ctx.strokeStyle = C.fissureCore;
-        ctx.stroke();
-        ctx.beginPath();
-        for (let k = 0; k < f.ticks.length; k++) {
-          const t = f.ticks[k];
-          ctx.moveTo(t.x, t.y);
-          ctx.lineTo(t.x + t.nx * t.len, t.y + t.ny * t.len);
-        }
-        ctx.lineWidth = 1.2;
         ctx.stroke();
       }
       ctx.restore();
     }
 
-    // Линия рывка: узкая, видна сразу, к концу задержки контур мигает.
+    // Линия рывка: узкий прямоугольник от босса через героя и дальше.
     const tl = b.tele;
     if (tl) {
-      const len = Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1);
-      const blink = tl.t / Math.max(0.01, tl.total) > 0.6 && (Math.floor(tl.t * 24) & 1);
       ctx.save();
       ctx.translate(tl.x1, tl.y1);
       ctx.rotate(Math.atan2(tl.y2 - tl.y1, tl.x2 - tl.x1));
       ctx.fillStyle = C.teleProgress;
-      ctx.fillRect(0, -tl.hw, len, tl.hw * 2);
-      ctx.lineWidth = blink ? 2.5 : 1.5;
-      ctx.strokeStyle = C.teleEdge;
-      ctx.strokeRect(0, -tl.hw, len, tl.hw * 2);
+      ctx.fillRect(0, -tl.hw, Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1), tl.hw * 2);
       ctx.restore();
     }
 
-    // Область пересечения разломов: телеграф заполняется к центру, потом вспышка взрыва.
+    // Область взрыва (треугольник): телеграф заполняется к центру, потом одноцветная вспышка.
     const bl = b.blast;
     if (bl) {
       if (bl.phase === 'tele') {
@@ -839,20 +818,12 @@ export class Renderer {
         this.polyPath(bl.poly, bl.x, bl.y, k);
         ctx.fillStyle = C.teleProgress;
         ctx.fill();
-        this.polyPath(bl.poly, bl.x, bl.y, 1);
-        ctx.lineWidth = k > 0.7 && (Math.floor(k * 18) & 1) ? 2.5 : 1.5;
-        ctx.strokeStyle = C.teleEdge;
-        ctx.stroke();
       } else {
-        const a = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total));
         ctx.save();
-        ctx.globalAlpha = 0.25 + 0.75 * a;
+        ctx.globalAlpha = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total)) * 0.75;
         this.polyPath(bl.poly, bl.x, bl.y, 1);
         ctx.fillStyle = C.blastFill;
         ctx.fill();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#ffffff';
-        ctx.stroke();
         ctx.restore();
       }
     }
@@ -1808,6 +1779,23 @@ export class Renderer {
     ctx.strokeStyle = C.heroEdge;
     ctx.stroke();
 
+    // ЗАГЛУШКА ГРАФИКИ: статусы героя от разломов Тартаса, по кольцу на статус (замедлен: голубое, горит: оранжевое).
+    // Данные: hero.slowT и hero.burnT (секунд до конца), цвета из config.frost / config.burn.
+    if (hero.slowT > 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = this.cfg.frost.color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r + 2, 0, TAU);
+      ctx.stroke();
+    }
+    if (hero.burnT > 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = this.cfg.burn.color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r + 5, 0, TAU);
+      ctx.stroke();
+    }
+
     const cos = Math.cos(hero.facing);
     const sin = Math.sin(hero.facing);
     const tipX = hx + cos * r * 1.9;
@@ -1990,28 +1978,23 @@ export class Renderer {
     if (!hud.gameMode) this.drawCooldowns(C); // в игре перезарядки показаны дугами вокруг героя
   }
 
-  /** Имя босса при вступлении: по центру чуть ниже босса (он в центре кадра), проявляется и гаснет; кадр слегка темнеет. */
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: имя босса при вступлении, простой текст ниже центра кадра (босс в центре).
+   * Данные: hud.bossTitle (текст) и hud.bossTitleAlpha (0..1, проявляется и гаснет).
+   */
   drawBossTitle(C) {
     const hud = this.hud;
     if (!hud.bossTitle || !(hud.bossTitleAlpha > 0)) return;
     const ctx = this.ctx;
-    const a = Math.min(1, hud.bossTitleAlpha);
     ctx.save();
-    ctx.globalAlpha = 0.28 * a;
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, this.w, this.h);
-    ctx.globalAlpha = a;
+    ctx.globalAlpha = Math.min(1, hud.bossTitleAlpha);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    // Подгоняем размер, чтобы имя помещалось по ширине узкого экрана.
-    ctx.font = '700 30px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '700 28px ui-sans-serif, system-ui, sans-serif';
     const tw = ctx.measureText(hud.bossTitle).width;
-    const size = Math.max(14, Math.floor(30 * Math.min(1, (this.w * 0.88) / Math.max(1, tw))));
+    const size = Math.max(14, Math.floor(28 * Math.min(1, (this.w * 0.88) / Math.max(1, tw)))); // влезть в узкий экран
     ctx.font = '700 ' + size + 'px ui-sans-serif, system-ui, sans-serif';
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = 'rgba(7,10,16,0.85)';
-    ctx.strokeText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
-    ctx.fillStyle = '#d6ecff';
+    ctx.fillStyle = C.hud;
     ctx.fillText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
     ctx.restore();
   }

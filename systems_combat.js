@@ -50,6 +50,22 @@ export class Combat {
     return true;
   }
 
+  /**
+   * Периодический урон по герою (горение): мимо блока и неуязвимости после удара, и сам неуязвимость не включает,
+   * иначе тики «съедали» бы окно защиты от настоящих ударов. Событие 'damage:dealt' с source.burn = true.
+   */
+  damageHeroDot(amount, source) {
+    const hero = this.hero;
+    if (!hero.active || amount <= 0) return false;
+    hero.hp = Math.max(0, hero.hp - amount);
+    this.bus.emit('damage:dealt', { target: hero, targetKind: 'hero', amount, source, hp: hero.hp });
+    if (hero.hp <= 0) {
+      hero.active = false;
+      this.bus.emit('hero:died', { source });
+    }
+    return true;
+  }
+
   /** Возвращает true, если удар состоялся: урон прошёл или его целиком впитал блок (парированный или отменённый удар: false). */
   damageHero(amount, source) {
     const hero = this.hero;
