@@ -191,10 +191,10 @@ export class Game {
     }, this.build, this.inventory, config);
 
     this.slotPresses = 0;
-    this.slot = new SlotUI(o.uiRoot, (n) => {
+    this.slot = new SlotUI(o.uiRoot, (n, i) => {
       this.slotPresses = n;
-      this.hud.slotFlash = 1;
-      this.bus.emit('slot:pressed', { count: n });
+      this.hud.slotFlash = i + 1;
+      this.bus.emit('slot:pressed', { count: n, slot: i });
     });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).

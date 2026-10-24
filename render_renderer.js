@@ -525,7 +525,7 @@ export class Renderer {
     this.glowRed = null;          // то же, красное: для быка
     this.glowBlue = null;         // то же, голубое: кристалл посоха героя
     this.glowGold = null;         // то же, золотое: щит в окне парирования, подсветка цели
-    this.ui = { hp: 1, hpTrail: 1, xp: 0, boss: 1, bossTrail: 1, bossK: 0, slot: 0 }; // сглаженные значения интерфейса
+    this.ui = { hp: 1, hpTrail: 1, hpShow: 0, xp: 0, boss: 1, bossTrail: 1, bossK: 0, slots: [0, 0, 0] }; // сглаженные значения интерфейса
     this.tglow = { cur: null, curK: 0, prev: null, prevK: 0 }; // подсветка цели автоатаки: текущая и затухающая прежняя
     this.shield = {               // вид щита: появление, цвет золото-синий, вспышка парирования и отклики на удары
       k: 0, pk: 0, flash: 0,
@@ -660,6 +660,7 @@ export class Renderer {
       if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // молния вместо героя
       else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
+      this.drawHeroArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
@@ -2374,6 +2375,63 @@ export class Renderer {
     ctx.fill();
   }
 
+  /**
+   * Вокруг героя: слева дуга перезарядки блока, справа рывка, сверху полудуга здоровья с цифрами.
+   * Дуги перезарядки видны, только пока идёт перезарядка. Здоровье скрыто при полном запасе. Мировые координаты.
+   */
+  drawHeroArcs(hx, hy, C) {
+    const ctx = this.ctx;
+    const d = this.defense;
+    const U = this.ui;
+    const hero = this.hero;
+    const sc = (ctx.getTransform().a || 1) / this.dpr; // css-пикселей на единицу мира: цифры одного размера при любом зуме
+    const r = hero.radius + 9;
+    const half = 0.9; // половина угла дуги, рад
+    const arc = (rr, a0, a1, frac, color, w) => {
+      ctx.lineCap = 'round';
+      ctx.lineWidth = w;
+      ctx.strokeStyle = 'rgba(190,215,250,0.16)';
+      ctx.beginPath();
+      ctx.arc(hx, hy, rr, a0, a1);
+      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, rr, a0, a0 + (a1 - a0) * Math.max(0, Math.min(1, frac)));
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    if (d) {
+      if (!d.blocking && d.blockCd > 0) arc(r, Math.PI - half, Math.PI + half, 1 - d.blockCd / d.blockCdMax, '#8cc8ff', 3);
+      if (d.dashCd > 0) arc(r, -half, half, 1 - d.dashCd / d.dashCdMax, '#b79cff', 3);
+    }
+    // Здоровье: плавно проявляется, когда оно не полное, и исчезает при полном.
+    const maxHp = this.cfg.hero.maxHp || 1;
+    const full = hero.hp >= maxHp - 1e-6;
+    U.hpShow += ((full ? 0 : 1) - U.hpShow) * (1 - Math.exp(-this.dt / (full ? 0.5 : 0.1)));
+    if (full) U.hp = U.hpTrail = 1;
+    if (U.hpShow < 0.02) return;
+    const hpT = Math.max(0, Math.min(1, hero.hp / maxHp));
+    U.hp += (hpT - U.hp) * (1 - Math.exp(-this.dt / 0.07));
+    U.hpTrail = hpT > U.hpTrail ? hpT : U.hpTrail + (U.hp - U.hpTrail) * (1 - Math.exp(-this.dt / 0.55));
+    const R = r + 12;
+    const a0 = Math.PI * 1.08;
+    const a1 = Math.PI * 1.92;
+    const pulse = hpT < 0.3 ? 0.5 + 0.5 * Math.sin(this.clock * 6) : 0;
+    ctx.globalAlpha = U.hpShow;
+    arc(R, a0, a1, 1, 'rgba(0,0,0,0)', 4.5);
+    if (U.hpTrail > U.hp) arc(R, a0, a1, U.hpTrail, 'rgba(255,200,190,0.55)', 4.5);
+    arc(R, a0, a1, U.hp, pulse > 0 ? 'rgb(255,' + Math.round(95 + 60 * pulse) + ',' + Math.round(85 + 60 * pulse) + ')' : '#e5534b', 4.5);
+    ctx.font = '500 ' + (13 / sc).toFixed(2) + 'px ' + SERIF;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const txt = Math.ceil(hero.hp) + ' / ' + maxHp;
+    ctx.fillStyle = 'rgba(6,10,22,0.7)';
+    ctx.fillText(txt, hx + 0.8 / sc, hy - R - 7 / sc + 0.8 / sc);
+    ctx.fillStyle = C.hud;
+    ctx.fillText(txt, hx, hy - R - 7 / sc);
+    ctx.globalAlpha = 1;
+  }
+
   /** Текст с разрядкой: canvas.letterSpacing есть не во всех Safari, поэтому ставим буквы по одной. */
   tracked(text, x, y, sp, align) {
     const ctx = this.ctx;
@@ -2426,8 +2484,6 @@ export class Renderer {
     const ctx = this.ctx;
     const U = this.ui;
     const dt = this.dt;
-    const hero = this.hero;
-    const maxHp = this.cfg.hero.maxHp || 1;
     const ins = hud.insets;
     const w = this.w;
     const h = this.h;
@@ -2435,13 +2491,10 @@ export class Renderer {
     const k = (tau) => 1 - Math.exp(-dt / tau);
 
     // Сглаженные значения: полоска плавно едет, а «след урона» догоняет её медленнее.
-    const hpT = Math.max(0, Math.min(1, hero.hp / maxHp));
-    U.hp += (hpT - U.hp) * k(0.07);
-    U.hpTrail = hpT > U.hpTrail ? hpT : U.hpTrail + (U.hp - U.hpTrail) * k(0.55);
     U.xp += ((hud.xpFraction || 0) - U.xp) * k(0.12);
-    U.slot = Math.max(0, U.slot - dt * 4);
+    for (let i = 0; i < 3; i++) U.slots[i] = Math.max(0, U.slots[i] - dt * 4);
     if (hud.slotFlash > 0) {
-      U.slot = 1;
+      U.slots[hud.slotFlash - 1] = 1;
       hud.slotFlash = 0;
     }
     const boss = this.boss && this.boss.enemy && this.boss.enemy.active ? this.boss.enemy : null;
@@ -2557,33 +2610,22 @@ export class Renderer {
       ctx.fill();
     }
 
-    // Здоровье и опыт слева внизу.
+    // Опыт: тонкая полоса у нижней кромки, уровень слева над ней. Здоровье и перезарядки рисуются у героя (drawHeroArcs).
     const rowY = h - ins.bottom - 44;
-    const slotX = w - ins.right - 12 - 30;
-    const x0 = ins.left + 20;
-    const bw = Math.max(80, Math.min(190, slotX - 128 - 30 - 18 - x0));
-    this.drawBar(x0, rowY - 5, bw, 9, U.hp, U.hpTrail, '#d9453f', '#ff8379', 'rgba(255,200,190,0.55)', hpT < 0.3 ? 0.5 + 0.5 * Math.sin(this.clock * 6) : 0);
-    this.drawBar(x0, rowY + 9, bw, 4, U.xp, U.xp, hud.xpMax ? C.accent : '#4f93ee', hud.xpMax ? '#ffe0b0' : '#a9d3ff', null, 0);
-    ctx.font = '12px ' + SERIF;
+    const bx = ins.left + 16;
+    const bwid = w - ins.left - ins.right - 32;
+    this.drawBar(bx, h - ins.bottom - 8, bwid, 3, U.xp, U.xp, hud.xpMax ? C.accent : '#4f93ee', hud.xpMax ? '#ffe0b0' : '#a9d3ff', null, 0);
+    ctx.font = 'italic 12px ' + SERIF;
     ctx.fillStyle = C.hud;
     ctx.globalAlpha = 0.7;
     ctx.textAlign = 'left';
-    ctx.fillText(Math.ceil(hero.hp) + ' / ' + maxHp, x0, rowY - 20);
-    ctx.textAlign = 'right';
-    ctx.font = 'italic 12px ' + SERIF;
-    ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), x0 + bw, rowY - 20);
+    ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), bx, h - ins.bottom - 22);
     ctx.globalAlpha = 1;
 
-    // Три умения: блок, рывок, слот. Справа, чтобы дотягивался большой палец.
-    const d = this.defense;
-    if (d) {
-      const blockFrac = d.blocking || d.blockCd <= 0 ? 1 : 1 - d.blockCd / d.blockCdMax;
-      const dashFrac = d.dashCd > 0 ? 1 - d.dashCd / d.dashCdMax : 1;
-      const parry = d.blocking && d.parrying;
-      this.drawAbility(slotX - 128, rowY, blockFrac, parry ? C.shieldParry : '#6fb6ff', parry ? C.shieldParryLight : '#d6efff', 0, d.blocking, parry ? 'gold' : 'blue');
-      this.drawAbility(slotX - 64, rowY, dashFrac, '#a98bff', '#e4d8ff', 1, this.hero.dashing, true);
-    }
-    this.drawAbility(slotX, rowY, 1, '#ffb14a', '#ffe2b0', 2, U.slot > 0.01, false, U.slot);
+    // Три слота умений по центру: снежинка, вихрь, пламя. Умения будут разные; пока это заглушки.
+    this.drawAbility(cx - 64, rowY, 1, '#6fb6ff', '#d6efff', 0, U.slots[0] > 0.01, false, U.slots[0]);
+    this.drawAbility(cx, rowY, 1, '#a98bff', '#e4d8ff', 1, U.slots[1] > 0.01, true, U.slots[1]);
+    this.drawAbility(cx + 64, rowY, 1, '#ffb14a', '#ffe2b0', 2, U.slots[2] > 0.01, false, U.slots[2]);
 
     // Повышение уровня: надпись плавно гаснет.
     if (hud.levelFlash > 0) {
@@ -2677,30 +2719,29 @@ export class Renderer {
     ctx.lineWidth = 2.2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    if (kind === 0) {
+    if (kind === 0) { // снежинка
       ctx.beginPath();
-      ctx.arc(cx, cy, 9, 0, TAU);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(cx, cy, 5.5, Math.PI * 1.1, Math.PI * 1.75);
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    } else if (kind === 1) {
-      for (let i = -1; i <= 1; i++) {
-        ctx.beginPath();
-        ctx.moveTo(cx + i * 7 - 4, cy - 8);
-        ctx.lineTo(cx + i * 7 + 3, cy);
-        ctx.lineTo(cx + i * 7 - 4, cy + 8);
-        ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        const a = i * Math.PI / 3 - Math.PI / 2;
+        ctx.moveTo(cx - Math.cos(a) * 11, cy - Math.sin(a) * 11);
+        ctx.lineTo(cx + Math.cos(a) * 11, cy + Math.sin(a) * 11);
       }
-    } else {
+      ctx.stroke();
+    } else if (kind === 1) { // вихрь
       ctx.beginPath();
-      ctx.moveTo(cx, cy - 12);
-      ctx.lineTo(cx + 8, cy - 2);
-      ctx.lineTo(cx, cy + 12);
-      ctx.lineTo(cx - 8, cy - 2);
+      ctx.arc(cx, cy, 10, 0.4, TAU - 0.5);
+      ctx.arc(cx, cy, 5.5, TAU - 0.5, 0.9, true);
+      ctx.stroke();
+    } else { // пламя
+      ctx.beginPath();
+      ctx.moveTo(cx + 1, cy - 13);
+      ctx.lineTo(cx + 9, cy + 1);
+      ctx.lineTo(cx + 5, cy + 11);
+      ctx.lineTo(cx - 5, cy + 11);
+      ctx.lineTo(cx - 9, cy + 2);
+      ctx.lineTo(cx - 3, cy - 3);
       ctx.closePath();
-      ctx.globalAlpha *= 0.55;
+      ctx.globalAlpha *= 0.5;
       ctx.fill();
       ctx.globalAlpha = ready || hot ? 1 : 0.5;
       ctx.stroke();
