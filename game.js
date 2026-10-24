@@ -627,6 +627,7 @@ export class Game {
       this.runTime += dt;
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      this.camera.zoomTarget = this.boss.cameraZoom(); // атака клинками отдаляет экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
@@ -887,6 +888,7 @@ export class Game {
     this.cine = null;
     this.hud.bossTitle = '';
     this.hud.bossTitleAlpha = 0;
+    this.camera.resetZoom();
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.autoattack.reset();
     this.spawner.reset();

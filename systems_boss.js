@@ -1,6 +1,14 @@
-// Миниборс Тартас: цикл атак с телеграфами. Числа лежат в config.enemies.tartas.cycle.
+// Миниборс Тартас: атаки с телеграфами. Числа лежат в config.enemies.tartas.cycle.
 //
-// Цикл: босс идёт к герою; когда подошёл на startRange, начинается цикл из dashes рывков подряд:
+// Пул атак (cycle.pool): рывки и клинки (третья атака добавится сюда же). Когда босс подошёл на startRange,
+// следующая атака выбирается случайно из пула, но не та, что была прошлой: тип в кд, пока не применится другой.
+//
+// Атака 2, клинки: босс стоит, камера отъезжает (cameraZoom), вокруг героя появляются кольцом 4, затем 8,
+// затем 16 клинков. Видны их линии через точку, где герой стоял; клинки вылетают по одному в случайном порядке
+// и пролетают линию почти мгновенно (как рывок). Каждый клинок бьёт один раз, его можно парировать.
+// Состояния: idle → bladeIn → (bladeWave → bladeGap)×3 → recover → idle.
+//
+// Атака 1, рывки: босс идёт к герою; когда подошёл на startRange, начинается цикл из dashes рывков подряд:
 //   телеграф (узкая линия через героя и дальше, видна сразу) → пауза telegraphDelay →
 //   почти мгновенный рывок по линии (урон по линии) → на месте линии остаётся разлом (до конца цикла) →
 //   пауза gap → следующий рывок.
@@ -192,6 +200,14 @@ export class Boss {
     this.line = null;   // текущая линия рывка
     this.travel = 0;
     this.hit = false;
+    // Пул атак. last: тип прошлой атаки, он «в кд», пока не применится любой другой. attack: идущая сейчас.
+    this.last = '';
+    this.attack = '';
+    // Клинки (вторая атака): объекты заводятся один раз и переиспользуются, в бою новых не создаём.
+    this.blades = [];      // { x, y, x1, y1, x2, y2, dx, dy, len, hw, travel, launchAt, state, active, hit, parryable }
+    this.bladeCount = 0;   // сколько клинков в текущей волне
+    this.bladeWave = 0;    // номер текущей волны клинков (0, 1, 2)
+    this.bladeOrder = [];  // случайный порядок вылета (перестановка индексов)
     this.bus.on('boss:spawned', ({ enemy }) => this.attach(enemy));
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.enemy) this.detach(); });
   }
@@ -204,8 +220,40 @@ export class Boss {
   attach(e) {
     this.clear();
     this.enemy = e;
-    this.cd = e.def.cycle ? e.def.cycle.firstDelay : 0;
+    const C = e.def.cycle;
+    this.cd = C ? C.firstDelay : 0;
+    // Запас объектов под самую большую волну клинков.
+    const B = C && C.blades;
+    const max = B ? Math.max.apply(null, B.waves) : 0;
+    while (this.blades.length < max) {
+      this.blades.push({
+        x: 0, y: 0, x1: 0, y1: 0, x2: 0, y2: 0, dx: 1, dy: 0, len: 1, hw: 7, travel: 0, launchAt: 0,
+        state: 0, active: false, hit: false, parryable: true, enemy: null,
+      });
+      this.bladeOrder.push(0);
+    }
     this.setState('idle');
+  }
+
+  /**
+   * Следующая атака из пула (cycle.pool). Тип, которым била прошлая атака, в кд: пока не применится другой,
+   * его не берём; из остальных выбираем случайно. forceAttack (для проверки): 1 только рывки, 2 только клинки.
+   */
+  pickAttack(C) {
+    if (C.forceAttack === 1) return 'dash';
+    if (C.forceAttack === 2 && C.blades) return 'blades';
+    const pool = (C.pool && C.pool.length ? C.pool : ['dash']).filter((k) => k === 'dash' || (k === 'blades' && C.blades));
+    let list = pool.filter((k) => k !== this.last);
+    if (!list.length) list = pool; // в пуле один тип: повторять нечем
+    return list[Math.min(list.length - 1, Math.floor(this.rnd() * list.length))];
+  }
+
+  /** Во сколько раз камера должна быть отдалена сейчас: во время атаки клинками C.blades.zoom, иначе 1. */
+  cameraZoom() {
+    const e = this.enemy;
+    if (!e || !e.active || this.attack !== 'blades' || !e.def.cycle || !e.def.cycle.blades) return 1;
+    const s = this.state;
+    return s === 'bladeIn' || s === 'bladeWave' || s === 'bladeGap' ? e.def.cycle.blades.zoom : 1;
   }
 
   /** Босс убит: всё, что он оставил на земле, исчезает. */
@@ -228,6 +276,14 @@ export class Boss {
     this.t = 0;
     this.n = 0;
     this.hit = false;
+    this.last = '';
+    this.attack = '';
+    this.bladeCount = 0;
+    this.bladeWave = 0;
+    for (let i = 0; i < this.blades.length; i++) {
+      this.blades[i].state = 0;
+      this.blades[i].active = false;
+    }
   }
 
   setState(s) {
@@ -270,7 +326,127 @@ export class Boss {
       case 'blastTele': this.updateBlastTele(e, C); break;
       case 'blast': this.updateBlast(e, C); break;
       case 'recover': this.updateRecover(e, C); break;
+      case 'bladeIn': if (this.t >= C.blades.zoomWait) this.spawnBladeWave(e, C); break;
+      case 'bladeWave': this.updateBladeWave(e, C, dt); break;
+      case 'bladeGap': if (this.t >= C.blades.waveGap) this.spawnBladeWave(e, C); break;
       default: break;
+    }
+  }
+
+  /** Атака клинками: босс стоит, камера отъезжает (cameraZoom), потом волны клинков 4, 8, 16 (cycle.blades.waves). */
+  startBlades(e, C) {
+    this.bladeWave = 0;
+    this.bladeCount = 0;
+    this.setState('bladeIn');
+    this.bus.emit('boss:blades-start', { enemy: e });
+  }
+
+  /**
+   * Волна: клинки появляются кольцом вокруг героя (на B.radius) и целятся в то место, где герой стоит сейчас.
+   * Линии видны сразу; клинки вылетают по одному в случайном порядке с задержкой launchInterval.
+   * Если герой у стены, клинок ставится на границе арены, а линия всё равно идёт через центр.
+   */
+  spawnBladeWave(e, C) {
+    const B = C.blades;
+    const n = Math.min(B.waves[this.bladeWave], this.blades.length);
+    const cx = this.hero.x;
+    const cy = this.hero.y;
+    const phase = this.rnd() * Math.PI * 2;
+    const step = (Math.PI * 2) / n;
+    const order = this.bladeOrder;
+    for (let i = 0; i < n; i++) order[i] = i;
+    for (let i = n - 1; i > 0; i--) { // случайная перестановка: кто вылетит первым, вторым и так далее
+      const j = Math.min(i, Math.floor(this.rnd() * (i + 1)));
+      const tmp = order[i];
+      order[i] = order[j];
+      order[j] = tmp;
+    }
+    const A = this.arena;
+    for (let i = 0; i < n; i++) {
+      const bl = this.blades[i];
+      const a = phase + i * step;
+      let sx = cx + Math.cos(a) * B.radius;
+      let sy = cy + Math.sin(a) * B.radius;
+      sx = Math.max(A.left + 12, Math.min(A.right - 12, sx));
+      sy = Math.max(A.top + 12, Math.min(A.bottom - 12, sy));
+      let dx = cx - sx;
+      let dy = cy - sy;
+      let d = Math.hypot(dx, dy);
+      if (d < 1e-3) {
+        dx = -Math.cos(a);
+        dy = -Math.sin(a);
+        d = 0;
+      } else {
+        dx /= d;
+        dy /= d;
+      }
+      const len = this.clipToArena(sx, sy, dx, dy, d + B.overshoot, 0);
+      bl.x = bl.x1 = sx;
+      bl.y = bl.y1 = sy;
+      bl.dx = dx;
+      bl.dy = dy;
+      bl.len = Math.max(1, len);
+      bl.x2 = sx + dx * bl.len;
+      bl.y2 = sy + dy * bl.len;
+      bl.hw = B.width / 2;
+      bl.travel = 0;
+      bl.hit = false;
+      bl.state = 1; // ждёт вылета
+      bl.active = true; // false: клинок парирован (защита гасит источник) или долетел
+      bl.parryable = B.parryable !== false;
+    }
+    for (let k = 0; k < n; k++) this.blades[order[k]].launchAt = B.telegraphDelay + k * B.launchInterval;
+    this.bladeCount = n;
+    this.setState('bladeWave');
+    this.bus.emit('boss:blades-spawn', { count: n, x: cx, y: cy, wave: this.bladeWave });
+  }
+
+  /** Волна идёт: клинки по расписанию вылетают и пролетают линию почти мгновенно; задели героя: урон (парируется). */
+  updateBladeWave(e, C, dt) {
+    const B = C.blades;
+    const hero = this.hero;
+    let live = 0;
+    for (let i = 0; i < this.bladeCount; i++) {
+      const bl = this.blades[i];
+      if (bl.state === 3) continue;
+      if (bl.state === 1) {
+        if (this.t < bl.launchAt) {
+          live++;
+          continue;
+        }
+        bl.state = 2;
+        this.bus.emit('boss:blade-fly', { blade: bl });
+      }
+      // Летит. Парированный клинок гаснет (защита снимает active у источника удара).
+      if (!bl.active) {
+        bl.state = 3;
+        continue;
+      }
+      const speed = bl.len / Math.max(0.01, B.time);
+      const step = Math.min(speed * dt, bl.len - bl.travel);
+      const px = bl.x;
+      const py = bl.y;
+      bl.x += bl.dx * step;
+      bl.y += bl.dy * step;
+      bl.travel += step;
+      if (!bl.hit && hero.active && segDist(hero.x, hero.y, px, py, bl.x, bl.y) <= bl.hw + this.reachRadius()) {
+        bl.hit = true; // один клинок бьёт один раз
+        this.combat.damageHero(B.damage, bl); // блок гасит часть, парирование (если окно открыто) гасит всё
+      }
+      if (!bl.active || bl.travel >= bl.len - 1e-6) {
+        bl.state = 3;
+        bl.active = false;
+      } else {
+        live++;
+      }
+    }
+    if (live > 0) return;
+    this.bladeWave++;
+    if (this.bladeWave < B.waves.length) {
+      this.setState('bladeGap');
+    } else {
+      this.bladeCount = 0;
+      this.setState('recover'); // камера возвращается (cameraZoom вернёт 1), босс стоит и уязвим
     }
   }
 
@@ -320,10 +496,12 @@ export class Boss {
     if (this.cd > 0 || !this.hero.active) return;
     const d = Math.hypot(this.hero.x - e.x, this.hero.y - e.y);
     if (d > C.startRange) return;
-    this.fissures.length = 0; // цикл начинается с чистой земли
+    this.fissures.length = 0; // атака начинается с чистой земли
     this.fade = 0;
     this.n = 0;
-    this.startTele(e, C);
+    this.attack = this.last = this.pickAttack(C);
+    if (this.attack === 'blades') this.startBlades(e, C);
+    else this.startTele(e, C);
   }
 
   /** Линия через героя и дальше: направление запоминается сейчас, от неё можно уйти. */
