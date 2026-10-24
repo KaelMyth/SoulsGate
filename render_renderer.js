@@ -796,6 +796,31 @@ export class Renderer {
       ctx.restore();
     }
 
+    // Клинки (вторая атака). Ждущий клинок: на земле его линия, сам он стоит на краю кольца.
+    // Летящий: короткая чёрточка по ходу полёта. Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state }, b.bladeCount;
+    // state 1 ждёт вылета, 2 летит, 3 закончил. Каждая группа рисуется одним проходом.
+    if (b.bladeCount > 0) {
+      const bl = b.blades;
+      ctx.beginPath();
+      for (let i = 0; i < b.bladeCount; i++) {
+        if (bl[i].state !== 1) continue;
+        ctx.moveTo(bl[i].x1, bl[i].y1);
+        ctx.lineTo(bl[i].x2, bl[i].y2);
+      }
+      ctx.lineWidth = bl[0].hw * 2;
+      ctx.strokeStyle = C.teleProgress;
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i < b.bladeCount; i++) {
+        if (bl[i].state === 3) continue;
+        ctx.moveTo(bl[i].x - bl[i].dx * 26, bl[i].y - bl[i].dy * 26);
+        ctx.lineTo(bl[i].x, bl[i].y);
+      }
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = C.fissureCore;
+      ctx.stroke();
+    }
+
     // Линия рывка: узкий прямоугольник от босса через героя и дальше.
     const tl = b.tele;
     if (tl) {
