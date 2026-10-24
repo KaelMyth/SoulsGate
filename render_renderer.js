@@ -523,7 +523,8 @@ export class Renderer {
     this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
     this.glowRed = null;          // то же, красное: для быка
     this.glowBlue = null;         // то же, голубое: кристалл посоха героя
-    this.glowGold = null;         // то же, золотое: щит в окне парирования
+    this.glowGold = null;         // то же, золотое: щит в окне парирования, подсветка цели
+    this.tglow = { cur: null, curK: 0, prev: null, prevK: 0 }; // подсветка цели автоатаки: текущая и затухающая прежняя
     this.shield = {               // вид щита: появление, цвет золото-синий, вспышка парирования и отклики на удары
       k: 0, pk: 0, flash: 0,
       rip: [{ on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false },
@@ -631,6 +632,11 @@ export class Renderer {
     this.drawTelegraphs(C, alpha);
     this.drawBossGround(C);
 
+    // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
+    const target = this.autoattack && this.autoattack.target;
+    this.updateTargetGlow(target && target.active ? target : null, this.dt);
+    this.drawTargetGlow(alpha, false);
+
     // Враги.
     const en = this.enemies.items;
     for (let i = 0; i < en.length; i++) {
@@ -645,17 +651,7 @@ export class Renderer {
 
     this.drawDust(this.dt);
 
-    // Метка на цели автоатаки.
-    const target = this.autoattack && this.autoattack.target;
-    if (target && target.active) {
-      const tx = target.prevX + (target.x - target.prevX) * alpha;
-      const ty = target.prevY + (target.y - target.prevY) * alpha;
-      ctx.beginPath();
-      ctx.arc(tx, ty, target.radius + 5, 0, TAU);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = C.target;
-      ctx.stroke();
-    }
+    this.drawTargetGlow(alpha, true);
 
     if (hero.active) {
       this.drawAura(ctx, hx, hy);
@@ -2445,6 +2441,56 @@ export class Renderer {
     ctx.fillStyle = C.hud;
     ctx.fillText(hud.bossTitle, this.w / 2, this.h / 2 + 72);
     ctx.restore();
+  }
+
+  /** Подсветка цели: новая цель разгорается за ~0.08 с, прежняя гаснет за ~0.1 с, без резкой смены. */
+  updateTargetGlow(target, dt) {
+    const T = this.tglow;
+    if (target) {
+      if (T.cur !== target) {
+        T.prev = T.cur;
+        T.prevK = T.curK;
+        T.cur = target;
+        T.curK = 0;
+      }
+      T.curK += (1 - T.curK) * (1 - Math.exp(-dt / 0.08));
+    } else if (T.cur) {
+      T.prev = T.cur;
+      T.prevK = T.curK;
+      T.cur = null;
+      T.curK = 0;
+    }
+    T.prevK *= Math.exp(-dt / 0.1);
+    if (T.prevK < 0.02) T.prev = null;
+  }
+
+  /**
+   * Мягкое жёлтое свечение цели (спрайт золотого света, сложение цветов). over = false: подсветка под врагом,
+   * true: слабый тон поверх, чтобы сам враг чуть теплел. Никаких линий и кругов с краем.
+   */
+  drawTargetGlow(alpha, over) {
+    const T = this.tglow;
+    const ctx = this.ctx;
+    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 5);
+    let sprite = null;
+    for (let i = 0; i < 2; i++) {
+      const e = i === 0 ? T.cur : T.prev;
+      const k = i === 0 ? T.curK : T.prevK;
+      if (!e || !e.active || k < 0.02) continue;
+      if (!sprite) {
+        sprite = this.getGlow('gold');
+        ctx.globalCompositeOperation = 'lighter';
+      }
+      const x = e.prevX + (e.x - e.prevX) * alpha;
+      const y = e.prevY + (e.y - e.prevY) * alpha;
+      const g = e.radius * (over ? 1.7 : 2.6 + 0.2 * pulse);
+      ctx.globalAlpha = k * (over ? 0.15 : 0.4 + 0.08 * pulse);
+      ctx.drawImage(sprite, x - g, y - g, g * 2, g * 2);
+    }
+    if (sprite) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
   }
 
   /** Удар по щиту: игра сообщает, откуда прилетело (sx, sy; не число: направление случайное) и было ли это парирование. */

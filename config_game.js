@@ -661,7 +661,6 @@ export const CONFIG = {
       shieldParryLight: '#fff0b0', // щит в окне парирования: свет и кромка
       parry: '#ffe27a',
       spark: '#fff1b0',
-      target: '#ffb14a',
       hpBg: 'rgba(0,0,0,0.55)',
       hpFill: '#e5534b',
       hpHero: '#4fd18b',
