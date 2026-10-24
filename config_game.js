@@ -424,6 +424,31 @@ export const CONFIG = {
       color: '#c98a3c',
       edge: '#f0cf9a',
     },
+    // Замёрзший отряд Тартаса (третья атака босса). Цвета: ЗАГЛУШКА ГРАФИКИ, голубые круги.
+    // Лучник: как стрелок, но сильнее.
+    frozenArcher: {
+      hp: 45, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
+      drop: 'green', swarm: false, squad: true,
+      keepDistance: 190, shotRange: 300, aimTime: 0.5, fireInterval: 1.8, firstShotDelay: 1.0,
+      shot: { damage: 20, speed: 180, radius: 7, range: 460, knockback: 0, parryable: true, color: '#8fd3ff' },
+      color: '#5aa9e6', edge: '#d6efff',
+    },
+    // Пехотинец: как жук, но сильнее и быстрее.
+    frozenSoldier: {
+      hp: 55, speed: 120, radius: 12, touchDamage: 14, touchCooldown: 0.8, knockbackScale: 1,
+      drop: 'green', swarm: true, squad: true,
+      color: '#5aa9e6', edge: '#d6efff',
+    },
+    // Таран: как бык, но атака достаёт дальше.
+    frozenRam: {
+      hp: 60, speed: 75, radius: 15, touchDamage: 8, touchCooldown: 0.9, knockbackScale: 0.6,
+      drop: 'red', swarm: false, squad: true,
+      attack: {
+        shape: 'line', range: 520, length: 440, width: 30, windup: 0.9, strike: 0.28, recovery: 0.8,
+        cooldown: 2.0, firstDelay: 1.2, damage: 20, parryable: true, parryStun: 1.0, parryKnock: 80, parryKnockTime: 0.2,
+      },
+      color: '#3f7fc0', edge: '#d6efff',
+    },
     // Тартас: миниборс, «замерзший рыцарь». Атаки обычных врагов описаны в attack, а у босса своя логика (systems/boss.js).
     // immuneFrost: Мороз его не замедляет и не замораживает. knockbackScale 0: снаряды его не отталкивают.
     tartas: {
@@ -445,8 +470,8 @@ export const CONFIG = {
       // пересекаются, телеграф на общую область и взрыв в ней. Разломы живут до конца цикла. Времена в секундах.
       cycle: {
         // Пул атак: следующая выбирается случайно, но не та же, что была только что (тип в кд, пока не применится другой).
-        // Третья атака добавится сюда же. forceAttack для проверки: 0 случайно, 1 только рывки, 2 только клинки.
-        pool: ['dash', 'blades'],
+        // forceAttack для проверки: 0 случайно, 1 только рывки, 2 только клинки, 3 только отряд.
+        pool: ['dash', 'blades', 'squad'],
         forceAttack: 0,
         firstDelay: 1.5,       // после выхода до первого цикла
         startRange: 340,       // с какого расстояния до героя начинает цикл
@@ -474,11 +499,21 @@ export const CONFIG = {
           overshoot: 120,      // на сколько клинок пролетает за точку, где был герой
           width: 14,           // ширина линии и зоны попадания
           telegraphDelay: 0.7, // с: линия первого клинка волны видна до его вылета
-          launchInterval: 0.25, // с между вылетами (порядок случайный); столько же видна линия следующего клинка, он целится в героя в момент вылета предыдущего
+          launchInterval: 0.5, // с между вылетами (порядок случайный); столько же видна линия следующего клинка, он целится в героя в момент вылета предыдущего
           time: 0.08,          // с: пролёт всей линии, как рывок босса (почти мгновенно)
           waveGap: 0.5,        // с между волнами
           damage: 12,          // урон одного клинка (клинков много)
           parryable: true,
+        },
+        // Третья атака «Замёрзший отряд». Босс замирает, на земле вокруг него круг-телеграф, потом выходят
+        // два лучника, четыре пехотинца и таран (описаны в enemies.frozenArcher / frozenSoldier / frozenRam).
+        // Пока отряд жив, новый отряд не призывается. Умер босс: отряд исчезает.
+        squad: {
+          archers: 2,
+          soldiers: 4,
+          rams: 1,
+          castTime: 1.0,       // с: телеграф призыва (круг у босса), отряд выходит в конце
+          ringGap: 40,         // единиц от края босса до кольца, где встают бойцы
         },
         // Герой на разломе замедляется и загорается. Рывок героя сквозь разлом ничего не накладывает.
         fissure: {
