@@ -29,6 +29,12 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Смертельная аура: кольца вокруг центра.
+  aura: [
+    ['circle', { cx: 16, cy: 16, r: 3.2, fill: 'currentColor' }],
+    ['circle', { cx: 16, cy: 16, r: 8, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }],
+    ['circle', { cx: 16, cy: 16, r: 13, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-dasharray': '3 3' }],
+  ],
   // Фантомный выстрел: снаряд и его бледная копия.
   phantom: [
     ['circle', { cx: 11, cy: 16, r: 5, fill: 'currentColor' }],

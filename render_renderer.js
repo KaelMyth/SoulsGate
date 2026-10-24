@@ -506,6 +506,7 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.aura = deps.aura || null;
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
@@ -654,6 +655,7 @@ export class Renderer {
     }
 
     if (hero.active) {
+      this.drawAura(ctx, hx, hy);
       this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
       if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
@@ -2487,7 +2489,7 @@ export class Renderer {
     const pk = S.pk;
     let am = k;
     if (blocking) {
-      const left = this.cfg.block.duration - d.blockTime;
+      const left = d.blockDuration - d.blockTime;
       if (left < 0.3 && Math.floor(left * 20) % 2 === 0) am *= 0.35; // блок вот-вот кончится: щит мигает
     }
     const R = d.blockRadius * (0.72 + 0.28 * k + 0.08 * S.flash) * (1 + 0.012 * Math.sin(t * 3));
@@ -2603,6 +2605,32 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** Смертельная аура: мягкое поле с пульсацией на тике и медленно бегущим пунктирным краем. */
+  drawAura(ctx, hx, hy) {
+    const au = this.aura;
+    if (!au || !au.active) return;
+    const R = au.radius;
+    const col = this.cfg.aura.color;
+    const t = this.clock;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.globalAlpha = 0.1 + 0.1 * au.pulse;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.5 + 0.3 * au.pulse;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 18;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * (1 + 0.02 * au.pulse), 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
@@ -2761,7 +2789,7 @@ export class Renderer {
       ctx.fillText(label, x, y - 2);
     };
     const blockFrac = d.blocking
-      ? 1 - d.blockTime / this.cfg.block.duration
+      ? 1 - d.blockTime / d.blockDuration
       : d.blockCd > 0 ? 1 - d.blockCd / d.blockCdMax : 1;
     bar(bottom - 34, d.blocking ? (d.parrying ? 'Блок · парирование!' : 'Блок') : 'Блок', blockFrac,
       d.blocking ? (d.parrying ? C.parry : C.blockEdge) : d.blockCd > 0 ? C.border : C.hpHero);
