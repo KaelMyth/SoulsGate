@@ -4,9 +4,10 @@
 //   телеграф (узкая линия через героя и дальше, видна сразу) → пауза telegraphDelay →
 //   почти мгновенный рывок по линии (урон по линии) → на месте линии остаётся разлом (до конца цикла) →
 //   пауза gap → следующий рывок.
-// После последнего рывка: если все разломы пересекаются, в общей области появляется телеграф (blast.delay),
-// потом взрыв заливает всю область (blast.damage). Затем разломы тают, босс стоит recovery секунд и уязвим,
-// потом снова идёт к герою (cooldown).
+// После последнего рывка: если три разлома попарно пересеклись и описали ТРЕУГОЛЬНИК, на всём треугольнике
+// появляется телеграф (blast.delay), потом взрыв заливает его целиком (blast.damage). Вырожденный треугольник
+// (герой стоял на месте): область взрыва это общая зона всех полос (см. blastArea). Затем разломы тают,
+// босс стоит recovery секунд и уязвим, потом снова идёт к герою (cooldown).
 //
 // Состояния (this.state): idle → tele → dash → gap → (tele → dash → gap)… → blastTele → blast → recover → idle.
 // Пока босс в цикле, e.atk.state не 'idle': обычное движение к герою выключено; на рывке он 'strike'
@@ -94,6 +95,48 @@ export function clipConvex(subject, clip) {
   return out;
 }
 
+/**
+ * Точка пересечения двух отрезков-разломов (по осевым линиям) или null. tol: допуск на концах, единиц:
+ * следующий рывок начинается там, где кончился прошлый, и эти разломы должны считаться сошедшимися.
+ */
+export function segIntersect(a, b, tol = 2) {
+  const rx = a.x2 - a.x1;
+  const ry = a.y2 - a.y1;
+  const sx = b.x2 - b.x1;
+  const sy = b.y2 - b.y1;
+  const la = Math.hypot(rx, ry);
+  const lb = Math.hypot(sx, sy);
+  const den = rx * sy - ry * sx;
+  if (la < 1e-6 || lb < 1e-6 || Math.abs(den) < 1e-6 * la * lb) return null; // вырожденный или параллельный
+  const qx = b.x1 - a.x1;
+  const qy = b.y1 - a.y1;
+  const t = (qx * sy - qy * sx) / den;
+  const u = (qx * ry - qy * rx) / den;
+  const ta = tol / la;
+  const ub = tol / lb;
+  if (t < -ta || t > 1 + ta || u < -ub || u > 1 + ub) return null;
+  const tc = t < 0 ? 0 : t > 1 ? 1 : t;
+  return { x: a.x1 + rx * tc, y: a.y1 + ry * tc };
+}
+
+/**
+ * Область взрыва. Три разлома, пересекаясь попарно, описывают треугольник: он и есть область взрыва.
+ * Если треугольника нет (вырожденный: герой стоял на месте и линии легли на одну прямую или сошлись в точку),
+ * берём общую зону всех полос. Не пересекаются все три: взрыва нет (null).
+ */
+export function blastArea(fissures, minArea, tol = 2) {
+  if (fissures.length === 3) {
+    const p12 = segIntersect(fissures[0], fissures[1], tol);
+    const p13 = segIntersect(fissures[0], fissures[2], tol);
+    const p23 = segIntersect(fissures[1], fissures[2], tol);
+    if (p12 && p13 && p23) {
+      const tri = [p12, p23, p13];
+      if (polyArea(tri) >= minArea) return tri;
+    }
+  }
+  return commonArea(fissures, minArea);
+}
+
 /** Общая область всех разломов (полос): многоугольник или null, если её нет или она меньше minArea. */
 export function commonArea(fissures, minArea) {
   if (!fissures.length) return null;
@@ -137,7 +180,7 @@ export class Boss {
     this.burnDamage = 0;   // параметры горения запоминаем при касании разлома: тики идут и после смерти босса
     this.burnInterval = 0.5;
     this.enemy = null;
-    this.fissures = []; // { x1, y1, x2, y2, hw, pts, ticks }: живые разломы
+    this.fissures = []; // { x1, y1, x2, y2, hw }: живые разломы (отрезок и полуширина)
     this.fade = 0;      // >0: разломы тают, сколько осталось
     this.fadeTotal = 1;
     this.tele = null;   // телеграф рывка: { x1, y1, x2, y2, hw, t, total } или null
@@ -357,8 +400,7 @@ export class Boss {
 
   /** Рывок закончен: на месте линии остаётся разлом. */
   finishDash(e, C) {
-    const L = this.line;
-    const f = this.makeFissure(L);
+    const f = this.makeFissure(this.line, e);
     this.fissures.push(f);
     this.n++;
     this.bus.emit('boss:fissure', { fissure: f });
@@ -371,9 +413,9 @@ export class Boss {
       this.startTele(e, C);
       return;
     }
-    // Все рывки сделаны: пересекаются ли все разломы?
+    // Все рывки сделаны: если разломы пересеклись и описали треугольник, он и взорвётся.
     const B = C.blast;
-    const poly = commonArea(this.fissures, B.minArea);
+    const poly = blastArea(this.fissures, B.minArea);
     if (!poly) {
       this.endCycle(e, C);
       return;
@@ -437,28 +479,11 @@ export class Boss {
   }
 
   /**
-   * Разлом на месте линии: неровная трещина (точки pts, смещённые поперёк) и короткие «иглы» инея по бокам.
-   * Точки считаются один раз при появлении, а не на каждом кадре.
+   * Разлом на месте рывка: отрезок от начала линии до того места, где босс реально остановился
+   * (скала могла оборвать рывок). Конец разлома = начало следующего рывка, поэтому соседние разломы сходятся.
+   * e может быть опущен (тесты): тогда берётся запланированный конец линии.
    */
-  makeFissure(L) {
-    const rnd = this.rnd;
-    const segs = Math.max(2, Math.round(L.len / 26));
-    const nx = -L.dy;
-    const ny = L.dx;
-    const pts = [{ x: L.x1, y: L.y1 }];
-    const ticks = [];
-    for (let i = 1; i < segs; i++) {
-      const k = i / segs;
-      const off = (rnd() - 0.5) * 7;
-      const x = L.x1 + L.dx * L.len * k + nx * off;
-      const y = L.y1 + L.dy * L.len * k + ny * off;
-      pts.push({ x, y });
-      if (rnd() < 0.7) {
-        const side = rnd() < 0.5 ? -1 : 1;
-        ticks.push({ x, y, nx: nx * side, ny: ny * side, len: 4 + rnd() * 7 });
-      }
-    }
-    pts.push({ x: L.x2, y: L.y2 });
-    return { x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2, hw: L.hw, pts, ticks };
+  makeFissure(L, e) {
+    return { x1: L.x1, y1: L.y1, x2: e ? e.x : L.x2, y2: e ? e.y : L.y2, hw: L.hw };
   }
 }
