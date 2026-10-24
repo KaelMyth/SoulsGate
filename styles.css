@@ -410,27 +410,29 @@ body { font-family: var(--serif); }
 #death-stats { margin: 14px 0 20px; font: italic 17px/1.7 var(--serif); color: var(--ice); white-space: pre-line; }
 @keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
 
-/* ---------- Главное меню: сцена у костра ---------- */
+/* ---------- Главное меню: сцена у костра (ui_menu-scene.js, ui_menu-fx.js) ---------- */
 #mode-screen {
+  --W: min(100vw, calc(100vh * 941 / 1672)); /* ширина сцены: вся ширина экрана или по высоте, что меньше */
   position: fixed; z-index: 40; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; background: #0e1628;
   touch-action: manipulation;
 }
 #mode-screen[hidden] { display: none; }
-#mode-screen .scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-#mode-screen .logo {
-  position: absolute; left: 50%; top: calc(var(--safe-top) + 3%); width: min(94vw, 460px); transform: translateX(-50%); height: auto;
-  filter: drop-shadow(0 0 14px rgba(150, 190, 255, 0.35));
+#mode-screen .stage {
+  position: absolute; left: 50%; top: 50%; width: var(--W); height: calc(var(--W) * 1672 / 941); transform: translate(-50%, -50%);
 }
-#mode-screen .menu { position: absolute; right: calc(var(--safe-right) + 5%); top: 36%; width: min(50%, 240px); }
-#mode-screen .menu button { font-size: 23px; color: #cfe0f8; text-shadow: 0 2px 10px rgba(5, 9, 20, 0.9); }
-#mode-screen .menu button.secondary { font-size: 20px; }
-#mode-screen .flake { fill: #e8f1ff; animation: ui-snow linear infinite; }
-@keyframes ui-snow { from { transform: translate(0, -30px); opacity: 0; } 10% { opacity: 1; } to { transform: translate(-40px, 880px); opacity: 0.2; } }
-#mode-screen .ember { animation: ui-ember ease-out infinite; }
-#mode-screen .flame { transform-box: fill-box; transform-origin: 50% 100%; animation: ui-flame 0.9s ease-in-out infinite alternate; }
-#mode-screen .flame.b { animation-duration: 0.6s; animation-delay: -0.3s; }
-#mode-screen .fire-glow { animation: ui-glow 1.3s ease-in-out infinite alternate; }
-@keyframes ui-flame { from { transform: scale(1, 0.92) skewX(-3deg); } to { transform: scale(0.94, 1.08) skewX(3deg); } }
-@keyframes ui-glow { from { opacity: 0.78; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { #mode-screen * { animation: none !important; } }
-@keyframes ui-ember { from { transform: translate(0, 0); opacity: 0.9; } to { transform: translate(8px, -70px); opacity: 0; } }
+#mode-screen .scene, #mode-screen .logo { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+#mode-screen .logo { filter: drop-shadow(0 0 10px rgba(150, 190, 255, 0.3)); }
+#mode-screen .fx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+#mode-screen .menu { position: absolute; left: 61.5%; top: 32.2%; width: 33%; }
+#mode-screen .menu .ui-btn {
+  width: 100%; height: calc(var(--W) * 0.138); min-height: 0; margin: 0; padding: 0;
+  font-size: calc(var(--W) * 0.046); line-height: calc(var(--W) * 0.07); color: #d3e2f8; text-shadow: 0 2px 10px rgba(5, 9, 20, 0.9);
+}
+#mode-screen .menu .ui-btn::after { bottom: auto; top: calc(var(--W) * 0.083); left: 2%; right: 2%; }
+#mode-screen .menu .ui-btn::before { bottom: auto; top: calc(var(--W) * 0.083 - 3px); }
+#mode-screen .menu .ui-btn.idle { pointer-events: none; }
+#mode-screen .test-link {
+  position: absolute; left: 61.5%; width: 33%; top: 66%; padding: 6px 0; border: 0; background: transparent; color: #8fa6c8;
+  font: italic calc(var(--W) * 0.03) var(--serif); opacity: 0.7; text-align: center; touch-action: manipulation;
+}
+@media (prefers-reduced-motion: reduce) { #mode-screen .fx { display: none; } }
