@@ -31,6 +31,8 @@
 // Разломы действуют на героя, пока он на них стоит: замедляют и поджигают. Рывок героя сквозь разлом
 // эффект не накладывает. Горение бьёт мимо блока (Combat.damageHeroDot) и не включает неуязвимость.
 
+import { initEnemy } from './world_enemy.js';
+
 /** Расстояние от точки до отрезка. */
 export function segDist(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
@@ -184,6 +186,7 @@ export class Boss {
     this.combat = o.combat;
     this.bus = o.bus;
     this.defense = o.defense || null;
+    this.enemies = o.enemies || null; // пул врагов: сюда выходит отряд (третья атака)
     this.rnd = o.rnd || Math.random;
     this.dotSource = { burn: true, parryable: false, active: true }; // источник горения героя
     this.burnDamage = 0;   // параметры горения запоминаем при касании разлома: тики идут и после смерти босса
@@ -246,10 +249,59 @@ export class Boss {
   pickAttack(C) {
     if (C.forceAttack === 1) return 'dash';
     if (C.forceAttack === 2 && C.blades) return 'blades';
-    const pool = (C.pool && C.pool.length ? C.pool : ['dash']).filter((k) => k === 'dash' || (k === 'blades' && C.blades));
+    const squadOk = !!(C.squad && this.enemies && this.squadAlive() === 0); // новый отряд только когда прошлый перебит
+    if (C.forceAttack === 3) return squadOk ? 'squad' : 'dash';
+    const pool = (C.pool && C.pool.length ? C.pool : ['dash']).filter((k) => k === 'dash' || (k === 'blades' && C.blades) || (k === 'squad' && squadOk));
     let list = pool.filter((k) => k !== this.last);
     if (!list.length) list = pool; // в пуле один тип: повторять нечем
     return list[Math.min(list.length - 1, Math.floor(this.rnd() * list.length))];
+  }
+
+  /** Сколько бойцов отряда ещё живы. */
+  squadAlive() {
+    const it = this.enemies ? this.enemies.items : null;
+    let n = 0;
+    if (it) for (let i = 0; i < it.length; i++) if (it[i].active && it[i].def.squad) n++;
+    return n;
+  }
+
+  /** Убрать отряд (босс убит или игра перезапущена): без босса бойцы не нужны. */
+  dismissSquad() {
+    const it = this.enemies ? this.enemies.items : null;
+    if (it) for (let i = 0; i < it.length; i++) if (it[i].def && it[i].def.squad) it[i].active = false;
+  }
+
+  /** Атака отрядом: босс замирает на castTime (телеграф-круг), потом бойцы выходят кольцом вокруг него. */
+  startSquad(e, C) {
+    this.setState('squadCast');
+    this.bus.emit('boss:squad-cast', { enemy: e });
+  }
+
+  updateSquadCast(e, C) {
+    if (this.t < C.squad.castTime) return;
+    const Q = C.squad;
+    const cfg = this.cfg.enemies;
+    const kinds = [];
+    for (let i = 0; i < Q.archers; i++) kinds.push('frozenArcher');
+    for (let i = 0; i < Q.soldiers; i++) kinds.push('frozenSoldier');
+    for (let i = 0; i < Q.rams; i++) kinds.push('frozenRam');
+    const n = kinds.length;
+    const a0 = this.rnd() * Math.PI * 2;
+    const R = e.radius + Q.ringGap;
+    for (let i = 0; i < n; i++) {
+      const def = cfg[kinds[i]];
+      if (!def) continue;
+      const m = this.enemies.spawn();
+      initEnemy(m, def, 0, 0);
+      const a = a0 + (i / n) * Math.PI * 2;
+      m.x = e.x + Math.cos(a) * R;
+      m.y = e.y + Math.sin(a) * R;
+      this.arena.resolveCircle(m);
+      m.prevX = m.x;
+      m.prevY = m.y;
+      this.bus.emit('boss:squad-spawn', { enemy: m });
+    }
+    this.setState('recover');
   }
 
   /** Во сколько раз камера должна быть отдалена сейчас: во время атаки клинками C.blades.zoom, иначе 1. */
@@ -262,6 +314,7 @@ export class Boss {
 
   /** Босс убит: всё, что он оставил на земле, исчезает. */
   detach() {
+    this.dismissSquad();
     this.clear();
     this.enemy = null;
   }
@@ -330,6 +383,7 @@ export class Boss {
       case 'blastTele': this.updateBlastTele(e, C); break;
       case 'blast': this.updateBlast(e, C); break;
       case 'recover': this.updateRecover(e, C); break;
+      case 'squadCast': this.updateSquadCast(e, C); break;
       case 'bladeIn': if (this.t >= C.blades.zoomWait) this.spawnBladeWave(e, C); break;
       case 'bladeWave': this.updateBladeWave(e, C, dt); break;
       case 'bladeGap': if (this.t >= C.blades.waveGap) this.spawnBladeWave(e, C); break;
@@ -556,6 +610,7 @@ export class Boss {
     this.n = 0;
     this.attack = this.last = this.pickAttack(C);
     if (this.attack === 'blades') this.startBlades(e, C);
+    else if (this.attack === 'squad') this.startSquad(e, C);
     else this.startTele(e, C);
   }
 

@@ -803,6 +803,25 @@ export class Renderer {
     if (!b) return;
     const ctx = this.ctx;
 
+    // ЗАГЛУШКА ГРАФИКИ: телеграф призыва отряда, круг вокруг босса, который заполняется к выходу бойцов.
+    if (b.state === 'squadCast' && b.enemy) {
+      const Q = b.enemy.def.cycle.squad;
+      const k = Math.min(1, b.t / Math.max(0.01, Q.castTime));
+      const r = b.enemy.radius + Q.ringGap;
+      ctx.save();
+      ctx.strokeStyle = C.frostMist;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(b.enemy.x, b.enemy.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.25 + 0.25 * k;
+      ctx.fillStyle = C.frostMist;
+      ctx.beginPath();
+      ctx.arc(b.enemy.x, b.enemy.y, r * k, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // Разломы: плоская полоса вдоль отрезка. Таят в конце цикла (fissureAlpha).
     if (b.fissures.length) {
       ctx.save();
