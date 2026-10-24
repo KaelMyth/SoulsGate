@@ -30,6 +30,7 @@ import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
+import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
 import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -97,7 +98,16 @@ export class Game {
     this.laserSource = { laser: true, active: true };
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
     this.rayT = [];
+    this.pelletSource = { pellet: true, active: true };
+    this.pellets = new Pellets({
+      config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
+      onHit: (e, dmg, vx, vy) => {
+        const sp = Math.hypot(vx, vy) || 1;
+        this.combat.damageEnemy(e, dmg, this.pelletSource, { knockback: config.shot.knockback, dirX: vx / sp, dirY: vy / sp });
+      },
+    });
     this.autoattack = new AutoAttack({
+      pellets: this.pellets,
       lasers: this.lasers,
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
       grid: this.swarm.grid,
@@ -128,6 +138,7 @@ export class Game {
       boss: this.boss,
       clouds: this.steamClouds,
       blades: this.blades.items,
+      pellets: this.pellets,
       lasers: this.lasers,
       hud: this.hud,
     });
@@ -219,7 +230,7 @@ export class Game {
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
-        else if (e.source && e.source.laser) { /* тики луча без вспышек: хватает мигания врага */ }
+        else if (e.source && (e.source.laser || e.source.pellet)) { /* тики луча без вспышек: хватает мигания врага */ }
         else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
@@ -646,6 +657,7 @@ export class Game {
       this.xp.update(dt);
       this.collisions.detect();
       this.hitEnemiesWithShots();
+      this.pellets.update(dt);
       this.updateBurning(dt);
       this.updateFrost(dt);
       this.updateSteam(dt);
@@ -873,6 +885,7 @@ export class Game {
     this.stepper.reset();
     this.enemies.clear();
     this.heroShots.clear();
+    this.pellets.clear();
     this.enemyShots.clear();
     this.effects.clear();
     this.steamClouds.length = 0;
