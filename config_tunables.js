@@ -90,7 +90,8 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
   { group: 'Спектральные клинки', path: 'blades.max', label: 'Клинков до залпа', min: 1, max: 12, step: 1 },
-  { group: 'Спектральные клинки', path: 'blades.interval', label: 'Раз в сколько секунд новый клинок', min: 0.1, max: 2, step: 0.05 },
+  { group: 'Спектральные клинки', path: 'blades.interval', label: 'Интервал появления при 2 клинках, с', min: 0.1, max: 2, step: 0.05 },
+  { group: 'Спектральные клинки', path: 'blades.intervalStep', label: 'Интервал короче за каждое удвоение клинков, с', min: 0, max: 0.25, step: 0.01 },
   { group: 'Спектральные клинки', path: 'blades.perTarget', label: 'Клинков на одного врага', min: 1, max: 6, step: 1 },
   { group: 'Спектральные клинки', path: 'blades.damage', label: 'Урон клинка', min: 1, max: 80, step: 1 },
   { group: 'Спектральные клинки', path: 'blades.speed', label: 'Скорость полёта', min: 150, max: 800, step: 10 },

@@ -25,6 +25,15 @@ export function countPenalty(config, count) {
   return count > 1 && typeof d === 'number' ? Math.pow(d, Math.log2(count)) : 1;
 }
 
+/**
+ * Базовый интервал появления клинков: чем больше клинков до залпа, тем он короче.
+ * 2 клинка: 0.5 с, 4: 0.4, 8: 0.3, 16: 0.2, 32: 0.1 (каждое удвоение на intervalStep короче), не короче minInterval.
+ */
+export function bladeInterval(config, max) {
+  const B = config.blades;
+  return Math.max(B.minInterval, B.interval - B.intervalStep * (Math.log2(Math.max(1, max)) - 1));
+}
+
 /** Число снарядов за выстрел с модами ядра (целое, не меньше 1). */
 export function projectileCount(config, mods) {
   const m = mods && mods.count;
@@ -102,7 +111,7 @@ export function coreStats(core, config, mods) {
     const bm = mods.blades;
     const bdmg = config.blades.damage * bm.damage;
     rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
-    rows.push({ label: 'Клинки: новый раз в', text: Math.round(config.blades.interval / bm.rate * 100) / 100 + ' с', bonus: '' });
+    rows.push({ label: 'Клинки: новый раз в', text: Math.round(bladeInterval(config, Math.round(config.blades.max * bm.max)) / bm.rate * 100) / 100 + ' с', bonus: '' });
     rows.push({ label: 'Клинки: урон', text: String(Math.round(bdmg * 100) / 100), bonus: bm.damage !== 1 ? '+' + Math.round((bm.damage - 1) * 100) + '%' : '' });
     if (mods.burn) rows.push({ label: 'Клинки: горение, урон тика', text: String(Math.round(bdmg * config.burn.damageFrac * mods.burn.damage * 100) / 100), bonus: '' });
     if (mods.frost) rows.push({ label: 'Клинки: Мороз', text: mods.steam && mods.burn ? 'взрыв пара' : config.frost.maxStacks + ' попаданий → заморозка', bonus: '' });
