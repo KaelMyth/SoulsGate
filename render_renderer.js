@@ -2045,7 +2045,7 @@ export class Renderer {
     ctx.lineCap = 'butt';
   }
 
-  /** Спектральные клинки: голубые треугольники, остриём по ходу полёта (на орбите остриём наружу). */
+  /** Спектральные клинки: голубые треугольники (с Лазером сферы), остриём по ходу полёта (на орбите остриём наружу). */
   drawBlades(ctx) {
     const bl = this.blades;
     if (!bl || !bl.length) return;
@@ -2055,7 +2055,14 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.2;
     for (const b of bl) {
-      const a = b.state === 'orbit' ? b.a : b.a;
+      if (b.sphere) { // с Лазером клинки это сферы
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        continue;
+      }
+      const a = b.a;
       const c = Math.cos(a);
       const n = Math.sin(a);
       ctx.beginPath();

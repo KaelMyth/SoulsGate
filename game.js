@@ -107,6 +107,7 @@ export class Game {
 
     this.blades = new Blades({
       config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
+      lasers: this.lasers,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
@@ -449,11 +450,13 @@ export class Game {
     const ls = this.lasers;
     for (let i = ls.length - 1; i >= 0; i--) {
       const l = ls[i];
-      l.x = this.hero.x; // ближний конец привязан к герою
-      l.y = this.hero.y;
+      const an = l.anchor; // луч сферы клинка привязан к ней, остальные к герою
+      if (an && an.state === 'gone') { ls.splice(i, 1); continue; }
+      l.x = an ? an.x : this.hero.x; // ближний конец привязан к герою или к сфере
+      l.y = an ? an.y : this.hero.y;
       const tg = l.target;
-      if (tg && !tg.active) l.target = null; // цель погибла: луч замирает в последнем направлении
-      else if (tg) {
+      if (tg && !tg.active) { this.endLaser(l, ls, i); continue; } // цель погибла: луч гаснет сразу
+      if (tg) {
         const ax = tg.x - l.x;
         const ay = tg.y - l.y;
         const d = Math.hypot(ax, ay);
@@ -465,8 +468,15 @@ export class Game {
         this.laserTick(l);
         l.done++;
       }
-      if (l.age >= l.life) ls.splice(i, 1);
+      if (l.target && !l.target.active) this.endLaser(l, ls, i); // убит тиком этого кадра
+      else if (l.age >= l.life) this.endLaser(l, ls, i);
     }
+  }
+
+  /** Луч закончился: убираем его, а сфера клинка, из которой он шёл, исчезает вместе с ним. */
+  endLaser(l, ls, i) {
+    if (l.anchor) l.anchor.state = 'gone';
+    ls.splice(i, 1);
   }
 
   /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */

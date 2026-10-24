@@ -2,7 +2,7 @@
 // все летят во врагов. На одного врага не больше perTarget клинков, остальные выбирают других.
 // Клинок самонаводится на цель, при попадании бьёт и исчезает. Сам щит мод не меняет.
 
-import { bladeInterval } from './build_cores.js';
+import { bladeInterval, laserStats } from './build_cores.js';
 
 const TAU = Math.PI * 2;
 
@@ -22,6 +22,7 @@ export class Blades {
     this.grid = o.grid;
     this.combat = o.combat;
     this.modifiers = o.modifiers || null;
+    this.lasers = o.lasers || []; // общий список лучей игры: сюда клинки-сферы выпускают лазеры
     this.ignite = o.ignite || null; // (враг, урон тика, интервал) от Горения на клинках
     this.chill = o.chill || null;   // (враг, пар, урон тика, интервал) от Мороза на клинках
     this.items = []; // { x, y, a (угол полёта или место на орбите), state: 'orbit' | 'fly', target, vx, vy, age }
@@ -63,7 +64,7 @@ export class Blades {
   }
 
   /** Раздать цели орбитальным клинкам пачками по perTarget: следующий клинок идёт к ближайшему, где ещё есть место. */
-  launch() {
+  launch(m, dmg, max) {
     const B = this.cfg.blades;
     const cand = this.gather(B.range);
     if (!cand.length) return false;
@@ -80,9 +81,13 @@ export class Blades {
         pick = cand[0].e;
       }
       counts.set(pick, (counts.get(pick) || 0) + 1);
-      b.state = 'fly';
       b.target = pick;
       b.age = 0;
+      if (m && m.laser) {
+        // «Лазер» на клинках: сфера не летит, а выпускает луч в цель и висит на орбите, пока луч светит.
+        if (this.pushLaser(b, pick, m, dmg, max)) b.state = 'fire';
+        else b.state = 'gone';
+      } else b.state = 'fly';
     }
     return true;
   }
@@ -91,7 +96,8 @@ export class Blades {
     const B = this.cfg.blades;
     const m = this.modifiers ? this.modifiers(B.core) : null;
     if (!m || !m.blades) {
-      if (this.items.length) this.items.length = 0; // мод сняли: клинки пропали
+      for (const b of this.items) b.state = 'gone'; // мод сняли: клинки и их лучи пропали
+      if (this.items.length) this.items.length = 0;
       this.timer = 0;
       return;
     }
@@ -114,7 +120,20 @@ export class Blades {
       }
     } else {
       this.timer = 0;
-      this.launch(); // нет врагов в зоне: остаёмся на орбите и ждём
+      this.launch(m, dmg, max); // нет врагов в зоне: остаёмся на орбите и ждём
+    }
+
+    let w = 0; // убираем погасшие на месте: на этот массив смотрит отрисовка
+    for (let r = 0; r < this.items.length; r++) if (this.items[r].state !== 'gone') this.items[w++] = this.items[r];
+    this.items.length = w;
+    const sphere = !!m.laser;
+    for (const b of this.items) {
+      b.sphere = sphere;
+      if (b.state === 'fire') { // луч светит из сферы: она продолжает кружить
+        b.a += B.spin * dt;
+        b.x = hero.x + Math.cos(b.a) * B.orbit;
+        b.y = hero.y + Math.sin(b.a) * B.orbit;
+      }
     }
 
     // Орбита: клинки равномерно по кругу, плавно занимают место.
@@ -165,6 +184,26 @@ export class Blades {
       }
       if (b.age >= B.life) items.splice(j, 1);
     }
+  }
+
+  /** Луч из сферы b в цель t: те же правила, что у лазера снаряда, урон луча от урона клинка. */
+  pushLaser(b, t, m, dmg, max) {
+    const L = this.cfg.laser;
+    if (this.lasers.length >= L.max) return false;
+    const one = laserStats(this.cfg, m.laser, dmg, 1);   // урон тика без штрафа за число
+    const big = laserStats(this.cfg, m.laser, dmg, max); // длительность и яркость от числа сфер
+    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const dx = t.x - b.x;
+    const dy = t.y - b.y;
+    const len = Math.hypot(dx, dy) || 1;
+    this.lasers.push({
+      x: b.x, y: b.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
+      target: t, pierce: 0, anchor: b,
+      width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick, big: big.big,
+      burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
+      frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
+    });
+    return true;
   }
 
   /** Горение и Мороз на клинках: как у снаряда, сила от урона клинка. */
