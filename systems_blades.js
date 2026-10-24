@@ -6,6 +6,14 @@ import { bladeInterval, laserStats } from './build_cores.js';
 
 const TAU = Math.PI * 2;
 
+/** Последовательность 0, 1/2, 1/4, 3/4, 1/8 ...: каждый следующий в самом свободном месте круга. */
+function vdc(n) {
+  let r = 0;
+  let f = 0.5;
+  for (; n > 0; n >>= 1, f /= 2) if (n & 1) r += f;
+  return r;
+}
+
 function angDiff(a, b) {
   let d = (b - a) % TAU;
   if (d > Math.PI) d -= TAU;
@@ -40,6 +48,10 @@ export class Blades {
     this.timer = 0;
     this.spin = 0;
     this.shotAngle = 0;
+    this.slot = 0;      // сколько клинков уже появилось в этой пачке: от этого зависит, на какой стороне появится следующий
+    this.wave = false;  // идёт запуск пачки: новые не копятся, клинки уходят по одному
+    this.gap = 0;       // таймер между запусками
+    this.dtNow = 0;
   }
 
   orbiting() {
@@ -72,9 +84,12 @@ export class Blades {
     const cand = this.gather(B.range);
     if (!cand.length) return false;
     const counts = this.counts;
-    counts.clear();
+    if (!this.wave) { counts.clear(); this.wave = true; this.gap = 0; }
+    this.gap -= this.dtNow;
     for (const b of this.items) {
       if (b.state !== 'orbit') continue;
+      if (this.gap > 0) break;   // клинки уходят по одному, а не все разом
+      this.gap += B.launchGap;
       let pick = null;
       for (const c of cand) {
         if ((counts.get(c.e) || 0) < B.perTarget) { pick = c.e; break; }
@@ -92,6 +107,7 @@ export class Blades {
         else b.state = 'gone';
       } else b.state = 'fly';
     }
+    if (this.gap < 0) this.gap = 0;
     return true;
   }
 
@@ -114,14 +130,19 @@ export class Blades {
 
     // Копим клинки, пока их на орбите меньше максимума.
     let orbit = this.orbiting();
-    if (orbit < max) {
+    this.dtNow = dt;
+    if (this.wave && orbit === 0) { this.wave = false; this.slot = 0; } // пачка ушла целиком: можно копить заново
+    if (!this.wave && orbit < max) {
       this.timer += dt;
       while (this.timer >= interval && orbit < max) {
         this.timer -= interval;
-        this.items.push({ x: hero.x, y: hero.y, a: this.spin, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
+        // Следующий клинок появляется на противоположной стороне от предыдущего (доли круга 0, 1/2, 1/4, 3/4, 1/8 ...).
+        const off = vdc(this.slot++) * TAU;
+        const a = this.spin + off;
+        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
         orbit++;
       }
-    } else {
+    } else if (orbit > 0) {
       this.timer = 0;
       this.launch(m, dmg, max); // нет врагов в зоне: остаёмся на орбите и ждём
     }
@@ -140,11 +161,9 @@ export class Blades {
     }
 
     // Орбита: клинки равномерно по кругу, плавно занимают место.
-    orbit = this.orbiting();
-    let i = 0;
     for (const b of this.items) {
       if (b.state !== 'orbit') continue;
-      const want = this.spin + (i++ * TAU) / Math.max(1, orbit);
+      const want = this.spin + b.off; // у каждого клинка своё место на круге
       const k = Math.min(1, dt * 12);
       b.a += angDiff(b.a, want) * k;
       const tx = hero.x + Math.cos(b.a) * B.orbit;
