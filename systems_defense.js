@@ -27,6 +27,7 @@ export class HeroDefense {
     this.bus = o.bus;
     this.modifiers = o.modifiers || null; // (id) => { стат: { percent, flat } }: моды билда
     this.state = 'move';
+    this.fireDash = false; // стоит «Огненный рывок»
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
@@ -117,6 +118,7 @@ export class HeroDefense {
       this.startCooldown(this.cfg.block.cancelCooldown);
       this.bus.emit('block:ended', { cancelled: true });
     }
+    const dist = d.distance * (this.fireDash ? this.cfg.firedash.distanceScale : 1); // огненный рывок длиннее
     this.dashX = dirX / len;
     this.dashY = dirY / len;
     this.dashTime = d.duration;
@@ -129,7 +131,7 @@ export class HeroDefense {
     const tau = Math.max(0.005, d.decay);
     const T = Math.max(0.02, d.duration);
     const eEnd = Math.exp(-T / tau);
-    this.dashV0 = d.distance / (tau * (1 - eEnd) + eEnd * d.glide);
+    this.dashV0 = dist / (tau * (1 - eEnd) + eEnd * d.glide);
     this.dashElapsed = 0;
     this.hero.dashing = true;
     this.hero.dashVx = this.dashX * this.dashV0;

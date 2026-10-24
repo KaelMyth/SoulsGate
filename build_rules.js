@@ -46,6 +46,7 @@ export function canPlace(grid, modDef, x, y) {
   const c = grid.cell(x, y);
   if (!c) return { ok: false, reason: 'out' };
   if (c.core || c.mod) return { ok: false, reason: 'busy' };
+  if (modDef.effect && modDef.effect.secondary) return { ok: true, reason: '', core: null }; // вторичное ядро: в любую пустую клетку
   const t = grid.tree();
   const nodes = grid.neighbors(x, y).filter((n) => t.owner.has(n.y * grid.size + n.x));
   if (nodes.length === 0) return { ok: false, reason: 'no-anchor' };
@@ -68,6 +69,7 @@ const DIRS = [['t', 0, -1], ['r', 1, 0], ['b', 0, 1], ['l', -1, 0]];
  * targets: клетки, куда мод можно поставить.
  */
 export function highlight(grid, modDef) {
+  if (modDef.effect && modDef.effect.secondary) return { faces: [], targets: grid.cells.filter((c) => !c.core && !c.mod) }; // любая пустая клетка
   const owner = grid.branches();
   const faces = [];
   const targets = new Map();
