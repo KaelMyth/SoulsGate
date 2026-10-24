@@ -606,11 +606,60 @@ export class Game {
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
     if (p.frost && e.active) this.chill(e, p.burnDmg > 0 ? p.steam : 0, p.burnDmg, p.burnInt);
+    if (p.phantom > 0) this.tryPhantom(p, e);
     if (p.pierce > 0) {
       p.pierce--;
       p.hits.push(e); // летит дальше
     } else {
       p.active = false; // снаряд потрачен
+    }
+  }
+
+  /**
+   * Фантомный выстрел: с шансом (падает вдвое с каждым поколением) из точки рядом с врагом вылетает копия снаряда.
+   * Копия несёт те же эффекты (огонь, мороз, пробитие) и сама может породить следующую, не дальше phantom.maxChain.
+   */
+  tryPhantom(p, e) {
+    const F = this.config.phantom;
+    if (p.gen >= F.maxChain) return;
+    if (this.rnd() >= p.phantom * Math.pow(F.decay, p.gen)) return;
+    const lim = this.config.limits;
+    if (lim && this.heroShots.count >= lim.maxShots) return;
+    const arena = this.arena;
+    const r = e.radius || 10;
+    for (let tries = 0; tries < 6; tries++) {
+      const a = this.rnd() * Math.PI * 2;
+      const d = F.distance * (1 + (this.rnd() * 2 - 1) * F.spread);
+      const x = e.x + Math.cos(a) * d;
+      const y = e.y + Math.sin(a) * d;
+      if (x < arena.left + 8 || x > arena.right - 8 || y < arena.top + 8 || y > arena.bottom - 8) continue;
+      if (arena.circleHitsRock(x, y, p.radius) || arena.segmentBlocked(x, y, e.x, e.y, p.radius)) continue;
+      const q = this.heroShots.spawn();
+      if (!q) return;
+      q.x = q.prevX = x;
+      q.y = q.prevY = y;
+      const sp = p.speed || 1;
+      q.vx = ((e.x - x) / d) * sp;
+      q.vy = ((e.y - y) / d) * sp;
+      q.radius = p.radius;
+      q.damage = p.damage * F.damageFrac;
+      q.speed = p.speed;
+      q.range = Math.max(p.range, d + 60);
+      q.knockback = p.knockback;
+      q.parryable = false;
+      q.burnDmg = p.burnDmg;
+      q.burnInt = p.burnInt;
+      q.frost = p.frost;
+      q.steam = p.steam;
+      q.pierce = p.pierce;
+      q.hits.length = 0;
+      q.travelled = 0;
+      q.color = F.color;
+      q.owner = p.owner;
+      q.gen = p.gen + 1;
+      q.phantom = p.phantom;
+      this.burst(x, y, 0.3, 4, 16, F.color);
+      return;
     }
   }
 

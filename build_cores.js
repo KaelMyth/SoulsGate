@@ -130,6 +130,10 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Дробь: дробинок за выстрел', text: String(n), bonus: '' });
     rows.push({ label: 'Дробь: урон дробинки', text: String(Math.round((dmgRow ? dmgRow.value : 0) * config.shot.damageFrac * 100) / 100), bonus: '' });
   }
+  if (core.def.canPhantom && mods && mods.phantom) {
+    const pc = Math.min(1, config.phantom.chance * mods.phantom.mult);
+    rows.push({ label: 'Фантом: шанс при попадании', text: Math.round(pc * 100) + '%', bonus: 'каждое поколение вдвое ниже, до ' + config.phantom.maxChain });
+  }
   if (core.def.canPierce && mods && mods.pierce) {
     rows.push({ label: 'Пробитие: врагов насквозь', text: String(Math.round(mods.pierce.count)), bonus: '' });
   }

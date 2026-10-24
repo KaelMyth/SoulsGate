@@ -131,11 +131,12 @@ export class BuildGrid {
       const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
       const e = c.mod.def.effect;
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
-      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'dbl' ? 'dbl' : pc);
+      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'dbl' ? 'dbl' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
       else if (e.kind === 'shot') carry.set(ci, 'shot'); // «Дробь»: ничего не вешается, число дробинок множит Х2/Х3 на ядре
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
+      else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
@@ -252,6 +253,18 @@ export class BuildGrid {
       pierce += f;
     }
     if (pierce) res.pierce = { count: pierce };
+    // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
+    let ph = 0;
+    let phMul = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'phantom' || owner.get(i) !== coreId) continue;
+      let f = 1;
+      for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+      ph++;
+      phMul += f;
+    }
+    if (ph) res.phantom = { count: ph, mult: phMul };
     // Лазер: Мощь на нём усиливает урон тика, Ускорение учащает тики.
     let lasers = 0;
     let lDmg = 0;
@@ -318,7 +331,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }
