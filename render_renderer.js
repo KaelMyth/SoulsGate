@@ -508,6 +508,7 @@ export class Renderer {
     this.blades = deps.blades || [];
     this.aura = deps.aura || null;
     this.fires = deps.fires || [];
+    this.lightdash = deps.lightdash || null;
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
@@ -658,12 +659,14 @@ export class Renderer {
 
     if (hero.active) {
       this.drawAura(ctx, hx, hy);
-      this.drawHero(hx, hy, C);
+      if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // молния вместо героя
+      else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
       if (this.hud && this.hud.gameMode) this.drawCooldownArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
+    this.drawBolts(ctx);
     this.drawBlades(ctx);
 
     // Снаряды.
@@ -2607,6 +2610,58 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** Герой-молния: яркий шар с ореолом. */
+  drawLightHero(ctx, hx, hy) {
+    const col = this.cfg.lightdash.color;
+    const r = this.hero.radius;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 2.2, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 0.9, 0, TAU);
+    ctx.fill();
+  }
+
+  /** Отрезки молнии: ломаная с дрожью (зависит от времени, поэтому мерцает), гаснет за 0.25 с. */
+  drawBolts(ctx) {
+    const ld = this.lightdash;
+    if (!ld || !ld.bolts.length) return;
+    const col = this.cfg.lightdash.color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < ld.bolts.length; i++) {
+      const b = ld.bolts[i];
+      const k = Math.max(0, 1 - b.age / 0.25);
+      const dx = b.x1 - b.x0;
+      const dy = b.y1 - b.y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const seg = Math.max(3, Math.round(len / 28));
+      const frame = Math.floor(this.clock * 30);
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.globalAlpha = k * (pass ? 1 : 0.45);
+        ctx.strokeStyle = pass ? '#ffffff' : col;
+        ctx.lineWidth = pass ? 2 : 7;
+        ctx.beginPath();
+        ctx.moveTo(b.x0, b.y0);
+        for (let s = 1; s < seg; s++) {
+          const f = s / seg;
+          const j = Math.sin((s * 12.9898 + i * 78.233 + frame * 3.7) * 43758.5453) * 11;
+          ctx.lineTo(b.x0 + dx * f + nx * j, b.y0 + dy * f + ny * j);
+        }
+        ctx.lineTo(b.x1, b.y1);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   }
 
   /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */

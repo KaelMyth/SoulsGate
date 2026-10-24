@@ -29,6 +29,10 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Молниеносный рывок: зигзаг молнии.
+  lightdash: [
+    ['path', { d: 'M19 3L7 18h8l-3 11 13-16h-8z', fill: 'currentColor' }],
+  ],
   // Огненный рывок: стрелка рывка с пламенем.
   firedash: [
     ['path', { d: 'M3 22h18M15 16l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
