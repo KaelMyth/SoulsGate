@@ -114,6 +114,12 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
     rows.push({ label: 'Клинки: новый раз в', text: Math.round(bladeInterval(config, Math.round(config.blades.max * bm.max)) / bm.rate * 100) / 100 + ' с', bonus: '' });
     rows.push({ label: 'Клинки: урон', text: String(Math.round(bdmg * 100) / 100), bonus: bm.damage !== 1 ? '+' + Math.round((bm.damage - 1) * 100) + '%' : '' });
+    if (mods.laser) {
+      const ls = laserStats(config, mods.laser, bdmg, 1);
+      const lb = laserStats(config, mods.laser, bdmg, Math.round(config.blades.max * bm.max));
+      rows.push({ label: 'Клинки: лазер, урон тика', text: String(Math.round(ls.tick * 100) / 100), bonus: 'сферы' });
+      rows.push({ label: 'Клинки: лазер, тиков за ' + lb.life + ' с', text: String(lb.ticks), bonus: lb.big ? 'большой' : '' });
+    }
     if (mods.burn) rows.push({ label: 'Клинки: горение, урон тика', text: String(Math.round(bdmg * config.burn.damageFrac * mods.burn.damage * 100) / 100), bonus: '' });
     if (mods.frost) rows.push({ label: 'Клинки: Мороз', text: mods.steam && mods.burn ? 'взрыв пара' : config.frost.maxStacks + ' попаданий → заморозка', bonus: '' });
   }
