@@ -16,6 +16,10 @@
 // События: 'boss:telegraph' { line }, 'boss:dash' { enemy }, 'boss:fissure' { fissure },
 //          'boss:blast-telegraph' { poly, x, y }, 'boss:blast' { poly, x, y, hit }.
 // Попадание по герою идёт через Combat.damageHero, значит блок и парирование работают как у остальных.
+// Парировать можно и рывок, и взрыв.
+//
+// Разломы действуют на героя, пока он на них стоит: замедляют и поджигают. Рывок героя сквозь разлом
+// эффект не накладывает. Горение бьёт мимо блока (Combat.damageHeroDot) и не включает неуязвимость.
 
 /** Расстояние от точки до отрезка. */
 export function segDist(px, py, x1, y1, x2, y2) {
@@ -129,6 +133,9 @@ export class Boss {
     this.bus = o.bus;
     this.defense = o.defense || null;
     this.rnd = o.rnd || Math.random;
+    this.dotSource = { burn: true, parryable: false, active: true }; // источник горения героя
+    this.burnDamage = 0;   // параметры горения запоминаем при касании разлома: тики идут и после смерти босса
+    this.burnInterval = 0.5;
     this.enemy = null;
     this.fissures = []; // { x1, y1, x2, y2, hw, pts, ticks }: живые разломы
     this.fade = 0;      // >0: разломы тают, сколько осталось
@@ -201,6 +208,7 @@ export class Boss {
         this.fissures.length = 0;
       }
     }
+    this.updateHeroStatus(dt); // горение героя дотикивает, даже если босса уже убили
     const e = this.enemy;
     if (!e) return;
     if (!e.active) {
@@ -209,6 +217,7 @@ export class Boss {
     }
     const C = e.def.cycle;
     if (!C) return;
+    this.applyFissures(C);
     this.t += dt;
     switch (this.state) {
       case 'idle': this.updateIdle(e, C, dt); break;
@@ -220,6 +229,46 @@ export class Boss {
       case 'recover': this.updateRecover(e, C); break;
       default: break;
     }
+  }
+
+  /**
+   * Разломы действуют на героя, пока стоит на них: замедление и горение (обновляются, пока он на разломе).
+   * Рывок героя сквозь разлом ничего не накладывает (hero.dashing). Тающие разломы уже не действуют.
+   */
+  applyFissures(C) {
+    const hero = this.hero;
+    if (!hero.active || hero.dashing || this.fade > 0 || !this.fissures.length || !C.fissure) return;
+    const F = C.fissure;
+    const pad = hero.radius * 0.5; // центр героя почти на полосе: касание краем тела не считается
+    for (let i = 0; i < this.fissures.length; i++) {
+      const f = this.fissures[i];
+      if (segDist(hero.x, hero.y, f.x1, f.y1, f.x2, f.y2) > f.hw + pad) continue;
+      hero.slowMul = F.slowMul;
+      hero.slowT = F.slowTime;
+      if (hero.burnT <= 0) hero.burnTick = F.burnInterval; // первый тик через интервал, не сразу
+      hero.burnT = F.burnTime;
+      this.burnDamage = F.burnDamage;
+      this.burnInterval = F.burnInterval;
+      this.bus.emit('boss:fissure-touch', { fissure: f });
+      return;
+    }
+  }
+
+  /** Тики горения героя: урон мимо блока и неуязвимости (Combat.damageHeroDot). */
+  updateHeroStatus(dt) {
+    const hero = this.hero;
+    if (hero.burnT <= 0) return;
+    if (!hero.active) {
+      hero.burnT = 0;
+      return;
+    }
+    hero.burnT -= dt;
+    hero.burnTick -= dt;
+    while (hero.burnTick <= 0 && hero.active) {
+      this.combat.damageHeroDot(this.burnDamage, this.dotSource);
+      hero.burnTick += Math.max(0.05, this.burnInterval);
+    }
+    if (hero.burnT <= 0) hero.burnT = 0;
   }
 
   updateIdle(e, C, dt) {
@@ -355,7 +404,7 @@ export class Boss {
     let hit = false;
     if (hero.active && distToPolygon(hero.x, hero.y, B.poly) <= this.reachRadius()) {
       e.strikeSrc.active = true;
-      e.strikeSrc.parryable = false; // взрыв площадью парировать нельзя
+      e.strikeSrc.parryable = C.blast.parryable !== false; // парировать можно всё (config: blast.parryable)
       e.strikeSrc.x = B.x;
       e.strikeSrc.y = B.y;
       hit = true;

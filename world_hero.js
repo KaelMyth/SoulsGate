@@ -18,6 +18,11 @@ export class Hero {
     this.dashVy = 0;
     this.glideTime = 0;   // после рывка: сколько ещё скорость гаснет плавно
     this.glideAccel = 0.2; // постоянная времени этого гашения, с
+    // Статусы от босса (разломы Тартаса): замедление и горение. Накладывает systems_boss.js, снимает таймер.
+    this.slowT = 0;       // сколько ещё секунд замедлен
+    this.slowMul = 1;     // во сколько раз медленнее, пока slowT > 0
+    this.burnT = 0;       // сколько ещё секунд горит
+    this.burnTick = 0;    // до следующего тика горения
   }
 
   get radius() {
@@ -29,6 +34,7 @@ export class Hero {
     this.prevX = this.x;
     this.prevY = this.y;
     if (this.invuln > 0) this.invuln -= dt;
+    if (this.slowT > 0) this.slowT -= dt;
 
     if (this.dashing) {
       this.vx = this.dashVx;
@@ -41,8 +47,9 @@ export class Hero {
 
     if (this.glideTime > 0) this.glideTime -= dt;
     const accelTime = this.glideTime > 0 ? Math.max(this.cfg.accelTime, this.glideAccel) : this.cfg.accelTime;
-    const tvx = ix * this.cfg.speed;
-    const tvy = iy * this.cfg.speed;
+    const sm = this.slowT > 0 ? this.slowMul : 1; // замедление не действует на рывок (он выше, в dashing)
+    const tvx = ix * this.cfg.speed * sm;
+    const tvy = iy * this.cfg.speed * sm;
     if (accelTime > 0) {
       const k = 1 - Math.exp(-dt / accelTime);
       this.vx += (tvx - this.vx) * k;
@@ -79,5 +86,9 @@ export class Hero {
     this.invuln = 0;
     this.facing = -Math.PI / 2;
     this.dashing = false;
+    this.slowT = 0;
+    this.slowMul = 1;
+    this.burnT = 0;
+    this.burnTick = 0;
   }
 }

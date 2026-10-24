@@ -497,6 +497,31 @@ export class Renderer {
     ctx.strokeStyle = C.heroEdge;
     ctx.stroke();
 
+    // Замедлен разломом: холодная кайма. Горит: огненное кольцо и язычок, как у врагов.
+    if (hero.slowT > 0) {
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = this.cfg.frost.color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r + 2, 0, TAU);
+      ctx.stroke();
+    }
+    if (hero.burnT > 0) {
+      const f = 0.6 + 0.4 * Math.sin(hero.burnT * 22);
+      const prev = ctx.globalAlpha;
+      ctx.globalAlpha = prev * f;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = this.cfg.burn.color;
+      ctx.beginPath();
+      ctx.arc(hx, hy, r + 4.5, 0, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(hx - 3, hy - r - 4);
+      ctx.quadraticCurveTo(hx, hy - r - 8 - 4 * f, hx + 3, hy - r - 4);
+      ctx.fillStyle = this.cfg.burn.color;
+      ctx.fill();
+      ctx.globalAlpha = prev;
+    }
+
     const cos = Math.cos(hero.facing);
     const sin = Math.sin(hero.facing);
     const tipX = hx + cos * r * 1.9;
