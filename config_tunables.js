@@ -94,6 +94,13 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.width', label: 'Толщина луча', min: 4, max: 30, step: 1 },
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
+  { group: 'Дробь', path: 'shot.base', label: 'Дробинок на снаряд', min: 1, max: 32, step: 1 },
+  { group: 'Дробь', path: 'shot.damageFrac', label: 'Урон дробинки (доля урона снаряда)', min: 0.02, max: 0.6, step: 0.01 },
+  { group: 'Дробь', path: 'shot.spread', label: 'Ширина веера, градусов', min: 4, max: 120, step: 2 },
+  { group: 'Дробь', path: 'shot.speed', label: 'Скорость дробинки', min: 200, max: 900, step: 10 },
+  { group: 'Дробь', path: 'shot.range', label: 'Дальность', min: 60, max: 400, step: 10 },
+  { group: 'Дробь', path: 'shot.knockback', label: 'Откидывание', min: 0, max: 30, step: 1 },
+
   { group: 'Спектральные клинки', path: 'blades.max', label: 'Клинков до залпа', min: 1, max: 12, step: 1 },
   { group: 'Спектральные клинки', path: 'blades.interval', label: 'Интервал появления при 2 клинках, с', min: 0.1, max: 2, step: 0.05 },
   { group: 'Спектральные клинки', path: 'blades.intervalStep', label: 'Интервал короче за каждое удвоение клинков, с', min: 0, max: 0.25, step: 0.01 },

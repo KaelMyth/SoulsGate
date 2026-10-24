@@ -47,6 +47,7 @@ export class AutoAttack {
     this.hero = o.hero;
     this.enemies = o.enemies;
     this.shots = o.shots;
+    this.pellets = o.pellets || null; // дробинки (мод «Дробь»)
     this.lasers = o.lasers || []; // лазеры на поле (ими занимается игра)
     this.bus = o.bus;
     this.modifiers = o.modifiers || null; // (coreId) => { стат: { percent, flat } }
@@ -81,10 +82,11 @@ export class AutoAttack {
     this.target = target;
     // Потолок снарядов: множители конструктора иначе заполнят мир выстрелами. Пока слотов нет, ждём.
     const lim = this.cfg.limits;
-    const full = lim && this.shots.count >= lim.maxShots && !(this.modifiers && (this.modifiers(atk.core) || {}).laser);
     const m = this.modifiers ? this.modifiers(atk.core) : null;
+    const special = !!(m && (m.laser || m.shot)); // лазер и дробь не используют пул снарядов
+    const full = lim && this.shots.count >= lim.maxShots && !special;
     const count = projectileCount(this.cfg, m);
-    if (count >= atk.streamFrom && !(m && m.laser)) { // лазеру поток не нужен: число снарядов идёт в ширину
+    if (count >= atk.streamFrom && !special) { // лазеру поток не нужен: число снарядов идёт в ширину
       // Много снарядов: не залп, а беспрерывный поток. За секунду выпускается ровно count / reload снарядов,
       // столько же, сколько дал бы залп раз в reload: копим дробный остаток и выпускаем по одному.
       if (!target) {
@@ -113,6 +115,7 @@ export class AutoAttack {
   fire(target) {
     const m0 = this.modifiers ? this.modifiers(this.cfg.attack.core) : null;
     if (m0 && m0.laser) return this.fireLaser(target, m0);
+    if (m0 && m0.shot && this.pellets) return this.fireShot(target, m0);
     const hero = this.hero;
     const def = this.cfg.projectiles[this.cfg.attack.projectile];
     const dx = target.x - hero.x;
@@ -145,6 +148,30 @@ export class AutoAttack {
     }
     hero.facing = Math.atan2(dy, dx); // посох смотрит на цель
     if (first) this.bus.emit('projectile:fired', { projectile: first, target, count: fired });
+  }
+
+  /** Дробь: каждый снаряд это веер из shot.base дробинок, снарядов больше значит дробинок больше; урон без штрафа за число. */
+  fireShot(target, m) {
+    const hero = this.hero;
+    const S = this.cfg.shot;
+    const P = this.pellets;
+    const def = this.cfg.projectiles[this.cfg.attack.projectile];
+    const dx = target.x - hero.x;
+    const dy = target.y - hero.y;
+    const base = Math.atan2(dy, dx);
+    const want = Math.round(S.base * projectileCount(this.cfg, m));
+    const n = Math.min(want, P.free()); // места нет: стреляем тем, что влезает
+    const dmg = applyMod(def.damage, m.damage) * S.damageFrac;
+    const half = (S.spread * Math.PI) / 360;
+    for (let i = 0; i < n; i++) {
+      // Равномерный веер с небольшой дрожью: дробинки не стоят рядами, но и не слипаются в одну точку.
+      const t = n > 1 ? (i + this.rnd() * 0.8) / n : 0.5;
+      const a = base + (t * 2 - 1) * half;
+      const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
+      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range, dmg);
+    }
+    hero.facing = base;
+    this.bus.emit('projectile:fired', { projectile: null, target, count: n });
   }
 
   /** Враги, которых можно взять целью, по возрастанию расстояния (в радиусе атаки, на прямой видимости). */

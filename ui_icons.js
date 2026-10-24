@@ -29,6 +29,17 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Дробь: веер точек.
+  shot: [
+    ['circle', { cx: 8, cy: 16, r: 2.6, fill: 'currentColor' }],
+    ['circle', { cx: 18, cy: 8, r: 2.4, fill: 'currentColor' }],
+    ['circle', { cx: 18, cy: 16, r: 2.4, fill: 'currentColor' }],
+    ['circle', { cx: 18, cy: 24, r: 2.4, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 4, r: 2, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 12, r: 2, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 20, r: 2, fill: 'currentColor' }],
+    ['circle', { cx: 26, cy: 28, r: 2, fill: 'currentColor' }],
+  ],
   // Спектральный клинок: треугольник.
   blades: [
     ['path', { d: 'M27 16 7 6l4 10-4 10z', fill: 'currentColor' }],

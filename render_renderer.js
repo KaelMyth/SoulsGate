@@ -503,6 +503,7 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -647,6 +648,7 @@ export class Renderer {
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
+    this.drawPellets(ctx, alpha, viewL, viewR, viewT, viewB);
     this.drawEnemyShots(this.enemyShots.items, alpha, viewL, viewR, viewT, viewB, C);
 
     // Эффекты-всплески.
@@ -2068,6 +2070,24 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     ctx.lineCap = 'butt';
+  }
+
+  /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
+  drawPellets(ctx, alpha, viewL, viewR, viewT, viewB) {
+    const P = this.pellets;
+    if (!P || !P.n) return;
+    const S = this.cfg.shot;
+    const r = S.radius;
+    const d = r * 2;
+    ctx.fillStyle = S.color;
+    ctx.beginPath();
+    for (let i = 0; i < P.n; i++) {
+      const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+      const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+      if (x < viewL - 8 || x > viewR + 8 || y < viewT - 8 || y > viewB + 8) continue;
+      ctx.rect(x - r, y - r, d, d);
+    }
+    ctx.fill();
   }
 
   /** Спектральные клинки: голубые треугольники (с Лазером сферы), остриём по ходу полёта (на орбите остриём наружу). */

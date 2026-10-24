@@ -73,7 +73,7 @@ export function burnStats(config, burn, dmg) {
 }
 
 export function coreStats(core, config, mods) {
-  const pen = core.def.multStat === 'count' ? countPenalty(config, projectileCount(config, mods)) : 1;
+  const pen = core.def.multStat === 'count' && !(mods && mods.shot) ? countPenalty(config, projectileCount(config, mods)) : 1;
   const rows = (core.def.stats || []).map((s) => {
     let v = getPath(config, s.path);
     const m = s.key && mods ? mods[s.key] : null;
@@ -122,6 +122,12 @@ export function coreStats(core, config, mods) {
     }
     if (mods.burn) rows.push({ label: 'Клинки: горение, урон тика', text: String(Math.round(bdmg * config.burn.damageFrac * mods.burn.damage * 100) / 100), bonus: '' });
     if (mods.frost) rows.push({ label: 'Клинки: Мороз', text: mods.steam && mods.burn ? 'взрыв пара' : config.frost.maxStacks + ' попаданий → заморозка', bonus: '' });
+  }
+  if (core.def.canShot && mods && mods.shot) {
+    const dmgRow = rows.find((r) => r.key === 'damage');
+    const n = Math.round(config.shot.base * projectileCount(config, mods));
+    rows.push({ label: 'Дробь: дробинок за выстрел', text: String(n), bonus: '' });
+    rows.push({ label: 'Дробь: урон дробинки', text: String(Math.round((dmgRow ? dmgRow.value : 0) * config.shot.damageFrac * 100) / 100), bonus: '' });
   }
   if (core.def.canPierce && mods && mods.pierce) {
     rows.push({ label: 'Пробитие: врагов насквозь', text: String(Math.round(mods.pierce.count)), bonus: '' });
