@@ -819,14 +819,15 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Клинки (вторая атака). Ждущий клинок: на земле его линия, сам он стоит на краю кольца.
-    // Летящий: короткая чёрточка по ходу полёта. Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state }, b.bladeCount;
+    // Клинки (вторая атака). Ждущий клинок стоит на кольце; линию на земле показывает только тот, чей прицел
+    // уже зафиксирован (aimed): он вылетит следующим. Летящий: короткая чёрточка по ходу полёта.
+    // Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state, aimed }, b.bladeCount;
     // state 1 ждёт вылета, 2 летит, 3 закончил. Каждая группа рисуется одним проходом.
     if (b.bladeCount > 0) {
       const bl = b.blades;
       ctx.beginPath();
       for (let i = 0; i < b.bladeCount; i++) {
-        if (bl[i].state !== 1) continue;
+        if (bl[i].state !== 1 || !bl[i].aimed) continue;
         ctx.moveTo(bl[i].x1, bl[i].y1);
         ctx.lineTo(bl[i].x2, bl[i].y2);
       }
