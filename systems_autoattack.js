@@ -147,31 +147,65 @@ export class AutoAttack {
     if (first) this.bus.emit('projectile:fired', { projectile: first, target, count: fired });
   }
 
-  /** Лазер вместо снаряда: луч из точки, где стоит герой, в сторону цели, держится life секунд и бьёт тиками. */
+  /** Враги, которых можно взять целью, по возрастанию расстояния (в радиусе атаки, на прямой видимости). */
+  targetsByDistance() {
+    const atk = this.cfg.attack;
+    const hero = this.hero;
+    const en = this.enemies.items;
+    const out = this.cand || (this.cand = []);
+    out.length = 0;
+    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius) : en.length;
+    const buf = this.grid ? this.grid.buf : null;
+    for (let k = 0; k < n; k++) {
+      const e = en[buf ? buf[k] : k];
+      if (!e || !e.active) continue;
+      const d = Math.hypot(e.x - hero.x, e.y - hero.y);
+      if (d > atk.radius) continue;
+      if (atk.requireLineOfSight && this.arena && this.arena.segmentBlocked(hero.x, hero.y, e.x, e.y, 4)) continue;
+      out.push({ e, d });
+    }
+    out.sort((p, q) => p.d - q.d);
+    return out;
+  }
+
+  /**
+   * Лазер вместо снарядов: каждый «снаряд» это отдельный луч из героя. Лучи берут разных врагов по порядку расстояния,
+   * когда лучей больше, чем врагов, цели повторяются. Луч держится life секунд и бьёт тиками. Пробитие на лазер не действует.
+   */
   fireLaser(target, m) {
     const hero = this.hero;
     const L = this.cfg.laser;
-    if (this.lasers.length >= L.max) return;
     const def = this.cfg.projectiles[this.cfg.attack.projectile];
-    const dx = target.x - hero.x;
-    const dy = target.y - hero.y;
-    const len = Math.hypot(dx, dy) || 1;
     const count = projectileCount(this.cfg, m);
     const dmg = applyMod(def.damage, m.damage); // урон снаряда с модами
     const ls = laserStats(this.cfg, m.laser, dmg, count);
     const b = m.burn;
-    this.lasers.push({
-      x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
-      target, pierce: m.pierce ? Math.round(m.pierce.count) : 0, // конец луча следует за целью; сквозь стольких врагов он проходит
-      width: ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0, tick: ls.tick, big: ls.big,
-      burnDmg: b ? dmg * countPenalty(this.cfg, count) * count * this.cfg.burn.damageFrac * b.damage : 0,
-      burnInt: b ? this.cfg.burn.interval / b.rate : 0,
-      frost: !!m.frost,
-      steam: m.frost && m.steam && b ? m.steam.damage : 0,
-      pulse: 0,
-    });
-    hero.facing = Math.atan2(dy, dx);
-    this.bus.emit('laser:fired', { count });
+    const list = this.targetsByDistance();
+    if (!list.length) list.push({ e: target, d: Math.hypot(target.x - hero.x, target.y - hero.y) });
+    const burnDmg = b ? dmg * countPenalty(this.cfg, count) * this.cfg.burn.damageFrac * b.damage : 0;
+    let fired = 0;
+    for (let i = 0; i < count; i++) {
+      if (this.lasers.length >= L.max) break;
+      const t = list[i % list.length].e;
+      const dx = t.x - hero.x;
+      const dy = t.y - hero.y;
+      const len = Math.hypot(dx, dy) || 1;
+      this.lasers.push({
+        x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
+        target: t, pierce: 0, // конец луча следует за целью и упирается в первого врага на пути
+        width: ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0, tick: ls.tick, big: ls.big,
+        burnDmg,
+        burnInt: b ? this.cfg.burn.interval / b.rate : 0,
+        frost: !!m.frost,
+        steam: m.frost && m.steam && b ? m.steam.damage : 0,
+        pulse: 0,
+      });
+      fired++;
+    }
+    if (!fired) return;
+    const first = list[0].e;
+    hero.facing = Math.atan2(first.y - hero.y, first.x - hero.x);
+    this.bus.emit('laser:fired', { count: fired });
   }
 
   /** Один снаряд потока: небольшой разброс по ширине, глубине и углу. */

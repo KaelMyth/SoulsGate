@@ -86,7 +86,6 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.interval', label: 'Интервал тиков, с', min: 0.05, max: 1, step: 0.05 },
   { group: 'Лазер', path: 'laser.bigDuration', label: 'Длительность большого (9+ снарядов), с', min: 0.5, max: 6, step: 0.5 },
   { group: 'Лазер', path: 'laser.width', label: 'Толщина луча', min: 4, max: 30, step: 1 },
-  { group: 'Лазер', path: 'laser.widthPerCount', label: 'Прибавка толщины за снаряд (доля)', min: 0, max: 1, step: 0.05 },
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
   { group: 'Спектральные клинки', path: 'blades.max', label: 'Клинков до залпа', min: 1, max: 12, step: 1 },
