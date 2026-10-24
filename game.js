@@ -264,12 +264,15 @@ export class Game {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
     });
     // Блок и парирование: вспышки, искры и остановка времени. Сами они считаются в systems/defense.js.
-    this.bus.on('hero:blocked', () => {
+    this.bus.on('hero:blocked', (e) => {
       this.blocks++;
+      const src = e && e.source;
+      this.renderer.shieldHit(src ? src.x : NaN, src ? src.y : NaN, false);
       this.burst(this.hero.x, this.hero.y, 0.2, this.defense.blockRadius * 0.8, this.defense.blockRadius * 1.25, C.blockEdge);
     });
     this.bus.on('hero:parried', (e) => {
       this.parries++;
+      this.renderer.shieldHit(e.x, e.y, true);
       this.hitStop = Math.max(this.hitStop, config.block.hitStop);
       this.burst(this.hero.x, this.hero.y, 0.3, this.defense.blockRadius, this.defense.blockRadius * 1.9, C.parry);
       this.sparks(e.x, e.y, config.block.sparks, C.spark);

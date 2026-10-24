@@ -520,6 +520,12 @@ export class Renderer {
     this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
     this.glowRed = null;          // то же, красное: для быка
     this.glowBlue = null;         // то же, голубое: кристалл посоха героя
+    this.glowGold = null;         // то же, золотое: щит в окне парирования
+    this.shield = {               // вид щита: появление, цвет золото-синий, вспышка парирования и отклики на удары
+      k: 0, pk: 0, flash: 0,
+      rip: [{ on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false },
+        { on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false }],
+    };
     this.hs = {                   // вид героя: сглаженные угол и курс, фаза шага и история позиций для шлейфа
       a: -Math.PI / 2, mx: 0, my: 0, phase: 0, lx: 0, ly: 0, has: false,
       head: 0, cnt: 0, tx: new Float32Array(32), ty: new Float32Array(32), tt: new Float64Array(32), ti: 0,
@@ -963,7 +969,7 @@ export class Renderer {
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
   getGlow(violet) {
-    const key = violet === 'red' ? 'glowRed' : violet === 'blue' ? 'glowBlue' : violet ? 'glowViolet' : 'glow';
+    const key = violet === 'red' ? 'glowRed' : violet === 'blue' ? 'glowBlue' : violet === 'gold' ? 'glowGold' : violet ? 'glowViolet' : 'glow';
     if (this[key]) return this[key];
     const size = 64;
     let c;
@@ -975,7 +981,12 @@ export class Renderer {
     }
     const g = c.getContext('2d');
     const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    if (violet === 'blue') {
+    if (violet === 'gold') {
+      gr.addColorStop(0, 'rgba(255,248,214,1)');
+      gr.addColorStop(0.3, 'rgba(255,214,96,0.55)');
+      gr.addColorStop(0.7, 'rgba(255,184,40,0.14)');
+      gr.addColorStop(1, 'rgba(255,170,20,0)');
+    } else if (violet === 'blue') {
       gr.addColorStop(0, 'rgba(236,248,255,1)');
       gr.addColorStop(0.3, 'rgba(120,190,255,0.55)');
       gr.addColorStop(0.7, 'rgba(70,140,255,0.14)');
@@ -2418,21 +2429,169 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Сфера блока вокруг героя. Окно парирования подсвечено, к концу блока сфера мигает. */
+  /** Удар по щиту: игра сообщает, откуда прилетело (sx, sy; не число: направление случайное) и было ли это парирование. */
+  shieldHit(sx, sy, parried) {
+    const S = this.shield;
+    const a = Number.isFinite(sx) && Number.isFinite(sy) ? Math.atan2(sy - this.hero.y, sx - this.hero.x) : Math.random() * TAU;
+    let r = S.rip[0];
+    for (let i = 0; i < S.rip.length; i++) {
+      if (!S.rip[i].on) {
+        r = S.rip[i];
+        break;
+      }
+    }
+    r.on = true;
+    r.a = a;
+    r.t = 0;
+    r.parry = !!parried;
+    if (parried) S.flash = 1;
+  }
+
+  /**
+   * Щит блока: светящаяся стеклянная сфера. Яркая кромка, вращающийся каркас-«глобус», блик света, свет на снегу
+   * вокруг. В окне парирования золотая, потом плавно синеет. Появляется и гаснет плавно, перед концом мигает.
+   * На удар и парирование: вспышка по сфере и яркое пятно на кромке там, откуда прилетело (shieldHit).
+   */
   drawBlock(hx, hy, C) {
     const d = this.defense;
-    if (!d || !d.blocking) return;
+    if (!d) return;
+    const S = this.shield;
+    const dt = this.dt;
+    const t = this.clock;
+    const blocking = d.blocking;
+    const parrying = blocking && d.parrying;
+    S.k += ((blocking ? 1 : 0) - S.k) * (1 - Math.exp(-dt / (blocking ? 0.05 : 0.09)));
+    S.pk += ((parrying ? 1 : 0) - S.pk) * (1 - Math.exp(-dt / (parrying ? 0.03 : 0.14)));
+    S.flash = Math.max(0, S.flash - dt / 0.32);
+    for (let i = 0; i < S.rip.length; i++) {
+      const q = S.rip[i];
+      if (q.on) {
+        q.t += dt;
+        if (q.t >= 0.45) q.on = false;
+      }
+    }
+    if (S.k < 0.02) return;
     const ctx = this.ctx;
-    const left = this.cfg.block.duration - d.blockTime;
-    if (left < 0.3 && Math.floor(left * 20) % 2 === 0) return; // мигает: блок вот-вот кончится
-    const parry = d.parrying;
+    const k = S.k;
+    const pk = S.pk;
+    let am = k;
+    if (blocking) {
+      const left = this.cfg.block.duration - d.blockTime;
+      if (left < 0.3 && Math.floor(left * 20) % 2 === 0) am *= 0.35; // блок вот-вот кончится: щит мигает
+    }
+    const R = d.blockRadius * (0.72 + 0.28 * k + 0.08 * S.flash) * (1 + 0.012 * Math.sin(t * 3));
+    const cB = hexRgb(C.shield);
+    const cBL = hexRgb(C.shieldLight);
+    const cG = hexRgb(C.shieldParry);
+    const cGL = hexRgb(C.shieldParryLight);
+    const mx = (a, b) => [a[0] + (b[0] - a[0]) * pk, a[1] + (b[1] - a[1]) * pk, a[2] + (b[2] - a[2]) * pk];
+    const col = mx(cB, cG);
+    const lit = mx(cBL, cGL);
+    const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a.toFixed(3) + ')';
+
+    ctx.save();
+    ctx.translate(hx, hy);
+
+    // Свет на снегу вокруг: синий и золотой смешиваются по фазе парирования.
+    ctx.globalCompositeOperation = 'lighter';
+    const gs = R * 1.75;
+    if (pk < 0.98) {
+      ctx.globalAlpha = am * (1 - pk) * (0.3 + 0.2 * S.flash);
+      ctx.drawImage(this.getGlow('blue'), -gs, -gs, gs * 2, gs * 2);
+    }
+    if (pk > 0.02) {
+      ctx.globalAlpha = am * pk * (0.4 + 0.2 * S.flash);
+      ctx.drawImage(this.getGlow('gold'), -gs, -gs, gs * 2, gs * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Тело: почти прозрачное в середине, плотнее и ярче к краю (как у стекла).
+    const gr = ctx.createRadialGradient(-R * 0.25, -R * 0.3, R * 0.05, 0, 0, R);
+    gr.addColorStop(0, rgba(lit, 0.17));
+    gr.addColorStop(0.55, rgba(col, 0.07));
+    gr.addColorStop(0.86, rgba(col, 0.2));
+    gr.addColorStop(1, rgba(lit, 0.5));
+    ctx.globalAlpha = am;
+    ctx.fillStyle = gr;
     ctx.beginPath();
-    ctx.arc(hx, hy, d.blockRadius, 0, TAU);
-    ctx.fillStyle = parry ? 'rgba(255,226,122,0.26)' : C.block;
+    ctx.arc(0, 0, R, 0, TAU);
     ctx.fill();
-    ctx.lineWidth = parry ? 3 : 2;
-    ctx.strokeStyle = parry ? C.parry : C.blockEdge;
+
+    // Каркас: три вращающихся меридиана и экватор, поэтому сфера читается объёмом.
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(lit, 0.32);
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, Math.max(0.5, R * Math.abs(Math.cos(t * 0.7 + i * 1.0472))), R, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = rgba(lit, 0.24);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R, R * 0.3, -0.35, 0, TAU);
     ctx.stroke();
+
+    // Блик света слева сверху (свет в игре падает оттуда) и маленький отсвет с обратной стороны.
+    ctx.save();
+    ctx.translate(-R * 0.36, -R * 0.42);
+    ctx.rotate(-0.6);
+    ctx.scale(1, 0.5);
+    const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.34);
+    sg.addColorStop(0, 'rgba(255,255,255,0.7)');
+    sg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.34, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = rgba(lit, 0.4);
+    ctx.beginPath();
+    ctx.arc(R * 0.46, R * 0.5, R * 0.05, 0, TAU);
+    ctx.fill();
+
+    // Кромка: мягкое внешнее свечение, чёткая линия, ярче на освещённой стороне.
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = rgba(col, 0.16);
+    ctx.stroke();
+    ctx.lineWidth = 1.5 + 1.3 * pk;
+    ctx.strokeStyle = rgba(lit, 0.9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, R, Math.PI * 0.95, Math.PI * 1.55);
+    ctx.lineWidth = 2.6;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+
+    // Вспышка на парировании: вся сфера наливается светом.
+    ctx.globalCompositeOperation = 'lighter';
+    if (S.flash > 0) {
+      ctx.globalAlpha = am * 0.3 * S.flash;
+      ctx.fillStyle = rgba(cGL, 1);
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, TAU);
+      ctx.fill();
+    }
+    // Отклики на удары: пятно света на кромке и дуга, разбегающаяся в стороны.
+    for (let i = 0; i < S.rip.length; i++) {
+      const q = S.rip[i];
+      if (!q.on) continue;
+      const p = q.t / 0.45;
+      const ex = Math.cos(q.a) * R * 0.97;
+      const ey = Math.sin(q.a) * R * 0.97;
+      const gl = this.getGlow(q.parry ? 'gold' : 'blue');
+      const g2 = R * (0.75 - 0.25 * p);
+      ctx.globalAlpha = am * (1 - p) * 0.95;
+      ctx.drawImage(gl, ex - g2, ey - g2, g2 * 2, g2 * 2);
+      const spread = 0.35 + 0.9 * p;
+      ctx.globalAlpha = am * (1 - p);
+      ctx.lineWidth = 3.2 * (1 - p) + 0.8;
+      ctx.strokeStyle = q.parry ? 'rgba(255,240,170,1)' : 'rgba(210,238,255,1)';
+      ctx.beginPath();
+      ctx.arc(0, 0, R, q.a - spread, q.a + spread);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
