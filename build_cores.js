@@ -99,9 +99,13 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Лазер: толщина', text: String(Math.round(ls.width)), bonus: '' });
   }
   if (core.def.canBlades && mods && mods.blades) {
-    rows.push({ label: 'Клинки: до залпа', text: String(config.blades.max), bonus: '' });
-    rows.push({ label: 'Клинки: новый раз в', text: config.blades.interval + ' с', bonus: '' });
-    rows.push({ label: 'Клинки: урон', text: String(config.blades.damage), bonus: '' });
+    const bm = mods.blades;
+    const bdmg = config.blades.damage * bm.damage;
+    rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
+    rows.push({ label: 'Клинки: новый раз в', text: Math.round(config.blades.interval / bm.rate * 100) / 100 + ' с', bonus: '' });
+    rows.push({ label: 'Клинки: урон', text: String(Math.round(bdmg * 100) / 100), bonus: bm.damage !== 1 ? '+' + Math.round((bm.damage - 1) * 100) + '%' : '' });
+    if (mods.burn) rows.push({ label: 'Клинки: горение, урон тика', text: String(Math.round(bdmg * config.burn.damageFrac * mods.burn.damage * 100) / 100), bonus: '' });
+    if (mods.frost) rows.push({ label: 'Клинки: Мороз', text: mods.steam && mods.burn ? 'взрыв пара' : config.frost.maxStacks + ' попаданий → заморозка', bonus: '' });
   }
   if (core.def.canPierce && mods && mods.pierce) {
     rows.push({ label: 'Пробитие: врагов насквозь', text: String(Math.round(mods.pierce.count)), bonus: '' });

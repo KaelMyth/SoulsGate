@@ -20,6 +20,8 @@ export class Blades {
     this.grid = o.grid;
     this.combat = o.combat;
     this.modifiers = o.modifiers || null;
+    this.ignite = o.ignite || null; // (враг, урон тика, интервал) от Горения на клинках
+    this.chill = o.chill || null;   // (враг, пар, урон тика, интервал) от Мороза на клинках
     this.items = []; // { x, y, a (угол полёта или место на орбите), state: 'orbit' | 'fly', target, vx, vy, age }
     this.timer = 0;
     this.spin = 0;
@@ -94,13 +96,17 @@ export class Blades {
     const hero = this.hero;
     if (!hero.active) return;
     this.spin += B.spin * dt;
+    const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
+    const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
+    const interval = Math.max(0.05, B.interval / bm.rate);    // Ускорение на клинках
+    const dmg = B.damage * bm.damage;                          // Мощь на клинках
 
     // Копим клинки, пока их на орбите меньше максимума.
     let orbit = this.orbiting();
-    if (orbit < B.max) {
+    if (orbit < max) {
       this.timer += dt;
-      while (this.timer >= B.interval && orbit < B.max) {
-        this.timer -= B.interval;
+      while (this.timer >= interval && orbit < max) {
+        this.timer -= interval;
         this.items.push({ x: hero.x, y: hero.y, a: this.spin, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
         orbit++;
       }
@@ -149,13 +155,22 @@ export class Blades {
         const dx = t.x - b.x;
         const dy = t.y - b.y;
         if (dx * dx + dy * dy <= r * r) {
-          this.combat.damageEnemy(t, B.damage, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          this.combat.damageEnemy(t, dmg, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          if (t.active) this.applyEffects(t, m, dmg);
           items.splice(j, 1);
           continue;
         }
       }
       if (b.age >= B.life) items.splice(j, 1);
     }
+  }
+
+  /** Горение и Мороз на клинках: как у снаряда, сила от урона клинка. */
+  applyEffects(e, m, dmg) {
+    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
+    if (bd > 0 && this.ignite) this.ignite(e, bd, bi);
+    if (m.frost && this.chill) this.chill(e, bd > 0 && m.steam ? m.steam.damage : 0, bd, bi);
   }
 
   nearest(x, y, range) {
