@@ -133,6 +133,7 @@ export class BuildGrid {
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
       if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
+      else if (e.kind === 'blades') carry.set(ci, 'blades'); // пока голые клинки: ничего на них не вешается
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
@@ -266,6 +267,12 @@ export class BuildGrid {
       lRate += 1 + r;
     }
     if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    let blades = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (c.mod && c.mod.def.effect.kind === 'blades' && owner.get(i) === coreId) blades++;
+    }
+    if (blades) res.blades = { count: blades };
     if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
     // Что стоит «на ядре»: моды прямо на нём и моды под множителями Х2/Х3, которые сидят на ядре (они только ветка).
     const rootStat = [];
@@ -281,7 +288,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }

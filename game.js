@@ -29,6 +29,7 @@ import { ModeScreen } from './ui_mode-screen.js';
 import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
+import { Blades } from './systems_blades.js';
 import { layoutCores } from './build_placement.js';
 import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -104,6 +105,11 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
+    this.blades = new Blades({
+      config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+    });
+
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -118,6 +124,7 @@ export class Game {
       defense: this.defense,
       boss: this.boss,
       clouds: this.steamClouds,
+      blades: this.blades.items,
       lasers: this.lasers,
       hud: this.hud,
     });
@@ -630,6 +637,7 @@ export class Game {
       this.updateFrost(dt);
       this.updateSteam(dt);
       this.updateLasers(dt);
+      this.blades.update(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
@@ -860,6 +868,7 @@ export class Game {
     this.xp.reset();
     this.hero.reset();
     this.defense.reset();
+    this.blades.reset();
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();

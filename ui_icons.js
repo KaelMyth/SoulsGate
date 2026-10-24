@@ -29,6 +29,10 @@ const ICONS = {
     ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
     ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
   ],
+  // Спектральный клинок: треугольник.
+  blades: [
+    ['path', { d: 'M27 16 7 6l4 10-4 10z', fill: 'currentColor' }],
+  ],
   // Лазер: луч с искрами.
   laser: [
     ['path', { d: 'M3 16h26', stroke: 'currentColor', 'stroke-width': 4.5, 'stroke-linecap': 'round', fill: 'none' }],

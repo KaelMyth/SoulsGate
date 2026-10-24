@@ -98,6 +98,11 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Лазер: тиков за ' + ls.life + ' с', text: String(ls.ticks), bonus: ls.big ? 'большой' : '' });
     rows.push({ label: 'Лазер: толщина', text: String(Math.round(ls.width)), bonus: '' });
   }
+  if (core.def.canBlades && mods && mods.blades) {
+    rows.push({ label: 'Клинки: до залпа', text: String(config.blades.max), bonus: '' });
+    rows.push({ label: 'Клинки: новый раз в', text: config.blades.interval + ' с', bonus: '' });
+    rows.push({ label: 'Клинки: урон', text: String(config.blades.damage), bonus: '' });
+  }
   if (core.def.canPierce && mods && mods.pierce) {
     rows.push({ label: 'Пробитие: врагов насквозь', text: String(Math.round(mods.pierce.count)), bonus: '' });
   }

@@ -86,6 +86,14 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.widthPerCount', label: 'Прибавка толщины за снаряд (доля)', min: 0, max: 1, step: 0.05 },
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
+  { group: 'Спектральные клинки', path: 'blades.max', label: 'Клинков до залпа', min: 1, max: 12, step: 1 },
+  { group: 'Спектральные клинки', path: 'blades.interval', label: 'Раз в сколько секунд новый клинок', min: 0.1, max: 2, step: 0.05 },
+  { group: 'Спектральные клинки', path: 'blades.perTarget', label: 'Клинков на одного врага', min: 1, max: 6, step: 1 },
+  { group: 'Спектральные клинки', path: 'blades.damage', label: 'Урон клинка', min: 1, max: 80, step: 1 },
+  { group: 'Спектральные клинки', path: 'blades.speed', label: 'Скорость полёта', min: 150, max: 800, step: 10 },
+  { group: 'Спектральные клинки', path: 'blades.range', label: 'Дальность выбора цели', min: 100, max: 500, step: 10 },
+  { group: 'Спектральные клинки', path: 'blades.orbit', label: 'Радиус орбиты', min: 20, max: 80, step: 1 },
+
   { group: 'Блок и парирование', path: 'block.duration', label: 'Длительность блока, с', min: 0.5, max: 3, step: 0.1 },
   { group: 'Блок и парирование', path: 'block.parryWindow', label: 'Окно парирования, с', min: 0.1, max: 1, step: 0.05 },
   { group: 'Блок и парирование', path: 'block.cooldown', label: 'Перезарядка блока, с', min: 0.3, max: 5, step: 0.1 },
