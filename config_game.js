@@ -515,6 +515,13 @@ export const CONFIG = {
       shadow: 'rgba(0,0,0,0.30)',
       hero: '#6fa8ff',
       heroEdge: '#cfe3ff',
+      heroCloak: '#27355c',      // плащ мага: тень
+      heroCloakLight: '#5b74b8', // плащ мага: свет
+      heroHat: '#1b2547',        // шляпа: тень
+      heroHatLight: '#4a5ca6',   // шляпа: свет
+      crystal: '#7fc4ff',        // кристалл на посохе
+      crystalCore: '#e8f6ff',    // сердцевина кристалла
+      trail: '#9fd0ff',          // шлейф за героем
       staff: '#9aa7bd',
       accent: '#ffb14a',
       stick: 'rgba(207,224,245,0.40)',

@@ -9,6 +9,9 @@ const EMPTY = { items: [] };
 // Угловатый контур панциря (x, y в долях радиуса, нос в +x), общий для жуков в стиле low-poly.
 const SHELL = [0.56, -0.5, 0.1, -0.78, -0.6, -0.62, -0.98, -0.15, -0.98, 0.15, -0.6, 0.62, 0.1, 0.78, 0.56, 0.5];
 
+// Плечи мага (восьмиугольник): x вперёд по курсу, y вправо, доли радиуса.
+const HERO_BODY = [0.52, 0, 0.36, -0.64, -0.05, -1.0, -0.52, -0.72, -0.62, 0, -0.52, 0.72, -0.05, 1.0, 0.36, 0.64];
+
 // Жук-носорог (бык): широкий панцирь, пластина-«шея» и большой рог с двумя отростками. Единицы: доли радиуса.
 const BULL_SHELL = [0.62, -0.62, 0.15, -0.9, -0.65, -0.78, -1.05, -0.2, -1.05, 0.2, -0.65, 0.78, 0.15, 0.9, 0.62, 0.62];
 const BULL_PRON = [0.82, -0.4, 0.5, -0.62, 0.22, -0.52, 0.22, 0.52, 0.5, 0.62, 0.82, 0.4];
@@ -515,6 +518,13 @@ export class Renderer {
     this.glow = null;             // мягкое тёплое пятно света, рисуется один раз и переиспользуется
     this.glowViolet = null;       // то же, фиолетовое: для стрелка, его снарядов и слизи
     this.glowRed = null;          // то же, красное: для быка
+    this.glowBlue = null;         // то же, голубое: кристалл посоха героя
+    this.hs = {                   // вид героя: сглаженные угол и курс, фаза шага и история позиций для шлейфа
+      a: -Math.PI / 2, mx: 0, my: 0, phase: 0, lx: 0, ly: 0, has: false,
+      head: 0, cnt: 0, tx: new Float32Array(32), ty: new Float32Array(32), tt: new Float64Array(32), ti: 0,
+    };
+    this.hbuf = new Float32Array(33 * 5); // буфер точек ленты шлейфа (x, y, нормаль, ширина): без выделений памяти в кадре
+    this.hring = new Float32Array(16);     // контур плеч героя
     this.strip = null;            // мягкая красная полоса телеграфа (без чётких краёв), один спрайт
     this.dust = null;             // спрайт облачка пыли
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
@@ -926,7 +936,7 @@ export class Renderer {
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
   getGlow(violet) {
-    const key = violet === 'red' ? 'glowRed' : violet ? 'glowViolet' : 'glow';
+    const key = violet === 'red' ? 'glowRed' : violet === 'blue' ? 'glowBlue' : violet ? 'glowViolet' : 'glow';
     if (this[key]) return this[key];
     const size = 64;
     let c;
@@ -938,7 +948,12 @@ export class Renderer {
     }
     const g = c.getContext('2d');
     const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    if (violet === 'red') {
+    if (violet === 'blue') {
+      gr.addColorStop(0, 'rgba(236,248,255,1)');
+      gr.addColorStop(0.3, 'rgba(120,190,255,0.55)');
+      gr.addColorStop(0.7, 'rgba(70,140,255,0.14)');
+      gr.addColorStop(1, 'rgba(50,110,255,0)');
+    } else if (violet === 'red') {
       gr.addColorStop(0, 'rgba(255,218,205,1)');
       gr.addColorStop(0.3, 'rgba(255,84,66,0.55)');
       gr.addColorStop(0.7, 'rgba(220,40,36,0.14)');
@@ -1758,58 +1773,433 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Запоминает, где герой был: из этих точек рисуется шлейф. Точки живут life секунд; при телепорте история сбрасывается. */
+  updateHeroTrail(hx, hy, speed, life) {
+    const h = this.hs;
+    const N = h.tx.length;
+    const t = this.clock;
+    if (h.has && Math.hypot(hx - h.lx, hy - h.ly) > 90) h.cnt = 0;
+    h.lx = hx;
+    h.ly = hy;
+    h.has = true;
+    while (h.cnt > 0 && t - h.tt[(h.head - h.cnt + N) % N] > life) h.cnt--;
+    if (speed < 12) return;
+    const nw = (h.head - 1 + N) % N;
+    if (h.cnt > 0 && Math.hypot(hx - h.tx[nw], hy - h.ty[nw]) < 2.2) return;
+    h.tx[h.head] = hx;
+    h.ty[h.head] = hy;
+    h.tt[h.head] = t;
+    h.head = (h.head + 1) % N;
+    if (h.cnt < N) h.cnt++;
+  }
+
+  /**
+   * Шлейф: сужающаяся светящаяся лента по прошлым положениям, светлая нить посередине и искры, оседающие
+   * по краям. Интенсивность (alpha 0..1) плавно растёт при разгоне и гаснет после остановки.
+   */
+  drawHeroTrail(hx, hy, r, wmul, life, alpha, C) {
+    const h = this.hs;
+    if (h.cnt < 1 || alpha < 0.02) return;
+    const ctx = this.ctx;
+    const N = h.tx.length;
+    const t = this.clock;
+    const m = h.cnt + 1;
+    const b = this.hbuf; // на точку: x, y, нормаль (nx, ny), полуширина
+    const at = (i) => (i === 0 ? hx : h.tx[(h.head - i + N) % N]);
+    const bt = (i) => (i === 0 ? hy : h.ty[(h.head - i + N) % N]);
+    for (let i = 0; i < m; i++) {
+      const a = Math.max(0, i - 1);
+      const c = Math.min(m - 1, i + 1);
+      let dx = at(a) - at(c);
+      let dy = bt(a) - bt(c);
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len;
+      dy /= len;
+      const k = i === 0 ? 1 : Math.max(0, 1 - (t - h.tt[(h.head - i + N) % N]) / life);
+      b[i * 5] = at(i);
+      b[i * 5 + 1] = bt(i);
+      b[i * 5 + 2] = -dy;
+      b[i * 5 + 3] = dx;
+      b[i * 5 + 4] = r * 0.78 * wmul * Math.pow(k, 0.8);
+    }
+    const ox = b[(m - 1) * 5];
+    const oy = b[(m - 1) * 5 + 1];
+    if (Math.hypot(ox - hx, oy - hy) < 1) return;
+    const c3 = hexRgb(C.trail);
+    const col = (a) => 'rgba(' + c3[0] + ',' + c3[1] + ',' + c3[2] + ',' + a.toFixed(3) + ')';
+    const band = (f) => { // лента шириной f от базовой
+      ctx.beginPath();
+      ctx.moveTo(b[0] - b[2] * b[4] * f, b[1] - b[3] * b[4] * f);
+      for (let i = 1; i < m; i++) ctx.lineTo(b[i * 5] - b[i * 5 + 2] * b[i * 5 + 4] * f, b[i * 5 + 1] - b[i * 5 + 3] * b[i * 5 + 4] * f);
+      for (let i = m - 1; i >= 0; i--) ctx.lineTo(b[i * 5] + b[i * 5 + 2] * b[i * 5 + 4] * f, b[i * 5 + 1] + b[i * 5 + 3] * b[i * 5 + 4] * f);
+      ctx.closePath();
+      ctx.fill();
+    };
+    const gr = ctx.createLinearGradient(hx, hy, ox, oy);
+    gr.addColorStop(0, col(0.22 * alpha));
+    gr.addColorStop(1, col(0));
+    ctx.fillStyle = gr;
+    band(1.8); // мягкое свечение вокруг
+    const gm = ctx.createLinearGradient(hx, hy, ox, oy);
+    gm.addColorStop(0, col(0.55 * alpha));
+    gm.addColorStop(1, col(0));
+    ctx.fillStyle = gm;
+    band(1);
+    // Светлая нить по центру ленты.
+    const gl = ctx.createLinearGradient(hx, hy, ox, oy);
+    gl.addColorStop(0, 'rgba(240,250,255,' + (0.8 * alpha).toFixed(3) + ')');
+    gl.addColorStop(1, 'rgba(240,250,255,0)');
+    ctx.strokeStyle = gl;
+    ctx.lineWidth = r * 0.2 * wmul;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    for (let i = 1; i < m; i++) ctx.lineTo(b[i * 5], b[i * 5 + 1]);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    // Искры: оседают по краям ленты и мерцают.
+    ctx.fillStyle = '#e6f4ff';
+    for (let i = 1; i < m; i++) {
+      const k = b[i * 5 + 4] / (r * 0.78 * wmul);
+      const off = Math.sin(t * 7 + i * 1.7) * b[i * 5 + 4] * 1.5;
+      ctx.globalAlpha = Math.min(1, 0.8 * k * alpha * (0.55 + 0.45 * Math.sin(t * 17 + i * 2.3)));
+      ctx.beginPath();
+      ctx.arc(b[i * 5] + b[i * 5 + 2] * off, b[i * 5 + 1] + b[i * 5 + 3] * off, 0.6 + 1.3 * k, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Герой-маг, вид сверху с лёгким наклоном (как на референсе): остроконечная шляпа с широкими полями,
+   * тёмный плащ с хвостом, посох с голубым кристаллом. Тело и посох повёрнуты по hero.facing (на цель),
+   * хвост плаща и шлейф идут против реального движения. Всё состояние вида лежит в this.hs, игре ничего не пишем.
+   */
   drawHero(hx, hy, C) {
     const ctx = this.ctx;
     const hero = this.hero;
     const r = hero.radius;
-    // После удара герой мигает: видно, что он сейчас неуязвим.
-    if (hero.invuln > 0 && (Math.floor(hero.invuln * 16) & 1)) ctx.globalAlpha = 0.4;
+    const t = this.clock;
+    const dt = this.dt;
+    const h = this.hs;
+    const am = hero.invuln > 0 && (Math.floor(hero.invuln * 16) & 1) ? 0.4 : 1; // после удара мигает: герой неуязвим
+    const parry = !!(this.defense && this.defense.parrying);
+    const dash = !!hero.dashing;
+    const slow = hero.slowT > 0;
+    const burn = hero.burnT > 0;
 
+    // Курс, скорость и угол сглаживаем: от рывков стика вид не дёргается.
+    const sp = Math.hypot(hero.vx, hero.vy);
+    const sf = Math.min(1.6, sp / Math.max(1, hero.cfg.speed));
+    const kv = 1 - Math.exp(-dt / 0.08);
+    const tmx = sp > 5 ? hero.vx / sp : 0;
+    const tmy = sp > 5 ? hero.vy / sp : 0;
+    h.mx += (tmx * Math.min(1, sf) - h.mx) * kv;
+    h.my += (tmy * Math.min(1, sf) - h.my) * kv;
+    let da = (hero.facing - h.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    h.a += da * (1 - Math.exp(-dt / 0.045));
+    h.phase += sp * dt * 0.09;
+    const want = sf > 0.05 ? Math.min(1.2, sf + (dash ? 0.4 : 0)) : 0;
+    h.ti += (want - h.ti) * (1 - Math.exp(-dt / (want > h.ti ? 0.06 : 0.3)));
+    const ml = Math.hypot(h.mx, h.my);
+
+    // Шлейф рисуется под героем.
+    this.updateHeroTrail(hx, hy, sp, dash ? 0.55 : 0.42);
+    this.drawHeroTrail(hx, hy, r, 0.5 + 0.7 * Math.min(1.4, h.ti) + (dash ? 0.4 : 0), dash ? 0.55 : 0.42, Math.min(1, h.ti), C);
+
+    const cD = hexRgb(C.heroCloak);
+    const cL = hexRgb(C.heroCloakLight);
+    const hD = hexRgb(C.heroHat);
+    const hL = hexRgb(C.heroHatLight);
+    const gold = '#ffe27a';
+
+    // Тень на снегу.
+    ctx.globalAlpha = am;
     ctx.fillStyle = C.shadow;
     ctx.beginPath();
-    ctx.ellipse(hx, hy + r * 0.6, r * 1.05, r * 0.55, 0, 0, TAU);
+    ctx.ellipse(hx + r * 0.22, hy + r * 0.64, r * 1.1, r * 0.5, 0, 0, TAU);
     ctx.fill();
 
-    // Окно парирования: герой меняет цвет.
-    ctx.fillStyle = this.defense && this.defense.parrying ? C.parry : C.hero;
+    // Свечение за спиной: окно парирования (золотое) и статусы от разломов Тартаса.
+    ctx.globalCompositeOperation = 'lighter';
+    if (parry) {
+      ctx.globalAlpha = 0.55 * am;
+      ctx.drawImage(this.getGlow(), hx - r * 2.4, hy - r * 2.4, r * 4.8, r * 4.8);
+    }
+    if (slow) {
+      ctx.globalAlpha = 0.4 * am;
+      ctx.drawImage(this.getGlow('blue'), hx - r * 2.2, hy - r * 2.2, r * 4.4, r * 4.4);
+    }
+    if (burn) {
+      ctx.globalAlpha = (0.4 + 0.1 * Math.sin(t * 20)) * am;
+      ctx.drawImage(this.getGlow(), hx - r * 2.2, hy - r * 2.2, r * 4.4, r * 4.4);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.save();
+    ctx.translate(hx, hy + Math.sin(h.phase * 2) * 0.05 * r * Math.min(1, ml));
+    if (dash) { // рывок: тело вытягивается по ходу
+      const ma = Math.atan2(hero.vy, hero.vx);
+      ctx.rotate(ma);
+      ctx.scale(1.25, 0.84);
+      ctx.rotate(-ma);
+    }
+    const sc = 1.15 * (1 + 0.015 * Math.sin(t * 2.4)); // чуть крупнее круга столкновения; дышит
+    ctx.scale(sc, sc);
+    const by0 = 0.14 * r; // плечи ниже центра, шляпа выше: так виден маг, а не диск
+    ctx.translate(0, by0);
+
+    // Хвост плаща: тянется против движения, на ходу длиннее и колышется.
+    let tdx = -Math.cos(h.a);
+    let tdy = -Math.sin(h.a);
+    if (ml > 0.08) {
+      tdx = -h.mx / ml;
+      tdy = -h.my / ml;
+    }
+    const tl = r * (0.55 + 1.0 * Math.min(1.2, ml * 1.2));
+    const fl = Math.sin(t * 11 + h.phase) * 0.14 * r * (0.3 + ml);
+    const qx = -tdy;
+    const qy = tdx;
+    ctx.globalAlpha = am;
+    ctx.fillStyle = mixRgb(cD, cL, 0.18);
     ctx.beginPath();
-    ctx.arc(hx, hy, r, 0, TAU);
+    ctx.moveTo(qx * 0.64 * r + tdx * 0.1 * r, qy * 0.64 * r + tdy * 0.1 * r);
+    ctx.lineTo(qx * (0.6 * r + fl * 0.4) + tdx * 0.55 * tl, qy * (0.6 * r + fl * 0.4) + tdy * 0.55 * tl);
+    ctx.lineTo(tdx * tl + qx * fl, tdy * tl + qy * fl);
+    ctx.lineTo(-qx * (0.6 * r - fl * 0.5) + tdx * 0.5 * tl, -qy * (0.6 * r - fl * 0.5) + tdy * 0.5 * tl);
+    ctx.lineTo(-qx * 0.64 * r + tdx * 0.1 * r, -qy * 0.64 * r + tdy * 0.1 * r);
+    ctx.closePath();
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = C.heroEdge;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(8,12,24,0.6)';
     ctx.stroke();
 
-    // ЗАГЛУШКА ГРАФИКИ: статусы героя от разломов Тартаса, по кольцу на статус (замедлен: голубое, горит: оранжевое).
-    // Данные: hero.slowT и hero.burnT (секунд до конца), цвета из config.frost / config.burn.
-    if (hero.slowT > 0) {
-      ctx.lineWidth = 2;
+    // Плечи и плащ: восьмиугольник, повёрнутый по курсу; грани освещены слева сверху.
+    const ca = Math.cos(h.a);
+    const sa = Math.sin(h.a);
+    const ring = this.hring;
+    for (let i = 0; i < 8; i++) {
+      ring[i * 2] = (HERO_BODY[i * 2] * ca - HERO_BODY[i * 2 + 1] * sa) * r;
+      ring[i * 2 + 1] = (HERO_BODY[i * 2] * sa + HERO_BODY[i * 2 + 1] * ca) * r;
+    }
+    const c0x = -0.05 * r;
+    const c0y = -0.06 * r;
+    for (let i = 0; i < 8; i++) {
+      const j = (i + 1) & 7;
+      const mx = (ring[i * 2] + ring[j * 2]) / 2 - c0x;
+      const my = (ring[i * 2 + 1] + ring[j * 2 + 1]) / 2 - c0y;
+      const l = (mx * LIGHT_X + my * LIGHT_Y) / (Math.hypot(mx, my) || 1);
+      const col = mixRgb(cD, cL, 0.36 + 0.5 * l + (parry ? 0.12 : 0));
+      ctx.fillStyle = col;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(c0x, c0y);
+      ctx.lineTo(ring[i * 2], ring[i * 2 + 1]);
+      ctx.lineTo(ring[j * 2], ring[j * 2 + 1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(ring[0], ring[1]);
+    for (let i = 1; i < 8; i++) ctx.lineTo(ring[i * 2], ring[i * 2 + 1]);
+    ctx.closePath();
+    ctx.lineWidth = parry ? 1.8 : 1.1;
+    ctx.strokeStyle = parry ? gold : 'rgba(8,12,24,0.7)';
+    ctx.stroke();
+    if (slow) { // замедлен: тело подёрнуто инеем
+      ctx.globalAlpha = 0.32 * am;
+      ctx.fillStyle = this.cfg.frost.color;
+      ctx.fill();
+      ctx.globalAlpha = am;
+    }
+
+    // Посох в правой руке: идёт вперёд, кристалл на конце. Рука в рукаве.
+    const wx = (lx, ly) => (lx * ca - ly * sa) * r;
+    const wy = (lx, ly) => (lx * sa + ly * ca) * r;
+    const hxl = wx(0.3, 0.58);
+    const hyl = wy(0.3, 0.58);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = mixRgb(cD, cL, 0.3);
+    ctx.lineWidth = 0.36 * r;
+    ctx.beginPath();
+    ctx.moveTo(wx(0.0, 0.42), wy(0.0, 0.42));
+    ctx.lineTo(hxl, hyl);
+    ctx.stroke();
+    const stx = wx(2.0, 0.12);
+    const sty = wy(2.0, 0.12);
+    ctx.strokeStyle = '#1c2133';
+    ctx.lineWidth = 0.17 * r;
+    ctx.beginPath();
+    ctx.moveTo(wx(-0.45, 0.66), wy(-0.45, 0.66));
+    ctx.lineTo(stx, sty);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,140,190,0.55)'; // блик на древке
+    ctx.lineWidth = 0.05 * r;
+    ctx.beginPath();
+    ctx.moveTo(wx(-0.45, 0.66) - 0.04 * r, wy(-0.45, 0.66) - 0.05 * r);
+    ctx.lineTo(stx - 0.04 * r, sty - 0.05 * r);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.fillStyle = '#2a3354';
+    ctx.beginPath();
+    ctx.arc(hxl, hyl, 0.15 * r, 0, TAU);
+    ctx.fill();
+
+    // Шляпа стоит над плечами: плоские поля и высокий конус, кончик клонится против движения.
+    ctx.translate(0, -by0);
+    const hcx = tdx * 0.06 * r * ml;
+    const hcy = -0.4 * r;
+    const lean = tdx * 0.55 * r * ml;
+    const tipx = hcx + lean - 0.08 * r;
+    const tipy = hcy - (1.05 - 0.15 * ml) * r + tdy * 0.2 * r * ml;
+    const brx = 0.82 * r;
+    const bry = 0.54 * r;
+    ctx.beginPath();
+    ctx.ellipse(hcx, hcy, brx, bry, 0, 0, TAU);
+    ctx.fillStyle = mixRgb(hD, hL, 0.28);
+    ctx.fill();
+    ctx.lineWidth = parry ? 1.8 : 1.1;
+    ctx.strokeStyle = parry ? gold : 'rgba(8,12,24,0.8)';
+    ctx.stroke();
+    ctx.beginPath(); // светлая кромка полей на освещённой стороне
+    ctx.ellipse(hcx, hcy, brx * 0.98, bry * 0.98, 0, -2.16 - 0.9, -2.16 + 0.9);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(160,190,250,0.6)';
+    ctx.stroke();
+    const blx = hcx - 0.46 * r;
+    const brx2 = hcx + 0.46 * r;
+    const bfy = hcy + 0.26 * r;
+    ctx.fillStyle = mixRgb(hD, hL, 0.82 + (parry ? 0.1 : 0)); // освещённая грань конуса
+    ctx.beginPath();
+    ctx.moveTo(tipx, tipy);
+    ctx.lineTo(blx, hcy);
+    ctx.lineTo(hcx, bfy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = mixRgb(hD, hL, 0.3); // теневая грань
+    ctx.beginPath();
+    ctx.moveTo(tipx, tipy);
+    ctx.lineTo(hcx, bfy);
+    ctx.lineTo(brx2, hcy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath(); // лента на шляпе
+    ctx.moveTo(blx, hcy);
+    ctx.quadraticCurveTo(hcx, hcy + 0.52 * r, brx2, hcy);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = parry ? gold : 'rgba(150,190,255,0.7)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(blx, hcy);
+    ctx.lineTo(tipx, tipy);
+    ctx.lineTo(brx2, hcy);
+    ctx.lineWidth = parry ? 1.5 : 1;
+    ctx.strokeStyle = parry ? gold : 'rgba(8,12,24,0.75)';
+    ctx.stroke();
+    if (slow) {
+      ctx.globalAlpha = 0.28 * am;
+      ctx.fillStyle = this.cfg.frost.color;
+      ctx.beginPath();
+      ctx.ellipse(hcx, hcy, brx, bry, 0, 0, TAU);
+      ctx.moveTo(blx, hcy);
+      ctx.lineTo(tipx, tipy);
+      ctx.lineTo(brx2, hcy);
+      ctx.fill();
+      ctx.globalAlpha = am;
+    }
+    ctx.translate(0, by0);
+
+    // Огонь на плаще (горит): три язычка у края хвоста.
+    if (burn) {
+      for (let i = 0; i < 3; i++) {
+        const f = 0.5 + 0.5 * Math.sin(t * 24 + i * 2.3);
+        const bx = tdx * (0.3 + 0.28 * i) * r + qx * (i - 1) * 0.42 * r;
+        const by = tdy * (0.3 + 0.28 * i) * r + qy * (i - 1) * 0.42 * r - 0.1 * r;
+        const hh = r * (0.5 + 0.4 * f);
+        ctx.fillStyle = this.cfg.burn.color;
+        ctx.beginPath();
+        ctx.moveTo(bx - 0.2 * r, by);
+        ctx.quadraticCurveTo(bx - 0.05 * r, by - hh * 0.6, bx + (f - 0.5) * 0.3 * r, by - hh);
+        ctx.quadraticCurveTo(bx + 0.1 * r, by - hh * 0.5, bx + 0.2 * r, by);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffd27a';
+        ctx.beginPath();
+        ctx.moveTo(bx - 0.08 * r, by);
+        ctx.quadraticCurveTo(bx, by - hh * 0.45, bx + (f - 0.5) * 0.15 * r, by - hh * 0.65);
+        ctx.quadraticCurveTo(bx + 0.04 * r, by - hh * 0.3, bx + 0.08 * r, by);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Кристалл на посохе: гранёный, пульсирует; в окне парирования золотой.
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4.2);
+    const k1 = parry ? '#ffd45a' : C.crystal;
+    const k2 = parry ? '#fff3b8' : C.crystalCore;
+    ctx.fillStyle = k1;
+    ctx.beginPath();
+    ctx.moveTo(stx + wx(0.52, 0), sty + wy(0.52, 0));
+    ctx.lineTo(stx + wx(0, -0.2), sty + wy(0, -0.2));
+    ctx.lineTo(stx + wx(-0.2, 0), sty + wy(-0.2, 0));
+    ctx.lineTo(stx + wx(0, 0.2), sty + wy(0, 0.2));
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = k2; // освещённая грань
+    ctx.beginPath();
+    ctx.moveTo(stx + wx(0.52, 0), sty + wy(0.52, 0));
+    ctx.lineTo(stx + wx(0, -0.2), sty + wy(0, -0.2));
+    ctx.lineTo(stx + wx(-0.2, 0), sty + wy(-0.2, 0));
+    ctx.lineTo(stx, sty);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(8,12,24,0.55)';
+    ctx.stroke();
+
+    // Свечение кристалла и искры вокруг него (сложением цветов).
+    ctx.globalCompositeOperation = 'lighter';
+    const gl = this.getGlow(parry ? false : 'blue');
+    const gs = r * (2.5 + 0.6 * pulse);
+    ctx.globalAlpha = (0.6 + 0.2 * pulse) * am;
+    ctx.drawImage(gl, stx + wx(0.15, 0) - gs / 2, sty + wy(0.15, 0) - gs / 2, gs, gs);
+    ctx.fillStyle = '#eaf6ff';
+    for (let i = 0; i < 3; i++) {
+      const a = t * 2.6 + i * 2.1;
+      const d = r * (0.5 + 0.12 * i);
+      ctx.globalAlpha = (0.45 + 0.4 * Math.sin(t * 9 + i * 3)) * am;
+      ctx.beginPath();
+      ctx.arc(stx + Math.cos(a) * d, sty + Math.sin(a) * d * 0.8, 0.07 * r + 0.3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Замедлен: вокруг кружат ледяные осколки.
+    if (slow) {
+      ctx.fillStyle = '#e4f4ff';
       ctx.strokeStyle = this.cfg.frost.color;
-      ctx.beginPath();
-      ctx.arc(hx, hy, r + 2, 0, TAU);
-      ctx.stroke();
+      ctx.lineWidth = 0.8;
+      ctx.globalAlpha = 0.9 * am;
+      for (let i = 0; i < 4; i++) {
+        const a = t * 1.3 + i * (TAU / 4);
+        const px = Math.cos(a) * r * 1.2;
+        const py = Math.sin(a) * r * 1.0;
+        ctx.beginPath();
+        ctx.moveTo(px, py - 0.22 * r);
+        ctx.lineTo(px + 0.12 * r, py);
+        ctx.lineTo(px, py + 0.22 * r);
+        ctx.lineTo(px - 0.12 * r, py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
     }
-    if (hero.burnT > 0) {
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = this.cfg.burn.color;
-      ctx.beginPath();
-      ctx.arc(hx, hy, r + 5, 0, TAU);
-      ctx.stroke();
-    }
-
-    const cos = Math.cos(hero.facing);
-    const sin = Math.sin(hero.facing);
-    const tipX = hx + cos * r * 1.9;
-    const tipY = hy + sin * r * 1.9;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = C.staff;
-    ctx.beginPath();
-    ctx.moveTo(hx + cos * r * 0.3, hy + sin * r * 0.3);
-    ctx.lineTo(tipX, tipY);
-    ctx.stroke();
-    ctx.fillStyle = C.accent;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, r * 0.3, 0, TAU);
-    ctx.fill();
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
 
