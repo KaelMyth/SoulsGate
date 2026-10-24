@@ -14,12 +14,13 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     if (e.kind === 'frost') return !!core.def.canFrost;
     if (e.kind === 'pierce') return !!core.def.canPierce;
     if (e.kind === 'laser') return !!core.def.canLaser;
+    if (e.kind === 'blades') return !!core.def.canBlades;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
   if (carry === 'xroot') return parentAccepts(modDef, ownerCore || null, null); // Х2/Х3 на ядре: ветка, на неё вешают всё, что берёт ядро
-  if (e.kind === 'pierce' || e.kind === 'laser') return false; // «Пробитие» и «Лазер» крепятся только к ядру
-  if (e.kind === 'double') return !['burn', 'frost', 'steam', 'laser'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
+  if (e.kind === 'pierce' || e.kind === 'laser' || e.kind === 'blades') return false; // «Пробитие» и «Лазер» крепятся только к ядру
+  if (e.kind === 'double') return !['burn', 'frost', 'steam', 'laser', 'blades'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
   if (e.kind === 'frost') return carry === 'burn' || carry === 'laser';
   if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser';

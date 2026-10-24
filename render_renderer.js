@@ -74,6 +74,7 @@ export class Renderer {
     this.boss = deps.boss || null; // разломы, телеграфы и взрыв босса (systems_boss.js)
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
+    this.blades = deps.blades || [];
     this.hud = deps.hud || null;
     this.dpr = 1;
     this.w = 1; // размер в CSS-пикселях
@@ -221,6 +222,7 @@ export class Renderer {
     }
 
     this.drawLasers(ctx);
+    this.drawBlades(ctx);
 
     // Снаряды.
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
@@ -1573,6 +1575,29 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     ctx.lineCap = 'butt';
+  }
+
+  /** Спектральные клинки: голубые треугольники, остриём по ходу полёта (на орбите остриём наружу). */
+  drawBlades(ctx) {
+    const bl = this.blades;
+    if (!bl || !bl.length) return;
+    const B = this.cfg.blades;
+    const s = B.size;
+    ctx.fillStyle = B.color;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.2;
+    for (const b of bl) {
+      const a = b.state === 'orbit' ? b.a : b.a;
+      const c = Math.cos(a);
+      const n = Math.sin(a);
+      ctx.beginPath();
+      ctx.moveTo(b.x + c * s * 1.6, b.y + n * s * 1.6);
+      ctx.lineTo(b.x - c * s - n * s * 0.9, b.y - n * s + c * s * 0.9);
+      ctx.lineTo(b.x - c * s + n * s * 0.9, b.y - n * s - c * s * 0.9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
   }
 
   /** Облака пара на земле: мягкое пятно с медленно ползущими клубами, к концу жизни тает. */
