@@ -200,6 +200,13 @@ body {
   color: var(--accent);
 }
 
+/* Разделы ползунков сворачиваются: открывается один нажатием на заголовок. */
+#dbg-panel .dbg-sect { border-bottom: 1px solid var(--line); }
+#dbg-panel .dbg-group { cursor: pointer; list-style: none; padding: 8px 0; margin: 0; touch-action: manipulation; }
+#dbg-panel .dbg-group::-webkit-details-marker { display: none; }
+#dbg-panel .dbg-group::before { content: '▸ '; }
+#dbg-panel .dbg-sect[open] > .dbg-group::before { content: '▾ '; }
+
 /* ---------- Экран смерти ---------- */
 #death-screen {
   position: fixed;

@@ -10,7 +10,7 @@ import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
 import { createEnemy, resetEnemy, updateEnemy } from './world_enemy.js';
 import { createProjectile, resetProjectile, updateProjectile } from './world_projectile.js';
-import { createEffect, resetEffect, initEffect, updateEffect } from './world_effects.js';
+import { createEffect, resetEffect, initEffect, initGlob, updateEffect } from './world_effects.js';
 import { Combat } from './systems_combat.js';
 import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
@@ -29,6 +29,7 @@ import { ModeScreen } from './ui_mode-screen.js';
 import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
+import { Blades } from './systems_blades.js';
 import { layoutCores } from './build_placement.js';
 import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -92,10 +93,20 @@ export class Game {
     this.boss = new Boss({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
+    this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
+    this.laserSource = { laser: true, active: true };
+    this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
+    this.rayT = [];
     this.autoattack = new AutoAttack({
+      lasers: this.lasers,
       config, hero: this.hero, enemies: this.enemies, shots: this.heroShots, bus: this.bus, arena: this.arena,
       grid: this.swarm.grid,
       rnd: this.rnd,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+    });
+
+    this.blades = new Blades({
+      config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
@@ -113,6 +124,8 @@ export class Game {
       defense: this.defense,
       boss: this.boss,
       clouds: this.steamClouds,
+      blades: this.blades.items,
+      lasers: this.lasers,
       hud: this.hud,
     });
     this.spawner = new Spawner({
@@ -203,9 +216,22 @@ export class Game {
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
+        else if (e.source && e.source.laser) { /* тики луча без вспышек: хватает мигания врага */ }
         else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
+    });
+    // Липкий снаряд стрелка попал в героя: сопли. Только вид, на урон не влияет.
+    this.bus.on('damage:dealt', (e) => {
+      const s = e.source;
+      if (e.targetKind === 'hero' && s && s.owner && s.owner.def && s.owner.def.shot) this.splat(e.target.x, e.target.y, s.vx, s.vy);
+    });
+    // Удар врага с атакой (рывок быка) попал по герою: красные искры летят по ходу удара. Только вид.
+    this.bus.on('damage:dealt', (e) => {
+      const en = e.source && e.source.enemy;
+      if (e.targetKind === 'hero' && en && en.def && en.def.attack) {
+        this.hitSparks(e.target.x, e.target.y, en.atk.dirX, en.atk.dirY, 16, config.render.colors.sparkRed);
+      }
     });
     // Вышел босс: мир замирает, камера плывёт к нему (см. updateCine).
     this.bus.on('boss:spawned', ({ enemy }) => this.startBossIntro(enemy));
@@ -283,6 +309,32 @@ export class Game {
       if (this.effects.count >= this.config.render.maxEffects) return;
       const a = this.rnd() * Math.PI * 2;
       initEffect(this.effects.spawn(), x, y, 0.3 + this.rnd() * 0.2, 6, 26 + this.rnd() * 34, color, a);
+    }
+  }
+
+  /** Искры веером по направлению удара (от героя вперёд, а не во все стороны). */
+  hitSparks(x, y, dirX, dirY, n, color) {
+    const base = Math.atan2(dirY, dirX);
+    for (let i = 0; i < n; i++) {
+      if (this.effects.count >= this.config.render.maxEffects) return;
+      const a = base + (this.rnd() - 0.5) * 2.2;
+      initEffect(this.effects.spawn(), x, y, 0.3 + this.rnd() * 0.25, 8, 36 + this.rnd() * 50, color, a);
+    }
+  }
+
+  /** Сопли: пятно на герое и капли, разлетающиеся во все стороны (чуть дальше по ходу снаряда). Рисует renderer.drawGlob. */
+  splat(x, y, dirX, dirY) {
+    const color = this.config.render.colors.snot;
+    const len = Math.hypot(dirX, dirY) || 1;
+    const bx = dirX / len;
+    const by = dirY / len;
+    if (this.effects.count < this.config.render.maxEffects) initGlob(this.effects.spawn(), x, y, 0.9, 0, 0, 11, color, 0);
+    for (let i = 0; i < 9; i++) {
+      if (this.effects.count >= this.config.render.maxEffects) return;
+      const a = this.rnd() * Math.PI * 2;
+      const sp = 70 + this.rnd() * 130;
+      initGlob(this.effects.spawn(), x, y, 0.45 + this.rnd() * 0.35,
+        Math.cos(a) * sp + bx * 50, Math.sin(a) * sp + by * 50, 2.2 + this.rnd() * 3.2, color, 4.5);
     }
   }
 
@@ -384,6 +436,92 @@ export class Game {
         c.hit.add(e);
         this.chill(e, 0, 0, 0, true);
       }
+    }
+  }
+
+  /**
+   * Луч растёт из героя, дальний конец следует за целью. Без Пробития он упирается в первого врага на пути,
+   * с Пробитием проходит насквозь столько врагов, сколько дано. Скалы обрезают луч.
+   */
+  updateLasers(dt) {
+    const ls = this.lasers;
+    for (let i = ls.length - 1; i >= 0; i--) {
+      const l = ls[i];
+      l.x = this.hero.x; // ближний конец привязан к герою
+      l.y = this.hero.y;
+      const tg = l.target;
+      if (tg && !tg.active) l.target = null; // цель погибла: луч замирает в последнем направлении
+      else if (tg) {
+        const ax = tg.x - l.x;
+        const ay = tg.y - l.y;
+        const d = Math.hypot(ax, ay);
+        if (d > 1e-3) { l.dx = ax / d; l.dy = ay / d; }
+      }
+      this.scanLaser(l);
+      l.age += dt;
+      while (l.done < l.ticks && l.age >= l.done * l.interval) {
+        this.laserTick(l);
+        l.done++;
+      }
+      if (l.age >= l.life) ls.splice(i, 1);
+    }
+  }
+
+  /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */
+  scanLaser(l) {
+    const maxLen = this.config.laser.length;
+    let cut = maxLen;
+    const pad = l.width * 0.3;
+    const ex = l.x + l.dx * maxLen;
+    const ey = l.y + l.dy * maxLen;
+    if (this.arena.segmentBlocked(l.x, l.y, ex, ey, pad)) {
+      let lo = 0;
+      let hi = maxLen;
+      for (let k = 0; k < 7; k++) {
+        const mid = (lo + hi) / 2;
+        if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * mid, l.y + l.dy * mid, pad)) hi = mid; else lo = mid;
+      }
+      cut = lo;
+    }
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    const n = grid.query(l.x + l.dx * cut * 0.5, l.y + l.dy * cut * 0.5, cut * 0.5 + l.width + 30);
+    const buf = grid.buf;
+    const E = this.rayE;
+    const T = this.rayT;
+    E.length = 0;
+    T.length = 0;
+    for (let k = 0; k < n; k++) {
+      const e = en[buf[k]];
+      if (!e || !e.active) continue;
+      const px = e.x - l.x;
+      const py = e.y - l.y;
+      const t = px * l.dx + py * l.dy;
+      if (t < 0 || t > cut) continue;
+      if (Math.abs(px * l.dy - py * l.dx) > l.width * 0.5 + e.radius) continue;
+      let j = E.length; // вставка по возрастанию t: врагов на луче единицы
+      E.push(e);
+      T.push(t);
+      while (j > 0 && T[j - 1] > t) { T[j] = T[j - 1]; E[j] = E[j - 1]; j--; }
+      T[j] = t;
+      E[j] = e;
+    }
+    l.hits = Math.min(E.length, l.pierce + 1); // сколько врагов луч бьёт: первые pierce + 1
+    l.len = E.length > l.pierce ? T[l.pierce] : cut;
+  }
+
+  laserTick(l) {
+    l.pulse = 1;
+    const E = this.rayE;
+    const hit = [];
+    for (let k = 0; k < l.hits; k++) hit.push(E[k]);
+    // Бьём после поиска: убийство меняет пул врагов.
+    for (const e of hit) {
+      if (!e.active) continue;
+      this.combat.damageEnemy(e, l.tick, this.laserSource, null);
+      if (!e.active) continue;
+      if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
+      if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
     }
   }
 
@@ -498,6 +636,8 @@ export class Game {
       this.updateBurning(dt);
       this.updateFrost(dt);
       this.updateSteam(dt);
+      this.updateLasers(dt);
+      this.blades.update(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
@@ -723,10 +863,12 @@ export class Game {
     this.enemyShots.clear();
     this.effects.clear();
     this.steamClouds.length = 0;
+    this.lasers.length = 0;
     this.gems.clear();
     this.xp.reset();
     this.hero.reset();
     this.defense.reset();
+    this.blades.reset();
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();

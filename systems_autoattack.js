@@ -1,7 +1,7 @@
 // Автоатака: ближайший враг в радиусе, снаряд летит в него, перезарядка настраивается.
 // Цель ищется через сетку (spatial grid), если она передана: цена не растёт с размером орды.
 import { initProjectile } from './world_projectile.js';
-import { applyMod, countPenalty, projectileCount } from './build_cores.js';
+import { applyMod, countPenalty, laserStats, projectileCount } from './build_cores.js';
 
 /** Горение из модов: снаряд при попадании поджигает (урон тика от урона снаряда, интервал из частоты). */
 function setBurn(p, cfg, m) {
@@ -47,6 +47,7 @@ export class AutoAttack {
     this.hero = o.hero;
     this.enemies = o.enemies;
     this.shots = o.shots;
+    this.lasers = o.lasers || []; // лазеры на поле (ими занимается игра)
     this.bus = o.bus;
     this.modifiers = o.modifiers || null; // (coreId) => { стат: { percent, flat } }
     this.rnd = o.rnd || Math.random;
@@ -80,10 +81,10 @@ export class AutoAttack {
     this.target = target;
     // Потолок снарядов: множители конструктора иначе заполнят мир выстрелами. Пока слотов нет, ждём.
     const lim = this.cfg.limits;
-    const full = lim && this.shots.count >= lim.maxShots;
+    const full = lim && this.shots.count >= lim.maxShots && !(this.modifiers && (this.modifiers(atk.core) || {}).laser);
     const m = this.modifiers ? this.modifiers(atk.core) : null;
     const count = projectileCount(this.cfg, m);
-    if (count >= atk.streamFrom) {
+    if (count >= atk.streamFrom && !(m && m.laser)) { // лазеру поток не нужен: число снарядов идёт в ширину
       // Много снарядов: не залп, а беспрерывный поток. За секунду выпускается ровно count / reload снарядов,
       // столько же, сколько дал бы залп раз в reload: копим дробный остаток и выпускаем по одному.
       if (!target) {
@@ -110,6 +111,8 @@ export class AutoAttack {
 
   /** Расстановка снарядов залпа: ряды спереди назад (attack.formations), числа это снарядов в ряду. */
   fire(target) {
+    const m0 = this.modifiers ? this.modifiers(this.cfg.attack.core) : null;
+    if (m0 && m0.laser) return this.fireLaser(target, m0);
     const hero = this.hero;
     const def = this.cfg.projectiles[this.cfg.attack.projectile];
     const dx = target.x - hero.x;
@@ -142,6 +145,33 @@ export class AutoAttack {
     }
     hero.facing = Math.atan2(dy, dx); // посох смотрит на цель
     if (first) this.bus.emit('projectile:fired', { projectile: first, target, count: fired });
+  }
+
+  /** Лазер вместо снаряда: луч из точки, где стоит герой, в сторону цели, держится life секунд и бьёт тиками. */
+  fireLaser(target, m) {
+    const hero = this.hero;
+    const L = this.cfg.laser;
+    if (this.lasers.length >= L.max) return;
+    const def = this.cfg.projectiles[this.cfg.attack.projectile];
+    const dx = target.x - hero.x;
+    const dy = target.y - hero.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const count = projectileCount(this.cfg, m);
+    const dmg = applyMod(def.damage, m.damage); // урон снаряда с модами
+    const ls = laserStats(this.cfg, m.laser, dmg, count);
+    const b = m.burn;
+    this.lasers.push({
+      x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
+      target, pierce: m.pierce ? Math.round(m.pierce.count) : 0, // конец луча следует за целью; сквозь стольких врагов он проходит
+      width: ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0, tick: ls.tick, big: ls.big,
+      burnDmg: b ? dmg * countPenalty(this.cfg, count) * count * this.cfg.burn.damageFrac * b.damage : 0,
+      burnInt: b ? this.cfg.burn.interval / b.rate : 0,
+      frost: !!m.frost,
+      steam: m.frost && m.steam && b ? m.steam.damage : 0,
+      pulse: 0,
+    });
+    hero.facing = Math.atan2(dy, dx);
+    this.bus.emit('laser:fired', { count });
   }
 
   /** Один снаряд потока: небольшой разброс по ширине, глубине и углу. */

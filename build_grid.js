@@ -130,12 +130,16 @@ export class BuildGrid {
       const pc = p < 0 ? '' : carry.get(p);
       const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
       const e = c.mod.def.effect;
-      if (e.kind === 'double') carry.set(ci, pcore ? pcore.def.multStat : pc);
+      // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
+      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
+      else if (e.kind === 'blades') carry.set(ci, 'blades'); // пока голые клинки: ничего на них не вешается
+      else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
       else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
+      else if (pc.startsWith('laser')) carry.set(ci, 'laser:' + e.stat);
       else carry.set(ci, e.stat);
     }
     return { owner, parent, carry };
@@ -157,8 +161,8 @@ export class BuildGrid {
       let r = false;
       if (p !== undefined && p !== -2) {
         const cell = this.cells[i];
-        const core = p < 0 ? this.coreById(owner.get(i)) : null;
-        r = !parentAccepts(cell.mod.def, core, p < 0 ? null : carry.get(p)) || (p >= 0 && invalid(p));
+        const core = this.coreById(owner.get(i));
+        r = !parentAccepts(cell.mod.def, p < 0 ? core : null, p < 0 ? null : carry.get(p), core) || (p >= 0 && invalid(p));
       }
       bad.set(i, r);
       return r;
@@ -203,7 +207,6 @@ export class BuildGrid {
       return total;
     };
     const res = {};
-    const factor = {};
     // Горение: у каждого мода «Горение» своя ветка. Мощь в ней усиливает урон тика, Ускорение учащает тики.
     // Несколько «Горений» складывают урон тика и усредняют частоту.
     let burns = 0;
@@ -246,19 +249,58 @@ export class BuildGrid {
       pierce += f;
     }
     if (pierce) res.pierce = { count: pierce };
-    if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
-    for (const i of kids.get(-1) || []) {
-      const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce') continue;
-      const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
-      if (this.cells[i].mod.def.effect.kind === 'double') {
-        // Ветки на разных гранях независимы: их добавки складываются (Х2 и Х2 на разных гранях это ×3),
-        // а множители в одной ветке по очереди перемножаются (Х2 за Х2 это ×4).
-        factor[stat] = (factor[stat] || 1) + (mult(i) - 1);
-        m.percent = (factor[stat] - 1) * 100;
-      } else {
-        m.percent += walk(i, 0) * 100;
+    // Лазер: Мощь на нём усиливает урон тика, Ускорение учащает тики.
+    let lasers = 0;
+    let lDmg = 0;
+    let lRate = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'laser' || owner.get(i) !== coreId) continue;
+      let d = 0;
+      let r = 0;
+      for (const k of kids.get(i) || []) {
+        if (carry.get(k) === 'laser:damage') d += walk(k, 0);
+        else if (carry.get(k) === 'laser:rate') r += walk(k, 0);
       }
+      lasers++;
+      lDmg += 1 + d;
+      lRate += 1 + r;
+    }
+    if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    let blades = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (c.mod && c.mod.def.effect.kind === 'blades' && owner.get(i) === coreId) blades++;
+    }
+    if (blades) res.blades = { count: blades };
+    if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
+    // Что стоит «на ядре»: моды прямо на нём и моды под множителями Х2/Х3, которые сидят на ядре (они только ветка).
+    const rootStat = [];
+    const rootDoubles = [];
+    const gather = (p, top) => {
+      for (const k of kids.get(p) || []) {
+        if (this.cells[k].mod.def.effect.kind === 'double') {
+          if (top) rootDoubles.push(k);
+          gather(k, false);
+        } else rootStat.push(k);
+      }
+    };
+    gather(-1, true);
+    for (const i of rootStat) {
+      const stat = carry.get(i);
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades') continue;
+      const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
+      m.percent += walk(i, 0) * 100;
+    }
+    // Ветки Х2/Х3 на разных гранях ядра независимы: их добавки складываются (Х2 и Х2 это ×3),
+    // а множители в одной ветке по очереди перемножаются (Х2 за Х2 это ×4). Множат только ядро.
+    const core = this.coreById(coreId);
+    const ms = core && core.def.multStat;
+    if (ms && rootDoubles.length) {
+      const m = res[ms] || (res[ms] = { percent: 0, flat: 0 });
+      let f = 1;
+      for (const i of rootDoubles) f += mult(i) - 1;
+      m.percent = (f - 1) * 100;
     }
     return res;
   }
