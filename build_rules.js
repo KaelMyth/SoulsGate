@@ -20,10 +20,11 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   }
   if (!carry) return false;
   if (carry === 'xroot') return parentAccepts(modDef, ownerCore || null, null); // Х2/Х3 на ядре: ветка, на неё вешают всё, что берёт ядро
+  if (carry === 'dbl') return e.kind === 'double'; // Х2/Х3 на «Лазере»/«Дроби»: дальше только ещё множители
   if (e.kind === 'laser') return carry === 'blades'; // «Лазер» к ядру снаряда или на «Клинки» (клинки становятся сферами с лучами)
   if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce' || e.kind === 'blades') return false; // «Пробитие» и «Клинки» крепятся только к ядру
-  if (e.kind === 'double') return !['burn', 'frost', 'steam', 'laser', 'shot'].includes(carry); // на самом корне множитель не нужен: он усиливает то, что на нём
+  if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
   if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades';
   if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades';
