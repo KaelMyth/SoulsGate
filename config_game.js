@@ -585,6 +585,10 @@ export const CONFIG = {
       fissureCore: '#bfe6ff',                // искры и кольцо на взрыве
       blastFill: '#e4f6ff',                  // вспышка взрыва по треугольнику
       blockEdge: 'rgba(160,215,255,0.85)',
+      shield: '#6fb6ff',          // щит блока: тело сферы
+      shieldLight: '#d6efff',     // щит блока: свет и кромка
+      shieldParry: '#ffc93a',     // щит в окне парирования: тело
+      shieldParryLight: '#fff0b0', // щит в окне парирования: свет и кромка
       parry: '#ffe27a',
       spark: '#fff1b0',
       target: '#ffb14a',
