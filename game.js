@@ -1,4 +1,5 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
+import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
 import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
 import { EntityPool } from './core_entity-pool.js';
@@ -118,8 +119,9 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
+    this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
     this.blades = new Blades({
-      config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
+      config, arena: this.arena, rnd: this.rnd, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
       lasers: this.lasers,
       pellets: this.pellets,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
@@ -470,8 +472,10 @@ export class Game {
       const l = ls[i];
       const an = l.anchor; // луч сферы клинка привязан к ней, остальные к герою
       if (an && an.state === 'gone') { ls.splice(i, 1); continue; }
-      l.x = an ? an.x : this.hero.x; // ближний конец привязан к герою или к сфере
-      l.y = an ? an.y : this.hero.y;
+      if (!l.fixed) { // фантомный луч стоит на месте, остальные привязаны к герою или к сфере
+        l.x = an ? an.x : this.hero.x;
+        l.y = an ? an.y : this.hero.y;
+      }
       const tg = l.target;
       if (tg && !tg.active) { this.endLaser(l, ls, i); continue; } // цель погибла: луч гаснет сразу
       if (tg) {
@@ -553,6 +557,27 @@ export class Game {
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
       if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
     }
+    if (l.phantom > 0) { // фантом: каждый тик лазера может породить луч из точки рядом с первой целью
+      for (const e of hit) if (e.active) { this.tryPhantomLaser(l, e); break; }
+    }
+  }
+
+  /** Фантомный лазер: луч из точки рядом с врагом, тем же уроном и эффектами; шанс падает вдвое с поколением, ограничен phantom.maxChain. */
+  tryPhantomLaser(l, e) {
+    const F = this.config.phantom;
+    const ls = this.lasers;
+    if (ls.length >= this.config.laser.max) return;
+    if (!phantomRoll(F, this.rnd, l.phantom, l.gen | 0)) return;
+    const s = this.phSpot;
+    if (!phantomSpot(this.arena, this.rnd, F, e, l.width * 0.3, s)) return;
+    ls.push({
+      x: s.x, y: s.y, dx: (e.x - s.x) / s.d, dy: (e.y - s.y) / s.d, len: s.d,
+      target: e, pierce: 0, fixed: true,
+      width: l.width, age: 0, life: l.life, interval: l.interval, ticks: l.ticks, done: 0, tick: l.tick * F.damageFrac, big: l.big,
+      burnDmg: l.burnDmg, burnInt: l.burnInt, frost: l.frost, steam: l.steam, pulse: 0,
+      gen: (l.gen | 0) + 1, phantom: l.phantom,
+    });
+    this.burst(s.x, s.y, 0.3, 4, 16, F.color);
   }
 
   updateSteam(dt) {
@@ -621,19 +646,13 @@ export class Game {
    */
   tryPhantom(p, e) {
     const F = this.config.phantom;
-    if (p.gen >= F.maxChain) return;
-    if (this.rnd() >= p.phantom * Math.pow(F.decay, p.gen)) return;
+    if (!phantomRoll(F, this.rnd, p.phantom, p.gen)) return;
     const lim = this.config.limits;
     if (lim && this.heroShots.count >= lim.maxShots) return;
-    const arena = this.arena;
-    const r = e.radius || 10;
-    for (let tries = 0; tries < 6; tries++) {
-      const a = this.rnd() * Math.PI * 2;
-      const d = F.distance * (1 + (this.rnd() * 2 - 1) * F.spread);
-      const x = e.x + Math.cos(a) * d;
-      const y = e.y + Math.sin(a) * d;
-      if (x < arena.left + 8 || x > arena.right - 8 || y < arena.top + 8 || y > arena.bottom - 8) continue;
-      if (arena.circleHitsRock(x, y, p.radius) || arena.segmentBlocked(x, y, e.x, e.y, p.radius)) continue;
+    const sp0 = this.phSpot;
+    if (!phantomSpot(this.arena, this.rnd, F, e, p.radius, sp0)) return;
+    const { x, y, d } = sp0;
+    {
       const q = this.heroShots.spawn();
       if (!q) return;
       q.x = q.prevX = x;

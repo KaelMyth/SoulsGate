@@ -234,6 +234,7 @@ export class AutoAttack {
         frost: !!m.frost,
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
         pulse: 0,
+        gen: 0, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0, // фантом: шанс на каждый тик
       });
       fired++;
     }
