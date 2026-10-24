@@ -108,6 +108,8 @@ export class Game {
     this.blades = new Blades({
       config, hero: this.hero, enemies: this.enemies, grid: this.swarm.grid, combat: this.combat,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+      ignite: (e, d, i) => this.ignite(e, d, i),
+      chill: (e, s, d, i) => this.chill(e, s, d, i),
     });
 
     this.renderer = new Renderer(o.canvas, config, {

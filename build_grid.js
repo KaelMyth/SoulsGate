@@ -133,13 +133,14 @@ export class BuildGrid {
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
       if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
-      else if (e.kind === 'blades') carry.set(ci, 'blades'); // пока голые клинки: ничего на них не вешается
+      else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
       else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
       else if (pc.startsWith('laser')) carry.set(ci, 'laser:' + e.stat);
+      else if (pc.startsWith('blades')) carry.set(ci, 'blades:' + e.stat);
       else carry.set(ci, e.stat);
     }
     return { owner, parent, carry };
@@ -267,12 +268,28 @@ export class BuildGrid {
       lRate += 1 + r;
     }
     if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
     let blades = 0;
+    let kMax = 0;
+    let kDam = 0;
+    let kRate = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
-      if (c.mod && c.mod.def.effect.kind === 'blades' && owner.get(i) === coreId) blades++;
+      if (!c.mod || c.mod.def.effect.kind !== 'blades' || owner.get(i) !== coreId) continue;
+      let d = 0;
+      let r = 0;
+      let f = 1;
+      for (const k of kids.get(i) || []) {
+        if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+        else if (carry.get(k) === 'blades:damage') d += walk(k, 0);
+        else if (carry.get(k) === 'blades:rate') r += walk(k, 0);
+      }
+      blades++;
+      kMax += f;
+      kDam += 1 + d;
+      kRate += 1 + r;
     }
-    if (blades) res.blades = { count: blades };
+    if (blades) res.blades = { count: blades, max: kMax / blades, damage: kDam / blades, rate: kRate / blades };
     if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
     // Что стоит «на ядре»: моды прямо на нём и моды под множителями Х2/Х3, которые сидят на ядре (они только ветка).
     const rootStat = [];
