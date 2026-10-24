@@ -1,4 +1,5 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
+import { LightDash } from './systems_lightdash.js';
 import { Aura } from './systems_aura.js';
 import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
@@ -139,6 +140,9 @@ export class Game {
       chill: (e, s, d, i) => this.chill(e, s, d, i),
     });
 
+    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd });
+    this.defense.lightning = this.lightdash;
+
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -156,6 +160,7 @@ export class Game {
       blades: this.blades.items,
       aura: this.aura,
       fires: this.fires,
+      lightdash: this.lightdash,
       pellets: this.pellets,
       lasers: this.lasers,
       hud: this.hud,
@@ -767,10 +772,12 @@ export class Game {
     if (this.state === 'playing') {
       this.runTime += dt;
       this.defense.fireDash = this.build.has('firedash');
+      this.defense.lightDash = this.build.has('lightdash');
       this.defense.update(dt);
-      this.hero.phase = !!(this.defense.fireDash && this.hero.dashing); // в огненном рывке герой проходит сквозь врагов
+      this.hero.phase = !!((this.defense.fireDash || this.defense.lightDash) && this.hero.dashing); // в огненном рывке герой проходит сквозь врагов
       this.updateFires(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      this.lightdash.update(dt);
       this.camera.zoomTarget = this.boss.cameraZoom(); // атака клинками отдаляет экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
@@ -1024,6 +1031,7 @@ export class Game {
     this.effects.clear();
     this.steamClouds.length = 0;
     this.fires.length = 0;
+    this.lightdash.reset();
     this.fireLast = null;
     this.lasers.length = 0;
     this.gems.clear();

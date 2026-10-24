@@ -28,6 +28,8 @@ export class HeroDefense {
     this.modifiers = o.modifiers || null; // (id) => { стат: { percent, flat } }: моды билда
     this.state = 'move';
     this.fireDash = false; // стоит «Огненный рывок»
+    this.lightDash = false; // стоит «Молниеносный рывок»
+    this.lightning = null;  // система молнии (задаёт игра)
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
@@ -112,6 +114,7 @@ export class HeroDefense {
     const d = this.cfg.dash;
     const len = Math.hypot(dirX, dirY);
     if (!this.hero.active || this.dashCd > 0 || len < 1e-6) return false;
+    const light = this.lightDash && this.lightning && !this.hero.dashing && this.lightning.plan(); // молния: есть кого бить
     const wasBlocking = this.state === 'block';
     if (!this.go('dash')) return false;
     if (wasBlocking) {
@@ -121,6 +124,20 @@ export class HeroDefense {
     const dist = d.distance * (this.fireDash ? this.cfg.firedash.distanceScale : 1); // огненный рывок длиннее
     this.dashX = dirX / len;
     this.dashY = dirY / len;
+    if (light) { // молниеносный рывок: героя двигает цепочка рикошетов, обычной скорости нет
+      this.dashTime = this.lightning.duration;
+      this.dashT = Math.max(0.02, this.lightning.duration);
+      this.dashCd = this.cfg.lightdash.cooldown;
+      this.dashCdMax = Math.max(0.001, this.dashCd);
+      this.dashV0 = 0;
+      this.dashElapsed = 0;
+      this.hero.dashing = true;
+      this.hero.dashVx = 0;
+      this.hero.dashVy = 0;
+      this.lightning.begin();
+      this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
+      return true;
+    }
     this.dashTime = d.duration;
     this.dashT = Math.max(0.02, d.duration);
     this.dashCd = d.cooldown;
