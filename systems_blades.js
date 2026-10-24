@@ -22,7 +22,9 @@ export class Blades {
     this.grid = o.grid;
     this.combat = o.combat;
     this.modifiers = o.modifiers || null;
-    this.lasers = o.lasers || []; // общий список лучей игры: сюда клинки-сферы выпускают лазеры
+    this.pellets = o.pellets || null; // «Дробь» на клинках: при попадании клинок разбрасывает дробинки
+    this.lasers = o.lasers || [];
+    this.shotAngle = 0;               // куда направлен первый из четырёх разлётов; сдвигается с каждым попаданием // общий список лучей игры: сюда клинки-сферы выпускают лазеры
     this.ignite = o.ignite || null; // (враг, урон тика, интервал) от Горения на клинках
     this.chill = o.chill || null;   // (враг, пар, урон тика, интервал) от Мороза на клинках
     this.items = []; // { x, y, a (угол полёта или место на орбите), state: 'orbit' | 'fly', target, vx, vy, age }
@@ -37,6 +39,7 @@ export class Blades {
     this.items.length = 0;
     this.timer = 0;
     this.spin = 0;
+    this.shotAngle = 0;
   }
 
   orbiting() {
@@ -178,6 +181,7 @@ export class Blades {
         if (dx * dx + dy * dy <= r * r) {
           this.combat.damageEnemy(t, dmg, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
           if (t.active) this.applyEffects(t, m, dmg);
+          if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
           items.splice(j, 1);
           continue;
         }
@@ -204,6 +208,32 @@ export class Blades {
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
     });
     return true;
+  }
+
+  /**
+   * «Дробь» на клинках: из места попадания в 4 стороны разлетаются дробинки с разной силой (скорость и дальность),
+   * а каждое новое попадание поворачивает разлёт на shotShift. Половина дробинок несёт Горение и Мороз.
+   */
+  scatter(t, fromAngle, m, dmg) {
+    const B = this.cfg.blades;
+    const S = this.cfg.shot;
+    const P = this.pellets;
+    const n = B.shotCount;
+    const full = P.free();
+    if (!full) return;
+    const pd = dmg * S.damageFrac;
+    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
+    const st = bd > 0 && m.frost && m.steam ? m.steam.damage : 0;
+    this.shotAngle += B.shotShift;
+    for (let k = 0; k < n && k < full; k++) {
+      const a = this.shotAngle + (k * TAU) / n;
+      const f = B.shotPower[k % B.shotPower.length]; // сила: у каждой своя
+      const fx = (k & 1) === 0;
+      const off = t.radius + S.radius + 2;
+      P.add(t.x + Math.cos(a) * off, t.y + Math.sin(a) * off, Math.cos(a) * S.speed * f, Math.sin(a) * S.speed * f, S.range * f, pd,
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0);
+    }
   }
 
   /** Горение и Мороз на клинках: как у снаряда, сила от урона клинка. */
