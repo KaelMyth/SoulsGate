@@ -864,62 +864,94 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Разломы: тёмная трещина в земле с холодным светом внутри и дымкой. Таят в конце цикла (fissureAlpha).
+    // Разломы: рваная трещина в земле с ветвящимися трещинками и магическим светом внутри. Таят в конце цикла (fissureAlpha).
     if (b.fissures.length) {
       const fa = b.fissureAlpha();
+      const puffG = this.getGlow('blue');
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (let fi = 0; fi < b.fissures.length; fi++) {
         const f = b.fissures[fi];
+        const G = this.fissureGeom(f, fi);
+        const pulse = 0.75 + 0.25 * Math.sin(t * 3.2 + fi * 1.7);
+        // Тёмная мягкая тень вокруг.
+        ctx.globalAlpha = fa * 0.32;
+        ctx.fillStyle = '#060b1a';
+        this.fissurePoly(ctx, G.poly, 2.2);
+        ctx.fill();
+        // Сама пропасть: тёмный огранённый провал.
+        ctx.globalAlpha = fa * 0.97;
+        ctx.fillStyle = '#070c1c';
+        this.fissurePoly(ctx, G.poly, 1);
+        ctx.fill();
+        // Ветви: тёмные жилы с сужающимся концом.
+        ctx.strokeStyle = '#080d1e';
+        for (const br of G.branches) {
+          for (let i = 0; i < br.pts.length - 1; i++) {
+            ctx.lineWidth = br.w * (1 - i / (br.pts.length - 1)) + 0.6;
+            ctx.beginPath();
+            ctx.moveTo(br.pts[i][0], br.pts[i][1]);
+            ctx.lineTo(br.pts[i + 1][0], br.pts[i + 1][1]);
+            ctx.stroke();
+          }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        // Магическое свечение: широкий мягкий ореол, потом ярче и уже.
+        ctx.strokeStyle = '#6a7cff';
+        ctx.globalAlpha = fa * 0.09 * pulse;
+        ctx.lineWidth = f.hw * 3.4;
+        this.strokePts(ctx, G.main);
+        ctx.strokeStyle = '#7a9cff';
+        ctx.globalAlpha = fa * 0.16 * pulse;
+        ctx.lineWidth = f.hw * 1.5;
+        this.strokePts(ctx, G.main);
+        // Светящийся шов по краям провала (грань, обращённая к свету).
+        ctx.globalAlpha = fa * 0.55;
+        ctx.strokeStyle = '#9fd4ff';
+        ctx.lineWidth = 1.1;
+        this.fissurePoly(ctx, G.poly, 1);
+        ctx.stroke();
+        // Светящиеся жилы по ветвям.
+        ctx.globalAlpha = fa * (0.3 + 0.15 * pulse);
+        ctx.strokeStyle = '#8fb4ff';
+        for (const br of G.branches) {
+          ctx.lineWidth = Math.max(0.8, br.w * 0.35);
+          this.strokePts(ctx, br.pts);
+        }
+        // Яркая сердцевина: тонкая линия и бегущие по ней вспышки энергии.
+        ctx.globalAlpha = fa * 0.5;
+        ctx.strokeStyle = '#b8d4ff';
+        ctx.lineWidth = Math.max(0.9, f.hw * 0.13);
+        this.strokePts(ctx, G.main);
+        ctx.setLineDash([10, 46]);
+        ctx.lineDashOffset = -t * 70 - fi * 13;
+        ctx.globalAlpha = fa * 0.7;
+        ctx.strokeStyle = '#eaf4ff';
+        ctx.lineWidth = Math.max(1.1, f.hw * 0.2);
+        this.strokePts(ctx, G.main);
+        ctx.setLineDash([]);
+        // Мерцающие огоньки: магические частицы поднимаются из трещины; дымка холода вдоль неё.
         const dx = f.x2 - f.x1;
         const dy = f.y2 - f.y1;
-        const L = Math.hypot(dx, dy) || 1;
-        const nx = -dy / L;
-        const ny = dx / L;
-        const n = Math.max(2, Math.ceil(L / 12));
-        ctx.beginPath();
-        for (let i = 0; i <= n; i++) {
-          const u = i / n;
-          const edge = Math.min(1, Math.min(u, 1 - u) * 6);
-          const off = Math.sin(i * 2.7 + fi * 5.1 + f.x1 * 0.05) * f.hw * 0.7 * edge;
-          const px = f.x1 + dx * u + nx * off;
-          const py = f.y1 + dy * u + ny * off;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
+        const L = G.L;
+        const motes = Math.max(3, Math.floor(L / 28));
+        for (let i = 0; i < motes; i++) {
+          const ph = (t * 0.55 + i * 0.173 + fi * 0.31) % 1;
+          const u = (i * 0.618 + fi * 0.2) % 1;
+          const wob = Math.sin(t * 2 + i * 3.1) * 3;
+          const mx = f.x1 + dx * u + G.nx * G.off(u) + wob;
+          const my = f.y1 + dy * u + G.ny * G.off(u) - ph * 26;
+          const sz = 5 + 4 * (1 - ph);
+          ctx.globalAlpha = fa * (1 - ph) * (0.35 + 0.3 * Math.sin(t * 9 + i));
+          ctx.drawImage(puffG, mx - sz, my - sz, sz * 2, sz * 2);
         }
-        ctx.globalAlpha = fa * 0.4;
-        ctx.strokeStyle = '#080e20';
-        ctx.lineWidth = f.hw * 3.2;
-        ctx.stroke();
-        ctx.globalAlpha = fa * 0.95;
-        ctx.strokeStyle = '#0a1022';
-        ctx.lineWidth = f.hw * 1.1;
-        ctx.stroke();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = fa * (0.65 + 0.2 * Math.sin(t * 4 + fi));
-        ctx.strokeStyle = '#8fd0ff';
-        ctx.lineWidth = f.hw * 0.42;
-        ctx.stroke();
-        // Боковые трещинки и дымка холода вдоль разлома.
-        ctx.lineWidth = 1.4;
-        ctx.globalAlpha = fa * 0.5;
-        ctx.beginPath();
-        for (let i = 2; i < n; i += 4) {
-          const u = i / n;
-          const side = i % 8 < 4 ? 1 : -1;
-          const px = f.x1 + dx * u;
-          const py = f.y1 + dy * u;
-          ctx.moveTo(px, py);
-          ctx.lineTo(px + nx * side * f.hw * 1.3 + (dx / L) * 5, py + ny * side * f.hw * 1.3 + (dy / L) * 5);
-        }
-        ctx.stroke();
-        const mists = Math.max(1, Math.floor(L / 70));
+        const mists = Math.max(1, Math.floor(L / 80));
         for (let i = 0; i < mists; i++) {
           const u = (i + 0.5) / mists;
           const lift = (0.5 + 0.5 * Math.sin(t * 1.3 + i * 2 + fi)) * 8;
-          ctx.globalAlpha = fa * 0.2;
-          ctx.drawImage(glow, f.x1 + dx * u - 22, f.y1 + dy * u - 22 - lift, 44, 44);
+          ctx.globalAlpha = fa * 0.16;
+          ctx.drawImage(glow, f.x1 + dx * u - 24, f.y1 + dy * u - 24 - lift, 48, 48);
         }
         ctx.globalCompositeOperation = 'source-over';
       }
@@ -3983,35 +4015,156 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
+  /** Полилиния по точкам [[x,y],...] (без заливки и stroke: их делает вызывающий). */
+  strokePts(ctx, pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+  }
+
+  /** Путь по многоугольнику провала; k раздувает его от центральной линии (для мягкой тени). */
+  fissurePoly(ctx, poly, k) {
+    ctx.beginPath();
+    for (let i = 0; i < poly.length; i++) {
+      const q = poly[i];
+      const x = q[2] + (q[0] - q[2]) * k;
+      const y = q[3] + (q[1] - q[3]) * k;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  /**
+   * Форма разлома: ломаная главная трещина (ширина меняется, концы острые), многоугольник провала и ветки двух
+   * уровней. Считается один раз на разлом (кэш по координатам), потом только рисуется.
+   */
+  fissureGeom(f, fi) {
+    const key = Math.round(f.x1) + ',' + Math.round(f.y1) + ',' + Math.round(f.x2) + ',' + Math.round(f.y2);
+    this.fissureCache = this.fissureCache || new Map();
+    let G = this.fissureCache.get(key);
+    if (G) return G;
+    if (this.fissureCache.size > 64) this.fissureCache.clear();
+    const rnd = mulberry32(Math.imul(Math.round(f.x1) * 31 + Math.round(f.y1), 2654435761) ^ (fi * 977));
+    const dx = f.x2 - f.x1;
+    const dy = f.y2 - f.y1;
+    const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L;
+    const uy = dy / L;
+    const nx = -uy;
+    const ny = ux;
+    const n = Math.max(4, Math.ceil(L / 14));
+    const offs = [0];
+    let o = 0;
+    for (let i = 1; i <= n; i++) {
+      o += (rnd() - 0.5) * f.hw * 1.1;
+      o *= 0.8;
+      offs.push(o);
+    }
+    const edgeK = (u) => Math.min(1, Math.min(u, 1 - u) * 5);
+    const main = [];
+    const left = [];
+    const right = [];
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      const off = offs[i] * edgeK(u);
+      const cx = f.x1 + dx * u + nx * off;
+      const cy = f.y1 + dy * u + ny * off;
+      const w = f.hw * (0.45 + 0.6 * (0.5 + 0.5 * Math.sin(i * 1.9 + rnd() * 2))) * edgeK(u) + 0.8;
+      main.push([cx, cy]);
+      left.push([cx + nx * w * (0.8 + rnd() * 0.5), cy + ny * w * (0.8 + rnd() * 0.5), cx, cy]);
+      right.push([cx - nx * w * (0.8 + rnd() * 0.5), cy - ny * w * (0.8 + rnd() * 0.5), cx, cy]);
+    }
+    const poly = left.concat(right.reverse());
+    const branches = [];
+    const grow = (x, y, ang, len, w, depth) => {
+      const pts = [[x, y]];
+      const steps = Math.max(2, Math.round(len / 9));
+      let a = ang;
+      for (let i = 0; i < steps; i++) {
+        a += (rnd() - 0.5) * 0.9;
+        x += Math.cos(a) * len / steps;
+        y += Math.sin(a) * len / steps;
+        pts.push([x, y]);
+        if (depth < 2 && i > 0 && rnd() < 0.28) grow(x, y, a + (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.6), len * 0.5, w * 0.6, depth + 1);
+      }
+      branches.push({ pts, w });
+    };
+    for (let i = 2; i < n - 1; i += 2 + Math.floor(rnd() * 2)) {
+      const side = rnd() < 0.5 ? -1 : 1;
+      const base = Math.atan2(uy, ux) + side * (0.7 + rnd() * 0.7);
+      grow(main[i][0], main[i][1], base, 14 + rnd() * 30, f.hw * 0.32, 0);
+    }
+    G = { main, poly, branches, L, nx, ny, off: (u) => offs[Math.min(n, Math.round(u * n))] * edgeK(u) };
+    this.fissureCache.set(key, G);
+    return G;
+  }
+
+  /**
+   * Лучи лазера: тонкая раскалённая сердцевина, вокруг мягкое цветное свечение, всё сложением цветов. В начале луча
+   * вспышка у посоха, на конце яркая точка попадания с искрами; луч чуть дрожит. Обычный луч тонкий, большой (9+
+   * снарядов) толще и ярче; к концу жизни гаснет.
+   */
   drawLasers(ctx) {
     const ls = this.lasers;
     if (!ls || !ls.length) return;
     const L = this.cfg.laser;
+    const t = this.clock;
+    const glow = this.getGlow('blue');
+    ctx.save();
     ctx.lineCap = 'round';
-    for (const l of ls) {
-      const fade = Math.min(1, (l.life - l.age) / 0.25);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let li = 0; li < ls.length; li++) {
+      const l = ls[li];
+      const fade = Math.min(1, (l.life - l.age) / 0.25) * Math.min(1, l.age / 0.04 + 0.35);
       l.pulse = Math.max(0, l.pulse - 0.06);
+      const x0 = l.x + l.dx * 10;
+      const y0 = l.y + l.dy * 10;
       const x1 = l.x + l.dx * l.len;
       const y1 = l.y + l.dy * l.len;
-      const w = l.width * (1 + l.pulse * 0.25);
-      const glow = l.big ? 2.6 : 1.7;
-      const lc = l.gen ? this.cfg.phantom.color : L.color; // фантомный луч фиолетовый
-      ctx.globalAlpha = fade * (l.big ? 0.4 : 0.25);
-      ctx.strokeStyle = lc;
-      ctx.lineWidth = w * glow;
-      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
-      ctx.globalAlpha = fade * (l.big ? 0.95 : 0.7);
-      ctx.strokeStyle = lc;
-      ctx.lineWidth = w;
-      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+      const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
+      const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
+      const ph = !!l.gen;
+      const rgb = ph ? '190,120,255' : '110,205,255';
+      const core = ph ? '248,232,255' : '232,248,255';
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
+      ctx.lineWidth = w * 6;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.22 * fade + ')';
+      ctx.lineWidth = w * 3;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.7 * fade + ')';
+      ctx.lineWidth = w * 1.5;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + core + ',' + fade + ')';
+      ctx.lineWidth = Math.max(0.9, w * 0.6);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      // Вспышка у посоха и точка попадания.
+      const g0 = w * 5;
+      ctx.globalAlpha = 0.7 * fade;
+      ctx.drawImage(glow, x0 - g0, y0 - g0, g0 * 2, g0 * 2);
+      const g1 = w * (7 + 2 * Math.sin(t * 50 + li));
+      ctx.globalAlpha = 0.85 * fade;
+      ctx.drawImage(glow, x1 - g1, y1 - g1, g1 * 2, g1 * 2);
       ctx.globalAlpha = fade;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = w * (l.big ? 0.6 : 0.35);
-      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.fillStyle = 'rgba(' + core + ',1)';
+      ctx.beginPath();
+      ctx.arc(x1, y1, Math.max(1, w * 0.7), 0, TAU);
+      ctx.fill();
+      // Искры, разлетающиеся от точки попадания.
+      for (let k = 0; k < 3; k++) {
+        const sp = (t * 3.3 + k * 0.33 + li * 0.17) % 1;
+        const a = li * 2.3 + k * 2.1 + Math.floor(t * 3.3 + k * 0.33 + li * 0.17) * 1.7;
+        const d = sp * w * 6;
+        ctx.globalAlpha = (1 - sp) * fade * 0.9;
+        ctx.beginPath();
+        ctx.arc(x1 + Math.cos(a) * d, y1 + Math.sin(a) * d, Math.max(0.6, w * 0.2 * (1 - sp)), 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
-    ctx.lineCap = 'butt';
+    ctx.restore();
   }
 
   /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
