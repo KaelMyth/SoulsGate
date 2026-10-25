@@ -99,6 +99,8 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.width', label: 'Толщина луча', min: 4, max: 30, step: 1 },
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
+  { group: 'Награды за уровень', path: 'rewards.exchangeFrac', label: 'Обмен: доля опыта следующего уровня', min: 0, max: 1, step: 0.05 },
+  { group: 'Награды за уровень', path: 'rewards.inTest', label: 'Окно выбора в Тестировании (0/1)', min: 0, max: 1, step: 1 },
   { group: 'Смертельная аура', path: 'aura.radius', label: 'Радиус', min: 40, max: 250, step: 5 },
   { group: 'Смертельная аура', path: 'aura.radiusStep', label: 'Рост радиуса за Х2', min: 0, max: 2, step: 0.05 },
   { group: 'Смертельная аура', path: 'aura.damage', label: 'Урон тика', min: 1, max: 100, step: 1 },

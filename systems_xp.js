@@ -99,9 +99,9 @@ export class Xp {
   }
 
   /** Добавить опыт (с множителем скорости набора). Возвращает, сколько уровней взято. */
-  add(amount) {
+  add(amount, raw) {
     if (this.level >= this.maxLevel) return 0;
-    const got = amount * this.cfg.xp.gainMult;
+    const got = raw ? amount : amount * this.cfg.xp.gainMult; // raw: без множителя скорости набора (обмен награды на опыт)
     this.xp += got;
     this.total += got;
     let ups = 0;
