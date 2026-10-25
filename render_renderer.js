@@ -4036,28 +4036,92 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** Смертельная аура: мягкое поле с пульсацией на тике и медленно бегущим пунктирным краем. */
+  /**
+   * Смертельная аура: слабая негативная магия. В радиусе две тонкие вещи: лёгкое дрожащее искажение пространства
+   * (картинка внутри чуть увеличена кольцами и «дышит») и редкие завихрения, в которых на миг проступает негатив
+   * (инверсия цвета через difference). Всё еле заметно; на тике поле вздрагивает сильнее. Резкой границы нет.
+   */
   drawAura(ctx, hx, hy) {
     const au = this.aura;
     if (!au || !au.active) return;
     const R = au.radius;
-    const col = this.cfg.aura.color;
     const t = this.clock;
+    const pl = au.pulse || 0;
+    // Искажение: копия экрана под полем, нарисованная обратно с лёгким увеличением вложенными дисками.
+    const m = ctx.getTransform();
+    const sc = Math.hypot(m.a, m.b);
+    const D = Math.ceil(2 * R * sc);
+    const dx = m.a * hx + m.c * hy + m.e;
+    const dy = m.b * hx + m.d * hy + m.f;
+    if (D > 8 && D < 2400 && sc > 0) {
+      let tc = this.auraTmp;
+      if (!tc || tc.width < D || tc.height < D) tc = this.auraTmp = makeCanvas(D, D);
+      const tg = tc.getContext('2d');
+      tg.setTransform(1, 0, 0, 1, 0, 0);
+      tg.clearRect(0, 0, tc.width, tc.height);
+      tg.drawImage(ctx.canvas, Math.round(dx - D / 2), Math.round(dy - D / 2), D, D, 0, 0, D, D);
+      ctx.save();
+      ctx.translate(hx, hy);
+      const rings = 4;
+      for (let i = 1; i < rings; i++) {
+        const rr = R * (1 - i / rings * 0.78);
+        const k = 1 + (0.012 + 0.012 * i) * (1 + 0.5 * Math.sin(t * 1.5 + i * 1.3)) * (1 + pl * 1.2);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, rr, 0, TAU);
+        ctx.clip();
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(tc, 0, 0, D, D, -R * k, -R * k, 2 * R * k, 2 * R * k);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
     ctx.save();
     ctx.translate(hx, hy);
-    ctx.globalAlpha = 0.1 + 0.1 * au.pulse;
-    ctx.fillStyle = col;
+    // Едва заметная тёмно-фиолетовая дымка по краю: поле читается без линии.
+    const gr = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
+    gr.addColorStop(0, 'rgba(120,90,170,0)');
+    gr.addColorStop(0.75, 'rgba(110,80,165,0.05)');
+    gr.addColorStop(1, 'rgba(100,70,150,0)');
+    ctx.globalAlpha = 1 + pl * 0.8;
+    ctx.fillStyle = gr;
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, TAU);
     ctx.fill();
-    ctx.globalAlpha = 0.5 + 0.3 * au.pulse;
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = -t * 18;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * (1 + 0.02 * au.pulse), 0, TAU);
-    ctx.stroke();
+    // Завихрения с негативом: возникают, закручиваются и тают по очереди.
+    ctx.globalCompositeOperation = 'difference';
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = '#ffffff';
+    const sw = 5;
+    for (let i = 0; i < sw; i++) {
+      const u = (t * 0.27 + i / sw) % 1;
+      const vis = Math.sin(Math.PI * u);
+      const al = vis * vis * (0.55 + 0.6 * pl);
+      if (al < 0.02) continue;
+      const dir = i % 2 ? -1 : 1;
+      const base = (i * 2.399 + Math.floor(t * 0.27 + i / sw) * 1.7) + dir * u * 1.4;
+      const n = 12;
+      let px = 0;
+      let py = 0;
+      for (let j = 0; j <= n; j++) {
+        const v = j / n;
+        const r = R * (0.1 + 0.8 * v) * (0.85 + 0.15 * vis);
+        const ang = base + dir * v * 2.3;
+        const x = Math.cos(ang) * r;
+        const y = Math.sin(ang) * r;
+        if (j > 0) {
+          const w = 7 * Math.sin(Math.PI * v) * (0.6 + 0.4 * vis);
+          ctx.globalAlpha = 0.07 * al;
+          ctx.lineWidth = w * 2.2 + 1;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+          ctx.globalAlpha = 0.11 * al;
+          ctx.lineWidth = w + 0.6;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+        }
+        px = x;
+        py = y;
+      }
+    }
     ctx.restore();
     ctx.globalAlpha = 1;
   }
