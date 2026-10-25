@@ -1,91 +1,142 @@
-// Иконки ядер: маленькие SVG-фигуры без картинок. Имя иконки задаёт запись ядра в config.cores.
+// Значки ядер и модов: маленькие SVG-фигуры без картинок. Имя значка задаёт запись в config.cores и config.mods.
+// Цвет значка и его свечение задаёт плитка (ui_stone.js, styles.css): основной цвет это currentColor, светлый акцент var(--hi).
+// Каждый значок передаёт смысл мода и не похож на соседей: рост, скорость, огонь, холод, луч, веер, клинки, поле, призрак, пробой.
 import { svg } from './ui_dom.js';
 
+const S = (extra) => Object.assign({ stroke: 'currentColor', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, extra);
+const HI = { style: 'fill:var(--hi,#fff)' };
+const HIS = { style: 'stroke:var(--hi,#fff)', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+const spark = (x, y, r) => ['path', Object.assign({ d: 'M' + x + ' ' + (y - r) + 'L' + (x + r * 0.28) + ' ' + (y - r * 0.28) + 'L' + (x + r) + ' ' + y + 'L' + (x + r * 0.28) + ' ' + (y + r * 0.28) + 'L' + x + ' ' + (y + r) + 'L' + (x - r * 0.28) + ' ' + (y + r * 0.28) + 'L' + (x - r) + ' ' + y + 'L' + (x - r * 0.28) + ' ' + (y - r * 0.28) + 'Z' }, HI)];
+const blade = (a) => ['g', { transform: 'rotate(' + a + ' 16 28)' }, [
+  ['path', { d: 'M16 3L19.6 14L16 25L12.4 14Z', fill: 'currentColor' }],
+  ['path', Object.assign({ d: 'M16 3L19.6 14L16 25Z', opacity: 0.45 }, HI)],
+]];
+
 const ICONS = {
-  // Снаряд: яркий шарик со следом.
+  // Ядро «Снаряд»: сгусток энергии с хвостом кометы.
   bolt: [
-    ['circle', { cx: 21, cy: 16, r: 5.5, fill: 'currentColor' }],
-    ['path', { d: 'M4 16h8M7 11h6M7 21h6', stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linecap': 'round', fill: 'none' }],
+    ['path', { d: 'M3 28L12.5 14.5L17 19Z', fill: 'currentColor', opacity: 0.5 }],
+    ['path', S({ d: 'M2 22L9 17M7 29L13 23', 'stroke-width': 1.6, opacity: 0.6 })],
+    ['circle', { cx: 21, cy: 11, r: 7.4, fill: 'currentColor' }],
+    ['circle', Object.assign({ cx: 19, cy: 9, r: 3.1 }, HI)],
+    spark(27, 24, 3.2),
   ],
-  // Щит.
+  // Ядро «Щит»: геральдический щит с гранями и ребром.
   shield: [
-    ['path', { d: 'M16 4 27 8v8c0 7-5 11-11 13C10 27 5 23 5 16V8z', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.4, 'stroke-linejoin': 'round' }],
-    ['path', { d: 'M16 9v15M10 14h12', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none' }],
+    ['path', { d: 'M16 3L27 7V15C27 22 22.5 26.5 16 29C9.5 26.5 5 22 5 15V7Z', fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M16 3V29C9.5 26.5 5 22 5 15V7Z', opacity: 0.38 }, HI)],
+    ['path', S({ d: 'M16 7V25', 'stroke-width': 1.6, opacity: 0.55, style: 'stroke:var(--dark,#1a2236)' })],
+    spark(16, 14, 3.4),
   ],
-  // Х2: надпись.
-  x2: [
-    ['text', { x: 16, y: 23, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 800, fill: 'currentColor', 'font-family': 'sans-serif' }, '×2'],
-  ],
-  // Х3: надпись.
-  x3: [
-    ['text', { x: 16, y: 23, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 800, fill: 'currentColor', 'font-family': 'sans-serif' }, '×3'],
-  ],
-  // Мороз: снежинка.
-  snow: [
-    ['path', { d: 'M16 4v24M6 10l20 12M6 22l20-12', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', fill: 'none' }],
-  ],
-  // Пробитие: стрела, пронзающая кружок.
-  pierce: [
-    ['circle', { cx: 17, cy: 16, r: 7, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2 }],
-    ['path', { d: 'M3 16h26M23 10l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
-  ],
-  // Молниеносный рывок: зигзаг молнии.
-  lightdash: [
-    ['path', { d: 'M19 3L7 18h8l-3 11 13-16h-8z', fill: 'currentColor' }],
-  ],
-  // Огненный рывок: стрелка рывка с пламенем.
-  firedash: [
-    ['path', { d: 'M3 22h18M15 16l6 6-6 6', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', fill: 'none' }],
-    ['path', { d: 'M23 4c1 4 5 6 5 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 2 3 4 1-2 2-5 2-8z', fill: 'currentColor' }],
-  ],
-  // Смертельная аура: кольца вокруг центра.
-  aura: [
-    ['circle', { cx: 16, cy: 16, r: 3.2, fill: 'currentColor' }],
-    ['circle', { cx: 16, cy: 16, r: 8, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }],
-    ['circle', { cx: 16, cy: 16, r: 13, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-dasharray': '3 3' }],
-  ],
-  // Фантомный выстрел: снаряд и его бледная копия.
-  phantom: [
-    ['circle', { cx: 11, cy: 16, r: 5, fill: 'currentColor' }],
-    ['circle', { cx: 23, cy: 16, r: 5, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-dasharray': '3 2.5' }],
-    ['path', { d: 'M16.5 16h1', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }],
-  ],
-  // Дробь: веер точек.
-  shot: [
-    ['circle', { cx: 8, cy: 16, r: 2.6, fill: 'currentColor' }],
-    ['circle', { cx: 18, cy: 8, r: 2.4, fill: 'currentColor' }],
-    ['circle', { cx: 18, cy: 16, r: 2.4, fill: 'currentColor' }],
-    ['circle', { cx: 18, cy: 24, r: 2.4, fill: 'currentColor' }],
-    ['circle', { cx: 26, cy: 4, r: 2, fill: 'currentColor' }],
-    ['circle', { cx: 26, cy: 12, r: 2, fill: 'currentColor' }],
-    ['circle', { cx: 26, cy: 20, r: 2, fill: 'currentColor' }],
-    ['circle', { cx: 26, cy: 28, r: 2, fill: 'currentColor' }],
-  ],
-  // Спектральный клинок: треугольник.
-  blades: [
-    ['path', { d: 'M27 16 7 6l4 10-4 10z', fill: 'currentColor' }],
-  ],
-  // Лазер: луч с искрами.
-  laser: [
-    ['path', { d: 'M3 16h26', stroke: 'currentColor', 'stroke-width': 4.5, 'stroke-linecap': 'round', fill: 'none' }],
-    ['path', { d: 'M9 8l3 4M16 6v5M23 8l-3 4M9 24l3-4M16 26v-5M23 24l-3-4', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none' }],
-  ],
-  // Горение: пламя.
-  flame: [
-    ['path', { d: 'M16 3c1 6 8 9 8 16a8 8 0 0 1-16 0c0-4 2-6 4-9 1 3 2 4 3 4 0-4-1-7 1-11z', fill: 'currentColor' }],
-  ],
-  // Ускорение: молния.
-  haste: [
-    ['path', { d: 'M19 3 8 18h7l-2 11 11-15h-7z', fill: 'currentColor' }],
-  ],
-  // Мощь: стрелка вверх.
+  // Мощь: три шеврона, растущие вверх.
   power: [
-    ['path', { d: 'M16 4 6 16h7v11h6V16h7z', fill: 'currentColor' }],
+    ['path', S({ d: 'M6 27L16 17L26 27', 'stroke-width': 3.2, opacity: 0.45 })],
+    ['path', S({ d: 'M6 19.5L16 9.5L26 19.5', 'stroke-width': 3.4, opacity: 0.75 })],
+    ['path', S({ d: 'M8 12L16 4L24 12', 'stroke-width': 3.6 })],
+    spark(26, 6, 3),
+  ],
+  // Ускорение: секундомер с линиями скорости.
+  haste: [
+    ['circle', S({ cx: 17, cy: 18.5, r: 9, 'stroke-width': 2.6 })],
+    ['path', S({ d: 'M14.5 3.5H19.5M17 3.5V9.5', 'stroke-width': 2.6 })],
+    ['path', Object.assign({ d: 'M17 18.5V12.5', 'stroke-width': 2.4 }, HIS)],
+    ['path', Object.assign({ d: 'M17 18.5L21 21', 'stroke-width': 2.4 }, HIS)],
+    ['path', S({ d: 'M1.5 14H5.5M0.5 18.5H4.5M1.5 23H5.5', 'stroke-width': 1.8, opacity: 0.7 })],
+    ['path', S({ d: 'M24.5 10L27 7.5', 'stroke-width': 2.4 })],
+  ],
+  // Горение: языки пламени с яркой сердцевиной.
+  flame: [
+    ['path', { d: 'M16 1.5C17.6 7 25.5 10.5 25.5 20A9.5 9.5 0 0 1 6.5 20C6.5 15.8 8.6 13 10.4 10.4C10.8 12.8 11.8 14 13 14.8C12.6 9.6 14.4 5.4 16 1.5Z', fill: 'currentColor' }],
+    ['path', { d: 'M9.5 8.5C10.6 10 11 12 10.4 13.6C8.9 12.6 8.6 10.4 9.5 8.5Z', fill: 'currentColor', opacity: 0.7 }],
+    ['path', Object.assign({ d: 'M16 13.5C17.4 16.8 21 18.4 21 22.4A5 5 0 0 1 11 22.4C11 19.6 14.2 18 16 13.5Z', opacity: 0.95 }, HI)],
+    ['path', { d: 'M16 19C16.8 20.6 18.2 21.2 18.2 22.8A2.2 2.2 0 0 1 13.8 22.8C13.8 21.4 15.2 20.8 16 19Z', fill: 'currentColor', opacity: 0.55 }],
+  ],
+  // Мороз: снежинка с ответвлениями.
+  snow: [
+    ['g', {}, [
+      ['path', S({ d: 'M16 3V29M4.7 9.5L27.3 22.5M4.7 22.5L27.3 9.5', 'stroke-width': 2.2 })],
+      ['path', S({ d: 'M12.2 6.2L16 10L19.8 6.2M12.2 25.8L16 22L19.8 25.8', 'stroke-width': 1.8 })],
+      ['path', S({ d: 'M5.4 13.2L10.5 12.6L9.6 7.6M26.6 18.8L21.5 19.4L22.4 24.4', 'stroke-width': 1.8 })],
+      ['path', S({ d: 'M26.6 13.2L21.5 12.6L22.4 7.6M5.4 18.8L10.5 19.4L9.6 24.4', 'stroke-width': 1.8 })],
+    ]],
+    ['path', Object.assign({ d: 'M16 12L19.5 14L19.5 18L16 20L12.5 18L12.5 14Z' }, HI)],
+  ],
+  // Лазер: излучатель, луч и вспышка на конце.
+  laser: [
+    ['path', { d: 'M2.5 16L7.5 10.5L12.5 16L7.5 21.5Z', fill: 'currentColor' }],
+    ['path', S({ d: 'M12 16H24', 'stroke-width': 4.2, opacity: 0.55 })],
+    ['path', Object.assign({ d: 'M12 16H24', 'stroke-width': 2 }, HIS)],
+    spark(27, 16, 5.2),
+    ['path', S({ d: 'M13 9L17 12M13 23L17 20', 'stroke-width': 1.6, opacity: 0.7 })],
+  ],
+  // Дробь: веер дробинок из одной точки.
+  shot: [
+    ['path', S({ d: 'M5 16L21 3M5 16L25 9M5 16H26M5 16L25 23M5 16L21 29', 'stroke-width': 1, opacity: 0.35 })],
+    ['circle', { cx: 5, cy: 16, r: 2.6, fill: 'currentColor' }],
+    ['circle', { cx: 15.9, cy: 10.9, r: 2.5, fill: 'currentColor' }], ['circle', { cx: 17, cy: 16, r: 2.5, fill: 'currentColor' }], ['circle', { cx: 15.9, cy: 21.1, r: 2.5, fill: 'currentColor' }],
+    ['circle', Object.assign({ cx: 21.1, cy: 2.7, r: 2.1 }, HI)], ['circle', Object.assign({ cx: 24.7, cy: 8.9, r: 2.1 }, HI)], ['circle', Object.assign({ cx: 26.4, cy: 16, r: 2.1 }, HI)],
+    ['circle', Object.assign({ cx: 24.7, cy: 23.1, r: 2.1 }, HI)], ['circle', Object.assign({ cx: 21.1, cy: 29.3, r: 2.1 }, HI)],
+  ],
+  // Спектральные клинки: три клинка веером.
+  blades: [blade(-34), blade(34), blade(0), ['circle', { cx: 16, cy: 28, r: 2.2, fill: 'currentColor' }]],
+  // Огненный рывок: рывок в пламени.
+  firedash: [
+    ['path', { d: 'M20.5 2C21.4 7 27.5 9.5 27.5 15.2A6.6 6.6 0 0 1 14.3 15.2C14.3 12.2 16.4 10.2 18.2 8C18.6 10.2 19.4 11 20.2 11.4C20.5 8.4 19.7 5.4 20.5 2Z', fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M20.8 11.4C21.6 13.4 23.6 14.2 23.6 16.4A2.8 2.8 0 0 1 18 16.4C18 14.8 19.8 13.8 20.8 11.4Z' }, HI)],
+    ['path', S({ d: 'M3 27H25M20 22L25.5 27L20 32', 'stroke-width': 3 })],
+    ['path', S({ d: 'M3 21.5H9M6 16.5H10', 'stroke-width': 1.8, opacity: 0.6 })],
+  ],
+  // Молниеносный рывок: зигзаг молнии и линии скорости.
+  lightdash: [
+    ['path', { d: 'M21 1.5L8.5 17.5H15.5L11.5 30.5L25.5 13H18Z', fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M20 6L13 16H18.5L16 24L22 15.5H16.5Z', opacity: 0.75 }, HI)],
+    ['path', S({ d: 'M1.5 11H6M0.5 17H4.5M2.5 23H7', 'stroke-width': 1.8, opacity: 0.65 })],
+  ],
+  // Смертельная аура: поле вокруг точки.
+  aura: [
+    ['circle', { cx: 16, cy: 16, r: 3.4, fill: 'currentColor' }],
+    ['circle', S({ cx: 16, cy: 16, r: 8, 'stroke-width': 2.2 })],
+    ['circle', S({ cx: 16, cy: 16, r: 13, 'stroke-width': 1.6, 'stroke-dasharray': '2.5 3.2' })],
+    ['path', Object.assign({ d: 'M16 1.5L18 4L16 6.5L14 4ZM30.5 16L28 18L25.5 16L28 14ZM16 30.5L14 28L16 25.5L18 28ZM1.5 16L4 14L6.5 16L4 18Z' }, HI)],
+  ],
+  // Фантомный выстрел: призрак и его бледная копия.
+  phantom: [
+    ['path', S({ d: 'M12 28V14.5A7.5 7.5 0 0 1 27 14.5V28L23.5 25L19.5 28L16 25Z', 'stroke-width': 1.6, 'stroke-dasharray': '2.4 2.4', opacity: 0.6 })],
+    ['path', { d: 'M4 29V15.5A7.5 7.5 0 0 1 19 15.5V29L15.5 26L11.5 29L8 26Z', fill: 'currentColor' }],
+    ['circle', { cx: 8.4, cy: 15.5, r: 1.7, style: 'fill:var(--dark,#1a2236)' }],
+    ['circle', { cx: 14.6, cy: 15.5, r: 1.7, style: 'fill:var(--dark,#1a2236)' }],
+    spark(26, 6, 3.4),
+  ],
+  // Пробитие: стрела, пронзающая кольцо.
+  pierce: [
+    ['circle', S({ cx: 17, cy: 16, r: 8.5, 'stroke-width': 2.4, opacity: 0.8 })],
+    ['path', S({ d: 'M3 16H27', 'stroke-width': 3 })],
+    ['path', S({ d: 'M21 10L27.5 16L21 22', 'stroke-width': 3 })],
+    ['circle', Object.assign({ cx: 25.5, cy: 16, r: 1.8 }, HI)],
+  ],
+  // Множители: число с искрой.
+  x2: [
+    ['text', { x: 15, y: 23.5, 'text-anchor': 'middle', 'font-size': 21, 'font-weight': 700, fill: 'currentColor', style: 'font-family:var(--serif)' }, '×2'],
+    spark(27, 6, 3.6),
+  ],
+  x3: [
+    ['text', { x: 15, y: 23.5, 'text-anchor': 'middle', 'font-size': 21, 'font-weight': 700, fill: 'currentColor', style: 'font-family:var(--serif)' }, '×3'],
+    spark(27, 6, 3.6),
   ],
 };
 
+function build(parent, specs) {
+  for (const [tag, attrs, rest] of specs) {
+    if (Array.isArray(rest)) {
+      const g = svg(tag, attrs);
+      build(g, rest);
+      parent.append(g);
+    } else parent.append(rest ? svg(tag, attrs, rest) : svg(tag, attrs));
+  }
+}
+
 export function icon(name) {
-  const root = svg('svg', { viewBox: '0 0 32 32', class: 'icon-svg', 'aria-hidden': 'true' });
-  for (const [tag, attrs, text] of ICONS[name] || []) root.append(text ? svg(tag, attrs, text) : svg(tag, attrs));
+  const root = svg('svg', { viewBox: '0 0 32 32', class: 'icon-svg i-' + name, 'aria-hidden': 'true' });
+  build(root, ICONS[name] || []);
   return root;
 }

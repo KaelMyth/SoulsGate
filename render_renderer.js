@@ -541,6 +541,7 @@ export class Renderer {
     this.hbuf = new Float32Array(33 * 5); // буфер точек ленты шлейфа (x, y, нормаль, ширина): без выделений памяти в кадре
     this.hring = new Float32Array(16);     // контур плеч героя
     this.strip = null;            // мягкая красная полоса телеграфа (без чётких краёв), один спрайт
+    this.stripIce = null;         // то же, холодная: телеграфы Тартаса
     this.dust = null;             // спрайт облачка пыли
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
@@ -816,9 +817,8 @@ export class Renderer {
   }
 
   /**
-   * ЗАГЛУШКА ГРАФИКИ (Тартас): всё, что босс кладёт на землю, простыми формами без деталей.
-   * Данные берём из systems_boss.js (fissures, tele, blast), цвета из config.render.colors.
-   * Графика может заменить любую из трёх частей, не трогая логику.
+   * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
+   * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
   /**
    * ЗАГЛУШКА ГРАФИКИ: призыв апостолов, замах умений, золотые клинки, притяжение Силы. Круги, линии и кольца без деталей.
@@ -921,99 +921,667 @@ export class Renderer {
     const b = this.boss;
     if (!b) return;
     const ctx = this.ctx;
+    const t = this.clock;
+    const glow = this.getGlow('blue');
 
-    // ЗАГЛУШКА ГРАФИКИ: телеграф призыва отряда, круг вокруг босса, который заполняется к выходу бойцов.
+    // Призыв отряда: круг рун растёт от босса и заполняется светом к выходу бойцов.
     if (b.state === 'squadCast' && b.enemy) {
       const Q = b.enemy.def.cycle.squad;
       const k = Math.min(1, b.t / Math.max(0.01, Q.castTime));
       const r = b.enemy.radius + Q.ringGap;
+      const ex = b.enemy.x;
+      const ey = b.enemy.y;
       ctx.save();
-      ctx.strokeStyle = C.frostMist;
-      ctx.lineWidth = 2;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.18 + 0.32 * k;
+      ctx.drawImage(glow, ex - r * 1.5, ey - r * 1.5, r * 3, r * 3);
+      ctx.globalAlpha = 0.5 + 0.3 * k;
+      ctx.strokeStyle = C.tartasEye;
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.arc(b.enemy.x, b.enemy.y, r, 0, Math.PI * 2);
+      ctx.arc(ex, ey, r, 0, TAU);
       ctx.stroke();
-      ctx.globalAlpha = 0.25 + 0.25 * k;
-      ctx.fillStyle = C.frostMist;
+      ctx.setLineDash([5, 7]);
+      ctx.lineDashOffset = t * 24;
       ctx.beginPath();
-      ctx.arc(b.enemy.x, b.enemy.y, r * k, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Разломы: плоская полоса вдоль отрезка. Таят в конце цикла (fissureAlpha).
-    if (b.fissures.length) {
-      ctx.save();
-      ctx.globalAlpha = b.fissureAlpha();
-      ctx.strokeStyle = C.frostMist;
-      for (let i = 0; i < b.fissures.length; i++) {
-        const f = b.fissures[i];
+      ctx.arc(ex, ey, r * (0.55 + 0.45 * k), 0, TAU);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = C.tartasIceLight;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU + t * 0.4;
+        const px = ex + Math.cos(a) * r;
+        const py = ey + Math.sin(a) * r;
         ctx.beginPath();
-        ctx.moveTo(f.x1, f.y1);
-        ctx.lineTo(f.x2, f.y2);
-        ctx.lineWidth = f.hw * 2;
-        ctx.stroke();
+        ctx.moveTo(px + Math.cos(a) * 7, py + Math.sin(a) * 7);
+        ctx.lineTo(px - Math.sin(a) * 4, py + Math.cos(a) * 4);
+        ctx.lineTo(px + Math.sin(a) * 4, py - Math.cos(a) * 4);
+        ctx.closePath();
+        ctx.globalAlpha = 0.35 + 0.5 * k;
+        ctx.fill();
       }
       ctx.restore();
     }
 
-    // Клинки (вторая атака). Ждущий клинок стоит на кольце; линию на земле показывает только тот, чей прицел
-    // уже зафиксирован (aimed): он вылетит следующим. Летящий: короткая чёрточка по ходу полёта.
-    // Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state, aimed }, b.bladeCount;
-    // state 1 ждёт вылета, 2 летит, 3 закончил. Каждая группа рисуется одним проходом.
+    // Разломы: рваная трещина в земле с ветвящимися трещинками и магическим светом внутри. Таят в конце цикла (fissureAlpha).
+    if (b.fissures.length) {
+      const fa = b.fissureAlpha();
+      const puffG = this.getGlow('blue');
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let fi = 0; fi < b.fissures.length; fi++) {
+        const f = b.fissures[fi];
+        const G = this.fissureGeom(f, fi);
+        const pulse = 0.75 + 0.25 * Math.sin(t * 3.2 + fi * 1.7);
+        // Тёмная мягкая тень вокруг.
+        ctx.globalAlpha = fa * 0.32;
+        ctx.fillStyle = '#060b1a';
+        this.fissurePoly(ctx, G.poly, 2.2);
+        ctx.fill();
+        // Сама пропасть: тёмный огранённый провал.
+        ctx.globalAlpha = fa * 0.97;
+        ctx.fillStyle = '#070c1c';
+        this.fissurePoly(ctx, G.poly, 1);
+        ctx.fill();
+        // Ветви: тёмные жилы с сужающимся концом.
+        ctx.strokeStyle = '#080d1e';
+        for (const br of G.branches) {
+          for (let i = 0; i < br.pts.length - 1; i++) {
+            ctx.lineWidth = br.w * (1 - i / (br.pts.length - 1)) + 0.6;
+            ctx.beginPath();
+            ctx.moveTo(br.pts[i][0], br.pts[i][1]);
+            ctx.lineTo(br.pts[i + 1][0], br.pts[i + 1][1]);
+            ctx.stroke();
+          }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        // Магическое свечение: широкий мягкий ореол, потом ярче и уже.
+        ctx.strokeStyle = '#6a7cff';
+        ctx.globalAlpha = fa * 0.09 * pulse;
+        ctx.lineWidth = f.hw * 3.4;
+        this.strokePts(ctx, G.main);
+        ctx.strokeStyle = '#7a9cff';
+        ctx.globalAlpha = fa * 0.16 * pulse;
+        ctx.lineWidth = f.hw * 1.5;
+        this.strokePts(ctx, G.main);
+        // Светящийся шов по краям провала (грань, обращённая к свету).
+        ctx.globalAlpha = fa * 0.55;
+        ctx.strokeStyle = '#9fd4ff';
+        ctx.lineWidth = 1.1;
+        this.fissurePoly(ctx, G.poly, 1);
+        ctx.stroke();
+        // Светящиеся жилы по ветвям.
+        ctx.globalAlpha = fa * (0.3 + 0.15 * pulse);
+        ctx.strokeStyle = '#8fb4ff';
+        for (const br of G.branches) {
+          ctx.lineWidth = Math.max(0.8, br.w * 0.35);
+          this.strokePts(ctx, br.pts);
+        }
+        // Яркая сердцевина: тонкая линия и бегущие по ней вспышки энергии.
+        ctx.globalAlpha = fa * 0.5;
+        ctx.strokeStyle = '#b8d4ff';
+        ctx.lineWidth = Math.max(0.9, f.hw * 0.13);
+        this.strokePts(ctx, G.main);
+        ctx.setLineDash([10, 46]);
+        ctx.lineDashOffset = -t * 70 - fi * 13;
+        ctx.globalAlpha = fa * 0.7;
+        ctx.strokeStyle = '#eaf4ff';
+        ctx.lineWidth = Math.max(1.1, f.hw * 0.2);
+        this.strokePts(ctx, G.main);
+        ctx.setLineDash([]);
+        // Мерцающие огоньки: магические частицы поднимаются из трещины; дымка холода вдоль неё.
+        const dx = f.x2 - f.x1;
+        const dy = f.y2 - f.y1;
+        const L = G.L;
+        const motes = Math.max(3, Math.floor(L / 28));
+        for (let i = 0; i < motes; i++) {
+          const ph = (t * 0.55 + i * 0.173 + fi * 0.31) % 1;
+          const u = (i * 0.618 + fi * 0.2) % 1;
+          const wob = Math.sin(t * 2 + i * 3.1) * 3;
+          const mx = f.x1 + dx * u + G.nx * G.off(u) + wob;
+          const my = f.y1 + dy * u + G.ny * G.off(u) - ph * 26;
+          const sz = 5 + 4 * (1 - ph);
+          ctx.globalAlpha = fa * (1 - ph) * (0.35 + 0.3 * Math.sin(t * 9 + i));
+          ctx.drawImage(puffG, mx - sz, my - sz, sz * 2, sz * 2);
+        }
+        const mists = Math.max(1, Math.floor(L / 80));
+        for (let i = 0; i < mists; i++) {
+          const u = (i + 0.5) / mists;
+          const lift = (0.5 + 0.5 * Math.sin(t * 1.3 + i * 2 + fi)) * 8;
+          ctx.globalAlpha = fa * 0.16;
+          ctx.drawImage(glow, f.x1 + dx * u - 24, f.y1 + dy * u - 24 - lift, 48, 48);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.restore();
+    }
+
+    // Клинки (вторая атака). Ждущий клинок парит на кольце; линию на земле показывает только тот, чей прицел
+    // уже зафиксирован (aimed): он вылетит следующим. Летящий: яркая чёрточка по ходу полёта.
+    // Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state, aimed }, b.bladeCount; state 1 ждёт, 2 летит, 3 закончил.
     if (b.bladeCount > 0) {
       const bl = b.blades;
-      ctx.beginPath();
       for (let i = 0; i < b.bladeCount; i++) {
-        if (bl[i].state !== 1 || !bl[i].aimed) continue;
-        ctx.moveTo(bl[i].x1, bl[i].y1);
-        ctx.lineTo(bl[i].x2, bl[i].y2);
+        const q = bl[i];
+        if (q.state !== 1 || !q.aimed) continue;
+        const L = Math.hypot(q.x2 - q.x1, q.y2 - q.y1) || 1;
+        this.drawSoftStrip({ length: L, width: q.hw * 2, dirX: (q.x2 - q.x1) / L, dirY: (q.y2 - q.y1) / L }, q.x1, q.y1, 0.7, true);
       }
-      ctx.lineWidth = bl[0].hw * 2;
-      ctx.strokeStyle = C.teleProgress;
-      ctx.stroke();
-      ctx.beginPath();
       for (let i = 0; i < b.bladeCount; i++) {
-        if (bl[i].state === 3) continue;
-        ctx.moveTo(bl[i].x - bl[i].dx * 26, bl[i].y - bl[i].dy * 26);
-        ctx.lineTo(bl[i].x, bl[i].y);
+        const q = bl[i];
+        if (q.state === 3) continue;
+        const flying = q.state === 2;
+        const bob = flying ? 0 : Math.sin(t * 3 + i) * 2;
+        ctx.save();
+        ctx.translate(q.x - q.dy * bob, q.y + q.dx * bob);
+        ctx.rotate(Math.atan2(q.dy, q.dx));
+        ctx.scale(2, 2);
+        if (!flying) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.55 + 0.2 * Math.sin(t * 5 + i);
+          ctx.drawImage(glow, -30, -30, 60, 60);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+        }
+        if (flying) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = 'rgba(200,236,255,0.7)';
+          ctx.beginPath();
+          tracePoly(ctx, [0, -3.4, -70, -0.8, -70, 0.8, 0, 3.4], 1);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.drawImage(glow, -24, -24, 48, 48);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+        }
+        ctx.beginPath();
+        tracePoly(ctx, [-14, 0, -4, -4.5, 18, 0, -4, 4.5], 1);
+        ctx.fillStyle = C.tartasBlade;
+        ctx.fill();
+        ctx.lineWidth = 0.9;
+        ctx.strokeStyle = 'rgba(225,244,255,0.95)';
+        ctx.stroke();
+        ctx.beginPath();
+        tracePoly(ctx, [-14, 0, -4, -4.5, 18, 0], 1);
+        ctx.fillStyle = C.tartasIceLight;
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = flying ? 0.7 : 0.45;
+        ctx.drawImage(glow, -16, -16, 32, 32);
+        ctx.restore();
       }
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = C.fissureCore;
-      ctx.stroke();
     }
 
-    // Линия рывка: узкий прямоугольник от босса через героя и дальше.
+    // Линия рывка: холодная размытая полоса от босса через героя и дальше; к рывку наливается светом.
     const tl = b.tele;
     if (tl) {
-      ctx.save();
-      ctx.translate(tl.x1, tl.y1);
-      ctx.rotate(Math.atan2(tl.y2 - tl.y1, tl.x2 - tl.x1));
-      ctx.fillStyle = C.teleProgress;
-      ctx.fillRect(0, -tl.hw, Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1), tl.hw * 2);
-      ctx.restore();
+      const L = Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1) || 1;
+      this.drawSoftStrip({ length: L, width: tl.hw * 2, dirX: (tl.x2 - tl.x1) / L, dirY: (tl.y2 - tl.y1) / L }, tl.x1, tl.y1, Math.min(1, tl.t / Math.max(0.01, tl.total)), true);
     }
 
-    // Область взрыва (треугольник): телеграф заполняется к центру, потом одноцветная вспышка.
+    // Область взрыва: телеграф со светлой каймой, заполняется к центру, потом вспышка с холодным сиянием.
     const bl = b.blast;
     if (bl) {
       if (bl.phase === 'tele') {
         const k = Math.min(1, bl.t / Math.max(0.01, bl.total));
-        this.polyPath(bl.poly, bl.x, bl.y, 1);
-        ctx.fillStyle = C.teleFill;
-        ctx.fill();
-        this.polyPath(bl.poly, bl.x, bl.y, k);
-        ctx.fillStyle = C.teleProgress;
-        ctx.fill();
-      } else {
         ctx.save();
-        ctx.globalAlpha = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total)) * 0.75;
+        this.polyPath(bl.poly, bl.x, bl.y, 1);
+        ctx.fillStyle = 'rgba(120,185,250,0.13)';
+        ctx.fill();
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = 'rgba(150,205,255,0.12)';
+        ctx.stroke();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = 'rgba(214,238,255,' + (0.45 + 0.3 * Math.sin(t * 10) * k) + ')';
+        ctx.stroke();
+        this.polyPath(bl.poly, bl.x, bl.y, k);
+        ctx.fillStyle = 'rgba(160,215,255,0.26)';
+        ctx.fill();
+        ctx.restore();
+      } else {
+        const f = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total));
+        ctx.save();
+        ctx.globalAlpha = 0.25 + 0.7 * f;
         this.polyPath(bl.poly, bl.x, bl.y, 1);
         ctx.fillStyle = C.blastFill;
         ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.6 * f;
+        ctx.lineWidth = 12;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#9fd8ff';
+        ctx.stroke();
         ctx.restore();
       }
     }
+  }
+
+  /** Освещение в системе героя: вектор на источник света (сверху-слева), повёрнутый в местные оси фигуры (поворот a). */
+  localLight(a) {
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    this.llx = LIGHT_X * c + LIGHT_Y * s;
+    this.lly = -LIGHT_X * s + LIGHT_Y * c;
+  }
+
+  /** Огранённая деталь: основной цвет и тонкий светлый серп со стороны света (по местным осям, см. localLight). */
+  bevel(pts, base, lite, d) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    tracePoly(ctx, pts, 1);
+    ctx.fillStyle = lite;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.translate(-this.llx * d, -this.lly * d);
+    ctx.beginPath();
+    tracePoly(ctx, pts, 1);
+    ctx.fillStyle = base;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Тартас, замёрзший рыцарь: вид сверху. Широкие плечи в наледи, шлем с холодным взглядом, ледяные шипы на спине,
+   * плащ-лохмотья и ледяной меч, который по ходу атак меняет позу: замах назад на телеграфе рывка, выпад на рывке,
+   * меч над головой на клинках, острие в землю при призыве отряда. Состояние читаем из this.boss (он же рисует землю).
+   */
+  drawTartas(e, x, y, hit) {
+    const ctx = this.ctx;
+    const C = this.cfg.render.colors;
+    const t = this.clock;
+    const dt = this.dt;
+    const b = this.boss && this.boss.enemy === e ? this.boss : null;
+    const bs = b ? b.state : 'idle';
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU, wa: 0.5, step: 0, sx: x, sy: y, dashT: 9, ex: x, ey: y, t: t };
+      this.beetleState.set(e, st);
+    }
+    if (t - st.t > 0.5) { st.sx = x; st.sy = y; st.dashT = 9; }
+    st.t = t;
+    const moving = e.hx !== 0 || e.hy !== 0;
+    const dashing = bs === 'dash';
+    if (dashing) {
+      if (st.dashT > 0.5) { st.sx = x; st.sy = y; }
+      st.dashT = 0;
+    } else st.dashT += dt;
+    const aiming = (bs === 'tele' || dashing) && b && b.line;
+    const target = aiming ? Math.atan2(b.line.dy, b.line.dx) : moving ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    st.a += da * (dashing ? 0.9 : aiming ? 0.35 : 0.12);
+    if (moving && !dashing) st.step += dt * 5;
+
+    // Поза меча (угол от курса, по часовой) и накал глаз по состоянию босса.
+    const raised = bs === 'bladeIn' || bs === 'bladeWave' || bs === 'bladeGap';
+    let wa = 0.5 + 0.1 * Math.sin(st.step * 2);
+    let heat = 0.35;
+    let shake = 0;
+    if (bs === 'tele') { wa = 2.7; heat = 0.8; shake = 0.05; }
+    else if (dashing) { wa = 0; heat = 1; }
+    else if (bs === 'gap') wa = 1.3;
+    else if (bs === 'blastTele') { wa = 1.7; heat = 1; shake = 0.04; }
+    else if (bs === 'blast') { wa = 0.2; heat = 1; }
+    else if (bs === 'recover') { wa = 2.0; heat = 0.15; }
+    else if (bs === 'squadCast') { wa = 0; heat = 0.9; }
+    else if (raised) heat = 0.9;
+    st.wa += (wa - st.wa) * (dashing ? 0.7 : 0.18);
+    const frozen = e.freezeT > 0;
+    const S = e.radius / 30 * 1.45;
+    const slump = bs === 'recover' ? 0.96 : 1;
+    const a = st.a;
+    this.localLight(a);
+    const sh = shake * e.radius;
+
+    // След рывка: холодная полоса от начала рывка до босса, быстро тает.
+    if (st.dashT < 0.4) {
+      const k = 1 - st.dashT / 0.4;
+      const dx = x - st.sx;
+      const dy = y - st.sy;
+      const L = Math.hypot(dx, dy);
+      if (L > 6) {
+        this.drawSoftStrip({ length: L, width: e.radius * 1.5, dirX: dx / L, dirY: dy / L }, st.sx, st.sy, 1, true, 0.9 * k);
+      }
+    }
+
+    // Морозная дымка у ног.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.2 + 0.07 * Math.sin(t * 1.7 + st.ph) + 0.1 * heat;
+    const mist = this.getGlow('blue');
+    ctx.drawImage(mist, x - e.radius * 2.6, y - e.radius * 2.2, e.radius * 5.2, e.radius * 4.4);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(x + Math.sin(t * 61) * sh, y + Math.cos(t * 53) * sh);
+    ctx.rotate(a);
+    ctx.scale(S * slump, S * slump);
+    const sway = Math.sin(t * 2.1 + st.ph);
+    const stride = Math.sin(st.step * 2) * 4;
+    const dark = frozen ? '#3d5578' : '#1c2540';
+
+    // Плащ-лохмотья за спиной.
+    ctx.beginPath();
+    tracePoly(ctx, [-2, -22, -14, -25, -30, -21 + sway * 2, -43, -16, -38, -9 + sway * 2, -50, -4 + sway * 3, -41, 3, -52, 9 + sway * 3, -39, 14, -45, 20 + sway * 2, -27, 23, -12, 25, -2, 22], 1);
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [-6, -18, -28, -14, -36, -8, -30, -2, -38, 4, -28, 10, -34, 16, -14, 20], 1);
+    ctx.fillStyle = 'rgba(8,12,26,0.55)';
+    ctx.fill();
+    ctx.fillStyle = C.tartasIce;
+    for (const [px, py, q] of [[-43, -16, 5], [-50, -4, 6], [-52, 9, 6], [-45, 20, 5], [-38, -9, 4], [-39, 14, 4]]) {
+      ctx.beginPath();
+      ctx.moveTo(px, py - q * 0.5);
+      ctx.lineTo(px - q * 1.5, py);
+      ctx.lineTo(px, py + q * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Ледяные шипы, выросшие из спины: по ним гуляет голубой свет.
+    for (const [px, py, L, w] of [[-8, -11, 17, 4], [-12, -3, 22, 5], [-9, 5, 19, 4.5], [-12, 12, 16, 4], [-5, 0, 13, 3.5]]) {
+      const d = py < 0 ? -0.35 : py > 0 ? 0.35 : 0;
+      ctx.beginPath();
+      tracePoly(ctx, [px, py - w, px - L, py + d * L, px, py + w], 1);
+      ctx.fillStyle = C.tartasIce;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [px, py - w, px - L, py + d * L, px - L * 0.45, py - w * 0.2], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+    }
+
+    // Сапоги спереди, шагают по очереди.
+    for (const sg of [-1, 1]) {
+      const bx = 16 + stride * sg;
+      this.bevel([bx - 7, sg * 8 - 5, bx + 6, sg * 8 - 4, bx + 8, sg * 8 + 4, bx - 7, sg * 8 + 5], '#18203a', '#3b4a73', 1.4);
+    }
+
+    // Торс и наплечники.
+    this.bevel([-15, -14, 6, -17, 14, -9, 14, 9, 6, 17, -15, 14, -19, 0], C.tartasPlate, C.tartasPlateLit, 2.4);
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(12, 0);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = 'rgba(8,12,26,0.6)';
+    ctx.stroke();
+    for (const sg of [-1, 1]) {
+      this.bevel([-9, sg * 16, 4, sg * 24, 15, sg * 23, 19, sg * 14, 10, sg * 9, -5, sg * 10], '#3a4768', C.tartasPlateLit, 2.6);
+      ctx.beginPath();
+      tracePoly(ctx, [-3, sg * 20, 5, sg * 27, 10, sg * 21], 1);
+      ctx.fillStyle = C.tartasIce;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [-3, sg * 20, 5, sg * 27, 3.5, sg * 21], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [9, sg * 21, 16, sg * 18, 14, sg * 24], 1);
+      ctx.fillStyle = '#d8e8fa';
+      ctx.fill();
+    }
+
+    // Голова: шлем с рогами, щель взгляда светится.
+    ctx.beginPath();
+    tracePoly(ctx, [2, -9, 10, -6, 12, 0, 10, 6, 2, 9, -4, 5, -4, -5], 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.translate(1, 1.5);
+    ctx.fill();
+    ctx.translate(-1, -1.5);
+    this.bevel([2, -9, 10, -6, 12, 0, 10, 6, 2, 9, -4, 5, -4, -5], '#222c48', '#566b9a', 2);
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      tracePoly(ctx, [3, sg * 8, 0, sg * 17, 9, sg * 11], 1);
+      ctx.fillStyle = '#c9def5';
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [3, sg * 8, 0, sg * 17, 4, sg * 12], 1);
+      ctx.fillStyle = '#eef6ff';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    tracePoly(ctx, [8.5, -4.5, 12.5, -3, 12.5, 3, 8.5, 4.5], 1);
+    ctx.fillStyle = '#080c1a';
+    ctx.fill();
+
+    // Руки и ледяной меч в правой руке.
+    ctx.beginPath();
+    ctx.arc(14, -22, 4.6, 0, TAU);
+    ctx.fillStyle = '#2b3656';
+    ctx.fill();
+    if (raised) {
+      // Меч над головой, виден сверху укороченным: вращается и копит свет.
+      ctx.save();
+      ctx.translate(2, 22);
+      ctx.rotate(t * 1.6);
+      this.drawIceSword(14, 5, 1, t, true);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.translate(14, 22);
+      ctx.rotate(st.wa);
+      this.drawIceSword(bs === 'squadCast' ? 44 : 50, 8, hit ? 0 : 1, t, false);
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.arc(14, 22, 5.4, 0, TAU);
+    ctx.fillStyle = '#34405f';
+    ctx.fill();
+
+    // Попадание: плиты белеют.
+    if (hit) {
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      tracePoly(ctx, [-15, -14, 6, -17, 14, -9, 14, 9, 6, 17, -15, 14, -19, 0], 1);
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [2, -9, 10, -6, 12, 0, 10, 6, 2, 9, -4, 5, -4, -5], 1);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Взгляд: два холодных огонька в щели шлема. Накаляются в атаках.
+    ctx.globalCompositeOperation = 'lighter';
+    const eye = this.getGlow('blue');
+    const ea = (0.5 + 0.5 * heat) * (frozen ? 0.4 : 1) * (0.85 + 0.15 * Math.sin(t * 7 + st.ph));
+    ctx.globalAlpha = ea;
+    for (const sg of [-1, 1]) ctx.drawImage(eye, 11.2 - 7, sg * 2.6 - 7, 14, 14);
+    ctx.globalAlpha = Math.min(1, ea * 1.2);
+    ctx.fillStyle = '#e8f8ff';
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(12, sg * 2.6, 1.3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // Руны вокруг босса на клинках и при призыве.
+    if (raised || bs === 'squadCast') {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = C.tartasEye;
+      ctx.lineWidth = 1.6;
+      ctx.globalAlpha = 0.5 + 0.2 * Math.sin(t * 6);
+      ctx.setLineDash([6, 8]);
+      ctx.lineDashOffset = -t * 18;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.radius * 1.9, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Ледяной меч: клинок вдоль +x от руки, длина len, ширина w. Местные оси, рука в начале координат. */
+  drawIceSword(len, w, vis, t, flat) {
+    const ctx = this.ctx;
+    const C = this.cfg.render.colors;
+    ctx.beginPath();
+    tracePoly(ctx, [-9, -2, -1, -2, -1, 2, -9, 2], 1);
+    ctx.fillStyle = '#2a2230';
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [0, -w * 0.9, 3, -w * 0.9, 3, w * 0.9, 0, w * 0.9], 1);
+    ctx.fillStyle = '#6a7894';
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [3, -w * 0.5, len - 10, -w * 0.5, len, 0, len - 10, w * 0.5, 3, w * 0.5], 1);
+    ctx.fillStyle = C.tartasBlade;
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [3, -w * 0.5, len - 10, -w * 0.5, len, 0, 3, 0], 1);
+    ctx.fillStyle = C.tartasIceLight;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(6, 0);
+    ctx.lineTo(len - 8, 0);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(70,120,190,0.7)';
+    ctx.stroke();
+    // Наледь: кристаллы вдоль клинка.
+    ctx.fillStyle = '#e4f2ff';
+    for (let i = 0; i < 3; i++) {
+      const px = len * (0.28 + i * 0.22);
+      ctx.beginPath();
+      tracePoly(ctx, [px, -w * 0.5, px + 3, -w * 0.5 - 4.5 - i, px + 5, -w * 0.5], 1);
+      ctx.fill();
+    }
+    // Свет по лезвию.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (flat ? 0.8 : 0.45) * vis + 0.12 * Math.sin(t * 5);
+    ctx.drawImage(this.getGlow('blue'), len * 0.1, -w * 1.8, len * 0.95, w * 3.6);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Замёрзший боец отряда Тартаса: маленький рыцарь в наледи с холодным взглядом.
+   * kind: 'soldier' (меч), 'archer' (лук: при прицеливании тетива натянута, наконечник светится), 'ram' (таран-голова, рывок).
+   */
+  drawFrozenTroop(e, x, y, hit, kind) {
+    const ctx = this.ctx;
+    const C = this.cfg.render.colors;
+    const t = this.clock;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU, step: 0 };
+      this.beetleState.set(e, st);
+    }
+    const A = e.atk;
+    const moving = e.hx !== 0 || e.hy !== 0;
+    const frozen = e.freezeT > 0;
+    const heroA = Math.atan2(this.hero.y - y, this.hero.x - x);
+    const target = A.state !== 'idle' && kind === 'ram' ? Math.atan2(A.dirY, A.dirX) : e.aim > 0 || kind === 'archer' ? heroA : moving ? Math.atan2(e.hy, e.hx) : heroA;
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    if (!frozen) st.a += da * (A.state === 'strike' ? 0.8 : 0.22);
+    if (moving && !frozen) st.step += this.dt * 7;
+    const s = e.radius / 12;
+    const windup = A.state === 'windup' && e.def.attack ? Math.min(1, A.t / Math.max(0.01, e.def.attack.windup)) : 0;
+    const striking = A.state === 'strike';
+    const aim = e.aim > 0 ? 1 - e.aim / Math.max(0.01, e.aimTotal) : 0;
+    this.localLight(st.a);
+    ctx.save();
+    ctx.translate(x + (windup > 0 ? Math.sin(t * 60) * windup * 0.6 : 0), y);
+    ctx.rotate(st.a);
+    ctx.scale(s, s);
+    const stride = Math.sin(st.step) * 2.4;
+    for (const sg of [-1, 1]) this.bevel([4 + stride * sg, sg * 4 - 2.5, 10 + stride * sg, sg * 4 - 2, 10 + stride * sg, sg * 4 + 2, 4 + stride * sg, sg * 4 + 2.5], '#18203a', '#3b4a73', 0.8);
+    const wide = kind === 'ram' ? 1.2 : 1;
+    this.bevel([-6, -9 * wide, 3, -10 * wide, 8, -5, 8, 5, 3, 10 * wide, -6, 9 * wide, -9, 0], frozen ? '#4a6486' : C.tartasPlate, C.tartasPlateLit, 1.5);
+    ctx.beginPath();
+    tracePoly(ctx, [-2, -9 * wide, 3, -13 * wide, 5, -8 * wide], 1);
+    ctx.fillStyle = C.tartasIce;
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [-2, 9 * wide, 3, 13 * wide, 5, 8 * wide], 1);
+    ctx.fillStyle = C.tartasIce;
+    ctx.fill();
+    this.bevel([2, -4.5, 6.5, -2.5, 7.5, 0, 6.5, 2.5, 2, 4.5, -1, 2, -1, -2], '#222c48', '#566b9a', 1);
+    if (kind === 'soldier') {
+      const sw = (striking ? 0 : 0.6) + windup * 1.4 + 0.15 * Math.sin(st.step);
+      ctx.save();
+      ctx.translate(5, 9);
+      ctx.rotate(sw);
+      ctx.beginPath();
+      tracePoly(ctx, [0, -1.4, 13, -1.4, 16, 0, 13, 1.4, 0, 1.4], 1);
+      ctx.fillStyle = C.tartasBlade;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [0, -1.4, 13, -1.4, 16, 0, 0, 0], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+      ctx.restore();
+    } else if (kind === 'archer') {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#8aa6cf';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(9, 0, 10, -1.1, 1.1);
+      ctx.stroke();
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = '#dcecff';
+      const pull = aim * 5;
+      ctx.beginPath();
+      ctx.moveTo(9 + 10 * Math.cos(-1.1), 10 * Math.sin(-1.1));
+      ctx.lineTo(9 + 10 * Math.cos(-1.1) - 1 - pull, 0);
+      ctx.lineTo(9 + 10 * Math.cos(1.1), 10 * Math.sin(1.1));
+      ctx.stroke();
+      if (aim > 0) {
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#e8f6ff';
+        ctx.beginPath();
+        ctx.moveTo(5 - pull, 0);
+        ctx.lineTo(18, 0);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.4 + 0.5 * aim;
+        ctx.drawImage(this.getGlow('blue'), 12, -7, 14, 14);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+      ctx.lineCap = 'butt';
+    } else {
+      ctx.beginPath();
+      tracePoly(ctx, [7, -6, 17, -3, 20, 0, 17, 3, 7, 6], 1);
+      ctx.fillStyle = '#9fbde4';
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [7, -6, 17, -3, 20, 0, 7, 0], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [12, -6, 14, -11, 16, -4], 1);
+      ctx.fillStyle = '#e4f2ff';
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [12, 6, 14, 11, 16, 4], 1);
+      ctx.fill();
+    }
+    if (hit) {
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      tracePoly(ctx, [-6, -9 * wide, 3, -10 * wide, 8, -5, 8, 5, 3, 10 * wide, -6, 9 * wide, -9, 0], 1);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    const heat = striking || windup > 0 ? 1 : 0.7;
+    ctx.globalAlpha = (frozen ? 0.35 : heat) * (0.8 + 0.2 * Math.sin(t * 8 + st.ph));
+    for (const sg of [-1, 1]) ctx.drawImage(this.getGlow('blue'), 5.6, sg * 1.6 - 3.5, 7, 7);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   drawEnemy(e, x, y, C) {
@@ -1035,6 +1603,17 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.bull) {
       // Бык: жук-носорог с красным акцентом, размытием в рывке и пылью при торможении.
       this.drawBull(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.rockBeetle) {
+      this.drawRockBeetle(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.tartas) {
+      // Тартас: замёрзший рыцарь с ледяным мечом.
+      this.drawTartas(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.frozenSoldier) {
+      this.drawFrozenTroop(e, x, y, hit, 'soldier');
+    } else if (e.def === this.cfg.enemies.frozenArcher) {
+      this.drawFrozenTroop(e, x, y, hit, 'archer');
+    } else if (e.def === this.cfg.enemies.frozenRam) {
+      this.drawFrozenTroop(e, x, y, hit, 'ram');
     } else {
       // Попадание: враг белеет и на мгновение раздувается.
       const rr = hit ? r * 1.15 : e.atk.state === 'windup' ? r * (1 + 0.08 * Math.sin(e.atk.t * 30)) : r;
@@ -1537,19 +2116,41 @@ export class Renderer {
   drawMidges(list, alpha, viewL, viewR, viewT, viewB) {
     if (!list.length) return;
     const ctx = this.ctx;
-    ctx.fillStyle = '#e8f1ff';
-    ctx.strokeStyle = '#7fb4ff';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < list.length; i++) {
-      const m = list[i];
-      if (!m.active) continue;
-      const px = m.prevX + (m.x - m.prevX) * alpha;
-      const py = m.prevY + (m.y - m.prevY) * alpha;
-      if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
-      ctx.beginPath();
-      ctx.arc(px, py, m.radius, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
+    const t = this.clock;
+    const glow = this.getGlow('blue');
+    // Мошки: крошечное тёмное тельце с мелькающими крыльями и холодным огоньком; поворачиваются по ходу полёта.
+    for (let pass = 0; pass < 2; pass++) {
+      if (pass === 0) ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (!m.active) continue;
+        const px = m.prevX + (m.x - m.prevX) * alpha;
+        const py = m.prevY + (m.y - m.prevY) * alpha;
+        if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
+        if (pass === 0) {
+          ctx.globalAlpha = 0.75;
+          const g = m.radius * 4.2;
+          ctx.drawImage(glow, px - g / 2, py - g / 2, g, g);
+        } else {
+          const a = Math.atan2(m.vy, m.vx);
+          const fl = Math.sin(t * 90 + m.phase);
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(a);
+          ctx.beginPath();
+          tracePoly(ctx, [-1, 0, -3.5, -m.radius * (1.1 + 0.5 * fl), 1.5, -0.8], 1);
+          tracePoly(ctx, [-1, 0, -3.5, m.radius * (1.1 + 0.5 * fl), 1.5, 0.8], 1);
+          ctx.fillStyle = 'rgba(200,228,255,0.7)';
+          ctx.fill();
+          ctx.beginPath();
+          tracePoly(ctx, [m.radius * 0.9, 0, 0, -m.radius * 0.5, -m.radius * 0.9, 0, 0, m.radius * 0.5], 1);
+          ctx.fillStyle = '#e9f4ff';
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
     }
   }
 
@@ -1657,8 +2258,8 @@ export class Renderer {
   }
 
   /** Мягкая красная полоса телеграфа: вдоль и поперёк плавно тает в ноль, чётких краёв нет. Считается один раз. */
-  getStrip() {
-    if (this.strip) return this.strip;
+  getStrip(ice) {
+    if (ice ? this.stripIce : this.strip) return ice ? this.stripIce : this.strip;
     const W = 256;
     const H = 64;
     let c;
@@ -1682,21 +2283,22 @@ export class Renderer {
         const u = x / (W - 1);
         const a = sm(u / 0.14) * sm((1 - u) / 0.2) * fy; // вдоль: нарастание в начале и затухание в конце
         const i = (y * W + x) * 4;
-        img.data[i] = 255;
-        img.data[i + 1] = 70;
-        img.data[i + 2] = 58;
+        img.data[i] = ice ? 150 : 255;
+        img.data[i + 1] = ice ? 205 : 70;
+        img.data[i + 2] = ice ? 255 : 58;
         img.data[i + 3] = Math.round(a * 255);
       }
     }
     g.putImageData(img, 0, 0);
-    this.strip = c;
+    if (ice) this.stripIce = c;
+    else this.strip = c;
     return c;
   }
 
   /** Телеграф рывка: размытая красная полоса; за время замаха она наливается от жука вперёд, в конце пульсирует. */
-  drawSoftStrip(tg, x, y, k) {
+  drawSoftStrip(tg, x, y, k, ice, mul) {
     const ctx = this.ctx;
-    const strip = this.getStrip();
+    const strip = this.getStrip(ice);
     const L = tg.length;
     const w = tg.width;
     const h = w * 2.2; // по краям спрайт тает, поэтому он шире зоны
@@ -1704,9 +2306,10 @@ export class Renderer {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.atan2(tg.dirY, tg.dirX));
-    ctx.globalAlpha = (0.16 + 0.08 * k) * pulse;
+    const m = mul === undefined ? 1 : mul;
+    ctx.globalAlpha = (0.16 + 0.08 * k) * pulse * m;
     ctx.drawImage(strip, -0.05 * L, -h / 2, L * 1.1, h);
-    ctx.globalAlpha = (0.22 + 0.3 * k) * pulse;
+    ctx.globalAlpha = (0.22 + 0.3 * k) * pulse * m;
     ctx.drawImage(strip, -0.05 * L, -h / 2, Math.max(2, L * 1.1 * k), h);
     ctx.restore();
     ctx.globalAlpha = 1;
@@ -1784,6 +2387,123 @@ export class Renderer {
    * Замах: жук напрягается и дрожит, красное разгорается. Рывок: тело вытягивается, за ним шлейф теней и
    * линии скорости. Конец рывка: облачко пыли. Оглушение: холодный оттенок, над головой кружат звёздочки.
    */
+  /**
+   * Горный жук: ожившая скала. Приземистый панцирь из каменных граней со снежной шапкой, четыре каменные лапы,
+   * в трещинах тёплый оранжевый свет. Пробуждение: поднимается из скалы (пыль, трещины разгораются). Замах: приседает,
+   * светится сильнее и дрожит; после удара вздрагивает. Взгляд следует за героем.
+   */
+  drawRockBeetle(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    const A = e.atk;
+    const as = A.state;
+    let st = this.beetleState.get(e);
+    if (!st || t - (st.t || 0) > 0.5) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU, pa: as, step: 0, ox: x, oy: y };
+      this.beetleState.set(e, st);
+      if (as === 'wake') this.spawnDust(x, y, 0, -1);
+    }
+    st.t = t;
+    if (st.pa === 'windup' && as === 'recovery') this.spawnDust(x, y, 0, 1); // удар в землю
+    st.pa = as;
+    const frozen = e.freezeT > 0;
+    if (!frozen) {
+      const target = Math.atan2(this.hero.y - y, this.hero.x - x);
+      let da = (target - st.a) % TAU;
+      if (da > Math.PI) da -= TAU;
+      else if (da < -Math.PI) da += TAU;
+      st.a += da * 0.12;
+      st.step += Math.hypot(x - st.ox, y - st.oy) * 0.16;
+    }
+    st.ox = x;
+    st.oy = y;
+
+    const wake = as === 'wake' && e.def.wakeTime > 0 ? Math.min(1, A.t / e.def.wakeTime) : 1;
+    const wind = as === 'windup' && e.def.slam.windup > 0 ? Math.min(1, A.t / e.def.slam.windup) : 0;
+    const rec = as === 'recovery' ? Math.max(0, 1 - A.t / 0.35) : 0;
+    const heat = hit ? 1 : Math.min(1, 0.25 + wind * 0.9 + rec * 0.6 + (1 - wake) * 0.5);
+    const grow = 0.72 + 0.28 * (1 - Math.pow(1 - wake, 3)) + rec * 0.07;
+    const squat = 1 - wind * 0.12;
+    const shake = wind * Math.sin(t * 60) * 0.9;
+
+    ctx.save();
+    ctx.translate(x + shake, y - (as === 'wake' ? (1 - wake) * 0 : 0));
+    ctx.rotate(st.a);
+    this.localLight(st.a);
+    const k = r * grow;
+    ctx.scale(1, squat);
+    ctx.lineJoin = 'round';
+    const base = hit ? '#ffffff' : '#3a4560';
+    const lite = hit ? '#ffffff' : '#7d8aa8';
+    const dark = hit ? '#ffffff' : '#222b3e';
+
+    // Лапы: по две с каждой стороны, переступают при ходьбе.
+    ctx.strokeStyle = dark;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2.5, k * 0.2);
+    for (let i = 0; i < 4; i++) {
+      const sd = i < 2 ? -1 : 1;
+      const fx = (i % 2 === 0 ? 0.45 : -0.35) * k;
+      const sw = Math.sin(st.step + (i % 2) * Math.PI + (i < 2 ? 0 : Math.PI)) * k * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(fx, sd * k * 0.5);
+      ctx.lineTo(fx + sw, sd * k * 1.28);
+      ctx.stroke();
+    }
+
+    // Панцирь: рваный каменный силуэт, грани и снежная шапка со стороны света.
+    const body = [1.05, 0.05, 0.7, -0.5, 0.45, -0.98, -0.1, -0.7, -0.62, -0.92, -1.0, -0.3, -0.8, 0.2, -0.98, 0.62, -0.3, 0.78, 0.25, 1.0, 0.75, 0.6].map((v, i) => v * k);
+    this.bevel(body, base, lite, k * 0.14);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(14,20,34,0.75)';
+    ctx.beginPath();
+    tracePoly(ctx, body, 1);
+    ctx.stroke();
+    // Грани-плиты по спине.
+    const plate = (pts, fill) => { ctx.beginPath(); tracePoly(ctx, pts.map((v) => v * k), 1); ctx.fillStyle = fill; ctx.fill(); };
+    plate([0.5, -0.3, 0.1, -0.55, -0.3, -0.35, 0.05, -0.1], hit ? '#ffffff' : '#5a6886');
+    plate([-0.1, 0.1, -0.5, 0.25, -0.35, 0.6, 0.1, 0.45], hit ? '#ffffff' : '#3b465e');
+    plate([0.55, 0.2, 0.25, 0.1, 0.2, 0.5, 0.5, 0.55], hit ? '#ffffff' : '#52607c');
+    // Снежок на гранях, обращённых к свету.
+    ctx.beginPath();
+    tracePoly(ctx, [0.2, -0.62, 0.55, -0.4, 0.3, -0.25, -0.1, -0.5].map((v) => v * k), 1);
+    ctx.fillStyle = 'rgba(214,228,248,0.7)';
+    ctx.fill();
+
+    // Трещины с тёплым светом и «глаза»-щели спереди.
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.75 + 0.25 * Math.sin(t * 4 + st.ph);
+    ctx.strokeStyle = 'rgba(255,150,60,' + (0.55 * heat * pulse + 0.15) + ')';
+    ctx.lineWidth = Math.max(1.3, k * 0.07);
+    ctx.beginPath();
+    ctx.moveTo(0.1 * k, 0.1 * k); ctx.lineTo(-0.25 * k, 0.0); ctx.lineTo(-0.55 * k, -0.15 * k);
+    ctx.moveTo(-0.25 * k, 0.0); ctx.lineTo(-0.4 * k, 0.32 * k);
+    ctx.moveTo(0.1 * k, 0.1 * k); ctx.lineTo(0.38 * k, 0.28 * k);
+    ctx.stroke();
+    const glow = this.getGlow();
+    ctx.globalAlpha = (0.5 + 0.5 * heat) * pulse;
+    for (let s2 = -1; s2 <= 1; s2 += 2) {
+      ctx.drawImage(glow, 0.7 * k - 6, s2 * 0.3 * k - 6, 12, 12);
+    }
+    ctx.globalAlpha = 0.5 * heat * pulse;
+    ctx.drawImage(glow, -k * 0.5, -k * 0.5, k * 1.0, k * 1.0);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Замах: ударная волна на земле растёт к моменту удара.
+    if (wind > 0) {
+      ctx.save();
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = 'rgba(255,170,90,' + (0.25 + 0.5 * wind) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, r * (1 + wind * 2.2), 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   drawBull(e, x, y, hit) {
     const ctx = this.ctx;
     const r = e.radius;
@@ -2428,25 +3148,130 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /** Хвост кометы: горизонтальный спрайт, голова справа. Огонь (по умолчанию) или лёд (снаряд с Морозом). */
+  getComet(kind) {
+    const key = 'comet' + kind;
+    if (this[key]) return this[key];
+    const W = 256;
+    const H = 64;
+    const cv = makeCanvas(W, H);
+    const g = cv.getContext('2d');
+    const hx = 224;
+    const cy = H / 2;
+    const stops = kind === 'Ice'
+      ? [[0, 'rgba(150,235,255,0)'], [0.55, 'rgba(170,240,255,0.35)'], [1, 'rgba(240,252,255,0.95)']]
+      : kind === 'Violet'
+        ? [[0, 'rgba(120,60,255,0)'], [0.5, 'rgba(165,110,255,0.4)'], [1, 'rgba(240,226,255,0.95)']]
+        : kind === 'Steam'
+        ? [[0, 'rgba(255,120,40,0)'], [0.5, 'rgba(255,170,90,0.4)'], [1, 'rgba(235,248,255,0.95)']]
+        : kind === 'Fire'
+          ? [[0, 'rgba(255,70,20,0)'], [0.5, 'rgba(255,120,30,0.4)'], [1, 'rgba(255,225,150,0.95)']]
+          : [[0, 'rgba(40,90,255,0)'], [0.5, 'rgba(70,140,255,0.4)'], [1, 'rgba(200,232,255,0.95)']];
+    const layer = (hw, a) => {
+      const gr = g.createLinearGradient(6, 0, hx, 0);
+      for (const st of stops) gr.addColorStop(st[0], st[1]);
+      g.globalAlpha = a;
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(6, cy);
+      g.quadraticCurveTo(hx * 0.55, cy - hw * 0.8, hx, cy - hw);
+      g.lineTo(hx, cy + hw);
+      g.quadraticCurveTo(hx * 0.55, cy + hw * 0.8, 6, cy);
+      g.closePath();
+      g.fill();
+    };
+    layer(18, 0.4);
+    layer(10, 0.8);
+    layer(5, 1);
+    g.globalAlpha = 1;
+    this[key] = cv;
+    return cv;
+  }
+
+  /**
+   * Снаряды героя: маленький огненный шар с хвостом, как у кометы. Чем больше снарядов в залпе (p.glow 0..1), тем
+   * ярче свечение: крупнее ореол, длиннее хвост, белее сердцевина, от 0.5 летят искры. Цвет: синий; Мороз: ледяной бело-голубой; Горение: оранжевый.
+   */
   drawShots(list, alpha, viewL, viewR, viewT, viewB) {
     const ctx = this.ctx;
+    const t = this.clock;
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true)];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet')];
+    // Проход 1: свет и хвосты сложением цветов.
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (!p.active) continue;
+      const px = p.prevX + (p.x - p.prevX) * alpha;
+      const py = p.prevY + (p.y - p.prevY) * alpha;
+      if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
+      const r = p.radius;
+      const gl = p.glow || 0;
+      const kd = p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
+      const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
+      const ang = Math.atan2(p.vy, p.vx);
+      const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(ang);
+      ctx.globalAlpha = 0.6 - 0.15 * gl;
+      const tf = Math.min(1, p.travelled / 46); // хвост вырастает после вылета, а не торчит у героя
+      ctx.scale(tf, 1);
+      ctx.drawImage(tails[kd], -224 * sc, -32 * sc, 256 * sc, 64 * sc);
+      ctx.restore();
+      const hs = r * (4 + 2.2 * gl) * fl;
+      ctx.globalAlpha = 0.4 + 0.2 * gl;
+      ctx.drawImage(glows[kd], px - hs, py - hs, hs * 2, hs * 2);
+      if (gl > 0.3) {
+        const hs2 = hs * 1.7;
+        ctx.globalAlpha = 0.1 * gl;
+        ctx.drawImage(glows[kd], px - hs2, py - hs2, hs2 * 2, hs2 * 2);
+      }
+    }
+    // Проход 2: сердцевина (обычное наложение) и искры.
+    ctx.globalCompositeOperation = 'source-over';
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (!p.active) continue;
       const px = p.prevX + (p.x - p.prevX) * alpha;
       const py = p.prevY + (p.y - p.prevY) * alpha;
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
-      ctx.fillStyle = p.color;
+      const r = p.radius;
+      const gl = p.glow || 0;
+      const kd = p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = kd === 4 ? '#8a5cff' : kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
       ctx.beginPath();
-      ctx.arc(px, py, p.radius, 0, TAU);
+      ctx.arc(px, py, r * 0.95, 0, TAU);
       ctx.fill();
-      if (p.parryable) {
-        // Парируемые снаряды обведены: видно, что их можно поймать.
-        ctx.lineWidth = 1.5;
+      ctx.fillStyle = kd === 4 ? '#efe4ff' : kd === 3 ? '#f2fbff' : kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
+      ctx.beginPath();
+      ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
+      ctx.fill();
+      if (p.parryable) { // парируемый снаряд (если вдруг в этом списке): светлая обводка
+        ctx.lineWidth = 1.2;
         ctx.strokeStyle = '#fff3d0';
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, TAU);
         ctx.stroke();
       }
+      if (gl >= 0.5) {
+        const ang = Math.atan2(p.vy, p.vx);
+        const c = Math.cos(ang);
+        const s2 = Math.sin(ang);
+        ctx.fillStyle = kd === 4 ? 'rgba(205,170,255,0.9)' : kd === 2 ? 'rgba(255,200,110,0.9)' : 'rgba(170,215,255,0.9)';
+        for (let k = 0; k < 2; k++) {
+          const ph = (t * 3.2 + i * 0.37 + k * 0.5) % 1;
+          const back = r * 2 + ph * r * 9;
+          const off = Math.sin(i * 12.9 + k * 4.1) * r * 1.4 * ph;
+          ctx.globalAlpha = (1 - ph) * gl;
+          ctx.beginPath();
+          ctx.arc(px - c * back - s2 * off, py - s2 * back + c * off, Math.max(0.6, r * 0.18 * (1 - ph)), 0, TAU);
+          ctx.fill();
+        }
+      }
     }
+    ctx.globalAlpha = 1;
   }
 
   /** Сухие кусты, камешки и наметы на полу: рисуются только те, что в кадре. */
@@ -3292,35 +4117,156 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** Лучи лазера: цветное свечение, светлая сердцевина; большой (9+ снарядов) толще и ярче, к концу гаснет. */
+  /** Полилиния по точкам [[x,y],...] (без заливки и stroke: их делает вызывающий). */
+  strokePts(ctx, pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+  }
+
+  /** Путь по многоугольнику провала; k раздувает его от центральной линии (для мягкой тени). */
+  fissurePoly(ctx, poly, k) {
+    ctx.beginPath();
+    for (let i = 0; i < poly.length; i++) {
+      const q = poly[i];
+      const x = q[2] + (q[0] - q[2]) * k;
+      const y = q[3] + (q[1] - q[3]) * k;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  /**
+   * Форма разлома: ломаная главная трещина (ширина меняется, концы острые), многоугольник провала и ветки двух
+   * уровней. Считается один раз на разлом (кэш по координатам), потом только рисуется.
+   */
+  fissureGeom(f, fi) {
+    const key = Math.round(f.x1) + ',' + Math.round(f.y1) + ',' + Math.round(f.x2) + ',' + Math.round(f.y2);
+    this.fissureCache = this.fissureCache || new Map();
+    let G = this.fissureCache.get(key);
+    if (G) return G;
+    if (this.fissureCache.size > 64) this.fissureCache.clear();
+    const rnd = mulberry32(Math.imul(Math.round(f.x1) * 31 + Math.round(f.y1), 2654435761) ^ (fi * 977));
+    const dx = f.x2 - f.x1;
+    const dy = f.y2 - f.y1;
+    const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L;
+    const uy = dy / L;
+    const nx = -uy;
+    const ny = ux;
+    const n = Math.max(4, Math.ceil(L / 14));
+    const offs = [0];
+    let o = 0;
+    for (let i = 1; i <= n; i++) {
+      o += (rnd() - 0.5) * f.hw * 1.1;
+      o *= 0.8;
+      offs.push(o);
+    }
+    const edgeK = (u) => Math.min(1, Math.min(u, 1 - u) * 5);
+    const main = [];
+    const left = [];
+    const right = [];
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      const off = offs[i] * edgeK(u);
+      const cx = f.x1 + dx * u + nx * off;
+      const cy = f.y1 + dy * u + ny * off;
+      const w = f.hw * (0.45 + 0.6 * (0.5 + 0.5 * Math.sin(i * 1.9 + rnd() * 2))) * edgeK(u) + 0.8;
+      main.push([cx, cy]);
+      left.push([cx + nx * w * (0.8 + rnd() * 0.5), cy + ny * w * (0.8 + rnd() * 0.5), cx, cy]);
+      right.push([cx - nx * w * (0.8 + rnd() * 0.5), cy - ny * w * (0.8 + rnd() * 0.5), cx, cy]);
+    }
+    const poly = left.concat(right.reverse());
+    const branches = [];
+    const grow = (x, y, ang, len, w, depth) => {
+      const pts = [[x, y]];
+      const steps = Math.max(2, Math.round(len / 9));
+      let a = ang;
+      for (let i = 0; i < steps; i++) {
+        a += (rnd() - 0.5) * 0.9;
+        x += Math.cos(a) * len / steps;
+        y += Math.sin(a) * len / steps;
+        pts.push([x, y]);
+        if (depth < 2 && i > 0 && rnd() < 0.28) grow(x, y, a + (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.6), len * 0.5, w * 0.6, depth + 1);
+      }
+      branches.push({ pts, w });
+    };
+    for (let i = 2; i < n - 1; i += 2 + Math.floor(rnd() * 2)) {
+      const side = rnd() < 0.5 ? -1 : 1;
+      const base = Math.atan2(uy, ux) + side * (0.7 + rnd() * 0.7);
+      grow(main[i][0], main[i][1], base, 14 + rnd() * 30, f.hw * 0.32, 0);
+    }
+    G = { main, poly, branches, L, nx, ny, off: (u) => offs[Math.min(n, Math.round(u * n))] * edgeK(u) };
+    this.fissureCache.set(key, G);
+    return G;
+  }
+
+  /**
+   * Лучи лазера: тонкая раскалённая сердцевина, вокруг мягкое цветное свечение, всё сложением цветов. В начале луча
+   * вспышка у посоха, на конце яркая точка попадания с искрами; луч чуть дрожит. Обычный луч тонкий, большой (9+
+   * снарядов) толще и ярче; к концу жизни гаснет.
+   */
   drawLasers(ctx) {
     const ls = this.lasers;
     if (!ls || !ls.length) return;
     const L = this.cfg.laser;
+    const t = this.clock;
+    const glow = this.getGlow('blue');
+    ctx.save();
     ctx.lineCap = 'round';
-    for (const l of ls) {
-      const fade = Math.min(1, (l.life - l.age) / 0.25);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let li = 0; li < ls.length; li++) {
+      const l = ls[li];
+      const fade = Math.min(1, (l.life - l.age) / 0.25) * Math.min(1, l.age / 0.04 + 0.35);
       l.pulse = Math.max(0, l.pulse - 0.06);
+      const x0 = l.x + l.dx * 10;
+      const y0 = l.y + l.dy * 10;
       const x1 = l.x + l.dx * l.len;
       const y1 = l.y + l.dy * l.len;
-      const w = l.width * (1 + l.pulse * 0.25);
-      const glow = l.big ? 2.6 : 1.7;
-      const lc = l.gen ? this.cfg.phantom.color : L.color; // фантомный луч фиолетовый
-      ctx.globalAlpha = fade * (l.big ? 0.4 : 0.25);
-      ctx.strokeStyle = lc;
-      ctx.lineWidth = w * glow;
-      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
-      ctx.globalAlpha = fade * (l.big ? 0.95 : 0.7);
-      ctx.strokeStyle = lc;
-      ctx.lineWidth = w;
-      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+      const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
+      const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
+      const ph = !!l.gen;
+      const rgb = ph ? '190,120,255' : '110,205,255';
+      const core = ph ? '248,232,255' : '232,248,255';
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
+      ctx.lineWidth = w * 6;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.22 * fade + ')';
+      ctx.lineWidth = w * 3;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.7 * fade + ')';
+      ctx.lineWidth = w * 1.5;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + core + ',' + fade + ')';
+      ctx.lineWidth = Math.max(0.9, w * 0.6);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      // Вспышка у посоха и точка попадания.
+      const g0 = w * 5;
+      ctx.globalAlpha = 0.7 * fade;
+      ctx.drawImage(glow, x0 - g0, y0 - g0, g0 * 2, g0 * 2);
+      const g1 = w * (7 + 2 * Math.sin(t * 50 + li));
+      ctx.globalAlpha = 0.85 * fade;
+      ctx.drawImage(glow, x1 - g1, y1 - g1, g1 * 2, g1 * 2);
       ctx.globalAlpha = fade;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = w * (l.big ? 0.6 : 0.35);
-      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.fillStyle = 'rgba(' + core + ',1)';
+      ctx.beginPath();
+      ctx.arc(x1, y1, Math.max(1, w * 0.7), 0, TAU);
+      ctx.fill();
+      // Искры, разлетающиеся от точки попадания.
+      for (let k = 0; k < 3; k++) {
+        const sp = (t * 3.3 + k * 0.33 + li * 0.17) % 1;
+        const a = li * 2.3 + k * 2.1 + Math.floor(t * 3.3 + k * 0.33 + li * 0.17) * 1.7;
+        const d = sp * w * 6;
+        ctx.globalAlpha = (1 - sp) * fade * 0.9;
+        ctx.beginPath();
+        ctx.arc(x1 + Math.cos(a) * d, y1 + Math.sin(a) * d, Math.max(0.6, w * 0.2 * (1 - sp)), 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
-    ctx.lineCap = 'butt';
+    ctx.restore();
   }
 
   /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
@@ -3341,65 +4287,174 @@ export class Renderer {
     ctx.fill();
   }
 
-  /** Спектральные клинки: голубые треугольники (с Лазером сферы), остриём по ходу полёта (на орбите остриём наружу). */
+  /**
+   * Спектральные клинки: светящиеся, цвет и форма по модам. Обычный: меч с гардой; Мороз: ледяной кристалл; Горение:
+   * огненная стрела; Мороз и Горение вместе: кристальная стрела. В полёте за клинком тянется хвост, фантомные фиолетовые.
+   * С Лазером клинки это светящиеся сферы. Остриё смотрит по ходу полёта (на орбите наружу).
+   */
   drawBlades(ctx) {
     const bl = this.blades;
     if (!bl || !bl.length) return;
     const B = this.cfg.blades;
-    const s = B.size;
-    ctx.fillStyle = B.color;
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 1.2;
-    for (const b of bl) {
-      ctx.fillStyle = b.gen ? this.cfg.phantom.color : B.color; // фантомные клинки фиолетовые
-      if (b.sphere) { // с Лазером клинки это сферы
+    const k = B.size * 0.8;
+    const t = this.clock;
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true)];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet')];
+    const mainC = ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'];
+    const liteC = ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'];
+    // Проход 1: хвосты и свечение сложением цветов.
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      const kd = b.kind | 0;
+      const fly = b.state === 'fly';
+      const gl = b.gen ? glows[4] : glows[kd];
+      const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
+      if (fly && !b.sphere) {
+        const sc = (k * 0.5) / 14;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.a);
+        ctx.globalAlpha = 0.7 * Math.min(1, (b.age || 0) / 0.08);
+        ctx.scale(0.55, 1);
+        ctx.drawImage(tails[b.gen ? 4 : kd], -224 * sc, -32 * sc, 256 * sc, 64 * sc);
+        ctx.restore();
+      }
+      const g = k * (fly ? 4.6 : 3.8) * pulse;
+      ctx.globalAlpha = fly ? 0.75 : 0.55;
+      ctx.drawImage(gl, b.x - g, b.y - g, g * 2, g * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // Проход 2: сами клинки.
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      const kd = b.kind | 0;
+      const mc = b.gen ? '#a577ff' : mainC[kd];
+      const lc = b.gen ? '#f0e4ff' : liteC[kd];
+      ctx.globalAlpha = 1;
+      if (b.sphere) { // с Лазером клинки это светящиеся сферы
+        const rr = k * (b.state === 'fire' ? 0.78 : 0.62);
+        ctx.fillStyle = mc;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, rr, 0, TAU);
         ctx.fill();
-        ctx.stroke();
+        ctx.fillStyle = lc;
+        ctx.beginPath();
+        ctx.arc(b.x - rr * 0.15, b.y - rr * 0.2, rr * 0.55, 0, TAU);
+        ctx.fill();
         continue;
       }
-      const a = b.a;
-      const c = Math.cos(a);
-      const n = Math.sin(a);
-      ctx.beginPath();
-      ctx.moveTo(b.x + c * s * 1.6, b.y + n * s * 1.6);
-      ctx.lineTo(b.x - c * s - n * s * 0.9, b.y - n * s + c * s * 0.9);
-      ctx.lineTo(b.x - c * s + n * s * 0.9, b.y - n * s - c * s * 0.9);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.a);
+      ctx.scale(k, k);
+      ctx.lineWidth = 1.1 / k;
+      ctx.strokeStyle = 'rgba(235,246,255,0.9)';
+      // part: многоугольник в единицах k; verхняя грань светлее нижней
+      const part = (pts, fill) => {
+        ctx.beginPath();
+        tracePoly(ctx, pts, 1);
+        ctx.fillStyle = fill;
+        ctx.fill();
+      };
+      if (kd === 0) { // меч
+        part([2.6, 0, 0.4, -0.34, -0.9, -0.3, -0.9, 0.3, 0.4, 0.34], mc);
+        part([2.6, 0, 0.4, -0.34, -0.9, -0.3, -0.9, 0], lc);
+        part([-0.9, -0.78, -1.18, -0.78, -1.18, 0.78, -0.9, 0.78], mc);
+        part([-1.18, -0.13, -1.85, -0.13, -1.85, 0.13, -1.18, 0.13], mc);
+        ctx.beginPath(); tracePoly(ctx, [2.6, 0, 0.4, -0.34, -0.9, -0.3, -0.9, 0.3, 0.4, 0.34], 1); ctx.stroke();
+      } else if (kd === 1) { // ледяной кристалл
+        const cr = [2.3, 0, 0.9, -0.62, -0.9, -0.52, -1.7, 0, -0.9, 0.52, 0.9, 0.62];
+        part(cr, mc);
+        part([2.3, 0, 0.9, -0.62, -0.9, -0.52, -0.2, 0], lc);
+        part([0.9, 0.62, -0.9, 0.52, -0.2, 0, 2.3, 0], 'rgba(60,150,230,0.55)');
+        part([0.3, -0.62, 0.9, -1.25, 0.1, -0.55], mc);
+        part([-0.5, 0.52, -0.9, 1.05, -0.1, 0.55], mc);
+        ctx.beginPath(); tracePoly(ctx, cr, 1); ctx.stroke();
+      } else if (kd === 2) { // огненная стрела
+        part([2.8, 0, 1.7, -0.62, 1.7, 0.62], lc);
+        part([1.75, -0.13, -1.6, -0.13, -1.6, 0.13, 1.75, 0.13], mc);
+        part([-1.2, 0, -2.1, -0.65, -1.8, 0], mc);
+        part([-1.2, 0, -2.1, 0.65, -1.8, 0], mc);
+        part([-1.6, 0, -2.5, -0.2, -2.9, 0, -2.5, 0.2], 'rgba(255,200,90,0.85)');
+        ctx.beginPath(); tracePoly(ctx, [2.8, 0, 1.7, -0.62, 1.7, 0.62], 1); ctx.stroke();
+      } else { // кристальная стрела (пар)
+        part([2.8, 0, 1.7, -0.7, 0.9, 0, 1.7, 0.7], lc);
+        part([2.8, 0, 1.7, -0.7, 0.9, 0], 'rgba(150,215,255,0.75)');
+        part([0.95, -0.12, -1.6, -0.12, -1.6, 0.12, 0.95, 0.12], mc);
+        part([-1.2, 0, -2.1, -0.65, -1.8, 0], '#ff9a44');
+        part([-1.2, 0, -2.1, 0.65, -1.8, 0], '#ff9a44');
+        ctx.beginPath(); tracePoly(ctx, [2.8, 0, 1.7, -0.7, 0.9, 0, 1.7, 0.7], 1); ctx.stroke();
+      }
+      ctx.restore();
     }
+    ctx.globalAlpha = 1;
   }
 
-  /** Облака пара на земле: мягкое пятно с медленно ползущими клубами, к концу жизни тает. */
+  /** Мягкий клуб пара: белый центр, голубоватый край, прозрачная граница. Один спрайт на все клубы. */
+  getPuff() {
+    if (this.puff) return this.puff;
+    const S = 96;
+    const cv = makeCanvas(S, S);
+    const g = cv.getContext('2d');
+    const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    gr.addColorStop(0, 'rgba(240,248,255,0.9)');
+    gr.addColorStop(0.45, 'rgba(190,220,250,0.5)');
+    gr.addColorStop(1, 'rgba(150,195,240,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, S, S);
+    this.puff = cv;
+    return cv;
+  }
+
+  /**
+   * Облако пара (связка Мороз + Горение): холодный туман из клубов, которые медленно вращаются вокруг тёплого
+   * оранжевого ядра; от края тянутся лёгкие завитки, вверх уходят искры. К концу жизни тает и съёживается.
+   */
   drawClouds(ctx) {
     const cl = this.clouds;
     if (!cl.length) return;
     const st = this.cfg.steam;
+    const puff = this.getPuff();
+    const warm = this.getGlow();
+    const t = this.clock;
     for (const c of cl) {
       const life = c.age / st.duration;
-      const fade = Math.min(1, (1 - life) * 4); // последняя четверть жизни: тает
-      const grow = Math.min(1, c.age / 0.25 + 0.3); // в начале быстро расползается
-      const R = st.radius * grow;
-      const gr = ctx.createRadialGradient(c.x, c.y, R * 0.1, c.x, c.y, R);
-      gr.addColorStop(0, 'rgba(225,236,247,0.42)');
-      gr.addColorStop(0.7, 'rgba(210,225,240,0.26)');
-      gr.addColorStop(1, 'rgba(200,218,236,0)');
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = gr;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, R, 0, TAU);
-      ctx.fill();
-      // клубы
-      ctx.fillStyle = 'rgba(235,243,250,0.16)';
-      for (let i = 0; i < 4; i++) {
-        const a = c.seed + i * 1.57 + c.age * 0.5 * (i % 2 ? 1 : -1);
-        const d = R * (0.35 + 0.15 * Math.sin(c.age * 1.3 + i));
+      const fade = Math.min(1, (1 - life) * 4);
+      const grow = Math.min(1, c.age / 0.25 + 0.3);
+      const R = st.radius * grow * (0.85 + 0.15 * fade);
+      // Тёплое ядро: пар греется огнём изнутри.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = fade * (0.5 + 0.12 * Math.sin(t * 3 + c.seed));
+      ctx.drawImage(warm, c.x - R * 0.7, c.y - R * 0.7, R * 1.4, R * 1.4);
+      ctx.globalCompositeOperation = 'source-over';
+      // Клубы по двум кольцам, вращаются в разные стороны; соседние перекрываются, получается ровное облако.
+      for (let ring = 0; ring < 2; ring++) {
+        const n = ring ? 5 : 7;
+        const rr = R * (ring ? 0.38 : 0.66);
+        const sz = R * (ring ? 0.62 : 0.5);
+        for (let i = 0; i < n; i++) {
+          const a = c.seed + (i / n) * TAU + c.age * (ring ? -0.45 : 0.3);
+          const bob = 1 + 0.1 * Math.sin(c.age * 1.6 + i * 2.1 + ring);
+          const d = rr * bob;
+          const s2 = sz * (0.9 + 0.2 * Math.sin(c.age * 1.1 + i * 1.7));
+          ctx.globalAlpha = fade * (ring ? 0.7 : 0.55);
+          ctx.drawImage(puff, c.x + Math.cos(a) * d - s2, c.y + Math.sin(a) * d * 0.9 - s2, s2 * 2, s2 * 2);
+        }
+      }
+      // Искры поднимаются от ядра.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffb870';
+      for (let i = 0; i < 5; i++) {
+        const ph = (c.age * 0.6 + i * 0.2 + c.seed) % 1;
+        const a = c.seed * 3 + i * 1.9;
+        ctx.globalAlpha = fade * (1 - ph) * 0.8;
         ctx.beginPath();
-        ctx.arc(c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, R * 0.3, 0, TAU);
+        ctx.arc(c.x + Math.cos(a) * R * 0.45 * (0.4 + ph * 0.6), c.y + Math.sin(a) * R * 0.3 - ph * R * 0.55, 1.4, 0, TAU);
         ctx.fill();
       }
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
   }

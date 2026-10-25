@@ -18,6 +18,7 @@ export function createProjectile() {
     burnDmg: 0, burnInt: 0, // поджог при попадании: урон тика и интервал (0 = не поджигает)
     travelled: 0,
     color: '#fff',
+    glow: 0,      // 0..1: сила свечения огненного шара (растёт с числом снарядов), только для отрисовки
     owner: null,
   };
 }
@@ -50,6 +51,7 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.hits.length = 0;
   p.travelled = 0;
   p.color = def.color;
+  p.glow = 0;
   p.owner = owner;
 }
 

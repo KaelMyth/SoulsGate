@@ -39,6 +39,11 @@ export function findNearest(enemies, x, y, radius, arena, pad, grid) {
   return best;
 }
 
+/** Свечение огненного шара по числу снарядов: 1 даёт 0, 2: 0.25, 4: 0.5, 8: 0.75, 16 и больше: 1. */
+function countGlow(count) {
+  return Math.min(1, Math.log2(Math.max(1, count)) / 4);
+}
+
 export class AutoAttack {
   /** o: { config, hero, enemies (EntityPool), shots (EntityPool), bus, arena?, grid? (SpatialGrid по enemies.items) } */
   constructor(o) {
@@ -142,6 +147,7 @@ export class AutoAttack {
         if (!p) break; // потолок снарядов
         initProjectile(p, def, hero.x + nx * side + fx * back, hero.y + ny * side + fy * back, dx, dy, hero);
         p.damage = applyMod(p.damage, m && m.damage) * pen;
+        p.glow = countGlow(count);
         setBurn(p, this.cfg, m);
         if (!first) first = p;
         fired++;
@@ -263,6 +269,7 @@ export class AutoAttack {
     const p = this.shots.spawn();
     if (!p) return;
     initProjectile(p, def, hero.x - fy * side + fx * back, hero.y + fx * side + fy * back, dx * c - dy * sn, dx * sn + dy * c, hero);
+    p.glow = countGlow(count);
     p.damage = applyMod(p.damage, m && m.damage) * countPenalty(this.cfg, count);
     setBurn(p, this.cfg, m);
     hero.facing = Math.atan2(dy, dx);
