@@ -188,7 +188,7 @@ export class Game {
     this.rewards = new Rewards({ config, rnd: this.rnd });
     this.pendingLevels = 0; // повышений уровня, по которым ещё не выбрана награда
     this.levelUpOffers = [];
-    this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward());
+    this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward(), (offer) => this.previewReward(offer));
     this.build = new BuildGrid(config.build.size);
     this.inventory = new Storage(config.build.storageSlots);
     this.layoutBuild();
@@ -786,6 +786,11 @@ export class Game {
     this.stepper.reset(); // время выбора не «догоняем»
     this.meter.interrupt();
     this.stick.cancel();
+  }
+
+  /** Зажали карточку награды: поверх окна открывается меню Билда с подсвеченными местами для этого мода. */
+  previewReward(offer) {
+    this.pauseUI.showPreview(offer.def, () => this.pickReward(offer), () => {});
   }
 
   pickReward(offer) {
