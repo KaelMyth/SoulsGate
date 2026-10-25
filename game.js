@@ -795,9 +795,15 @@ export class Game {
 
   pickReward(offer) {
     this.rewards.take(offer.token);
-    this.inventory.addAlways({ key: offer.key, def: offer.def });
-    this.pauseUI.refresh();
+    let index = this.inventory.add({ key: offer.key, def: offer.def });
+    if (index < 0) { this.inventory.addAlways({ key: offer.key, def: offer.def }); index = this.inventory.slots.length - 1; }
+    this.pauseUI.rebuild();
     this.closeLevelUp();
+    // Сразу меню Билда: новый мод выбран в хранилище, места для него подсвечены. «Продолжить» возвращает в бой.
+    this.pause();
+    this.pauseUI.builder.select({ kind: 'shelf', index });
+    this.pauseUI.builder.fresh = index;
+    this.pauseUI.builder.refresh();
   }
 
   exchangeReward() {
