@@ -15,6 +15,7 @@ export function createEnemy() {
     kbVx: 0, kbVy: 0, // скорость откидывания, быстро затухает
     kbTau: 0.07,      // за сколько секунд затухает откидывание
     hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
+    headAngle: 0,     // Апофеоз: поворот головы-солнца, радианы (systems_apotheosis.js)
     swX: 0, swY: 0,   // подсказка курса от стаи (сплочённость и согласованность)
     // Атака с телеграфом (systems/attacks.js): состояние, время в нём, пауза до следующей, направление удара.
     atk: { state: 'idle', t: 0, cd: 0, hit: false, dirX: 1, dirY: 0 },
@@ -51,6 +52,7 @@ export function initEnemy(e, def, x, y) {
   e.kbVx = e.kbVy = 0;
   e.hx = e.hy = 0;
   e.swX = e.swY = 0;
+  e.headAngle = 0;
   e.aim = 0;
   e.atk.state = 'idle';
   e.atk.t = 0;

@@ -3,7 +3,8 @@
 // Босс замирает, по четырём углам острова (arena.zone) показываются круги, и из них выходят четыре высоких создания
 // (enemies.apostle*). Пока апостолы живы, они применяют умения ПООЧЕРЕДИ: каждые turnInterval секунд ходит следующий
 // живой по порядку (порядок: вера, правда, сила, любовь). Мёртвого пропускаем сразу, без ожидания.
-// Когда перебиты все, через resummonDelay босс призывает новых. Умер босс: апостолы исчезают.
+// Когда перебиты все, событие 'apostles:defeated' (дальше босс применяет следующее умение и снова зовёт их через requestSummon).
+// Умер босс: апостолы исчезают.
 //
 //   Вера:   лечит всех остальных апостолов на faith.heal (50%) их максимального здоровья. Босса не лечит.
 //   Правда: над головой 5 золотых клинков; каждый целится в героя в момент своего вылета и летит почти мгновенно,
@@ -131,12 +132,13 @@ export class Apostles {
         if (this.t >= A.castTime) this.finishSummon(A);
         break;
       case 'active':
-        if (this.alive() === 0) {
+        if (this.alive() === 0) { // апостолы перебиты: босс переходит к следующему умению (systems_apotheosis.js)
           this.state = 'idle';
-          this.cd = A.resummonDelay;
+          this.cd = Infinity; // новый призыв только по requestSummon()
           this.cast = null;
           this.pull = null;
           this.loveT = 0;
+          this.bus.emit('apostles:defeated', {});
         } else {
           this.updateTurns(dt, A);
         }
@@ -144,6 +146,20 @@ export class Apostles {
       default: break;
     }
     this.updatePull(dt, A);
+  }
+
+  /** Призвать апостолов снова через delay секунд (по умолчанию resummonDelay). Зовёт оркестр босса. */
+  requestSummon(delay) {
+    if (!this.boss) return;
+    this.state = 'idle';
+    this.cd = delay !== undefined ? delay : this.A.resummonDelay;
+  }
+
+  /** Занят ли апостол этого вида своим предыдущим умением (серия клинков или притяжение ещё идут). */
+  busy(kind) {
+    if (kind === 'truth') return this.bladeCount > 0;
+    if (kind === 'force') return !!this.pull;
+    return false;
   }
 
   // ---------- Призыв ----------
@@ -197,7 +213,7 @@ export class Apostles {
       const kind = A.order[this.next % A.order.length];
       this.next++;
       const e = this.find(kind);
-      if (!e) continue;
+      if (!e || this.busy(kind)) continue; // мёртвого и занятого (ещё идёт прошлое умение) пропускаем
       this.cast = { e, kind, t: 0 };
       this.turnT = A.turnInterval;
       this.bus.emit('apostle:cast', { enemy: e, kind });
