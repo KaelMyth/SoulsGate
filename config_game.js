@@ -449,6 +449,31 @@ export const CONFIG = {
       },
       color: '#3f7fc0', edge: '#d6efff',
     },
+    // Скелеты: появляются среди обычных врагов после волны босса (spawn.skeleton). Цвета: ЗАГЛУШКА ГРАФИКИ, кремовые круги.
+    // Стрелок: как жук-стрелок, но сильнее.
+    skeletonArcher: {
+      hp: 40, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
+      drop: 'green', swarm: false,
+      keepDistance: 200, shotRange: 300, aimTime: 0.5, fireInterval: 2.0, firstShotDelay: 1.2,
+      shot: { damage: 18, speed: 170, radius: 7, range: 460, knockback: 0, parryable: true, color: '#e8dfc4' },
+      color: '#cfc6a8', edge: '#f6f1e0',
+    },
+    // Воин: как жук, но крепче и быстрее.
+    skeletonWarrior: {
+      hp: 50, speed: 110, radius: 12, touchDamage: 13, touchCooldown: 0.8, knockbackScale: 1,
+      drop: 'green', swarm: true,
+      color: '#cfc6a8', edge: '#f6f1e0',
+    },
+    // Таран: как бык, но рывок длиннее.
+    skeletonRam: {
+      hp: 70, speed: 75, radius: 15, touchDamage: 8, touchCooldown: 0.9, knockbackScale: 0.6,
+      drop: 'red', swarm: false,
+      attack: {
+        shape: 'line', range: 420, length: 360, width: 30, windup: 0.9, strike: 0.28, recovery: 0.8,
+        cooldown: 2.0, firstDelay: 1.2, damage: 22, parryable: true, parryStun: 1.0, parryKnock: 80, parryKnockTime: 0.2,
+      },
+      color: '#a89e80', edge: '#f6f1e0',
+    },
     // Тартас: миниборс, «замерзший рыцарь». Атаки обычных врагов описаны в attack, а у босса своя логика (systems/boss.js).
     // immuneFrost: Мороз его не замедляет и не замораживает. knockbackScale 0: снаряды его не отталкивают.
     tartas: {
@@ -583,6 +608,9 @@ export const CONFIG = {
     shooterFromWave: 2,   // с какой волны стрелки появляются
     bullShare: 0.12,      // доля быков среди появляющихся
     bullFromWave: 4,      // с какой волны появляются быки
+    // Скелеты «временами»: с волны fromWave каждый появляющийся враг с шансом share становится скелетом
+    // (тип по весам). Остальные доли (жуки, быки, стрелки) делят оставшееся.
+    skeleton: { fromWave: 11, share: 0.3, weights: { skeletonArcher: 1, skeletonRam: 1, skeletonWarrior: 2 } },
   },
 
   // Волны. Каждая строка: сколько врагов, интервал между появлениями, потолок живых одновременно.
@@ -603,7 +631,19 @@ export const CONFIG = {
       { count: 31, interval: 0.6, maxAlive: 25 },
       { count: 38, interval: 0.5, maxAlive: 30 },
       { count: 46, interval: 0.4, maxAlive: 36 },
+      { count: 50, interval: 0.4, maxAlive: 38 },
+      { count: 54, interval: 0.4, maxAlive: 40 },
+      { count: 58, interval: 0.38, maxAlive: 42 },
+      { count: 62, interval: 0.36, maxAlive: 44 },
+      { count: 66, interval: 0.34, maxAlive: 46 },
+      { count: 70, interval: 0.32, maxAlive: 48 },
+      { count: 74, interval: 0.3, maxAlive: 50 },
+      { count: 78, interval: 0.3, maxAlive: 52 },
+      { count: 82, interval: 0.28, maxAlive: 54 },
+      { count: 86, interval: 0.26, maxAlive: 56 },
+      { count: 90, interval: 0.25, maxAlive: 58 },
     ],
+    total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).
     // Игра замирает, камера плавно уходит на босса, появляется его имя, имя гаснет, камера возвращается на героя.
     // После победы над боссом идут обычные волны дальше. Времена в секундах.
