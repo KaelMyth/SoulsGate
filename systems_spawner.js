@@ -11,6 +11,7 @@
 // пока он жив. Убили босса: передышка и обычные волны дальше.
 //
 // После waves.total волн забег пройден: событие 'run:completed' { wave }, новые враги не выходят.
+// Перед финальным боссом (waves.finalBoss) в центре карты открывается портал: phase 'portal', события 'portal:opened' и 'portal:closing'.
 // События: 'wave:started' { wave, crash }, 'wave:cleared' { wave }, 'boss:spawned' { enemy }, 'boss:defeated' { wave }, 'run:completed' { wave }.
 import { initEnemy } from './world_enemy.js';
 
@@ -60,6 +61,7 @@ export class Spawner {
     this.bus = o.bus || null;
     this.hero = o.hero || null; // нужен, чтобы босс появился рядом с героем
     this.pt = { x: 0, y: 0 };
+    this.portal = null; // портал финального босса (openPortal)
     this.alive = 0;
     this.reset();
   }
@@ -72,6 +74,7 @@ export class Spawner {
   /** Перейти к волне n: передышка с надписью, затем волна. Живых врагов не трогает. */
   jumpToWave(n) {
     this.wave = Math.max(1, Math.round(n));
+    this.portal = null;
     this.phase = 'intermission';
     this.timer = this.cfg.waves.intermission;
     this.spawned = 0;
@@ -134,6 +137,12 @@ export class Spawner {
 
     if (this.phase === 'complete') return; // забег пройден: ждём перезапуска
 
+    // Портал перед финальным боссом: растёт, ждёт героя; подошёл вплотную: гаснет, потом выходит босс (и ролик).
+    if (this.phase === 'portal') {
+      this.updatePortal(dt);
+      return;
+    }
+
     // Бой с боссом: новые враги не выходят, пока босс жив. Убили босса: обычные волны идут дальше.
     if (this.phase === 'boss') {
       this.alive = this.countAlive();
@@ -173,7 +182,8 @@ export class Spawner {
       const W = this.cfg.waves;
       const B = W.boss && W.boss.wave === this.wave ? W.boss : W.finalBoss && W.finalBoss.wave === this.wave ? W.finalBoss : null;
       if (B && this.cfg.enemies[B.enemy]) {
-        this.spawnBoss(this.cfg.enemies[B.enemy]);
+        if (B === W.finalBoss && W.finale && W.finale.portal) this.openPortal(); // финальный босс: сначала портал в центре карты
+        else this.spawnBoss(this.cfg.enemies[B.enemy]);
         return;
       }
       // Последняя волна забега зачищена: забег пройден, новые враги не выходят.
@@ -186,6 +196,38 @@ export class Spawner {
       this.wave++;
       this.phase = 'intermission';
       this.timer = this.cfg.waves.intermission;
+    }
+  }
+
+  /** Портал в центре карты (waves.finale.portal): ждёт героя. Событие 'portal:opened' { portal }. */
+  openPortal() {
+    const P = this.cfg.waves.finale.portal;
+    this.portal = { x: P.x, y: P.y, r: P.radius, alpha: 0, state: 'open', t: 0 };
+    this.phase = 'portal';
+    this.alive = 0;
+    if (this.bus) this.bus.emit('portal:opened', { portal: this.portal });
+  }
+
+  updatePortal(dt) {
+    const F = this.cfg.waves.finale;
+    const P = F.portal;
+    const p = this.portal;
+    if (!p) { this.phase = 'complete'; return; }
+    p.t += dt;
+    if (p.state === 'open') {
+      p.alpha = Math.min(1, p.t / Math.max(0.01, P.rise));
+      const h = this.hero;
+      if (h && h.active && Math.hypot(h.x - p.x, h.y - p.y) <= P.closeDist) {
+        p.state = 'closing';
+        p.t = 0;
+        if (this.bus) this.bus.emit('portal:closing', { portal: p });
+      }
+    } else {
+      p.alpha = Math.max(0, 1 - p.t / Math.max(0.01, P.fade));
+      if (p.t >= P.fade) {
+        this.portal = null;
+        this.spawnBoss(this.cfg.enemies[this.cfg.waves.finalBoss.enemy]);
+      }
     }
   }
 

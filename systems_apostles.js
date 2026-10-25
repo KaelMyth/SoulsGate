@@ -167,6 +167,7 @@ export class Apostles {
       if (!def) continue;
       const e = this.enemies.spawn();
       initEnemy(e, def, this.corners[i].x, this.corners[i].y);
+      this.arena.resolveCircle(e); // остров ломаный: угол мог оказаться за кромкой
       e.prevX = e.x;
       e.prevY = e.y;
       this.bus.emit('apostle:summon', { x: e.x, y: e.y });

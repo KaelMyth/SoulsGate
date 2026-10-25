@@ -155,6 +155,7 @@ export class Game {
       enemyShots: this.enemyShots,
       midges: this.rockBeetles.midges,
       apostles: this.apostles,
+      getPortal: () => this.spawner.portal,
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -290,6 +291,9 @@ export class Game {
       this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
       this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
     });
+    // Портал (ЗАГЛУШКА вспышек): вспышка при открытии и при гашении.
+    this.bus.on('portal:opened', ({ portal }) => this.burst(portal.x, portal.y, 0.6, 10, 90, '#c7a8ff'));
+    this.bus.on('portal:closing', ({ portal }) => this.burst(portal.x, portal.y, 0.7, 20, 140, '#ffffff'));
     // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
     this.bus.on('apostle:summon', ({ x, y }) => this.burst(x, y, 0.5, 10, 50, config.render.colors.snowLight));
     this.bus.on('apostle:heal', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.4, enemy.radius, enemy.radius * 2.2, '#9cffb0'));
@@ -1006,21 +1010,10 @@ export class Game {
     const A = this.arena;
     this.state = 'cutscene';
     this.stick.cancel();
-    // Остров: прямоугольник вокруг героя, не ближе zoneMargin к краю арены.
-    const hw = F.zoneWidth / 2;
-    const hh = F.zoneHeight / 2;
-    const cx = Math.min(A.right - F.zoneMargin - hw, Math.max(A.left + F.zoneMargin + hw, this.hero.x));
-    const cy = Math.min(A.bottom - F.zoneMargin - hh, Math.max(A.top + F.zoneMargin + hh, this.hero.y));
-    const zone = { left: cx - hw, right: cx + hw, top: cy - hh, bottom: cy + hh };
-    // Босс там, где разрушенной зоны больше всего: за ближайшим к центру арены краем... берём самую просторную сторону.
-    const room = [zone.top - A.top, A.bottom - zone.bottom, zone.left - A.left, A.right - zone.right];
-    let side = 0;
-    for (let i = 1; i < 4; i++) if (room[i] > room[side]) side = i;
-    const gap = F.bossGap;
-    if (side === 0) { boss.x = cx; boss.y = zone.top - gap; }
-    else if (side === 1) { boss.x = cx; boss.y = zone.bottom + gap; }
-    else if (side === 2) { boss.x = zone.left - gap; boss.y = cy; }
-    else { boss.x = zone.right + gap; boss.y = cy; }
+    // Остров: многоугольник под центром карты, верхняя сторона плоская, остальные ломаные. Босс всегда сверху.
+    const zone = A.buildIsland(F, this.rnd);
+    boss.x = (zone.left + zone.right) / 2;
+    boss.y = zone.top - F.bossGap;
     boss.prevX = boss.x;
     boss.prevY = boss.y;
     this.cine = { finale: true, t: 0, zone, boss, rocksGone: false, dust: 0 };
@@ -1185,7 +1178,8 @@ export class Game {
     this.spawner.wave = B.wave;
     this.crashResult = null;
     this.hud.crashResult = '';
-    this.spawner.spawnBoss(def); // фаза 'boss' и событие boss:spawned (вступление)
+    if (which === 'final' && W.finale && W.finale.portal) this.spawner.openPortal(); // финал начинается с портала
+    else this.spawner.spawnBoss(def); // фаза 'boss' и событие boss:spawned (вступление)
     this.syncWaveHud();
   }
 
