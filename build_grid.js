@@ -179,6 +179,7 @@ export class BuildGrid {
       else if (e.kind === 'shot') carry.set(ci, 'shot'); // «Дробь»: ничего не вешается, число дробинок множит Х2/Х3 на ядре
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
+      else if (e.kind === 'lightning') carry.set(ci, 'lightning'); // «Молния»: ничего не вешается
       else if (e.kind === 'aura') carry.set(ci, 'aura'); // корень ветки ауры: Мощь, Ускорение, множители радиуса, Горение, Мороз
       else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
@@ -306,6 +307,13 @@ export class BuildGrid {
       pierce += f;
     }
     if (pierce) res.pierce = { count: pierce };
+    // Молния: просто наличие (число для статистики).
+    let zaps = 0;
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (c.mod && c.mod.def.effect.kind === 'lightning' && owner.get(i) === coreId) zaps++;
+    }
+    if (zaps) res.lightning = { count: zaps };
     // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
     let ph = 0;
     let phMul = 0;
@@ -406,7 +414,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'lightning') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }

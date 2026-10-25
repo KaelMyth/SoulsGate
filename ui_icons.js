@@ -85,6 +85,11 @@ const ICONS = {
     ['path', S({ d: 'M22 9C25 12 25 18 22 21M26 5C31 10 31 20 26 25', 'stroke-width': 2, opacity: 0.8 })],
     ['path', S({ d: 'M3 15.5H9M6 10.5H10', 'stroke-width': 1.8, opacity: 0.6 })],
   ],
+  // Молния: зигзаг и искры.
+  lightning: [
+    ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
+    ['path', S({ d: 'M26 5L28 8M5 24L3 27', 'stroke-width': 1.8, opacity: 0.7 })],
+  ],
   // Смертельная аура: поле вокруг точки.
   aura: [
     ['circle', { cx: 16, cy: 16, r: 3.4, fill: 'currentColor' }],
