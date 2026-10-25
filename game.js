@@ -20,6 +20,7 @@ import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { RockBeetles } from './systems_rockbeetle.js';
+import { Apostles } from './systems_apostles.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
 import { Boss } from './systems_boss.js';
@@ -99,6 +100,7 @@ export class Game {
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
+    this.apostles = new Apostles({ config, hero: this.hero, arena: this.arena, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.rockBeetles = new RockBeetles({ config, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
@@ -154,6 +156,7 @@ export class Game {
       heroShots: this.heroShots,
       enemyShots: this.enemyShots,
       midges: this.rockBeetles.midges,
+      apostles: this.apostles,
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -282,6 +285,11 @@ export class Game {
       this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
       this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
     });
+    // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
+    this.bus.on('apostle:summon', ({ x, y }) => this.burst(x, y, 0.5, 10, 50, config.render.colors.snowLight));
+    this.bus.on('apostle:heal', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.4, enemy.radius, enemy.radius * 2.2, '#9cffb0'));
+    this.bus.on('apostle:explode', ({ x, y, hit }) => { this.burst(x, y, 0.4, 10, 70, '#ff8a6a'); this.sparks(x, y, hit ? 10 : 6, '#ffc0b0'); });
+    this.bus.on('apostle:blade-fly', ({ blade }) => this.burst(blade.x1, blade.y1, 0.2, 4, 16, '#ffe27a'));
     // Горные жуки (ЗАГЛУШКИ вспышек): пыль на месте скалы, кольцо от удара в землю, искра сбитой мошки.
     this.bus.on('rock:woke', ({ x, y, r }) => { this.burst(x, y, 0.5, r * 0.5, r * 1.8, config.render.colors.snowLight); this.sparks(x, y, 8, config.render.colors.stoneLight); });
     this.bus.on('rockbeetle:slam', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.35, enemy.radius, enemy.radius * 3, config.render.colors.stoneLight));
@@ -796,6 +804,7 @@ export class Game {
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
+      this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
       this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
@@ -1136,6 +1145,7 @@ export class Game {
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();
+    this.apostles.reset();
     this.cine = null;
     this.hud.bossTitle = '';
     this.hud.bossTitleAlpha = 0;
