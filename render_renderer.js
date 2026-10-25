@@ -4214,22 +4214,86 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
+  /**
+   * Дробь это частицы. Без модов: яркие синие искры-чёрточки. С Горением: огненное дыхание, пышущие язычки, которые
+   * растут и гаснут по пути. С Морозом: ледяной пар, холодные клубы. Мороз и Горение вместе: простой белый пар.
+   * Возраст частицы: 1 - left / mx (доля пройденной дальности). Искры рисуются одним путём, клубы спрайтами.
+   */
   drawPellets(ctx, alpha, viewL, viewR, viewT, viewB) {
     const P = this.pellets;
     if (!P || !P.n) return;
-    const S = this.cfg.shot;
-    const r = S.radius;
-    const d = r * 2;
-    ctx.fillStyle = S.color;
+    const t = this.clock;
+    const puff = this.getPuff();
+    const gOr = this.getGlow();
+    const gGold = this.getGlow('gold');
+    const gBl = this.getGlow('blue');
+    // Проход 1: клубы и огонь (сложение цветов для огня и льда, обычное наложение для пара).
+    ctx.globalCompositeOperation = 'lighter';
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < P.n; i++) {
+        const fire = P.bd[i] > 0;
+        const ice = P.fr[i] === 1;
+        if (!fire && !ice) continue;
+        const steam = fire && ice;
+        if ((pass === 0) === steam) continue; // пар рисуем вторым проходом, обычным наложением
+        const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+        const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+        if (x < viewL - 20 || x > viewR + 20 || y < viewT - 20 || y > viewB + 20) continue;
+        const u = Math.min(1, 1 - P.left[i] / (P.mx[i] || 1));
+        const wob = Math.sin(i * 12.9 + t * 9) * 2 * u; // частицы чуть плывут в стороны
+        const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
+        const bx = -P.vx[i] / sp;
+        const by = -P.vy[i] / sp;
+        // Шлейф из 4 клубов позади дробинки: вместе они дают струю дыхания или пара.
+        for (let j = 0; j < 4; j++) {
+          const back = j * 7;
+          const uu = Math.min(1, u + j * 0.05);
+          const cx = x + bx * back + wob * (1 + j * 0.3);
+          const cy = y + by * back - uu * 8;
+          const fall = 1 - j * 0.2;
+          if (steam) {
+            const s2 = (6 + 12 * uu) * (1 + j * 0.2);
+            ctx.globalAlpha = 0.5 * (1 - uu) * Math.min(1, uu * 6 + 0.4) * fall;
+            ctx.drawImage(puff, cx - s2, cy - s2, s2 * 2, s2 * 2);
+          } else if (fire) {
+            const s2 = (5 + 10 * uu) * (1 + j * 0.15);
+            ctx.globalAlpha = Math.min(1, 1.15 - uu) * 0.75 * fall;
+            ctx.drawImage(j === 0 && uu < 0.35 ? gGold : gOr, cx - s2, cy - s2, s2 * 2, s2 * 2);
+          } else {
+            const s2 = (5 + 9 * uu) * (1 + j * 0.2);
+            ctx.globalAlpha = 0.55 * (1 - uu * 0.9) * fall;
+            ctx.drawImage(gBl, cx - s2, cy - s2, s2 * 2, s2 * 2);
+            ctx.globalAlpha = 0.34 * (1 - uu) * fall;
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(puff, cx - s2, cy - s2, s2 * 2, s2 * 2);
+            ctx.globalCompositeOperation = 'lighter';
+          }
+        }
+      }
+      ctx.globalCompositeOperation = pass === 0 ? 'source-over' : 'lighter';
+    }
+    // Проход 2: обычные дробинки: тонкие светящиеся чёрточки по ходу полёта, одним путём.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
     ctx.beginPath();
     for (let i = 0; i < P.n; i++) {
+      if (P.bd[i] > 0 || P.fr[i] === 1) continue;
       const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
       const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
-      if (x < viewL - 8 || x > viewR + 8 || y < viewT - 8 || y > viewB + 8) continue;
-      ctx.rect(x - r, y - r, d, d);
+      if (x < viewL - 12 || x > viewR + 12 || y < viewT - 12 || y > viewB + 12) continue;
+      const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - (P.vx[i] / sp) * 9, y - (P.vy[i] / sp) * 9);
     }
-    ctx.fill();
+    ctx.lineWidth = 3.2;
+    ctx.strokeStyle = 'rgba(90,160,255,0.35)';
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(225,242,255,0.95)';
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   }
 
   /**

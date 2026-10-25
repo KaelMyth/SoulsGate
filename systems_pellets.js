@@ -20,6 +20,7 @@ export class Pellets {
     this.vx = new Float32Array(N);
     this.vy = new Float32Array(N);
     this.left = new Float32Array(N); // сколько ещё лететь
+    this.mx = new Float32Array(N);   // дальность при вылете: по ней отрисовка считает возраст частицы
     this.dmg = new Float32Array(N);
     this.bd = new Float32Array(N);   // горение: урон тика (0 = дробинка не поджигает)
     this.bi = new Float32Array(N);   // горение: интервал тиков
@@ -44,7 +45,7 @@ export class Pellets {
     this.y[i] = this.py[i] = y;
     this.vx[i] = vx;
     this.vy[i] = vy;
-    this.left[i] = range;
+    this.left[i] = this.mx[i] = range;
     this.dmg[i] = dmg;
     this.bd[i] = bd;
     this.bi[i] = bi;
@@ -58,7 +59,7 @@ export class Pellets {
     this.x[i] = this.x[last]; this.y[i] = this.y[last];
     this.px[i] = this.px[last]; this.py[i] = this.py[last];
     this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last];
-    this.left[i] = this.left[last]; this.dmg[i] = this.dmg[last];
+    this.left[i] = this.left[last]; this.mx[i] = this.mx[last]; this.dmg[i] = this.dmg[last];
     this.bd[i] = this.bd[last]; this.bi[i] = this.bi[last]; this.fr[i] = this.fr[last]; this.st[i] = this.st[last];
   }
 
