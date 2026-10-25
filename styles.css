@@ -496,3 +496,8 @@ body { font-family: var(--serif); }
 #pause-screen.preview { z-index: 26; background: radial-gradient(ellipse at 50% 45%, rgba(8, 16, 30, 0.96), rgba(4, 7, 14, 0.99) 80%); }
 .lu-card { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
 #pause-screen .row[hidden] { display: none; }
+
+.lu-card { height: 96px; overflow: hidden; }
+.lu-text small { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.slot-cell.fresh { animation: fresh-pulse 1s ease-in-out infinite; }
+@keyframes fresh-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 201, 106, 0.0); } 50% { box-shadow: 0 0 14px 3px rgba(255, 201, 106, 0.85); } }

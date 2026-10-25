@@ -14,6 +14,7 @@ export class BuilderUI {
     this.grid = grid;
     this.config = config;
     this.storage = storage;
+    this.fresh = -1; // ячейка хранилища с только что полученным модом
     this.sel = null; // { kind: 'core', id } | { kind: 'shelf', index } | { kind: 'placed', x, y }
     this.board = h('div', { class: 'board' });
     this.wrap = h('div', { class: 'board-wrap' }, this.board);
@@ -94,6 +95,7 @@ export class BuilderUI {
   select(sel) {
     const same = this.sel && sel && this.sel.kind === sel.kind && this.sel.id === sel.id && this.sel.index === sel.index && this.sel.x === sel.x && this.sel.y === sel.y;
     this.sel = same && sel.kind === 'core' ? null : sel;
+    if (!sel || sel.kind !== 'shelf' || sel.index !== this.fresh) this.fresh = -1;
     this.refresh();
   }
 
@@ -188,7 +190,10 @@ export class BuilderUI {
       }
       for (const f of faces.get(i) || []) el.classList.toggle((f.kind === 'ok' ? 'fg-' : 'fr-') + f.dir, true);
     });
-    this.slotEls.forEach((el, i) => el.classList.toggle('selected', !!sel && sel.kind === 'shelf' && sel.index === i));
+    this.slotEls.forEach((el, i) => {
+      el.classList.toggle('selected', !!sel && sel.kind === 'shelf' && sel.index === i);
+      el.classList.toggle('fresh', this.fresh === i && !!sel && sel.kind === 'shelf' && sel.index === i); // новый мод из награды мигает, пока не тронули
+    });
 
     clear(this.info);
     if (mod) {
