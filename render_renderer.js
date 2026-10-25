@@ -3028,9 +3028,11 @@ export class Renderer {
     const cy = H / 2;
     const stops = kind === 'Ice'
       ? [[0, 'rgba(150,235,255,0)'], [0.55, 'rgba(170,240,255,0.35)'], [1, 'rgba(240,252,255,0.95)']]
-      : kind === 'Fire'
-        ? [[0, 'rgba(255,70,20,0)'], [0.5, 'rgba(255,120,30,0.4)'], [1, 'rgba(255,225,150,0.95)']]
-        : [[0, 'rgba(40,90,255,0)'], [0.5, 'rgba(70,140,255,0.4)'], [1, 'rgba(200,232,255,0.95)']];
+      : kind === 'Steam'
+        ? [[0, 'rgba(255,120,40,0)'], [0.5, 'rgba(255,170,90,0.4)'], [1, 'rgba(235,248,255,0.95)']]
+        : kind === 'Fire'
+          ? [[0, 'rgba(255,70,20,0)'], [0.5, 'rgba(255,120,30,0.4)'], [1, 'rgba(255,225,150,0.95)']]
+          : [[0, 'rgba(40,90,255,0)'], [0.5, 'rgba(70,140,255,0.4)'], [1, 'rgba(200,232,255,0.95)']];
     const layer = (hw, a) => {
       const gr = g.createLinearGradient(6, 0, hx, 0);
       for (const st of stops) gr.addColorStop(st[0], st[1]);
@@ -3059,8 +3061,8 @@ export class Renderer {
   drawShots(list, alpha, viewL, viewR, viewT, viewB) {
     const ctx = this.ctx;
     const t = this.clock;
-    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow()];
-    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire')];
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold')];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam')];
     // Проход 1: свет и хвосты сложением цветов.
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < list.length; i++) {
@@ -3071,7 +3073,7 @@ export class Renderer {
       if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 0 синий, 1 ледяной (Мороз), 2 огненный (Горение)
+      const kd = p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
       const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
       const ang = Math.atan2(p.vy, p.vx);
       const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
@@ -3102,13 +3104,13 @@ export class Renderer {
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
+      const kd = p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
       ctx.globalAlpha = 1;
-      ctx.fillStyle = kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
+      ctx.fillStyle = kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
       ctx.beginPath();
       ctx.arc(px, py, r * 0.95, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
+      ctx.fillStyle = kd === 3 ? '#f2fbff' : kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
       ctx.beginPath();
       ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
       ctx.fill();
@@ -4061,34 +4063,69 @@ export class Renderer {
     }
   }
 
-  /** Облака пара на земле: мягкое пятно с медленно ползущими клубами, к концу жизни тает. */
+  /** Мягкий клуб пара: белый центр, голубоватый край, прозрачная граница. Один спрайт на все клубы. */
+  getPuff() {
+    if (this.puff) return this.puff;
+    const S = 96;
+    const cv = makeCanvas(S, S);
+    const g = cv.getContext('2d');
+    const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    gr.addColorStop(0, 'rgba(240,248,255,0.9)');
+    gr.addColorStop(0.45, 'rgba(190,220,250,0.5)');
+    gr.addColorStop(1, 'rgba(150,195,240,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, S, S);
+    this.puff = cv;
+    return cv;
+  }
+
+  /**
+   * Облако пара (связка Мороз + Горение): холодный туман из клубов, которые медленно вращаются вокруг тёплого
+   * оранжевого ядра; от края тянутся лёгкие завитки, вверх уходят искры. К концу жизни тает и съёживается.
+   */
   drawClouds(ctx) {
     const cl = this.clouds;
     if (!cl.length) return;
     const st = this.cfg.steam;
+    const puff = this.getPuff();
+    const warm = this.getGlow();
+    const t = this.clock;
     for (const c of cl) {
       const life = c.age / st.duration;
-      const fade = Math.min(1, (1 - life) * 4); // последняя четверть жизни: тает
-      const grow = Math.min(1, c.age / 0.25 + 0.3); // в начале быстро расползается
-      const R = st.radius * grow;
-      const gr = ctx.createRadialGradient(c.x, c.y, R * 0.1, c.x, c.y, R);
-      gr.addColorStop(0, 'rgba(225,236,247,0.42)');
-      gr.addColorStop(0.7, 'rgba(210,225,240,0.26)');
-      gr.addColorStop(1, 'rgba(200,218,236,0)');
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = gr;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, R, 0, TAU);
-      ctx.fill();
-      // клубы
-      ctx.fillStyle = 'rgba(235,243,250,0.16)';
-      for (let i = 0; i < 4; i++) {
-        const a = c.seed + i * 1.57 + c.age * 0.5 * (i % 2 ? 1 : -1);
-        const d = R * (0.35 + 0.15 * Math.sin(c.age * 1.3 + i));
+      const fade = Math.min(1, (1 - life) * 4);
+      const grow = Math.min(1, c.age / 0.25 + 0.3);
+      const R = st.radius * grow * (0.85 + 0.15 * fade);
+      // Тёплое ядро: пар греется огнём изнутри.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = fade * (0.5 + 0.12 * Math.sin(t * 3 + c.seed));
+      ctx.drawImage(warm, c.x - R * 0.7, c.y - R * 0.7, R * 1.4, R * 1.4);
+      ctx.globalCompositeOperation = 'source-over';
+      // Клубы по двум кольцам, вращаются в разные стороны; соседние перекрываются, получается ровное облако.
+      for (let ring = 0; ring < 2; ring++) {
+        const n = ring ? 5 : 7;
+        const rr = R * (ring ? 0.38 : 0.66);
+        const sz = R * (ring ? 0.62 : 0.5);
+        for (let i = 0; i < n; i++) {
+          const a = c.seed + (i / n) * TAU + c.age * (ring ? -0.45 : 0.3);
+          const bob = 1 + 0.1 * Math.sin(c.age * 1.6 + i * 2.1 + ring);
+          const d = rr * bob;
+          const s2 = sz * (0.9 + 0.2 * Math.sin(c.age * 1.1 + i * 1.7));
+          ctx.globalAlpha = fade * (ring ? 0.7 : 0.55);
+          ctx.drawImage(puff, c.x + Math.cos(a) * d - s2, c.y + Math.sin(a) * d * 0.9 - s2, s2 * 2, s2 * 2);
+        }
+      }
+      // Искры поднимаются от ядра.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffb870';
+      for (let i = 0; i < 5; i++) {
+        const ph = (c.age * 0.6 + i * 0.2 + c.seed) % 1;
+        const a = c.seed * 3 + i * 1.9;
+        ctx.globalAlpha = fade * (1 - ph) * 0.8;
         ctx.beginPath();
-        ctx.arc(c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, R * 0.3, 0, TAU);
+        ctx.arc(c.x + Math.cos(a) * R * 0.45 * (0.4 + ph * 0.6), c.y + Math.sin(a) * R * 0.3 - ph * R * 0.55, 1.4, 0, TAU);
         ctx.fill();
       }
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
   }
