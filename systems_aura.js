@@ -13,6 +13,8 @@ export class Aura {
     this.modifiers = o.modifiers || null;
     this.ignite = o.ignite;
     this.chill = o.chill;
+    this.zap = o.zap || null;
+    this.rnd = o.rnd || Math.random;
     this.source = { aura: true, active: true };
     this.active = false;  // стоит ли мод
     this.radius = 0;      // текущий радиус поля (для рисования)
@@ -70,6 +72,7 @@ export class Aura {
     for (const e of hit) { // бьём после поиска: убийство меняет пул врагов
       if (!e.active) continue;
       this.combat.damageEnemy(e, dmg, this.source, null);
+      if (e.active && m.lightning && this.zap && this.rnd() < this.cfg.aura.shockChance) this.zap(e); // Молния: шанс 1/5 на каждом тике
       if (!e.active || !fx) continue;
       if (bd > 0) this.ignite(e, bd, bi);
       if (m.frost) this.chill(e, st, bd, bi);

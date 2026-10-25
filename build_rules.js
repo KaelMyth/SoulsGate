@@ -16,6 +16,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     if (e.kind === 'laser') return !!core.def.canLaser;
     if (e.kind === 'blades') return !!core.def.canBlades;
     if (e.kind === 'aura') return !!core.def.canAura;
+    if (e.kind === 'lightning') return !!core.def.canLightning;
     if (e.kind === 'shot') return !!core.def.canShot;
     if (e.kind === 'phantom') return !!core.def.canPhantom;
     return (core.def.stats || []).some((s) => s.key === e.stat);
@@ -27,8 +28,9 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce' || e.kind === 'blades' || e.kind === 'aura') return false; // «Пробитие» и «Клинки» крепятся только к ядру
-  if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
+  if (e.kind === 'double') return !['burn', 'frost', 'steam', 'lightning'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
+  if (e.kind === 'lightning') return carry === 'laser' || carry === 'blades' || carry === 'aura'; // «Молния»: к ядру снаряда, рывка или на Лазер, Клинки, Ауру
   if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura';
   if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura';
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает

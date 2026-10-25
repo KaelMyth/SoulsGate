@@ -510,6 +510,8 @@ export class Renderer {
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
     this.aura = deps.aura || null;
+    this.lightdash = deps.lightdash || null;
+    this.zapBolts = deps.zapBolts || [];
     this.fires = deps.fires || [];
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
@@ -678,12 +680,14 @@ export class Renderer {
 
     if (hero.active) {
       this.drawAura(ctx, hx, hy);
-      this.drawHero(hx, hy, C);
+      if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния: герой превращается в молнию
+      else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
       this.drawHeroArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
+    this.drawBolts(ctx);
     this.drawBlades(ctx);
 
     // Снаряды.
@@ -1657,6 +1661,21 @@ export class Renderer {
       ctx.strokeStyle = this.cfg.frost.color;
       ctx.beginPath();
       ctx.arc(x, y, r + 1.5, 0, TAU);
+      ctx.stroke();
+    }
+
+    // Электризация: жёлтые искры вокруг по числу зарядов.
+    if (e.shockStacks > 0) {
+      ctx.strokeStyle = this.cfg.shock.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const ph = Math.floor(this.clock * 16);
+      for (let k = 0; k < e.shockStacks; k++) {
+        const a0 = ((Math.sin((ph + k * 3 + e.x) * 12.9898) * 43758.5453) % 1) * TAU;
+        ctx.moveTo(x + Math.cos(a0) * (r + 1), y + Math.sin(a0) * (r + 1));
+        ctx.lineTo(x + Math.cos(a0 + 0.2) * (r + 5), y + Math.sin(a0 + 0.2) * (r + 5));
+        ctx.lineTo(x + Math.cos(a0 - 0.1) * (r + 9), y + Math.sin(a0 - 0.1) * (r + 9));
+      }
       ctx.stroke();
     }
 
@@ -3157,6 +3176,8 @@ export class Renderer {
     const cy = H / 2;
     const stops = kind === 'Ice'
       ? [[0, 'rgba(150,235,255,0)'], [0.55, 'rgba(170,240,255,0.35)'], [1, 'rgba(240,252,255,0.95)']]
+      : kind === 'Gold'
+        ? [[0, 'rgba(255,200,30,0)'], [0.5, 'rgba(255,225,70,0.4)'], [1, 'rgba(255,252,210,0.95)']]
       : kind === 'Violet'
         ? [[0, 'rgba(120,60,255,0)'], [0.5, 'rgba(165,110,255,0.4)'], [1, 'rgba(240,226,255,0.95)']]
         : kind === 'Steam'
@@ -3192,8 +3213,8 @@ export class Renderer {
   drawShots(list, alpha, viewL, viewR, viewT, viewB) {
     const ctx = this.ctx;
     const t = this.clock;
-    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true)];
-    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet')];
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true), this.getGlow('gold')];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet'), this.getComet('Gold')];
     // Проход 1: свет и хвосты сложением цветов.
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < list.length; i++) {
@@ -3204,7 +3225,7 @@ export class Renderer {
       if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
+      const kd = p.zap ? 5 : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
       const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
       const ang = Math.atan2(p.vy, p.vx);
       const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
@@ -3235,16 +3256,29 @@ export class Renderer {
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
+      const kd = p.zap ? 5 : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
       ctx.globalAlpha = 1;
-      ctx.fillStyle = kd === 4 ? '#8a5cff' : kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
+      ctx.fillStyle = kd === 5 ? '#ffd21e' : kd === 4 ? '#8a5cff' : kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
       ctx.beginPath();
       ctx.arc(px, py, r * 0.95, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = kd === 4 ? '#efe4ff' : kd === 3 ? '#f2fbff' : kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
+      ctx.fillStyle = kd === 5 ? '#fffbe0' : kd === 4 ? '#efe4ff' : kd === 3 ? '#f2fbff' : kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
       ctx.beginPath();
       ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
       ctx.fill();
+      if (kd === 5) { // шар молний: потрескивающие дуги вокруг
+        ctx.strokeStyle = '#fffbe0';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        const f0 = Math.floor(t * 24) + i * 7;
+        for (let k = 0; k < 3; k++) {
+          const a0 = Math.sin((f0 + k * 5) * 12.9898) * 43758.5453 % TAU;
+          ctx.moveTo(px + Math.cos(a0) * r * 0.7, py + Math.sin(a0) * r * 0.7);
+          ctx.lineTo(px + Math.cos(a0 + 0.25) * r * 1.5, py + Math.sin(a0 + 0.25) * r * 1.5);
+          ctx.lineTo(px + Math.cos(a0 - 0.1) * r * 2.1, py + Math.sin(a0 - 0.1) * r * 2.1);
+        }
+        ctx.stroke();
+      }
       if (p.parryable) { // парируемый снаряд (если вдруг в этом списке): светлая обводка
         ctx.lineWidth = 1.2;
         ctx.strokeStyle = '#fff3d0';
@@ -4012,6 +4046,65 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Разряд шокера: зубчатая дуга между точками, дрожит по кадрам; два слоя (широкое свечение и белая жила). */
+  drawZapArc(ctx, x0, y0, x1, y1, w, fade, seed, rgb, core) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const seg = Math.max(4, Math.round(len / 22));
+    const frame = Math.floor(this.clock * 34);
+    const amp = 5 + w * 2.2;
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.strokeStyle = pass === 0 ? 'rgba(' + rgb + ',' + 0.2 * fade + ')' : pass === 1 ? 'rgba(' + rgb + ',' + 0.8 * fade + ')' : 'rgba(' + core + ',' + fade + ')';
+      ctx.lineWidth = pass === 0 ? w * 5 : pass === 1 ? w * 1.8 : Math.max(1, w * 0.7);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      for (let s = 1; s < seg; s++) {
+        const f = s / seg;
+        const j = Math.sin((s * 12.9898 + seed * 78.233 + frame * 3.7 + (pass === 2 ? 1.3 : 0)) * 43758.5453) * amp * Math.sin(f * Math.PI);
+        ctx.lineTo(x0 + dx * f + nx * j, y0 + dy * f + ny * j);
+      }
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+  }
+
+  /** Герой-молния (рывок с Молнией): яркий шар с ореолом. */
+  drawLightHero(ctx, hx, hy) {
+    const r = this.hero.radius;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = this.cfg.lightdash.color;
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 2.2, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 0.9, 0, TAU);
+    ctx.fill();
+  }
+
+  /** Молнии рывка и разрядов электризации: ломаные с дрожью, гаснут за 0.25 с. */
+  drawBolts(ctx) {
+    const ld = this.lightdash;
+    const zb = this.zapBolts;
+    const n1 = ld ? ld.bolts.length : 0;
+    if (!n1 && !zb.length) return;
+    const col = this.cfg.shock.color;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n1 + zb.length; i++) {
+      const b = i < n1 ? ld.bolts[i] : zb[i - n1];
+      const k = Math.max(0, 1 - b.age / 0.25);
+      this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, 2.2, k, i, '255,225,70', '255,252,225');
+    }
+    ctx.restore();
+  }
+
   /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
   drawFires(ctx) {
     const fs = this.fires;
@@ -4173,8 +4266,10 @@ export class Renderer {
       const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
       const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
       const ph = !!l.gen;
-      const rgb = ph ? '190,120,255' : '110,205,255';
-      const core = ph ? '248,232,255' : '232,248,255';
+      const zp = !!l.zap;
+      const rgb = zp ? '255,225,70' : ph ? '190,120,255' : '110,205,255';
+      const core = zp ? '255,252,225' : ph ? '248,232,255' : '232,248,255';
+      if (zp) { this.drawZapArc(ctx, x0, y0, x1, y1, w, fade, li, rgb, core); } else {
       ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
       ctx.lineWidth = w * 6;
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
@@ -4187,6 +4282,7 @@ export class Renderer {
       ctx.strokeStyle = 'rgba(' + core + ',' + fade + ')';
       ctx.lineWidth = Math.max(0.9, w * 0.6);
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      }
       // Вспышка у посоха и точка попадания.
       const g0 = w * 5;
       ctx.globalAlpha = 0.7 * fade;
@@ -4243,17 +4339,18 @@ export class Renderer {
     const B = this.cfg.blades;
     const k = B.size * 0.8;
     const t = this.clock;
-    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true)];
-    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet')];
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true), this.getGlow('gold')];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet'), this.getComet('Gold')];
     const mainC = ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'];
     const liteC = ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'];
+    const glowGold = this.getGlow('gold');
     // Проход 1: хвосты и свечение сложением цветов.
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < bl.length; i++) {
       const b = bl[i];
       const kd = b.kind | 0;
       const fly = b.state === 'fly';
-      const gl = b.gen ? glows[4] : glows[kd];
+      const gl = b.zap ? glowGold : b.gen ? glows[4] : glows[kd];
       const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
       if (fly && !b.sphere) {
         const sc = (k * 0.5) / 14;
@@ -4275,9 +4372,26 @@ export class Renderer {
     for (let i = 0; i < bl.length; i++) {
       const b = bl[i];
       const kd = b.kind | 0;
-      const mc = b.gen ? '#a577ff' : mainC[kd];
-      const lc = b.gen ? '#f0e4ff' : liteC[kd];
+      const mc = b.zap ? '#ffd21e' : b.gen ? '#a577ff' : mainC[kd];
+      const lc = b.zap ? '#fffbe0' : b.gen ? '#f0e4ff' : liteC[kd];
       ctx.globalAlpha = 1;
+      if (b.zap && !b.sphere) { // клинок-молния: зигзаг по ходу полёта
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.a);
+        ctx.scale(k, k);
+        ctx.fillStyle = mc;
+        ctx.strokeStyle = lc;
+        ctx.lineWidth = 1 / k;
+        ctx.beginPath();
+        ctx.moveTo(15, 0); ctx.lineTo(3, -4.5); ctx.lineTo(5, -0.5); ctx.lineTo(-6, -4); ctx.lineTo(-14, 0);
+        ctx.lineTo(-6, 4); ctx.lineTo(1, 1); ctx.lineTo(3, 4.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       if (b.sphere) { // с Лазером клинки это светящиеся сферы
         const rr = k * (b.state === 'fire' ? 0.78 : 0.62);
         ctx.fillStyle = mc;
