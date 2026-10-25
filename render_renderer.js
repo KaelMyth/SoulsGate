@@ -4080,9 +4080,11 @@ export class Renderer {
     ctx.translate(hx, hy);
     // Едва заметная тёмно-фиолетовая дымка по краю: поле читается без линии.
     const gr = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
-    gr.addColorStop(0, 'rgba(120,90,170,0)');
-    gr.addColorStop(0.75, 'rgba(110,80,165,0.05)');
-    gr.addColorStop(1, 'rgba(100,70,150,0)');
+    const kd = au.kind | 0;
+    const tint = ['110,80,165', '110,185,255', '255,130,50', '225,236,248'][kd]; // цвет стихии: лёгкий, поле остаётся тёмным
+    gr.addColorStop(0, 'rgba(' + tint + ',0)');
+    gr.addColorStop(0.7, 'rgba(' + tint + ',' + (kd ? 0.09 : 0.05) + ')');
+    gr.addColorStop(1, 'rgba(' + tint + ',0)');
     ctx.globalAlpha = 1 + pl * 0.8;
     ctx.fillStyle = gr;
     ctx.beginPath();
@@ -4117,9 +4119,33 @@ export class Renderer {
           ctx.globalAlpha = 0.11 * al;
           ctx.lineWidth = w + 0.6;
           ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+          if (kd) { // окраска завихрения стихией поверх негатива
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgb(' + tint + ')';
+            ctx.globalAlpha = 0.09 * al;
+            ctx.lineWidth = w * 1.4 + 0.6;
+            ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+            ctx.globalCompositeOperation = 'difference';
+            ctx.strokeStyle = '#ffffff';
+          }
         }
         px = x;
         py = y;
+      }
+    }
+    // Стихия: редкие частицы поднимаются из поля (угольки, ледяная пыль, пар).
+    if (kd) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgb(' + tint + ')';
+      for (let i = 0; i < 9; i++) {
+        const ph = (t * (kd === 2 ? 0.5 : 0.28) + i * 0.113) % 1;
+        const a = i * 2.17 + Math.floor(t * 0.3 + i) * 0.9;
+        const rr = R * (0.2 + 0.7 * ((i * 0.37) % 1));
+        const up = kd === 1 ? -ph * 8 + 6 * ph : -ph * 22; // лёд почти не поднимается и оседает
+        ctx.globalAlpha = Math.sin(Math.PI * ph) * (kd === 3 ? 0.35 : 0.6);
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * rr + Math.sin(t * 2 + i) * 2, Math.sin(a) * rr * 0.9 + up, kd === 3 ? 3.2 : 1.3, 0, TAU);
+        ctx.fill();
       }
     }
     ctx.restore();
