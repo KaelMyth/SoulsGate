@@ -611,6 +611,24 @@ export class Renderer {
       ctx.drawImage(sp.cv, rock.x - sp.half, rock.y - sp.half, sp.half * 2, sp.half * 2);
     }
 
+    // ЗАГЛУШКА ГРАФИКИ: финальный бой, разрушенная часть карты. Всё вне острова (arena.zone) затягивает пустотой
+    // по мере arena.collapse (0..1), кромка острова светлая линия. Без обломков и анимации падения.
+    if (arena.zone && arena.collapse > 0) {
+      const z = arena.zone;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, arena.collapse);
+      ctx.fillStyle = C.void;
+      ctx.beginPath();
+      ctx.rect(arena.left - 8, arena.top - 8, arena.width + 16, arena.height + 16);
+      ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      ctx.fill('evenodd');
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = C.snowLight;
+      ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      ctx.restore();
+    }
+
     this.drawSnow(ctx, viewL, viewR, viewT, viewB);
 
     const hx = hero.prevX + (hero.x - hero.prevX) * alpha;

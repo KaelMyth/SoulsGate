@@ -139,6 +139,12 @@ export class Spawner {
       this.alive = this.countAlive();
       if (this.alive === 0) {
         if (this.bus) this.bus.emit('boss:defeated', { wave: this.wave });
+        const total = this.cfg.waves.total;
+        if (total > 0 && this.wave >= total) { // победа над финальным боссом: забег пройден
+          this.phase = 'complete';
+          if (this.bus) this.bus.emit('run:completed', { wave: this.wave });
+          return;
+        }
         this.wave++;
         this.phase = 'intermission';
         this.timer = this.cfg.waves.intermission;
@@ -164,8 +170,9 @@ export class Spawner {
     if (!this.crash && this.spawned >= total && this.alive === 0) {
       if (this.bus) this.bus.emit('wave:cleared', { wave: this.wave });
       // Волна босса: после зачистки вместо передышки выходит босс.
-      const B = this.cfg.waves.boss;
-      if (B && this.wave === B.wave && this.cfg.enemies[B.enemy]) {
+      const W = this.cfg.waves;
+      const B = W.boss && W.boss.wave === this.wave ? W.boss : W.finalBoss && W.finalBoss.wave === this.wave ? W.finalBoss : null;
+      if (B && this.cfg.enemies[B.enemy]) {
         this.spawnBoss(this.cfg.enemies[B.enemy]);
         return;
       }

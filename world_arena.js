@@ -15,12 +15,29 @@ export class Arena {
     this.bottom = cfg.height / 2;
     this.cfgRocks = cfg.rocks;
     this.rocks = [];
+    // Финальный бой: остаток карты разрушается, ходить можно только по острову zone { left, right, top, bottom }.
+    // null = вся арена. Летающие (def.flies: Апофеоз) и снаряды идут по всей арене. collapse: 0..1, насколько разрушена карта (для отрисовки).
+    this.zone = null;
+    this.collapse = 0;
     this.restoreRocks();
+  }
+
+  /** Остров: всё вне прямоугольника разрушено. Скалы вне острова исчезают. */
+  setZone(z) {
+    this.zone = z ? { left: z.left, right: z.right, top: z.top, bottom: z.bottom } : null;
+    if (z) {
+      for (let i = this.rocks.length - 1; i >= 0; i--) {
+        const k = this.rocks[i];
+        if (k.x < z.left - k.r || k.x > z.right + k.r || k.y < z.top - k.r || k.y > z.bottom + k.r) this.rocks.splice(i, 1);
+      }
+    }
   }
 
   /** Скалы как в конфиге (новый забег после того, как жуки проснулись и скалы исчезли). id стабильный: по нему рисуется спрайт. */
   restoreRocks() {
     this.rocks.length = 0;
+    this.zone = null;
+    this.collapse = 0;
     for (let i = 0; i < this.cfgRocks.length; i++) {
       const r = this.cfgRocks[i];
       this.rocks.push({ x: r.x, y: r.y, r: r.r, id: i });
@@ -90,8 +107,9 @@ export class Arena {
         c.x = rock.x + nx * minD;
         c.y = rock.y + ny * minD;
       }
-      c.x = clamp(c.x, this.left + c.radius, this.right - c.radius);
-      c.y = clamp(c.y, this.top + c.radius, this.bottom - c.radius);
+      const b = this.zone && !(c.def && c.def.flies) ? this.zone : this;
+      c.x = clamp(c.x, b.left + c.radius, b.right - c.radius);
+      c.y = clamp(c.y, b.top + c.radius, b.bottom - c.radius);
     }
   }
 }

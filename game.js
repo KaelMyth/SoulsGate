@@ -786,7 +786,7 @@ export class Game {
       this.updateFires(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.lightdash.update(dt);
-      this.camera.zoomTarget = this.boss.cameraZoom(); // атака клинками отдаляет экран
+      this.camera.zoomTarget = Math.max(this.boss.cameraZoom(), this.arena.zone ? this.config.waves.finale.zoom : 1); // клинки и финальный бой отдаляют экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
@@ -844,6 +844,7 @@ export class Game {
   /** Вступление босса: игра замирает, камера плывёт к боссу. Дальше всё ведёт updateCine. */
   startBossIntro(boss) {
     if (this.state !== 'playing') return;
+    if (boss.def.flies && this.config.waves.finale) { this.startFinale(boss); return; } // финальный босс: свой ролик
     this.state = 'cutscene';
     this.stick.cancel();
     this.cine = { t: 0, fromX: this.camera.x, fromY: this.camera.y, boss };
@@ -858,6 +859,7 @@ export class Game {
   updateCine(dt) {
     const c = this.cine;
     if (!c) { this.state = 'playing'; return; }
+    if (c.finale) { this.updateFinale(dt); return; }
     const I = this.config.waves.boss.intro;
     const cam = this.camera;
     c.t += dt;
@@ -893,6 +895,86 @@ export class Game {
     else if (c.t >= tHold && c.t < tOut) a = 1 - (c.t - tHold) / Math.max(0.001, I.titleOut);
     this.hud.bossTitleAlpha = a;
 
+    if (c.t >= tEnd) this.endBossIntro();
+  }
+
+  /**
+   * Вступление финального босса: камера отдаляется (zoomTime) → остаток карты рушится (collapseTime), остаётся остров
+   * вокруг героя → имя босса (titleIn/Hold/Out) → бой с отдалённой камерой. Босс стоит в разрушенной зоне.
+   * Времена и размеры: config.waves.finale. Разрушение рисует renderer по arena.collapse (ЗАГЛУШКА ГРАФИКИ).
+   */
+  startFinale(boss) {
+    const F = this.config.waves.finale;
+    const A = this.arena;
+    this.state = 'cutscene';
+    this.stick.cancel();
+    // Остров: прямоугольник вокруг героя, не ближе zoneMargin к краю арены.
+    const hw = F.zoneWidth / 2;
+    const hh = F.zoneHeight / 2;
+    const cx = Math.min(A.right - F.zoneMargin - hw, Math.max(A.left + F.zoneMargin + hw, this.hero.x));
+    const cy = Math.min(A.bottom - F.zoneMargin - hh, Math.max(A.top + F.zoneMargin + hh, this.hero.y));
+    const zone = { left: cx - hw, right: cx + hw, top: cy - hh, bottom: cy + hh };
+    // Босс там, где разрушенной зоны больше всего: за ближайшим к центру арены краем... берём самую просторную сторону.
+    const room = [zone.top - A.top, A.bottom - zone.bottom, zone.left - A.left, A.right - zone.right];
+    let side = 0;
+    for (let i = 1; i < 4; i++) if (room[i] > room[side]) side = i;
+    const gap = F.bossGap;
+    if (side === 0) { boss.x = cx; boss.y = zone.top - gap; }
+    else if (side === 1) { boss.x = cx; boss.y = zone.bottom + gap; }
+    else if (side === 2) { boss.x = zone.left - gap; boss.y = cy; }
+    else { boss.x = zone.right + gap; boss.y = cy; }
+    boss.prevX = boss.x;
+    boss.prevY = boss.y;
+    this.cine = { finale: true, t: 0, zone, boss, rocksGone: false, dust: 0 };
+    this.hud.bossTitle = boss.def.title || boss.def.name || '';
+    this.hud.bossTitleAlpha = 0;
+    this.camera.zoomTarget = F.zoom;
+  }
+
+  updateFinale(dt) {
+    const c = this.cine;
+    const F = this.config.waves.finale;
+    const A = this.arena;
+    const cam = this.camera;
+    c.t += dt;
+    const tZoom = F.zoomTime;
+    const tCol = tZoom + F.collapseTime;
+    const tIn = tCol + F.titleIn;
+    const tHold = tIn + F.titleHold;
+    const tOut = tHold + F.titleOut;
+    const tEnd = tOut + F.endHold;
+
+    // Разрушение: прогресс для отрисовки; в начале решаем, что остаётся (остров), скалы вне него исчезают.
+    if (c.t >= tZoom && !c.rocksGone) {
+      c.rocksGone = true;
+      A.setZone(c.zone);
+      this.nav.buildBlocked();
+    }
+    A.collapse = c.t < tZoom ? 0 : Math.min(1, (c.t - tZoom) / Math.max(0.001, F.collapseTime));
+    // Пыль и осколки вдоль падающей кромки (ЗАГЛУШКА вспышек).
+    if (c.t >= tZoom && c.t < tCol) {
+      c.dust -= dt;
+      if (c.dust <= 0) {
+        c.dust = 0.07;
+        const z = c.zone;
+        const x = A.left + this.rnd() * A.width;
+        const y = A.top + this.rnd() * A.height;
+        if (x < z.left || x > z.right || y < z.top || y > z.bottom) this.burst(x, y, 0.5, 10, 40, this.config.render.colors.stoneLight);
+      }
+    }
+    // Остров держит героя: если стоял у края арены, его вдвигает внутрь.
+    if (c.rocksGone) A.resolveCircle(this.hero);
+
+    // Камера: отдаляется и смотрит на середину между островом и боссом.
+    const zc = c.zone;
+    cam.zoomTarget = F.zoom;
+    cam.update(dt, (zc.left + zc.right) / 2 * 0.5 + c.boss.x * 0.5, (zc.top + zc.bottom) / 2 * 0.5 + c.boss.y * 0.5, A);
+
+    let a = 0;
+    if (c.t >= tCol && c.t < tIn) a = (c.t - tCol) / Math.max(0.001, F.titleIn);
+    else if (c.t >= tIn && c.t < tHold) a = 1;
+    else if (c.t >= tHold && c.t < tOut) a = 1 - (c.t - tHold) / Math.max(0.001, F.titleOut);
+    this.hud.bossTitleAlpha = a;
     if (c.t >= tEnd) this.endBossIntro();
   }
 
