@@ -3,7 +3,7 @@
 // Управление: мод можно перетащить из хранилища на поле, а можно выбрать и нажать на зелёную клетку.
 // Поставленный мод возвращается в хранилище перетаскиванием на ряд хранилища или кнопкой в карточке.
 import { h, clear } from './ui_dom.js';
-import { icon } from './ui_icons.js';
+import { piece, tileOfMod, tileOfCore, slab } from './ui_stone.js';
 import { coreStats } from './build_cores.js';
 import { canPlace, highlight } from './build_rules.js';
 
@@ -126,7 +126,7 @@ export class BuilderUI {
       if (mod) {
         el.classList.toggle('has', true);
         el.setAttribute('data-mod', mod.key);
-        el.append(icon(mod.def.icon));
+        el.append(piece(tileOfMod(mod.key, mod.def), mod.def.icon));
         this.attachDrag(el, { from: 'shelf', index: i }, mod, () => this.select({ kind: 'shelf', index: i }));
       }
       this.slotEls.push(el);
@@ -134,6 +134,7 @@ export class BuilderUI {
     });
 
     clear(this.board);
+    this.board.append(slab());
     this.cellEls = [];
     for (const c of g.cells) {
       const el = h('button', {
@@ -143,12 +144,12 @@ export class BuilderUI {
       if (c.core) {
         el.classList.toggle('core', true);
         el.setAttribute('data-core', c.core.id);
-        el.append(icon(c.core.def.icon));
+        el.append(piece(tileOfCore(c.core.id), c.core.def.icon));
         el.addEventListener('click', () => this.select({ kind: 'core', id: c.core.id }));
       } else if (c.mod) {
         el.classList.toggle('mod', true);
         el.setAttribute('data-mod', c.mod.key);
-        el.append(icon(c.mod.def.icon));
+        el.append(piece(tileOfMod(c.mod.key, c.mod.def), c.mod.def.icon));
         this.attachDrag(el, { from: 'placed', x: c.x, y: c.y }, c.mod, () => this.select({ kind: 'placed', x: c.x, y: c.y }));
       } else {
         el.addEventListener('click', () => this.tapEmpty(c.x, c.y));
@@ -254,7 +255,7 @@ export class BuilderUI {
       if (!start) return;
       if (!start.drag && Math.hypot(e.clientX - start.x, e.clientY - start.y) > DRAG_START_PX) {
         start.drag = true;
-        ghost = h('div', { class: 'drag-ghost' }, icon(mod.def.icon));
+        ghost = h('div', { class: 'drag-ghost' }, piece(tileOfMod(mod.key, mod.def), mod.def.icon));
         if (document.body) document.body.append(ghost);
       }
       if (ghost && ghost.style) ghost.style.transform = 'translate(' + (e.clientX - 24) + 'px,' + (e.clientY - 24) + 'px)';
