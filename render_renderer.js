@@ -540,6 +540,7 @@ export class Renderer {
     this.hbuf = new Float32Array(33 * 5); // буфер точек ленты шлейфа (x, y, нормаль, ширина): без выделений памяти в кадре
     this.hring = new Float32Array(16);     // контур плеч героя
     this.strip = null;            // мягкая красная полоса телеграфа (без чётких краёв), один спрайт
+    this.stripIce = null;         // то же, холодная: телеграфы Тартаса
     this.dust = null;             // спрайт облачка пыли
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
@@ -814,107 +815,631 @@ export class Renderer {
   }
 
   /**
-   * ЗАГЛУШКА ГРАФИКИ (Тартас): всё, что босс кладёт на землю, простыми формами без деталей.
-   * Данные берём из systems_boss.js (fissures, tele, blast), цвета из config.render.colors.
-   * Графика может заменить любую из трёх частей, не трогая логику.
+   * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
+   * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
   drawBossGround(C) {
     const b = this.boss;
     if (!b) return;
     const ctx = this.ctx;
+    const t = this.clock;
+    const glow = this.getGlow('blue');
 
-    // ЗАГЛУШКА ГРАФИКИ: телеграф призыва отряда, круг вокруг босса, который заполняется к выходу бойцов.
+    // Призыв отряда: круг рун растёт от босса и заполняется светом к выходу бойцов.
     if (b.state === 'squadCast' && b.enemy) {
       const Q = b.enemy.def.cycle.squad;
       const k = Math.min(1, b.t / Math.max(0.01, Q.castTime));
       const r = b.enemy.radius + Q.ringGap;
+      const ex = b.enemy.x;
+      const ey = b.enemy.y;
       ctx.save();
-      ctx.strokeStyle = C.frostMist;
-      ctx.lineWidth = 2;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.18 + 0.32 * k;
+      ctx.drawImage(glow, ex - r * 1.5, ey - r * 1.5, r * 3, r * 3);
+      ctx.globalAlpha = 0.5 + 0.3 * k;
+      ctx.strokeStyle = C.tartasEye;
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.arc(b.enemy.x, b.enemy.y, r, 0, Math.PI * 2);
+      ctx.arc(ex, ey, r, 0, TAU);
       ctx.stroke();
-      ctx.globalAlpha = 0.25 + 0.25 * k;
-      ctx.fillStyle = C.frostMist;
+      ctx.setLineDash([5, 7]);
+      ctx.lineDashOffset = t * 24;
       ctx.beginPath();
-      ctx.arc(b.enemy.x, b.enemy.y, r * k, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Разломы: плоская полоса вдоль отрезка. Таят в конце цикла (fissureAlpha).
-    if (b.fissures.length) {
-      ctx.save();
-      ctx.globalAlpha = b.fissureAlpha();
-      ctx.strokeStyle = C.frostMist;
-      for (let i = 0; i < b.fissures.length; i++) {
-        const f = b.fissures[i];
+      ctx.arc(ex, ey, r * (0.55 + 0.45 * k), 0, TAU);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = C.tartasIceLight;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU + t * 0.4;
+        const px = ex + Math.cos(a) * r;
+        const py = ey + Math.sin(a) * r;
         ctx.beginPath();
-        ctx.moveTo(f.x1, f.y1);
-        ctx.lineTo(f.x2, f.y2);
-        ctx.lineWidth = f.hw * 2;
-        ctx.stroke();
+        ctx.moveTo(px + Math.cos(a) * 7, py + Math.sin(a) * 7);
+        ctx.lineTo(px - Math.sin(a) * 4, py + Math.cos(a) * 4);
+        ctx.lineTo(px + Math.sin(a) * 4, py - Math.cos(a) * 4);
+        ctx.closePath();
+        ctx.globalAlpha = 0.35 + 0.5 * k;
+        ctx.fill();
       }
       ctx.restore();
     }
 
-    // Клинки (вторая атака). Ждущий клинок стоит на кольце; линию на земле показывает только тот, чей прицел
-    // уже зафиксирован (aimed): он вылетит следующим. Летящий: короткая чёрточка по ходу полёта.
-    // Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state, aimed }, b.bladeCount;
-    // state 1 ждёт вылета, 2 летит, 3 закончил. Каждая группа рисуется одним проходом.
+    // Разломы: тёмная трещина в земле с холодным светом внутри и дымкой. Таят в конце цикла (fissureAlpha).
+    if (b.fissures.length) {
+      const fa = b.fissureAlpha();
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let fi = 0; fi < b.fissures.length; fi++) {
+        const f = b.fissures[fi];
+        const dx = f.x2 - f.x1;
+        const dy = f.y2 - f.y1;
+        const L = Math.hypot(dx, dy) || 1;
+        const nx = -dy / L;
+        const ny = dx / L;
+        const n = Math.max(2, Math.ceil(L / 12));
+        ctx.beginPath();
+        for (let i = 0; i <= n; i++) {
+          const u = i / n;
+          const edge = Math.min(1, Math.min(u, 1 - u) * 6);
+          const off = Math.sin(i * 2.7 + fi * 5.1 + f.x1 * 0.05) * f.hw * 0.7 * edge;
+          const px = f.x1 + dx * u + nx * off;
+          const py = f.y1 + dy * u + ny * off;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.globalAlpha = fa * 0.4;
+        ctx.strokeStyle = '#080e20';
+        ctx.lineWidth = f.hw * 3.2;
+        ctx.stroke();
+        ctx.globalAlpha = fa * 0.95;
+        ctx.strokeStyle = '#0a1022';
+        ctx.lineWidth = f.hw * 1.1;
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = fa * (0.65 + 0.2 * Math.sin(t * 4 + fi));
+        ctx.strokeStyle = '#8fd0ff';
+        ctx.lineWidth = f.hw * 0.42;
+        ctx.stroke();
+        // Боковые трещинки и дымка холода вдоль разлома.
+        ctx.lineWidth = 1.4;
+        ctx.globalAlpha = fa * 0.5;
+        ctx.beginPath();
+        for (let i = 2; i < n; i += 4) {
+          const u = i / n;
+          const side = i % 8 < 4 ? 1 : -1;
+          const px = f.x1 + dx * u;
+          const py = f.y1 + dy * u;
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + nx * side * f.hw * 1.3 + (dx / L) * 5, py + ny * side * f.hw * 1.3 + (dy / L) * 5);
+        }
+        ctx.stroke();
+        const mists = Math.max(1, Math.floor(L / 70));
+        for (let i = 0; i < mists; i++) {
+          const u = (i + 0.5) / mists;
+          const lift = (0.5 + 0.5 * Math.sin(t * 1.3 + i * 2 + fi)) * 8;
+          ctx.globalAlpha = fa * 0.2;
+          ctx.drawImage(glow, f.x1 + dx * u - 22, f.y1 + dy * u - 22 - lift, 44, 44);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.restore();
+    }
+
+    // Клинки (вторая атака). Ждущий клинок парит на кольце; линию на земле показывает только тот, чей прицел
+    // уже зафиксирован (aimed): он вылетит следующим. Летящий: яркая чёрточка по ходу полёта.
+    // Данные: b.blades[i] { x, y, x1, y1, x2, y2, dx, dy, hw, state, aimed }, b.bladeCount; state 1 ждёт, 2 летит, 3 закончил.
     if (b.bladeCount > 0) {
       const bl = b.blades;
-      ctx.beginPath();
       for (let i = 0; i < b.bladeCount; i++) {
-        if (bl[i].state !== 1 || !bl[i].aimed) continue;
-        ctx.moveTo(bl[i].x1, bl[i].y1);
-        ctx.lineTo(bl[i].x2, bl[i].y2);
+        const q = bl[i];
+        if (q.state !== 1 || !q.aimed) continue;
+        const L = Math.hypot(q.x2 - q.x1, q.y2 - q.y1) || 1;
+        this.drawSoftStrip({ length: L, width: q.hw * 2, dirX: (q.x2 - q.x1) / L, dirY: (q.y2 - q.y1) / L }, q.x1, q.y1, 0.7, true);
       }
-      ctx.lineWidth = bl[0].hw * 2;
-      ctx.strokeStyle = C.teleProgress;
-      ctx.stroke();
-      ctx.beginPath();
       for (let i = 0; i < b.bladeCount; i++) {
-        if (bl[i].state === 3) continue;
-        ctx.moveTo(bl[i].x - bl[i].dx * 26, bl[i].y - bl[i].dy * 26);
-        ctx.lineTo(bl[i].x, bl[i].y);
+        const q = bl[i];
+        if (q.state === 3) continue;
+        const flying = q.state === 2;
+        const bob = flying ? 0 : Math.sin(t * 3 + i) * 2;
+        ctx.save();
+        ctx.translate(q.x - q.dy * bob, q.y + q.dx * bob);
+        ctx.rotate(Math.atan2(q.dy, q.dx));
+        if (flying) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = 'rgba(190,230,255,0.55)';
+          ctx.beginPath();
+          tracePoly(ctx, [0, -2.4, -46, -0.6, -46, 0.6, 0, 2.4], 1);
+          ctx.fill();
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(glow, -16, -16, 32, 32);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+        }
+        ctx.beginPath();
+        tracePoly(ctx, [-14, 0, -4, -4.5, 18, 0, -4, 4.5], 1);
+        ctx.fillStyle = C.tartasBlade;
+        ctx.fill();
+        ctx.beginPath();
+        tracePoly(ctx, [-14, 0, -4, -4.5, 18, 0], 1);
+        ctx.fillStyle = C.tartasIceLight;
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = flying ? 0.5 : 0.28;
+        ctx.drawImage(glow, -14, -14, 28, 28);
+        ctx.restore();
       }
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = C.fissureCore;
-      ctx.stroke();
     }
 
-    // Линия рывка: узкий прямоугольник от босса через героя и дальше.
+    // Линия рывка: холодная размытая полоса от босса через героя и дальше; к рывку наливается светом.
     const tl = b.tele;
     if (tl) {
-      ctx.save();
-      ctx.translate(tl.x1, tl.y1);
-      ctx.rotate(Math.atan2(tl.y2 - tl.y1, tl.x2 - tl.x1));
-      ctx.fillStyle = C.teleProgress;
-      ctx.fillRect(0, -tl.hw, Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1), tl.hw * 2);
-      ctx.restore();
+      const L = Math.hypot(tl.x2 - tl.x1, tl.y2 - tl.y1) || 1;
+      this.drawSoftStrip({ length: L, width: tl.hw * 2, dirX: (tl.x2 - tl.x1) / L, dirY: (tl.y2 - tl.y1) / L }, tl.x1, tl.y1, Math.min(1, tl.t / Math.max(0.01, tl.total)), true);
     }
 
-    // Область взрыва (треугольник): телеграф заполняется к центру, потом одноцветная вспышка.
+    // Область взрыва: телеграф со светлой каймой, заполняется к центру, потом вспышка с холодным сиянием.
     const bl = b.blast;
     if (bl) {
       if (bl.phase === 'tele') {
         const k = Math.min(1, bl.t / Math.max(0.01, bl.total));
-        this.polyPath(bl.poly, bl.x, bl.y, 1);
-        ctx.fillStyle = C.teleFill;
-        ctx.fill();
-        this.polyPath(bl.poly, bl.x, bl.y, k);
-        ctx.fillStyle = C.teleProgress;
-        ctx.fill();
-      } else {
         ctx.save();
-        ctx.globalAlpha = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total)) * 0.75;
+        this.polyPath(bl.poly, bl.x, bl.y, 1);
+        ctx.fillStyle = 'rgba(120,185,250,0.13)';
+        ctx.fill();
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = 'rgba(150,205,255,0.12)';
+        ctx.stroke();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = 'rgba(214,238,255,' + (0.45 + 0.3 * Math.sin(t * 10) * k) + ')';
+        ctx.stroke();
+        this.polyPath(bl.poly, bl.x, bl.y, k);
+        ctx.fillStyle = 'rgba(160,215,255,0.26)';
+        ctx.fill();
+        ctx.restore();
+      } else {
+        const f = 1 - Math.min(1, bl.t / Math.max(0.01, bl.total));
+        ctx.save();
+        ctx.globalAlpha = 0.25 + 0.7 * f;
         this.polyPath(bl.poly, bl.x, bl.y, 1);
         ctx.fillStyle = C.blastFill;
         ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.6 * f;
+        ctx.lineWidth = 12;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#9fd8ff';
+        ctx.stroke();
         ctx.restore();
       }
     }
+  }
+
+  /** Освещение в системе героя: вектор на источник света (сверху-слева), повёрнутый в местные оси фигуры (поворот a). */
+  localLight(a) {
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    this.llx = LIGHT_X * c + LIGHT_Y * s;
+    this.lly = -LIGHT_X * s + LIGHT_Y * c;
+  }
+
+  /** Огранённая деталь: основной цвет и тонкий светлый серп со стороны света (по местным осям, см. localLight). */
+  bevel(pts, base, lite, d) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    tracePoly(ctx, pts, 1);
+    ctx.fillStyle = lite;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.translate(-this.llx * d, -this.lly * d);
+    ctx.beginPath();
+    tracePoly(ctx, pts, 1);
+    ctx.fillStyle = base;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Тартас, замёрзший рыцарь: вид сверху. Широкие плечи в наледи, шлем с холодным взглядом, ледяные шипы на спине,
+   * плащ-лохмотья и ледяной меч, который по ходу атак меняет позу: замах назад на телеграфе рывка, выпад на рывке,
+   * меч над головой на клинках, острие в землю при призыве отряда. Состояние читаем из this.boss (он же рисует землю).
+   */
+  drawTartas(e, x, y, hit) {
+    const ctx = this.ctx;
+    const C = this.cfg.render.colors;
+    const t = this.clock;
+    const dt = this.dt;
+    const b = this.boss && this.boss.enemy === e ? this.boss : null;
+    const bs = b ? b.state : 'idle';
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU, wa: 0.5, step: 0, sx: x, sy: y, dashT: 9, ex: x, ey: y, t: t };
+      this.beetleState.set(e, st);
+    }
+    if (t - st.t > 0.5) { st.sx = x; st.sy = y; st.dashT = 9; }
+    st.t = t;
+    const moving = e.hx !== 0 || e.hy !== 0;
+    const dashing = bs === 'dash';
+    if (dashing) {
+      if (st.dashT > 0.5) { st.sx = x; st.sy = y; }
+      st.dashT = 0;
+    } else st.dashT += dt;
+    const aiming = (bs === 'tele' || dashing) && b && b.line;
+    const target = aiming ? Math.atan2(b.line.dy, b.line.dx) : moving ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    st.a += da * (dashing ? 0.9 : aiming ? 0.35 : 0.12);
+    if (moving && !dashing) st.step += dt * 5;
+
+    // Поза меча (угол от курса, по часовой) и накал глаз по состоянию босса.
+    const raised = bs === 'bladeIn' || bs === 'bladeWave' || bs === 'bladeGap';
+    let wa = 0.5 + 0.1 * Math.sin(st.step * 2);
+    let heat = 0.35;
+    let shake = 0;
+    if (bs === 'tele') { wa = 2.7; heat = 0.8; shake = 0.05; }
+    else if (dashing) { wa = 0; heat = 1; }
+    else if (bs === 'gap') wa = 1.3;
+    else if (bs === 'blastTele') { wa = 1.7; heat = 1; shake = 0.04; }
+    else if (bs === 'blast') { wa = 0.2; heat = 1; }
+    else if (bs === 'recover') { wa = 2.0; heat = 0.15; }
+    else if (bs === 'squadCast') { wa = 0; heat = 0.9; }
+    else if (raised) heat = 0.9;
+    st.wa += (wa - st.wa) * (dashing ? 0.7 : 0.18);
+    const frozen = e.freezeT > 0;
+    const S = e.radius / 30 * 1.45;
+    const slump = bs === 'recover' ? 0.96 : 1;
+    const a = st.a;
+    this.localLight(a);
+    const sh = shake * e.radius;
+
+    // След рывка: холодная полоса от начала рывка до босса, быстро тает.
+    if (st.dashT < 0.4) {
+      const k = 1 - st.dashT / 0.4;
+      const dx = x - st.sx;
+      const dy = y - st.sy;
+      const L = Math.hypot(dx, dy);
+      if (L > 6) {
+        this.drawSoftStrip({ length: L, width: e.radius * 1.5, dirX: dx / L, dirY: dy / L }, st.sx, st.sy, 1, true, 0.9 * k);
+      }
+    }
+
+    // Морозная дымка у ног.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.2 + 0.07 * Math.sin(t * 1.7 + st.ph) + 0.1 * heat;
+    const mist = this.getGlow('blue');
+    ctx.drawImage(mist, x - e.radius * 2.6, y - e.radius * 2.2, e.radius * 5.2, e.radius * 4.4);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(x + Math.sin(t * 61) * sh, y + Math.cos(t * 53) * sh);
+    ctx.rotate(a);
+    ctx.scale(S * slump, S * slump);
+    const sway = Math.sin(t * 2.1 + st.ph);
+    const stride = Math.sin(st.step * 2) * 4;
+    const dark = frozen ? '#3d5578' : '#1c2540';
+
+    // Плащ-лохмотья за спиной.
+    ctx.beginPath();
+    tracePoly(ctx, [-2, -22, -14, -25, -30, -21 + sway * 2, -43, -16, -38, -9 + sway * 2, -50, -4 + sway * 3, -41, 3, -52, 9 + sway * 3, -39, 14, -45, 20 + sway * 2, -27, 23, -12, 25, -2, 22], 1);
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [-6, -18, -28, -14, -36, -8, -30, -2, -38, 4, -28, 10, -34, 16, -14, 20], 1);
+    ctx.fillStyle = 'rgba(8,12,26,0.55)';
+    ctx.fill();
+    ctx.fillStyle = C.tartasIce;
+    for (const [px, py, q] of [[-43, -16, 5], [-50, -4, 6], [-52, 9, 6], [-45, 20, 5], [-38, -9, 4], [-39, 14, 4]]) {
+      ctx.beginPath();
+      ctx.moveTo(px, py - q * 0.5);
+      ctx.lineTo(px - q * 1.5, py);
+      ctx.lineTo(px, py + q * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Ледяные шипы, выросшие из спины: по ним гуляет голубой свет.
+    for (const [px, py, L, w] of [[-8, -11, 17, 4], [-12, -3, 22, 5], [-9, 5, 19, 4.5], [-12, 12, 16, 4], [-5, 0, 13, 3.5]]) {
+      const d = py < 0 ? -0.35 : py > 0 ? 0.35 : 0;
+      ctx.beginPath();
+      tracePoly(ctx, [px, py - w, px - L, py + d * L, px, py + w], 1);
+      ctx.fillStyle = C.tartasIce;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [px, py - w, px - L, py + d * L, px - L * 0.45, py - w * 0.2], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+    }
+
+    // Сапоги спереди, шагают по очереди.
+    for (const sg of [-1, 1]) {
+      const bx = 16 + stride * sg;
+      this.bevel([bx - 7, sg * 8 - 5, bx + 6, sg * 8 - 4, bx + 8, sg * 8 + 4, bx - 7, sg * 8 + 5], '#18203a', '#3b4a73', 1.4);
+    }
+
+    // Торс и наплечники.
+    this.bevel([-15, -14, 6, -17, 14, -9, 14, 9, 6, 17, -15, 14, -19, 0], C.tartasPlate, C.tartasPlateLit, 2.4);
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(12, 0);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = 'rgba(8,12,26,0.6)';
+    ctx.stroke();
+    for (const sg of [-1, 1]) {
+      this.bevel([-9, sg * 16, 4, sg * 24, 15, sg * 23, 19, sg * 14, 10, sg * 9, -5, sg * 10], '#3a4768', C.tartasPlateLit, 2.6);
+      ctx.beginPath();
+      tracePoly(ctx, [-3, sg * 20, 5, sg * 27, 10, sg * 21], 1);
+      ctx.fillStyle = C.tartasIce;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [-3, sg * 20, 5, sg * 27, 3.5, sg * 21], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [9, sg * 21, 16, sg * 18, 14, sg * 24], 1);
+      ctx.fillStyle = '#d8e8fa';
+      ctx.fill();
+    }
+
+    // Голова: шлем с рогами, щель взгляда светится.
+    ctx.beginPath();
+    tracePoly(ctx, [2, -9, 10, -6, 12, 0, 10, 6, 2, 9, -4, 5, -4, -5], 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.translate(1, 1.5);
+    ctx.fill();
+    ctx.translate(-1, -1.5);
+    this.bevel([2, -9, 10, -6, 12, 0, 10, 6, 2, 9, -4, 5, -4, -5], '#222c48', '#566b9a', 2);
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      tracePoly(ctx, [3, sg * 8, 0, sg * 17, 9, sg * 11], 1);
+      ctx.fillStyle = '#c9def5';
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [3, sg * 8, 0, sg * 17, 4, sg * 12], 1);
+      ctx.fillStyle = '#eef6ff';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    tracePoly(ctx, [8.5, -4.5, 12.5, -3, 12.5, 3, 8.5, 4.5], 1);
+    ctx.fillStyle = '#080c1a';
+    ctx.fill();
+
+    // Руки и ледяной меч в правой руке.
+    ctx.beginPath();
+    ctx.arc(14, -22, 4.6, 0, TAU);
+    ctx.fillStyle = '#2b3656';
+    ctx.fill();
+    if (raised) {
+      // Меч над головой, виден сверху укороченным: вращается и копит свет.
+      ctx.save();
+      ctx.translate(2, 22);
+      ctx.rotate(t * 1.6);
+      this.drawIceSword(14, 5, 1, t, true);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.translate(14, 22);
+      ctx.rotate(st.wa);
+      this.drawIceSword(bs === 'squadCast' ? 44 : 50, 8, hit ? 0 : 1, t, false);
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.arc(14, 22, 5.4, 0, TAU);
+    ctx.fillStyle = '#34405f';
+    ctx.fill();
+
+    // Попадание: плиты белеют.
+    if (hit) {
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      tracePoly(ctx, [-15, -14, 6, -17, 14, -9, 14, 9, 6, 17, -15, 14, -19, 0], 1);
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [2, -9, 10, -6, 12, 0, 10, 6, 2, 9, -4, 5, -4, -5], 1);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Взгляд: два холодных огонька в щели шлема. Накаляются в атаках.
+    ctx.globalCompositeOperation = 'lighter';
+    const eye = this.getGlow('blue');
+    const ea = (0.5 + 0.5 * heat) * (frozen ? 0.4 : 1) * (0.85 + 0.15 * Math.sin(t * 7 + st.ph));
+    ctx.globalAlpha = ea;
+    for (const sg of [-1, 1]) ctx.drawImage(eye, 11.2 - 7, sg * 2.6 - 7, 14, 14);
+    ctx.globalAlpha = Math.min(1, ea * 1.2);
+    ctx.fillStyle = '#e8f8ff';
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(12, sg * 2.6, 1.3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // Руны вокруг босса на клинках и при призыве.
+    if (raised || bs === 'squadCast') {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = C.tartasEye;
+      ctx.lineWidth = 1.6;
+      ctx.globalAlpha = 0.5 + 0.2 * Math.sin(t * 6);
+      ctx.setLineDash([6, 8]);
+      ctx.lineDashOffset = -t * 18;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.radius * 1.9, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Ледяной меч: клинок вдоль +x от руки, длина len, ширина w. Местные оси, рука в начале координат. */
+  drawIceSword(len, w, vis, t, flat) {
+    const ctx = this.ctx;
+    const C = this.cfg.render.colors;
+    ctx.beginPath();
+    tracePoly(ctx, [-9, -2, -1, -2, -1, 2, -9, 2], 1);
+    ctx.fillStyle = '#2a2230';
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [0, -w * 0.9, 3, -w * 0.9, 3, w * 0.9, 0, w * 0.9], 1);
+    ctx.fillStyle = '#6a7894';
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [3, -w * 0.5, len - 10, -w * 0.5, len, 0, len - 10, w * 0.5, 3, w * 0.5], 1);
+    ctx.fillStyle = C.tartasBlade;
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [3, -w * 0.5, len - 10, -w * 0.5, len, 0, 3, 0], 1);
+    ctx.fillStyle = C.tartasIceLight;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(6, 0);
+    ctx.lineTo(len - 8, 0);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(70,120,190,0.7)';
+    ctx.stroke();
+    // Наледь: кристаллы вдоль клинка.
+    ctx.fillStyle = '#e4f2ff';
+    for (let i = 0; i < 3; i++) {
+      const px = len * (0.28 + i * 0.22);
+      ctx.beginPath();
+      tracePoly(ctx, [px, -w * 0.5, px + 3, -w * 0.5 - 4.5 - i, px + 5, -w * 0.5], 1);
+      ctx.fill();
+    }
+    // Свет по лезвию.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (flat ? 0.8 : 0.45) * vis + 0.12 * Math.sin(t * 5);
+    ctx.drawImage(this.getGlow('blue'), len * 0.1, -w * 1.8, len * 0.95, w * 3.6);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Замёрзший боец отряда Тартаса: маленький рыцарь в наледи с холодным взглядом.
+   * kind: 'soldier' (меч), 'archer' (лук: при прицеливании тетива натянута, наконечник светится), 'ram' (таран-голова, рывок).
+   */
+  drawFrozenTroop(e, x, y, hit, kind) {
+    const ctx = this.ctx;
+    const C = this.cfg.render.colors;
+    const t = this.clock;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU, step: 0 };
+      this.beetleState.set(e, st);
+    }
+    const A = e.atk;
+    const moving = e.hx !== 0 || e.hy !== 0;
+    const frozen = e.freezeT > 0;
+    const heroA = Math.atan2(this.hero.y - y, this.hero.x - x);
+    const target = A.state !== 'idle' && kind === 'ram' ? Math.atan2(A.dirY, A.dirX) : e.aim > 0 || kind === 'archer' ? heroA : moving ? Math.atan2(e.hy, e.hx) : heroA;
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    if (!frozen) st.a += da * (A.state === 'strike' ? 0.8 : 0.22);
+    if (moving && !frozen) st.step += this.dt * 7;
+    const s = e.radius / 12;
+    const windup = A.state === 'windup' && e.def.attack ? Math.min(1, A.t / Math.max(0.01, e.def.attack.windup)) : 0;
+    const striking = A.state === 'strike';
+    const aim = e.aim > 0 ? 1 - e.aim / Math.max(0.01, e.aimTotal) : 0;
+    this.localLight(st.a);
+    ctx.save();
+    ctx.translate(x + (windup > 0 ? Math.sin(t * 60) * windup * 0.6 : 0), y);
+    ctx.rotate(st.a);
+    ctx.scale(s, s);
+    const stride = Math.sin(st.step) * 2.4;
+    for (const sg of [-1, 1]) this.bevel([4 + stride * sg, sg * 4 - 2.5, 10 + stride * sg, sg * 4 - 2, 10 + stride * sg, sg * 4 + 2, 4 + stride * sg, sg * 4 + 2.5], '#18203a', '#3b4a73', 0.8);
+    const wide = kind === 'ram' ? 1.2 : 1;
+    this.bevel([-6, -9 * wide, 3, -10 * wide, 8, -5, 8, 5, 3, 10 * wide, -6, 9 * wide, -9, 0], frozen ? '#4a6486' : C.tartasPlate, C.tartasPlateLit, 1.5);
+    ctx.beginPath();
+    tracePoly(ctx, [-2, -9 * wide, 3, -13 * wide, 5, -8 * wide], 1);
+    ctx.fillStyle = C.tartasIce;
+    ctx.fill();
+    ctx.beginPath();
+    tracePoly(ctx, [-2, 9 * wide, 3, 13 * wide, 5, 8 * wide], 1);
+    ctx.fillStyle = C.tartasIce;
+    ctx.fill();
+    this.bevel([2, -4.5, 6.5, -2.5, 7.5, 0, 6.5, 2.5, 2, 4.5, -1, 2, -1, -2], '#222c48', '#566b9a', 1);
+    if (kind === 'soldier') {
+      const sw = (striking ? 0 : 0.6) + windup * 1.4 + 0.15 * Math.sin(st.step);
+      ctx.save();
+      ctx.translate(5, 9);
+      ctx.rotate(sw);
+      ctx.beginPath();
+      tracePoly(ctx, [0, -1.4, 13, -1.4, 16, 0, 13, 1.4, 0, 1.4], 1);
+      ctx.fillStyle = C.tartasBlade;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [0, -1.4, 13, -1.4, 16, 0, 0, 0], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+      ctx.restore();
+    } else if (kind === 'archer') {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#8aa6cf';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(9, 0, 10, -1.1, 1.1);
+      ctx.stroke();
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = '#dcecff';
+      const pull = aim * 5;
+      ctx.beginPath();
+      ctx.moveTo(9 + 10 * Math.cos(-1.1), 10 * Math.sin(-1.1));
+      ctx.lineTo(9 + 10 * Math.cos(-1.1) - 1 - pull, 0);
+      ctx.lineTo(9 + 10 * Math.cos(1.1), 10 * Math.sin(1.1));
+      ctx.stroke();
+      if (aim > 0) {
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#e8f6ff';
+        ctx.beginPath();
+        ctx.moveTo(5 - pull, 0);
+        ctx.lineTo(18, 0);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.4 + 0.5 * aim;
+        ctx.drawImage(this.getGlow('blue'), 12, -7, 14, 14);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+      ctx.lineCap = 'butt';
+    } else {
+      ctx.beginPath();
+      tracePoly(ctx, [7, -6, 17, -3, 20, 0, 17, 3, 7, 6], 1);
+      ctx.fillStyle = '#9fbde4';
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [7, -6, 17, -3, 20, 0, 7, 0], 1);
+      ctx.fillStyle = C.tartasIceLight;
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [12, -6, 14, -11, 16, -4], 1);
+      ctx.fillStyle = '#e4f2ff';
+      ctx.fill();
+      ctx.beginPath();
+      tracePoly(ctx, [12, 6, 14, 11, 16, 4], 1);
+      ctx.fill();
+    }
+    if (hit) {
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      tracePoly(ctx, [-6, -9 * wide, 3, -10 * wide, 8, -5, 8, 5, 3, 10 * wide, -6, 9 * wide, -9, 0], 1);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    const heat = striking || windup > 0 ? 1 : 0.7;
+    ctx.globalAlpha = (frozen ? 0.35 : heat) * (0.8 + 0.2 * Math.sin(t * 8 + st.ph));
+    for (const sg of [-1, 1]) ctx.drawImage(this.getGlow('blue'), 5.6, sg * 1.6 - 3.5, 7, 7);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   drawEnemy(e, x, y, C) {
@@ -936,6 +1461,15 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.bull) {
       // Бык: жук-носорог с красным акцентом, размытием в рывке и пылью при торможении.
       this.drawBull(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.tartas) {
+      // Тартас: замёрзший рыцарь с ледяным мечом.
+      this.drawTartas(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.frozenSoldier) {
+      this.drawFrozenTroop(e, x, y, hit, 'soldier');
+    } else if (e.def === this.cfg.enemies.frozenArcher) {
+      this.drawFrozenTroop(e, x, y, hit, 'archer');
+    } else if (e.def === this.cfg.enemies.frozenRam) {
+      this.drawFrozenTroop(e, x, y, hit, 'ram');
     } else {
       // Попадание: враг белеет и на мгновение раздувается.
       const rr = hit ? r * 1.15 : e.atk.state === 'windup' ? r * (1 + 0.08 * Math.sin(e.atk.t * 30)) : r;
@@ -1557,8 +2091,8 @@ export class Renderer {
   }
 
   /** Мягкая красная полоса телеграфа: вдоль и поперёк плавно тает в ноль, чётких краёв нет. Считается один раз. */
-  getStrip() {
-    if (this.strip) return this.strip;
+  getStrip(ice) {
+    if (ice ? this.stripIce : this.strip) return ice ? this.stripIce : this.strip;
     const W = 256;
     const H = 64;
     let c;
@@ -1582,21 +2116,22 @@ export class Renderer {
         const u = x / (W - 1);
         const a = sm(u / 0.14) * sm((1 - u) / 0.2) * fy; // вдоль: нарастание в начале и затухание в конце
         const i = (y * W + x) * 4;
-        img.data[i] = 255;
-        img.data[i + 1] = 70;
-        img.data[i + 2] = 58;
+        img.data[i] = ice ? 150 : 255;
+        img.data[i + 1] = ice ? 205 : 70;
+        img.data[i + 2] = ice ? 255 : 58;
         img.data[i + 3] = Math.round(a * 255);
       }
     }
     g.putImageData(img, 0, 0);
-    this.strip = c;
+    if (ice) this.stripIce = c;
+    else this.strip = c;
     return c;
   }
 
   /** Телеграф рывка: размытая красная полоса; за время замаха она наливается от жука вперёд, в конце пульсирует. */
-  drawSoftStrip(tg, x, y, k) {
+  drawSoftStrip(tg, x, y, k, ice, mul) {
     const ctx = this.ctx;
-    const strip = this.getStrip();
+    const strip = this.getStrip(ice);
     const L = tg.length;
     const w = tg.width;
     const h = w * 2.2; // по краям спрайт тает, поэтому он шире зоны
@@ -1604,9 +2139,10 @@ export class Renderer {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.atan2(tg.dirY, tg.dirX));
-    ctx.globalAlpha = (0.16 + 0.08 * k) * pulse;
+    const m = mul === undefined ? 1 : mul;
+    ctx.globalAlpha = (0.16 + 0.08 * k) * pulse * m;
     ctx.drawImage(strip, -0.05 * L, -h / 2, L * 1.1, h);
-    ctx.globalAlpha = (0.22 + 0.3 * k) * pulse;
+    ctx.globalAlpha = (0.22 + 0.3 * k) * pulse * m;
     ctx.drawImage(strip, -0.05 * L, -h / 2, Math.max(2, L * 1.1 * k), h);
     ctx.restore();
     ctx.globalAlpha = 1;
