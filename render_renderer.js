@@ -501,6 +501,7 @@ export class Renderer {
     this.enemyShots = deps.enemyShots || EMPTY;
     this.midges = deps.midges || EMPTY;
     this.apostles = deps.apostles || null;
+    this.getPortal = deps.getPortal || null; // () => портал финального босса или null
     this.effects = deps.effects || EMPTY;
     this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
@@ -622,12 +623,17 @@ export class Renderer {
       ctx.fillStyle = C.void;
       ctx.beginPath();
       ctx.rect(arena.left - 8, arena.top - 8, arena.width + 16, arena.height + 16);
-      ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      if (z.poly) { // ломаный остров: плоская верхняя сторона, три другие рваные
+        ctx.moveTo(z.poly[0].x, z.poly[0].y);
+        for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
+        ctx.closePath();
+      } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
       ctx.fill('evenodd');
       ctx.globalAlpha = 1;
       ctx.lineWidth = 3;
       ctx.strokeStyle = C.snowLight;
-      ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      if (z.poly) ctx.stroke();
+      else ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
       ctx.restore();
     }
 
@@ -655,6 +661,7 @@ export class Renderer {
     this.drawTelegraphs(C, alpha);
     this.drawBossGround(C);
     this.drawApostles(C);
+    this.drawPortal();
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -729,6 +736,7 @@ export class Renderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawStick(C);
     this.drawHud(C);
+    this.drawPortalArrow();
   }
 
   /** Камни опыта: маленькие ромбики; красный крупнее. Вне экрана не рисуем. */
@@ -820,6 +828,73 @@ export class Renderer {
    * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
    * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
+  /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
+  drawPortal() {
+    const p = this.getPortal ? this.getPortal() : null;
+    if (!p || p.alpha <= 0) return;
+    const ctx = this.ctx;
+    const t = this.clock;
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.strokeStyle = '#c7a8ff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * (1 + 0.06 * Math.sin(t * 4)), 0, TAU);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 30;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 0.7, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = p.alpha * 0.35;
+    ctx.fillStyle = '#7a4fd6';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 0.55, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** ЗАГЛУШКА ГРАФИКИ: стрелка на краю экрана в сторону портала, пока самого портала не видно. */
+  drawPortalArrow() {
+    const p = this.getPortal ? this.getPortal() : null;
+    if (!p || p.state !== 'open' || p.alpha <= 0) return;
+    const cam = this.camera;
+    const w = this.w;
+    const h = this.h;
+    const ins = this.hud && this.hud.insets ? this.hud.insets : { top: 0, bottom: 0, left: 0, right: 0 };
+    const sx = w / 2 + (p.x - cam.x) * cam.scale;
+    const sy = h / 2 + (p.y - cam.y) * cam.scale;
+    const pad = 36;
+    const pr = p.r * cam.scale;
+    if (sx > -pr && sx < w + pr && sy > -pr && sy < h + pr) return; // портал в кадре
+    const dx = sx - w / 2;
+    const dy = sy - h / 2;
+    const k = Math.min((w / 2 - pad) / Math.max(1e-6, Math.abs(dx)), (h / 2 - pad - Math.max(ins.top || 0, ins.bottom || 0)) / Math.max(1e-6, Math.abs(dy)));
+    const ax = w / 2 + dx * k;
+    const ay = h / 2 + dy * k;
+    const ang = Math.atan2(dy, dx);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = p.alpha * (0.75 + 0.25 * Math.sin(this.clock * 6));
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#c7a8ff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-10, -13);
+    ctx.lineTo(-4, 0);
+    ctx.lineTo(-10, 13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /**
    * ЗАГЛУШКА ГРАФИКИ: призыв апостолов, замах умений, золотые клинки, притяжение Силы. Круги, линии и кольца без деталей.
    * Данные из systems_apostles.js: state, t, corners, cast { e, kind, t }, pull { e }, blades, bladeCount, boost().
@@ -1624,8 +1699,32 @@ export class Renderer {
       else if (st === 'windup') fill = '#f6d9a4';
       else if (st === 'stun') fill = '#8fa8c8';
       ctx.fillStyle = hit ? '#ffffff' : fill;
+      if (e.def.sunHead) { // ЗАГЛУШКА ГРАФИКИ: Апофеоз из двух частей, голова-солнце сверху и туловище снизу
+        const R = rr;
+        ctx.beginPath(); // туловище
+        ctx.ellipse(x, y + R * 0.35, R * 0.9, R * 0.75, 0, 0, TAU);
+        ctx.fill();
+        const hy = y - R * 0.85;
+        const hr = R * 0.5;
+        ctx.fillStyle = hit ? '#ffffff' : '#ffd24a';
+        ctx.beginPath(); // лучи солнца: зубчатый круг
+        for (let i = 0; i < 24; i++) {
+          const a = (i / 24) * TAU + this.clock * 0.3;
+          const rad = i % 2 ? hr * 1.25 : hr * 1.75;
+          if (i === 0) ctx.moveTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
+          else ctx.lineTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = hit ? '#ffffff' : '#fff0b0';
+        ctx.beginPath();
+        ctx.arc(x, hy, hr, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = hit ? '#ffffff' : fill;
+      }
       ctx.beginPath();
-      if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
+      if (e.def.sunHead) ctx.arc(x, y, 0.01, 0, TAU); // тело уже нарисовано
+      else if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
       else ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
       if (e.def.slam && st === 'windup') { // ЗАГЛУШКА ГРАФИКИ: кольцо замаха растёт к моменту удара
