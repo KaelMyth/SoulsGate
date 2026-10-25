@@ -501,6 +501,7 @@ export class Renderer {
     this.enemyShots = deps.enemyShots || EMPTY;
     this.midges = deps.midges || EMPTY;
     this.apostles = deps.apostles || null;
+    this.apotheosis = deps.apotheosis || null;
     this.getPortal = deps.getPortal || null; // () => портал финального босса или null
     this.effects = deps.effects || EMPTY;
     this.gems = deps.gems || EMPTY;
@@ -662,6 +663,7 @@ export class Renderer {
     this.drawBossGround(C);
     this.drawApostles(C);
     this.drawPortal();
+    this.drawHands();
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -826,6 +828,63 @@ export class Renderer {
    * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
    * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Руки». По бокам острова чёрные худые руки (тонкая линия и квадратная ладонь), на очереди
+   * полоса с красным телеграфом, упавшая полоса закрашена чёрным и тает. Всё внутри острова обрезано по его кромке.
+   */
+  drawHands() {
+    const a = this.apotheosis;
+    const z = this.arena.zone;
+    if (!a || !z || !a.hands.length) return;
+    const ctx = this.ctx;
+    const H = a.H;
+    if (!H) return;
+    const e = a.emerge;
+    // Руки по бокам: вылезают наружу из пустоты, тянутся к своей полосе.
+    ctx.save();
+    ctx.strokeStyle = '#07070b';
+    ctx.fillStyle = '#07070b';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < a.hands.length; i++) {
+      const b = a.hands[i];
+      if (b.state === 4) continue;
+      const cy = (b.y0 + b.y1) / 2;
+      const edge = b.side < 0 ? z.left : z.right;
+      const reach = b.state === 2 ? 1 : b.state === 1 ? 0.85 : 0.55;
+      const palmX = edge + b.side * (230 - 200 * e * reach);
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(edge + b.side * 420, cy + 120);
+      ctx.lineTo(edge + b.side * 320, cy + 40 * (1 - e));
+      ctx.lineTo(palmX, cy);
+      ctx.stroke();
+      ctx.fillRect(palmX - 22 * b.side - 22, cy - 34, 44, 68);
+    }
+    ctx.restore();
+    // Полосы: клип по острову.
+    ctx.save();
+    ctx.beginPath();
+    if (z.poly) {
+      ctx.moveTo(z.poly[0].x, z.poly[0].y);
+      for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
+      ctx.closePath();
+    } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    ctx.clip();
+    for (let i = 0; i < a.hands.length; i++) {
+      const b = a.hands[i];
+      if (b.state === 1) {
+        const k = Math.min(1, b.t / Math.max(0.01, H.telegraph));
+        ctx.fillStyle = 'rgba(190,30,40,' + (0.2 + 0.3 * k).toFixed(3) + ')';
+        ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
+      } else if (b.state === 2 || b.state === 3) {
+        const k = Math.min(1, b.t / Math.max(0.01, H.slamHold));
+        ctx.fillStyle = 'rgba(5,5,9,' + (0.9 * (1 - 0.7 * k)).toFixed(3) + ')';
+        ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
+      }
+    }
+    ctx.restore();
+  }
+
   /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
   drawPortal() {
     const p = this.getPortal ? this.getPortal() : null;
@@ -1699,16 +1758,27 @@ export class Renderer {
       ctx.fillStyle = hit ? '#ffffff' : fill;
       if (e.def.sunHead) { // ЗАГЛУШКА ГРАФИКИ: Апофеоз из двух частей, голова-солнце сверху и туловище снизу
         const R = rr;
+        const zn = this.arena.zone;
+        ctx.save();
+        if (zn && zn.poly) { // нижнюю часть скрывает поле: босс «вылезает из пустоты». Рисуем только вне острова.
+          ctx.beginPath();
+          ctx.rect(this.arena.left - 400, this.arena.top - 400, this.arena.width + 800, this.arena.height + 800);
+          ctx.moveTo(zn.poly[0].x, zn.poly[0].y);
+          for (let i = 1; i < zn.poly.length; i++) ctx.lineTo(zn.poly[i].x, zn.poly[i].y);
+          ctx.closePath();
+          ctx.clip('evenodd');
+        }
         ctx.beginPath(); // туловище
         ctx.ellipse(x, y + R * 0.35, R * 0.9, R * 0.75, 0, 0, TAU);
         ctx.fill();
         const hy = y - R * 0.85;
         const hr = R * 0.5;
+        const rays = e.def.head ? e.def.head.rays : 10;
         ctx.fillStyle = hit ? '#ffffff' : '#ffd24a';
-        ctx.beginPath(); // лучи солнца: зубчатый круг
-        for (let i = 0; i < 24; i++) {
-          const a = (i / 24) * TAU + this.clock * 0.3;
-          const rad = i % 2 ? hr * 1.25 : hr * 1.75;
+        ctx.beginPath(); // лучи солнца: rays остриёв, голова сама не вращается (поворот только по умениям, e.headAngle)
+        for (let i = 0; i < rays * 2; i++) {
+          const a = -Math.PI / 2 + e.headAngle + (i / (rays * 2)) * TAU;
+          const rad = i % 2 ? hr * 1.15 : hr * 1.9;
           if (i === 0) ctx.moveTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
           else ctx.lineTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
         }
@@ -1718,6 +1788,7 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(x, hy, hr, 0, TAU);
         ctx.fill();
+        ctx.restore();
         ctx.fillStyle = hit ? '#ffffff' : fill;
       }
       ctx.beginPath();
