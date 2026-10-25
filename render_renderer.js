@@ -545,7 +545,8 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
-    this.beetleState = new WeakMap(); // у каждого жука свой угол поворота и фаза анимации (только для вида)
+    this.beetleState = new WeakMap();
+    this.fxSeed = new WeakMap(); // зерно врага для внешнего вида его состояний (лёд, огонь) // у каждого жука свой угол поворота и фаза анимации (только для вида)
   }
 
   /** Подогнать размер холста под экран и плотность пикселей. Зовётся при изменении размера. */
@@ -1639,43 +1640,7 @@ export class Renderer {
       ctx.stroke();
     }
 
-    // Мороз: голубая кайма по числу зарядов; заморожен: ледяная заливка и белая кайма.
-    if (e.freezeT > 0) {
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = this.cfg.frost.color;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, TAU);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x, y, r + 1, 0, TAU);
-      ctx.stroke();
-    } else if (e.frostStacks > 0) {
-      ctx.lineWidth = 1 + e.frostStacks * 0.6;
-      ctx.strokeStyle = this.cfg.frost.color;
-      ctx.beginPath();
-      ctx.arc(x, y, r + 1.5, 0, TAU);
-      ctx.stroke();
-    }
-
-    // Горит: тонкое огненное кольцо с мерцанием и язычок над врагом (минималистично).
-    if (e.burnT > 0) {
-      const f = 0.6 + 0.4 * Math.sin(e.burnT * 22);
-      ctx.beginPath();
-      ctx.arc(x, y, r + 2.5, 0, TAU);
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = f;
-      ctx.strokeStyle = this.cfg.burn.color;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x - 3, y - r - 2);
-      ctx.quadraticCurveTo(x, y - r - 6 - 4 * f, x + 3, y - r - 2);
-      ctx.fillStyle = this.cfg.burn.color;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
+    this.drawStatusFx(e, x, y, r);
 
     // Стрелок целится: расширяющееся кольцо, сигнал «сейчас выстрелит, можно парировать».
     if (aiming) {
@@ -1695,6 +1660,165 @@ export class Renderer {
     ctx.fillRect(bx, by, bw, 4);
     ctx.fillStyle = C.hpFill;
     ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, e.hp / e.maxHp)), 4);
+  }
+
+  /**
+   * Состояния на враге. Заряды Мороза: ледяные грани-осколки торчат вокруг, по числу зарядов, и вокруг светится
+   * холодная дымка. Заморожен: враг в огранённой ледяной глыбе с бликами, трещинами и искрами. Горит: языки пламени из
+   * огранённых лепестков поднимаются над ним, снизу тёплый свет, вверх летят угольки.
+   */
+  drawStatusFx(e, x, y, r) {
+    const frozen = e.freezeT > 0;
+    const stacks = e.frostStacks | 0;
+    const burning = e.burnT > 0;
+    if (!frozen && stacks <= 0 && !burning) return;
+    const ctx = this.ctx;
+    const t = this.clock;
+    let sd = this.fxSeed.get(e);
+    if (sd === undefined) {
+      sd = Math.random() * 100;
+      this.fxSeed.set(e, sd);
+    }
+    const rnd = (k) => { const h = Math.sin(sd * 12.9898 + k * 78.233) * 43758.5453; return h - Math.floor(h); };
+    const ice = this.getGlow('blue');
+    const fire = this.getGlow();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineJoin = 'round';
+    if (frozen) {
+      const fade = Math.min(1, e.freezeT / 0.35);
+      const R = r * 1.2;
+      const n = 9;
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU + rnd(i) * 0.3;
+        const rr = R * (0.88 + 0.22 * rnd(i + 20));
+        pts.push(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.6 * fade;
+      ctx.drawImage(ice, -R * 1.9, -R * 1.9, R * 3.8, R * 3.8);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.62 * fade;
+      ctx.beginPath(); tracePoly(ctx, pts, 1);
+      ctx.fillStyle = '#9edcff';
+      ctx.fill();
+      // Грань со стороны света и тёмная грань внизу справа: объём.
+      ctx.save();
+      ctx.clip();
+      ctx.globalAlpha = 0.5 * fade;
+      ctx.fillStyle = '#eaf8ff';
+      ctx.translate(-R * 0.35, -R * 0.45);
+      ctx.beginPath(); tracePoly(ctx, [-R, -R, R * 0.2, -R, -R * 0.2, R * 0.1, -R, R * 0.4], 1);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath(); tracePoly(ctx, pts, 1); ctx.clip();
+      ctx.globalAlpha = 0.28 * fade;
+      ctx.fillStyle = '#2a5f9a';
+      ctx.beginPath(); tracePoly(ctx, [R * 0.15, R * 0.3, R * 1.3, R * 0.1, R * 1.3, R * 1.3, -R * 0.3, R * 1.3], 1);
+      ctx.fill();
+      ctx.restore();
+      // Контур, внутренние трещины.
+      ctx.globalAlpha = 0.95 * fade;
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = '#f2fcff';
+      ctx.beginPath(); tracePoly(ctx, pts, 1); ctx.stroke();
+      ctx.globalAlpha = 0.5 * fade;
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      for (let k = 0; k < 3; k++) {
+        const a = rnd(k + 40) * TAU;
+        ctx.moveTo(Math.cos(a) * R * 0.2, Math.sin(a) * R * 0.2);
+        ctx.lineTo(Math.cos(a + 0.2) * R * 0.55, Math.sin(a + 0.2) * R * 0.55);
+        ctx.lineTo(Math.cos(a - 0.1) * R * 0.9, Math.sin(a - 0.1) * R * 0.9);
+      }
+      ctx.stroke();
+      // Острые осколки по углам глыбы.
+      for (let k = 0; k < 4; k++) {
+        const a = rnd(k + 60) * TAU;
+        const bx = Math.cos(a) * R * 0.92;
+        const by = Math.sin(a) * R * 0.92;
+        const ex = Math.cos(a) * R * 1.3;
+        const ey = Math.sin(a) * R * 1.3;
+        const nx = -Math.sin(a) * 2.2;
+        const ny = Math.cos(a) * 2.2;
+        ctx.globalAlpha = 0.85 * fade;
+        ctx.fillStyle = '#d6f1ff';
+        ctx.beginPath(); tracePoly(ctx, [bx - nx, by - ny, ex, ey, bx + nx, by + ny], 1); ctx.fill();
+      }
+      // Блики: искорки перемигиваются.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffffff';
+      for (let k = 0; k < 3; k++) {
+        const tw = Math.max(0, Math.sin(t * 3 + k * 2.1 + sd));
+        const a = rnd(k + 80) * TAU;
+        const px = Math.cos(a) * R * 0.6;
+        const py = Math.sin(a) * R * 0.6;
+        const sz = 1 + 3 * tw;
+        ctx.globalAlpha = tw * fade;
+        ctx.beginPath(); tracePoly(ctx, [px, py - sz, px + sz * 0.3, py, px, py + sz, px - sz * 0.3, py], 1); ctx.fill();
+        ctx.beginPath(); tracePoly(ctx, [px - sz, py, px, py - sz * 0.3, px + sz, py, px, py + sz * 0.3], 1); ctx.fill();
+      }
+    } else if (stacks > 0) {
+      const k5 = Math.min(1, stacks / this.cfg.frost.maxStacks);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.12 + 0.3 * k5;
+      ctx.drawImage(ice, -r * 1.6, -r * 1.6, r * 3.2, r * 3.2);
+      ctx.globalCompositeOperation = 'source-over';
+      for (let k = 0; k < stacks; k++) {
+        const a = sd + (k / this.cfg.frost.maxStacks) * TAU + rnd(k) * 0.4;
+        const c = Math.cos(a);
+        const sn = Math.sin(a);
+        const len = 7 + 5 * rnd(k + 5) + stacks;
+        const base = r * 0.8;
+        const nx = -sn * 3;
+        const ny = c * 3;
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = '#7fcfff';
+        ctx.beginPath(); tracePoly(ctx, [c * base - nx, sn * base - ny, c * (base + len), sn * (base + len), c * base + nx, sn * base + ny], 1); ctx.fill();
+        ctx.fillStyle = '#e9f9ff';
+        ctx.beginPath(); tracePoly(ctx, [c * base - nx, sn * base - ny, c * (base + len), sn * (base + len), c * base, sn * base], 1); ctx.fill();
+      }
+    }
+    if (burning) {
+      const fade = Math.min(1, e.burnT / 0.35) * Math.min(1, 1.4);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.45 * fade;
+      ctx.drawImage(fire, -r * 1.7, -r * 1.7, r * 3.4, r * 3.4);
+      ctx.globalCompositeOperation = 'source-over';
+      const tongues = 4;
+      for (let k = 0; k < tongues; k++) {
+        const a = -Math.PI * (0.2 + 0.6 * ((k + 0.5) / tongues)) + (rnd(k + 100) - 0.5) * 0.3; // дуга сверху
+        const fl = 0.65 + 0.35 * Math.sin(t * 11 + k * 2.3 + sd) * Math.sin(t * 5.1 + k);
+        const bx = Math.cos(a) * r * 0.7;
+        const by = Math.sin(a) * r * 0.7 + 1;
+        const h = r * (1.0 + 0.6 * rnd(k + 120)) * (0.65 + 0.55 * fl);
+        const w = Math.max(3, r * 0.3);
+        const sway = Math.sin(t * 7 + k * 1.7 + sd) * w * 0.6;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.globalAlpha = 0.85 * fade;
+        ctx.fillStyle = '#ff7a2a';
+        ctx.beginPath(); tracePoly(ctx, [-w, 0, -w * 0.55, -h * 0.5, sway, -h, w * 0.5, -h * 0.55, w, 0], 1); ctx.fill();
+        ctx.globalAlpha = 0.9 * fade;
+        ctx.fillStyle = '#ffc24a';
+        ctx.beginPath(); tracePoly(ctx, [-w * 0.5, 0, -w * 0.25, -h * 0.35, sway * 0.6, -h * 0.68, w * 0.25, -h * 0.38, w * 0.5, 0], 1); ctx.fill();
+        ctx.restore();
+      }
+      // Угольки поднимаются и гаснут.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffb56a';
+      for (let k = 0; k < 4; k++) {
+        const ph = (t * 0.9 + k * 0.25 + rnd(k + 140)) % 1;
+        const a = rnd(k + 150) * TAU;
+        ctx.globalAlpha = (1 - ph) * 0.9 * fade;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * r * 0.6 + Math.sin(t * 3 + k) * 2, -r * 0.5 - ph * r * 1.6, 1.2, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
