@@ -499,6 +499,7 @@ export class Renderer {
     this.enemies = deps.enemies || EMPTY;
     this.heroShots = deps.heroShots || EMPTY;
     this.enemyShots = deps.enemyShots || EMPTY;
+    this.midges = deps.midges || EMPTY;
     this.effects = deps.effects || EMPTY;
     this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
@@ -606,7 +607,7 @@ export class Renderer {
       const rock = arena.rocks[i];
       if (rock.x + rock.r * 1.4 < viewL || rock.x - rock.r * 1.4 > viewR) continue;
       if (rock.y + rock.r * 1.4 < viewT || rock.y - rock.r * 1.4 > viewB) continue;
-      const sp = this.rockSprites[i] || (this.rockSprites[i] = buildRockSprite(rock, i + 1, C));
+      const sp = this.rockSprites[rock.id] || (this.rockSprites[rock.id] = buildRockSprite(rock, rock.id + 1, C)); // id стабильный: скалы исчезают (пробуждение жуков)
       ctx.drawImage(sp.cv, rock.x - sp.half, rock.y - sp.half, sp.half * 2, sp.half * 2);
     }
 
@@ -671,6 +672,7 @@ export class Renderer {
     this.drawShots(this.heroShots.items, alpha, viewL, viewR, viewT, viewB);
     this.drawPellets(ctx, alpha, viewL, viewR, viewT, viewB);
     this.drawEnemyShots(this.enemyShots.items, alpha, viewL, viewR, viewT, viewB, C);
+    this.drawMidges(this.midges.items, alpha, viewL, viewR, viewT, viewB);
 
     // Эффекты-всплески.
     const fx = this.effects.items;
@@ -929,6 +931,15 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
+      if (e.def.slam && st === 'windup') { // ЗАГЛУШКА ГРАФИКИ: кольцо замаха растёт к моменту удара
+        ctx.save();
+        ctx.strokeStyle = '#e8f1ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, r + (e.def.slam.windup > 0 ? e.atk.t / e.def.slam.windup : 1) * r * 2, 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
       ctx.lineWidth = 2;
       ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
       ctx.stroke();
@@ -1402,6 +1413,26 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     ctx.restore();
+  }
+
+  /** ЗАГЛУШКА ГРАФИКИ: мошки Горного жука, маленькие светлые кружки с обводкой, без деталей. */
+  drawMidges(list, alpha, viewL, viewR, viewT, viewB) {
+    if (!list.length) return;
+    const ctx = this.ctx;
+    ctx.fillStyle = '#e8f1ff';
+    ctx.strokeStyle = '#7fb4ff';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (!m.active) continue;
+      const px = m.prevX + (m.x - m.prevX) * alpha;
+      const py = m.prevY + (m.y - m.prevY) * alpha;
+      if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
+      ctx.beginPath();
+      ctx.arc(px, py, m.radius, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
   }
 
   /** Снаряды врагов: липкие светящиеся капли слизи с тянущимся хвостом. Парируемые обведены светлым. */

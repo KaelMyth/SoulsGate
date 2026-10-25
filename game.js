@@ -19,6 +19,7 @@ import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
+import { RockBeetles } from './systems_rockbeetle.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
 import { Boss } from './systems_boss.js';
@@ -98,6 +99,7 @@ export class Game {
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
+    this.rockBeetles = new RockBeetles({ config, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
     this.laserSource = { laser: true, active: true };
@@ -151,6 +153,7 @@ export class Game {
       enemies: this.enemies,
       heroShots: this.heroShots,
       enemyShots: this.enemyShots,
+      midges: this.rockBeetles.midges,
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -279,6 +282,10 @@ export class Game {
       this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
       this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
     });
+    // Горные жуки (ЗАГЛУШКИ вспышек): пыль на месте скалы, кольцо от удара в землю, искра сбитой мошки.
+    this.bus.on('rock:woke', ({ x, y, r }) => { this.burst(x, y, 0.5, r * 0.5, r * 1.8, config.render.colors.snowLight); this.sparks(x, y, 8, config.render.colors.stoneLight); });
+    this.bus.on('rockbeetle:slam', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.35, enemy.radius, enemy.radius * 3, config.render.colors.stoneLight));
+    this.bus.on('midge:died', ({ x, y }) => this.burst(x, y, 0.2, 3, 12, '#cfe0f5'));
     // Краш-тест: герой бессмертен, иначе погибнет раньше, чем что-нибудь успеем измерить.
     this.bus.on('hero:hit-incoming', (inc) => {
       if (this.spawner.crash && config.waves.crash.godMode >= 1) inc.cancelled = true;
@@ -791,9 +798,11 @@ export class Game {
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
+      this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
+      this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
 
       this.xp.update(dt);
       this.collisions.detect();
@@ -827,6 +836,7 @@ export class Game {
     this.enemies.sweep();
     this.heroShots.sweep();
     this.enemyShots.sweep();
+    this.rockBeetles.sweep();
     this.effects.sweep();
     this.gems.sweep();
   }
@@ -1029,6 +1039,7 @@ export class Game {
     this.heroShots.clear();
     this.pellets.clear();
     this.enemyShots.clear();
+    this.rockBeetles.reset(); // мошки исчезают, скалы возвращаются
     this.effects.clear();
     this.steamClouds.length = 0;
     this.fires.length = 0;
