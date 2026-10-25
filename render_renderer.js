@@ -4330,30 +4330,41 @@ export class Renderer {
         const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
         if (x < viewL - 20 || x > viewR + 20 || y < viewT - 20 || y > viewB + 20) continue;
         const u = Math.min(1, 1 - P.left[i] / (P.mx[i] || 1));
-        const wob = Math.sin(i * 12.9 + t * 9) * 2 * u; // частицы чуть плывут в стороны
         const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
         const bx = -P.vx[i] / sp;
         const by = -P.vy[i] / sp;
-        // Шлейф из 4 клубов позади дробинки: вместе они дают струю дыхания или пара.
-        for (let j = 0; j < 4; j++) {
-          const back = j * 7;
-          const uu = Math.min(1, u + j * 0.05);
-          const cx = x + bx * back + wob * (1 + j * 0.3);
-          const cy = y + by * back - uu * 8;
-          const fall = 1 - j * 0.2;
+        const nx = -by;
+        const ny = bx;
+        const sd = P.sd[i]; // стабильное зерно дробинки: клубы не прыгают, когда соседние дробинки гаснут
+        // Шлейф из клубов позади дробинки. Клубы разбросаны в стороны всё шире с возрастом, плывут плавно и
+        // не стоят на линии: вместе они дают расползающуюся струю дыхания или пара.
+        const puffs = steam ? 6 : 5;
+        for (let j = 0; j < puffs; j++) {
+          const h1 = Math.sin(sd * 127.1 + j * 311.7) * 43758.5453;
+          const r1 = h1 - Math.floor(h1);
+          const h2 = Math.sin(sd * 269.5 + j * 183.3) * 43758.5453;
+          const r2 = h2 - Math.floor(h2);
+          const uu = Math.min(1, u + j * 0.04);
+          const back = j * 5 + r1 * 5;
+          const spread = (r2 - 0.5) * 2 * (3 + 16 * uu); // в стороны шире с возрастом
+          const drift = Math.sin(t * 1.4 + sd * 6.28 + j * 1.3) * 2.5 * uu;
+          const cx = x + bx * back + nx * (spread + drift);
+          const cy = y + by * back + ny * (spread + drift) - uu * (steam ? 10 : 7) * (0.5 + r1);
+          const fall = 1 - j * 0.13;
+          const sz = 0.8 + 0.5 * r2;
           if (steam) {
-            const s2 = (6 + 12 * uu) * (1 + j * 0.2);
-            ctx.globalAlpha = 0.5 * (1 - uu) * Math.min(1, uu * 6 + 0.4) * fall;
+            const s2 = (6 + 13 * uu) * sz;
+            ctx.globalAlpha = 0.34 * (1 - uu) * Math.min(1, uu * 5 + 0.45) * fall;
             ctx.drawImage(puff, cx - s2, cy - s2, s2 * 2, s2 * 2);
           } else if (fire) {
-            const s2 = (5 + 10 * uu) * (1 + j * 0.15);
-            ctx.globalAlpha = Math.min(1, 1.15 - uu) * 0.75 * fall;
+            const s2 = (4.5 + 9 * uu) * sz;
+            ctx.globalAlpha = Math.min(1, 1.15 - uu) * 0.6 * fall;
             ctx.drawImage(j === 0 && uu < 0.35 ? gGold : gOr, cx - s2, cy - s2, s2 * 2, s2 * 2);
           } else {
-            const s2 = (5 + 9 * uu) * (1 + j * 0.2);
-            ctx.globalAlpha = 0.55 * (1 - uu * 0.9) * fall;
+            const s2 = (4.5 + 8 * uu) * sz;
+            ctx.globalAlpha = 0.45 * (1 - uu * 0.9) * fall;
             ctx.drawImage(gBl, cx - s2, cy - s2, s2 * 2, s2 * 2);
-            ctx.globalAlpha = 0.34 * (1 - uu) * fall;
+            ctx.globalAlpha = 0.3 * (1 - uu) * fall;
             ctx.globalCompositeOperation = 'source-over';
             ctx.drawImage(puff, cx - s2, cy - s2, s2 * 2, s2 * 2);
             ctx.globalCompositeOperation = 'lighter';
