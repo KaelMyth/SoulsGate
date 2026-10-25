@@ -945,14 +945,22 @@ export class Renderer {
         ctx.save();
         ctx.translate(q.x - q.dy * bob, q.y + q.dx * bob);
         ctx.rotate(Math.atan2(q.dy, q.dx));
+        ctx.scale(2, 2);
+        if (!flying) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.55 + 0.2 * Math.sin(t * 5 + i);
+          ctx.drawImage(glow, -30, -30, 60, 60);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+        }
         if (flying) {
           ctx.globalCompositeOperation = 'lighter';
-          ctx.fillStyle = 'rgba(190,230,255,0.55)';
+          ctx.fillStyle = 'rgba(200,236,255,0.7)';
           ctx.beginPath();
-          tracePoly(ctx, [0, -2.4, -46, -0.6, -46, 0.6, 0, 2.4], 1);
+          tracePoly(ctx, [0, -3.4, -70, -0.8, -70, 0.8, 0, 3.4], 1);
           ctx.fill();
-          ctx.globalAlpha = 0.9;
-          ctx.drawImage(glow, -16, -16, 32, 32);
+          ctx.globalAlpha = 1;
+          ctx.drawImage(glow, -24, -24, 48, 48);
           ctx.globalCompositeOperation = 'source-over';
           ctx.globalAlpha = 1;
         }
@@ -960,13 +968,16 @@ export class Renderer {
         tracePoly(ctx, [-14, 0, -4, -4.5, 18, 0, -4, 4.5], 1);
         ctx.fillStyle = C.tartasBlade;
         ctx.fill();
+        ctx.lineWidth = 0.9;
+        ctx.strokeStyle = 'rgba(225,244,255,0.95)';
+        ctx.stroke();
         ctx.beginPath();
         tracePoly(ctx, [-14, 0, -4, -4.5, 18, 0], 1);
         ctx.fillStyle = C.tartasIceLight;
         ctx.fill();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = flying ? 0.5 : 0.28;
-        ctx.drawImage(glow, -14, -14, 28, 28);
+        ctx.globalAlpha = flying ? 0.7 : 0.45;
+        ctx.drawImage(glow, -16, -16, 32, 32);
         ctx.restore();
       }
     }
