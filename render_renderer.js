@@ -4185,35 +4185,110 @@ export class Renderer {
     ctx.fill();
   }
 
-  /** Спектральные клинки: голубые треугольники (с Лазером сферы), остриём по ходу полёта (на орбите остриём наружу). */
+  /**
+   * Спектральные клинки: светящиеся, цвет и форма по модам. Обычный: меч с гардой; Мороз: ледяной кристалл; Горение:
+   * огненная стрела; Мороз и Горение вместе: кристальная стрела. В полёте за клинком тянется хвост, фантомные фиолетовые.
+   * С Лазером клинки это светящиеся сферы. Остриё смотрит по ходу полёта (на орбите наружу).
+   */
   drawBlades(ctx) {
     const bl = this.blades;
     if (!bl || !bl.length) return;
     const B = this.cfg.blades;
-    const s = B.size;
-    ctx.fillStyle = B.color;
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 1.2;
-    for (const b of bl) {
-      ctx.fillStyle = b.gen ? this.cfg.phantom.color : B.color; // фантомные клинки фиолетовые
-      if (b.sphere) { // с Лазером клинки это сферы
+    const k = B.size * 0.8;
+    const t = this.clock;
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold')];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam')];
+    const violet = this.getGlow(true);
+    const mainC = ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'];
+    const liteC = ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'];
+    // Проход 1: хвосты и свечение сложением цветов.
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      const kd = b.kind | 0;
+      const fly = b.state === 'fly';
+      const gl = b.gen ? violet : glows[kd];
+      const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
+      if (fly && !b.sphere && !b.gen) {
+        const sc = (k * 0.5) / 14;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.a);
+        ctx.globalAlpha = 0.7 * Math.min(1, (b.age || 0) / 0.08);
+        ctx.scale(0.55, 1);
+        ctx.drawImage(tails[kd], -224 * sc, -32 * sc, 256 * sc, 64 * sc);
+        ctx.restore();
+      }
+      const g = k * (fly ? 4.6 : 3.8) * pulse;
+      ctx.globalAlpha = fly ? 0.75 : 0.55;
+      ctx.drawImage(gl, b.x - g, b.y - g, g * 2, g * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // Проход 2: сами клинки.
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i];
+      const kd = b.kind | 0;
+      const mc = b.gen ? '#a577ff' : mainC[kd];
+      const lc = b.gen ? '#f0e4ff' : liteC[kd];
+      ctx.globalAlpha = 1;
+      if (b.sphere) { // с Лазером клинки это светящиеся сферы
+        const rr = k * (b.state === 'fire' ? 0.78 : 0.62);
+        ctx.fillStyle = mc;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, s * (b.state === 'fire' ? 1.1 : 0.9), 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, rr, 0, TAU);
         ctx.fill();
-        ctx.stroke();
+        ctx.fillStyle = lc;
+        ctx.beginPath();
+        ctx.arc(b.x - rr * 0.15, b.y - rr * 0.2, rr * 0.55, 0, TAU);
+        ctx.fill();
         continue;
       }
-      const a = b.a;
-      const c = Math.cos(a);
-      const n = Math.sin(a);
-      ctx.beginPath();
-      ctx.moveTo(b.x + c * s * 1.6, b.y + n * s * 1.6);
-      ctx.lineTo(b.x - c * s - n * s * 0.9, b.y - n * s + c * s * 0.9);
-      ctx.lineTo(b.x - c * s + n * s * 0.9, b.y - n * s - c * s * 0.9);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.a);
+      ctx.scale(k, k);
+      ctx.lineWidth = 1.1 / k;
+      ctx.strokeStyle = 'rgba(235,246,255,0.9)';
+      // part: многоугольник в единицах k; verхняя грань светлее нижней
+      const part = (pts, fill) => {
+        ctx.beginPath();
+        tracePoly(ctx, pts, 1);
+        ctx.fillStyle = fill;
+        ctx.fill();
+      };
+      if (kd === 0) { // меч
+        part([2.6, 0, 0.4, -0.34, -0.9, -0.3, -0.9, 0.3, 0.4, 0.34], mc);
+        part([2.6, 0, 0.4, -0.34, -0.9, -0.3, -0.9, 0], lc);
+        part([-0.9, -0.78, -1.18, -0.78, -1.18, 0.78, -0.9, 0.78], mc);
+        part([-1.18, -0.13, -1.85, -0.13, -1.85, 0.13, -1.18, 0.13], mc);
+        ctx.beginPath(); tracePoly(ctx, [2.6, 0, 0.4, -0.34, -0.9, -0.3, -0.9, 0.3, 0.4, 0.34], 1); ctx.stroke();
+      } else if (kd === 1) { // ледяной кристалл
+        const cr = [2.3, 0, 0.9, -0.62, -0.9, -0.52, -1.7, 0, -0.9, 0.52, 0.9, 0.62];
+        part(cr, mc);
+        part([2.3, 0, 0.9, -0.62, -0.9, -0.52, -0.2, 0], lc);
+        part([0.9, 0.62, -0.9, 0.52, -0.2, 0, 2.3, 0], 'rgba(60,150,230,0.55)');
+        part([0.3, -0.62, 0.9, -1.25, 0.1, -0.55], mc);
+        part([-0.5, 0.52, -0.9, 1.05, -0.1, 0.55], mc);
+        ctx.beginPath(); tracePoly(ctx, cr, 1); ctx.stroke();
+      } else if (kd === 2) { // огненная стрела
+        part([2.8, 0, 1.7, -0.62, 1.7, 0.62], lc);
+        part([1.75, -0.13, -1.6, -0.13, -1.6, 0.13, 1.75, 0.13], mc);
+        part([-1.2, 0, -2.1, -0.65, -1.8, 0], mc);
+        part([-1.2, 0, -2.1, 0.65, -1.8, 0], mc);
+        part([-1.6, 0, -2.5, -0.2, -2.9, 0, -2.5, 0.2], 'rgba(255,200,90,0.85)');
+        ctx.beginPath(); tracePoly(ctx, [2.8, 0, 1.7, -0.62, 1.7, 0.62], 1); ctx.stroke();
+      } else { // кристальная стрела (пар)
+        part([2.8, 0, 1.7, -0.7, 0.9, 0, 1.7, 0.7], lc);
+        part([2.8, 0, 1.7, -0.7, 0.9, 0], 'rgba(150,215,255,0.75)');
+        part([0.95, -0.12, -1.6, -0.12, -1.6, 0.12, 0.95, 0.12], mc);
+        part([-1.2, 0, -2.1, -0.65, -1.8, 0], '#ff9a44');
+        part([-1.2, 0, -2.1, 0.65, -1.8, 0], '#ff9a44');
+        ctx.beginPath(); tracePoly(ctx, [2.8, 0, 1.7, -0.7, 0.9, 0, 1.7, 0.7], 1); ctx.stroke();
+      }
+      ctx.restore();
     }
+    ctx.globalAlpha = 1;
   }
 
   /** Мягкий клуб пара: белый центр, голубоватый край, прозрачная граница. Один спрайт на все клубы. */
