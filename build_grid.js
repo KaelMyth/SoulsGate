@@ -186,6 +186,8 @@ export class BuildGrid {
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
       else if (pc.startsWith('burn')) carry.set(ci, 'burn:' + e.stat);
       else if (pc.startsWith('steam')) carry.set(ci, 'steam:' + e.stat);
+      else if (pc.startsWith('shot')) carry.set(ci, 'shot:' + e.stat);
+      else if (pc.startsWith('phantom')) carry.set(ci, 'phantom:' + e.stat);
       else if (pc.startsWith('laser')) carry.set(ci, 'laser:' + e.stat);
       else if (pc.startsWith('blades')) carry.set(ci, 'blades:' + e.stat);
       else if (pc.startsWith('aura')) carry.set(ci, 'aura:' + e.stat);
@@ -317,15 +319,23 @@ export class BuildGrid {
     // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
     let ph = 0;
     let phMul = 0;
+    let phDmg = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
       if (!c.mod || c.mod.def.effect.kind !== 'phantom' || owner.get(i) !== coreId) continue;
       let f = 1;
-      for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+      let d = 0;
+      let r = 0;
+      for (const k of kids.get(i) || []) {
+        if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+        else if (carry.get(k) === 'phantom:damage') d += walk(k, 0);
+        else if (carry.get(k) === 'phantom:rate') r += walk(k, 0);
+      }
       ph++;
-      phMul += f;
+      phMul += f * (1 + r); // Ускорение на Фантоме тоже повышает шанс
+      phDmg += 1 + d;
     }
-    if (ph) res.phantom = { count: ph, mult: phMul };
+    if (ph) res.phantom = { count: ph, mult: phMul, damage: phDmg / ph };
     // Лазер: Мощь на нём усиливает урон тика, Ускорение учащает тики.
     let lasers = 0;
     let lDmg = 0;
@@ -394,11 +404,22 @@ export class BuildGrid {
       const c = this.cells[i];
       if (!c.mod || owner.get(i) !== coreId) continue;
       const kind = c.mod.def.effect.kind;
-      if (kind === 'shot' && !res.shot) res.shot = { count: 1 };
+      if (kind === 'shot') { // Мощь и Ускорение на Дроби: урон дробинок и скорострельность залпов
+        let d = 0;
+        let r = 0;
+        for (const k of kids.get(i) || []) {
+          if (carry.get(k) === 'shot:damage') d += walk(k, 0);
+          else if (carry.get(k) === 'shot:rate') r += walk(k, 0);
+        }
+        if (!res.shot) res.shot = { count: 0, damage: 0, rate: 0 };
+        res.shot.count++; res.shot.damage += 1 + d; res.shot.rate += 1 + r;
+      }
       if (kind === 'shot' || kind === 'laser') for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') extra += mult(k) - 1;
     }
+    if (res.shot) { res.shot.damage /= res.shot.count; res.shot.rate /= res.shot.count; }
     const cc = this.coreById(coreId);
     if (extra && cc && cc.def.multStat === 'count') extraCount = extra;
+    if (extra && res.shot) res.shotMul = 1 + extra; // Х2/Х3 на Дроби (для Дроби на рывке)
     if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
     // Что стоит «на ядре»: моды прямо на нём и моды под множителями Х2/Х3, которые сидят на ядре (они только ветка).
     const rootStat = [];

@@ -27,7 +27,9 @@ export class Pellets {
     this.bi = new Float32Array(N);   // горение: интервал тиков
     this.st = new Float32Array(N);   // пар: множитель горения облака (0 = нет связки)
     this.zp = new Uint8Array(N);     // 1 = дробинка электризует
-    this.fr = new Uint8Array(N);     // 1 = дробинка вешает заряд Мороза
+    this.fr = new Uint8Array(N);
+    this.pc = new Uint8Array(N);     // сколько врагов ещё можно пройти насквозь (мод «Пробитие»)
+    this.lh = new Array(N).fill(null); // последний пробитый враг: его второй раз не бьём     // 1 = дробинка вешает заряд Мороза
     this.reach = 0;
   }
 
@@ -41,7 +43,7 @@ export class Pellets {
   }
 
   /** Добавить дробинку (без проверки места: вызывающий смотрит free()). */
-  add(x, y, vx, vy, range, dmg, bd = 0, bi = 0, fr = 0, st = 0, zp = 0) {
+  add(x, y, vx, vy, range, dmg, bd = 0, bi = 0, fr = 0, st = 0, zp = 0, pc = 0) {
     const i = this.n++;
     this.x[i] = this.px[i] = x;
     this.y[i] = this.py[i] = y;
@@ -55,6 +57,8 @@ export class Pellets {
     this.fr[i] = fr;
     this.st[i] = st;
     this.zp[i] = zp;
+    this.pc[i] = pc;
+    this.lh[i] = null;
   }
 
   remove(i) {
@@ -64,7 +68,7 @@ export class Pellets {
     this.px[i] = this.px[last]; this.py[i] = this.py[last];
     this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last];
     this.left[i] = this.left[last]; this.mx[i] = this.mx[last]; this.sd[i] = this.sd[last]; this.dmg[i] = this.dmg[last];
-    this.bd[i] = this.bd[last]; this.bi[i] = this.bi[last]; this.fr[i] = this.fr[last]; this.st[i] = this.st[last]; this.zp[i] = this.zp[last];
+    this.bd[i] = this.bd[last]; this.bi[i] = this.bi[last]; this.fr[i] = this.fr[last]; this.st[i] = this.st[last]; this.zp[i] = this.zp[last]; this.pc[i] = this.pc[last]; this.lh[i] = this.lh[last];
   }
 
   update(dt) {
@@ -97,12 +101,13 @@ export class Pellets {
       let hit = false;
       for (let k = 0; k < cnt; k++) {
         const e = en[buf[k]];
-        if (!e || !e.active) continue;
+        if (!e || !e.active || e === this.lh[i]) continue;
         const dx = x - e.x;
         const dy = y - e.y;
         const r = S.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
           this.onHit(e, this.dmg[i], vx, vy, this.bd[i], this.bi[i], this.fr[i], this.st[i], this.zp[i]);
+          if (this.pc[i] > 0) { this.pc[i]--; this.lh[i] = e; break; } // пробила: летит дальше
           hit = true;
           break;
         }

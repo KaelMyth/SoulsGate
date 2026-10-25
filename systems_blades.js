@@ -209,9 +209,15 @@ export class Blades {
           const bd = b.mul ? dmg * b.mul : dmg; // фантомный клинок бьёт чуть иначе (phantom.damageFrac)
           this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
           if (t.active) this.applyEffects(t, m, bd);
-          if (m.lightning && t.active && this.zap) this.zap(t);
+          if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0);
           if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
           if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
+          if (b.pc === undefined) b.pc = m.pierce ? m.pierce.count : 0;
+          if (b.pc > 0 && !m.laser) { // Пробитие: клинок идёт дальше и ищет следующую цель
+            b.pc--;
+            const nx = this.nearestOther(b.x, b.y, B.range * 1.5, t);
+            if (nx) { b.target = nx; b.age = 0; continue; }
+          }
           items.splice(j, 1);
           continue;
         }
@@ -233,7 +239,7 @@ export class Blades {
     if (!phantomSpot(this.arena, this.rnd, F, t, B.size, s)) return;
     this.items.push({
       x: s.x, y: s.y, a: Math.atan2(t.y - s.y, t.x - s.x), off: 0, state: 'fly', target: t,
-      vx: 0, vy: 0, age: 0, gen: (b.gen | 0) + 1, mul: F.damageFrac, sphere: false,
+      vx: 0, vy: 0, age: 0, gen: (b.gen | 0) + 1, mul: F.damageFrac * (m.phantom.damage || 1), sphere: false,
     });
   }
 
@@ -254,7 +260,7 @@ export class Blades {
       burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
       zap: !!m.lightning,
-      gen: 0, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0,
+      gen: 0, phDmg: m.phantom ? m.phantom.damage || 1 : 1, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0,
     });
     return true;
   }
@@ -270,7 +276,7 @@ export class Blades {
     const n = B.shotCount;
     const full = P.free();
     if (!full) return;
-    const pd = dmg * S.damageFrac;
+    const pd = dmg * S.damageFrac * (m.shot && m.shot.damage ? m.shot.damage : 1);
     const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
     const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
     const st = bd > 0 && m.frost && m.steam ? m.steam.damage : 0;
@@ -291,6 +297,22 @@ export class Blades {
     const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
     if (bd > 0 && this.ignite) this.ignite(e, bd, bi);
     if (m.frost && this.chill) this.chill(e, bd > 0 && m.steam ? m.steam.damage : 0, bd, bi);
+  }
+
+  /** Ближайший враг, кроме skip (для клинка с Пробитием). */
+  nearestOther(x, y, range, skip) {
+    const en = this.enemies.items;
+    const n = this.grid.query(x, y, range);
+    const buf = this.grid.buf;
+    let best = null;
+    let bd = range * range;
+    for (let k = 0; k < n; k++) {
+      const e = en[buf[k]];
+      if (!e || !e.active || e === skip) continue;
+      const d = (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
   }
 
   nearest(x, y, range) {

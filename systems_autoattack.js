@@ -8,7 +8,7 @@ function setBurn(p, cfg, m) {
   if (m && m.pierce) p.pierce = m.pierce.count; // пробитие: сколько врагов пройти насквозь
   if (m && m.frost) p.frost = true; // мороз (заряды замедления) у снаряда
   if (m && m.lightning) p.zap = true; // шар молний: электризует при попадании
-  if (m && m.phantom) p.phantom = Math.min(1, cfg.phantom.chance * m.phantom.mult); // фантомный выстрел: шанс при попадании
+  if (m && m.phantom) { p.phantom = Math.min(1, cfg.phantom.chance * m.phantom.mult); p.phDmg = m.phantom.damage || 1; } // фантомный выстрел: шанс при попадании
   if (!m || !m.burn) return;
   p.burnDmg = p.damage * cfg.burn.damageFrac * m.burn.damage;
   p.burnInt = cfg.burn.interval / m.burn.rate;
@@ -79,7 +79,7 @@ export class AutoAttack {
     const atk = this.cfg.attack;
     // Моды скорости атаки (Ускорение) делят перезарядку.
     const mm = this.modifiers ? this.modifiers(atk.core) : null;
-    const reload = atk.reload / (mm && mm.rate ? 1 + mm.rate.percent / 100 : 1);
+    const reload = atk.reload / (mm && mm.rate ? 1 + mm.rate.percent / 100 : 1) / (mm && mm.shot && mm.shot.rate ? mm.shot.rate : 1); // Ускорение на Дроби ускоряет залпы
     // Ползунок перезарядки действует сразу: остаток старого таймера не длиннее новой перезарядки.
     if (this.timer > reload) this.timer = reload;
     this.timer -= dt;
@@ -169,10 +169,12 @@ export class AutoAttack {
     const base = Math.atan2(dy, dx);
     const want = Math.round(S.base * projectileCount(this.cfg, m));
     const n = Math.min(want, P.free()); // места нет: стреляем тем, что влезает
-    const dmg = applyMod(def.damage, m.damage) * S.damageFrac;
+    const sd = m.shot && m.shot.damage ? m.shot.damage : 1; // Мощь на Дроби
+    const dmg = applyMod(def.damage, m.damage) * S.damageFrac * sd;
     const half = (S.spread * Math.PI) / 360;
     // Горение и Мороз: несут только каждая вторая дробинка, иначе заряды Мороза набирались бы за один залп.
-    const full = applyMod(def.damage, m.damage);
+    const full = applyMod(def.damage, m.damage) * sd;
+    const pc = m.pierce ? m.pierce.count : 0; // Пробитие на Дроби: сколько врагов насквозь
     const bd = m.burn ? full * this.cfg.burn.damageFrac * m.burn.damage : 0;
     const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
     const st = bd > 0 && m.frost && m.steam ? m.steam.damage : 0;
@@ -183,7 +185,7 @@ export class AutoAttack {
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
       const fx = (i & 1) === 0; // половина несёт эффекты
       P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range, dmg,
-        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0);
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0, pc);
     }
     hero.facing = base;
     this.bus.emit('projectile:fired', { projectile: null, target, count: n });
@@ -242,7 +244,7 @@ export class AutoAttack {
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
         pulse: 0,
         zap: !!m.lightning, // лазер-разряд
-        gen: 0, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0, // фантом: шанс на каждый тик
+        gen: 0, phDmg: m.phantom ? m.phantom.damage || 1 : 1, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0, // фантом: шанс на каждый тик
       });
       fired++;
     }
