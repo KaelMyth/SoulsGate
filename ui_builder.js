@@ -14,6 +14,7 @@ export class BuilderUI {
     this.grid = grid;
     this.config = config;
     this.storage = storage;
+    this.fresh = -1; // ячейка хранилища с только что полученным модом
     this.sel = null; // { kind: 'core', id } | { kind: 'shelf', index } | { kind: 'placed', x, y }
     this.board = h('div', { class: 'board' });
     this.wrap = h('div', { class: 'board-wrap' }, this.board);
@@ -81,7 +82,7 @@ export class BuilderUI {
 
   /** Подсветка для выбранного мода: у мода на поле считается так, будто он уже снят (его можно переставить). */
   highlightFor(sel, mod) {
-    if (sel.kind === 'shelf') return highlight(this.grid, mod.def);
+    if (sel.kind === 'shelf' || sel.kind === 'preview') return highlight(this.grid, mod.def);
     const taken = this.grid.takeMod(sel.x, sel.y);
     const hl = highlight(this.grid, taken.def);
     this.grid.placeMod(taken, sel.x, sel.y);
@@ -94,6 +95,7 @@ export class BuilderUI {
   select(sel) {
     const same = this.sel && sel && this.sel.kind === sel.kind && this.sel.id === sel.id && this.sel.index === sel.index && this.sel.x === sel.x && this.sel.y === sel.y;
     this.sel = same && sel.kind === 'core' ? null : sel;
+    if (!sel || sel.kind !== 'shelf' || sel.index !== this.fresh) this.fresh = -1;
     this.refresh();
   }
 
@@ -102,6 +104,7 @@ export class BuilderUI {
     const s = this.sel;
     if (!s) return null;
     if (s.kind === 'shelf') return this.storage.slots[s.index];
+    if (s.kind === 'preview') return { key: 'preview', def: s.def }; // мод из окна награды: показываем, куда он встанет
     if (s.kind === 'placed') {
       const c = this.grid.cell(s.x, s.y);
       return c ? c.mod : null;
@@ -187,15 +190,20 @@ export class BuilderUI {
       }
       for (const f of faces.get(i) || []) el.classList.toggle((f.kind === 'ok' ? 'fg-' : 'fr-') + f.dir, true);
     });
-    this.slotEls.forEach((el, i) => el.classList.toggle('selected', !!sel && sel.kind === 'shelf' && sel.index === i));
+    this.slotEls.forEach((el, i) => {
+      el.classList.toggle('selected', !!sel && sel.kind === 'shelf' && sel.index === i);
+      el.classList.toggle('fresh', this.fresh === i && !!sel && sel.kind === 'shelf' && sel.index === i); // новый мод из награды мигает, пока не тронули
+    });
 
     clear(this.info);
     if (mod) {
       this.info.append(h('h3', { class: 'mod-title' }, mod.def.name), h('p', { class: 'mod-desc' }, mod.def.description));
-      this.info.append(h('p', { class: 'hint' }, sel.kind === 'shelf'
+      this.info.append(h('p', { class: 'hint' }, sel.kind === 'preview'
+        ? 'Так выглядит поле: зелёные клетки это места, куда этот мод можно поставить. Красные грани: не подходит'
+        : sel.kind === 'shelf'
         ? 'Перетащи на поле или нажми на зелёную клетку. Красные грани: ядру не подходит'
         : 'Перетащи на другое место или в хранилище. Красные грани: не подходит'));
-      if (sel.kind !== 'shelf') {
+      if (sel.kind === 'placed') {
         this.info.append(h('button', {
           id: 'mod-return', type: 'button', class: 'small', onclick: () => this.returnToShelf(sel.x, sel.y),
         }, 'В хранилище'));
