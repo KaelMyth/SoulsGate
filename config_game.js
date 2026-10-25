@@ -820,6 +820,12 @@ export const CONFIG = {
       snotCore: '#e4d0ff', // блик и ядро слизи
       sparkRed: '#ff4a3d', // искры, когда рывок быка попал по герою
       hud: '#cfe0f5',
+      tartasPlate: '#2d3858',     // Тартас: плиты брони
+      tartasPlateLit: '#5d73a3',  // светлый скос плит
+      tartasIce: '#a9c8ee',       // наледь и шипы
+      tartasIceLight: '#e6f3ff',  // светлые грани льда
+      tartasBlade: '#8fb6e6',     // клинок ледяного меча и клинки-осколки
+      tartasEye: '#bfeaff',       // холодный взгляд, руны и разломы
     },
   },
 
