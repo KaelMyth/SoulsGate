@@ -500,6 +500,7 @@ export class Renderer {
     this.heroShots = deps.heroShots || EMPTY;
     this.enemyShots = deps.enemyShots || EMPTY;
     this.midges = deps.midges || EMPTY;
+    this.apostles = deps.apostles || null;
     this.effects = deps.effects || EMPTY;
     this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
@@ -510,7 +511,6 @@ export class Renderer {
     this.blades = deps.blades || [];
     this.aura = deps.aura || null;
     this.fires = deps.fires || [];
-    this.lightdash = deps.lightdash || null;
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
     this.dpr = 1;
@@ -653,6 +653,7 @@ export class Renderer {
     // Зоны атак на земле (под врагами): видно, откуда придёт удар.
     this.drawTelegraphs(C, alpha);
     this.drawBossGround(C);
+    this.drawApostles(C);
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -677,14 +678,12 @@ export class Renderer {
 
     if (hero.active) {
       this.drawAura(ctx, hx, hy);
-      if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // молния вместо героя
-      else this.drawHero(hx, hy, C);
+      this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
       this.drawHeroArcs(hx, hy, C);
     }
 
     this.drawLasers(ctx);
-    this.drawBolts(ctx);
     this.drawBlades(ctx);
 
     // Снаряды.
@@ -818,6 +817,103 @@ export class Renderer {
    * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
    * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: призыв апостолов, замах умений, золотые клинки, притяжение Силы. Круги, линии и кольца без деталей.
+   * Данные из systems_apostles.js: state, t, corners, cast { e, kind, t }, pull { e }, blades, bladeCount, boost().
+   */
+  drawApostles(C) {
+    const a = this.apostles;
+    if (!a || a.state === 'off') return;
+    const ctx = this.ctx;
+    const A = a.A;
+    if (!A) return;
+    ctx.save();
+    if (a.state === 'summon') { // круги по углам острова заполняются к появлению апостолов
+      const k = Math.min(1, a.t / Math.max(0.01, A.castTime));
+      ctx.strokeStyle = '#fff0b0';
+      ctx.fillStyle = '#fff0b0';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        const c = a.corners[i];
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 30, 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = 0.25 + 0.25 * k;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 30 * k, 0, TAU);
+        ctx.fill();
+      }
+    }
+    if (a.cast && a.cast.e.active) { // замах умения: кольцо над апостолом сужается
+      const e = a.cast.e;
+      const k = Math.min(1, a.cast.t / Math.max(0.01, A.spellCast));
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = e.def.edge;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.radius * (3 - 2 * k), 0, TAU);
+      ctx.stroke();
+    }
+    if (a.pull && a.pull.e.active) { // притяжение: линия от Силы к герою
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = '#ff8a6a';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(a.pull.e.x, a.pull.e.y);
+      ctx.lineTo(this.hero.x, this.hero.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (a.boost() > 1) { // усилены Любовью: розовое кольцо вокруг остальных
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = '#ff9fcf';
+      ctx.lineWidth = 2;
+      const it = this.enemies ? this.enemies.items : null;
+      if (it) for (let i = 0; i < it.length; i++) {
+        const e = it[i];
+        if (!e.active || !e.def || !e.def.apostle || e.def.apostle === 'love') continue;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 6, 0, TAU);
+        ctx.stroke();
+      }
+    }
+    // Золотые клинки: ждущий висит ромбиком над головой, нацеленный показывает линию, вылетевший вспыхивает.
+    for (let i = 0; i < a.bladeCount; i++) {
+      const bl = a.blades[i];
+      if (bl.state === 1) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath();
+        ctx.moveTo(bl.x1, bl.y1 - 8);
+        ctx.lineTo(bl.x1 + 4, bl.y1);
+        ctx.lineTo(bl.x1, bl.y1 + 8);
+        ctx.lineTo(bl.x1 - 4, bl.y1);
+        ctx.closePath();
+        ctx.fill();
+        if (bl.aimed) {
+          ctx.globalAlpha = 0.55;
+          ctx.strokeStyle = '#ffd24a';
+          ctx.lineWidth = Math.max(2, bl.hw * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(bl.x1, bl.y1);
+          ctx.lineTo(bl.x2, bl.y2);
+          ctx.stroke();
+        }
+      } else if (bl.state === 2 && bl.active) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#fff6c8';
+        ctx.lineWidth = bl.hw * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(bl.x1, bl.y1);
+        ctx.lineTo(bl.x, bl.y);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   drawBossGround(C) {
     const b = this.boss;
     if (!b) return;
@@ -1526,7 +1622,8 @@ export class Renderer {
       else if (st === 'stun') fill = '#8fa8c8';
       ctx.fillStyle = hit ? '#ffffff' : fill;
       ctx.beginPath();
-      ctx.arc(x, y, rr, 0, TAU);
+      if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
+      else ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
       if (e.def.slam && st === 'windup') { // ЗАГЛУШКА ГРАФИКИ: кольцо замаха растёт к моменту удара
         ctx.save();
@@ -3915,63 +4012,11 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Герой-молния: яркий шар с ореолом. */
-  drawLightHero(ctx, hx, hy) {
-    const col = this.cfg.lightdash.color;
-    const r = this.hero.radius;
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(hx, hy, r * 2.2, 0, TAU);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(hx, hy, r * 0.9, 0, TAU);
-    ctx.fill();
-  }
-
-  /** Отрезки молнии: ломаная с дрожью (зависит от времени, поэтому мерцает), гаснет за 0.25 с. */
-  drawBolts(ctx) {
-    const ld = this.lightdash;
-    if (!ld || !ld.bolts.length) return;
-    const col = this.cfg.lightdash.color;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (let i = 0; i < ld.bolts.length; i++) {
-      const b = ld.bolts[i];
-      const k = Math.max(0, 1 - b.age / 0.25);
-      const dx = b.x1 - b.x0;
-      const dy = b.y1 - b.y0;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-      const seg = Math.max(3, Math.round(len / 28));
-      const frame = Math.floor(this.clock * 30);
-      for (let pass = 0; pass < 2; pass++) {
-        ctx.globalAlpha = k * (pass ? 1 : 0.45);
-        ctx.strokeStyle = pass ? '#ffffff' : col;
-        ctx.lineWidth = pass ? 2 : 7;
-        ctx.beginPath();
-        ctx.moveTo(b.x0, b.y0);
-        for (let s = 1; s < seg; s++) {
-          const f = s / seg;
-          const j = Math.sin((s * 12.9898 + i * 78.233 + frame * 3.7) * 43758.5453) * 11;
-          ctx.lineTo(b.x0 + dx * f + nx * j, b.y0 + dy * f + ny * j);
-        }
-        ctx.lineTo(b.x1, b.y1);
-        ctx.stroke();
-      }
-    }
-    ctx.globalAlpha = 1;
-    ctx.lineCap = 'butt';
-  }
-
   /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
   drawFires(ctx) {
     const fs = this.fires;
     if (!fs.length) return;
-    const F = this.cfg.firedash;
+    const F = this.cfg.kinetic;
     const t = this.clock;
     for (let i = 0; i < fs.length; i++) {
       const f = fs[i];

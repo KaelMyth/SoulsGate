@@ -1,5 +1,4 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
-import { LightDash } from './systems_lightdash.js';
 import { Rewards } from './systems_rewards.js';
 import { LevelUpScreen } from './ui_levelup.js';
 import { Aura } from './systems_aura.js';
@@ -13,7 +12,7 @@ import { Arena } from './world_arena.js';
 import { Hero } from './world_hero.js';
 import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
-import { createEnemy, resetEnemy, updateEnemy } from './world_enemy.js';
+import { createEnemy, resetEnemy, updateEnemy, applyKnockback } from './world_enemy.js';
 import { createProjectile, resetProjectile, updateProjectile } from './world_projectile.js';
 import { createEffect, resetEffect, initEffect, initGlob, updateEffect } from './world_effects.js';
 import { Combat } from './systems_combat.js';
@@ -22,6 +21,7 @@ import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { RockBeetles } from './systems_rockbeetle.js';
+import { Apostles } from './systems_apostles.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
 import { Boss } from './systems_boss.js';
@@ -101,6 +101,7 @@ export class Game {
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
+    this.apostles = new Apostles({ config, hero: this.hero, arena: this.arena, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
@@ -144,9 +145,6 @@ export class Game {
       chill: (e, s, d, i) => this.chill(e, s, d, i),
     });
 
-    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd });
-    this.defense.lightning = this.lightdash;
-
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -156,6 +154,7 @@ export class Game {
       heroShots: this.heroShots,
       enemyShots: this.enemyShots,
       midges: this.rockBeetles.midges,
+      apostles: this.apostles,
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -165,7 +164,6 @@ export class Game {
       blades: this.blades.items,
       aura: this.aura,
       fires: this.fires,
-      lightdash: this.lightdash,
       pellets: this.pellets,
       lasers: this.lasers,
       hud: this.hud,
@@ -224,6 +222,10 @@ export class Game {
       meter: this.meter,
       storage: o.storage,
       storageKey: o.storageKey,
+      actions: [
+        { label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
+        { label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },
+      ],
       build: o.build,
       getStats: () => ({
         steps: this.stepper.lastSteps,
@@ -288,6 +290,11 @@ export class Game {
       this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
       this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
     });
+    // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
+    this.bus.on('apostle:summon', ({ x, y }) => this.burst(x, y, 0.5, 10, 50, config.render.colors.snowLight));
+    this.bus.on('apostle:heal', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.4, enemy.radius, enemy.radius * 2.2, '#9cffb0'));
+    this.bus.on('apostle:explode', ({ x, y, hit }) => { this.burst(x, y, 0.4, 10, 70, '#ff8a6a'); this.sparks(x, y, hit ? 10 : 6, '#ffc0b0'); });
+    this.bus.on('apostle:blade-fly', ({ blade }) => this.burst(blade.x1, blade.y1, 0.2, 4, 16, '#ffe27a'));
     // Горные жуки (ЗАГЛУШКИ вспышек): пыль на месте скалы, кольцо от удара в землю, искра сбитой мошки.
     this.bus.on('rock:woke', ({ x, y, r }) => { this.burst(x, y, 0.5, r * 0.5, r * 1.8, config.render.colors.snowLight); this.sparks(x, y, 8, config.render.colors.stoneLight); });
     this.bus.on('rockbeetle:slam', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.35, enemy.radius, enemy.radius * 3, config.render.colors.stoneLight));
@@ -612,12 +619,53 @@ export class Game {
     this.burst(s.x, s.y, 0.3, 4, 16, F.color);
   }
 
-  /** Огненный шлейф: пока идёт огненный рывок, через trailStep оставляем костёр; костры горят fireLife с и поджигают врагов внутри. */
+  /**
+   * Кинетический рывок: когда герой остановился после рывка, враги рядом отлетают от него.
+   * С Горением на рывке отброшенные враги поджигаются (и остаётся огненный шлейф), с Морозом замедляются.
+   */
+  updateKinetic(dt) {
+    const h = this.hero;
+    if (!this.defense.kinetic) { this.kPending = false; return; }
+    if (h.dashing) this.kPending = true;
+    if (this.kPending && !h.dashing && h.glideTime <= 0) {
+      this.kPending = false;
+      this.kineticPush();
+    }
+  }
+
+  kineticPush() {
+    const K = this.config.kinetic;
+    const m = this.kineticMods;
+    const h = this.hero;
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    const n = grid.query(h.x, h.y, K.pushRadius + 40);
+    const buf = grid.buf;
+    const bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
+    const bi = m && m.burn ? this.config.burn.interval / m.burn.rate : 0;
+    for (let k = 0; k < n; k++) {
+      const e = en[buf[k]];
+      if (!e || !e.active) continue;
+      const dx = e.x - h.x;
+      const dy = e.y - h.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d > K.pushRadius + e.radius) continue;
+      const fall = 1 - 0.5 * Math.min(1, d / (K.pushRadius + e.radius)); // ближние отлетают дальше
+      applyKnockback(e, dx / d, dy / d, K.pushDistance * fall, K.pushTime);
+      if (bd > 0) this.ignite(e, bd, bi);
+      if (m && m.frost) this.chill(e, bd > 0 && m.steam ? m.steam.damage : 0, bd, bi);
+    }
+    this.burst(h.x, h.y, 0.35, h.radius, K.pushRadius, K.color);
+    this.burst(h.x, h.y, 0.2, h.radius * 0.6, K.pushRadius * 0.6, '#ffffff');
+  }
+
+  /** Костры шлейфа (только с Горением на рывке): пока идёт огненный рывок, через trailStep оставляем костёр; костры горят fireLife с и поджигают врагов внутри. */
   updateFires(dt) {
-    const F = this.config.firedash;
+    const F = this.config.kinetic;
     const h = this.hero;
     const fires = this.fires;
-    if (this.defense.fireDash && h.active && (h.dashing || h.glideTime > 0)) {
+    const km = this.kineticMods;
+    if (this.defense.kinetic && km && km.burn && h.active && (h.dashing || h.glideTime > 0)) { // шлейф только с Горением
       const last = this.fireLast || (this.fireLast = { x: h.x, y: h.y });
       const dx = h.x - last.x;
       const dy = h.y - last.y;
@@ -625,7 +673,7 @@ export class Game {
       if (d >= F.trailStep) {
         const n = Math.floor(d / F.trailStep);
         for (let k = 1; k <= n && fires.length < F.maxFires; k++) {
-          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0 });
+          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0, bd: F.burnDamage * km.burn.damage, bi: this.config.burn.interval / km.burn.rate });
         }
         last.x += (dx / d) * F.trailStep * n;
         last.y += (dy / d) * F.trailStep * n;
@@ -649,7 +697,7 @@ export class Game {
         const dx = e.x - f.x;
         const dy = e.y - f.y;
         const r = F.fireRadius + e.radius;
-        if (dx * dx + dy * dy <= r * r) this.ignite(e, F.burnDamage, this.config.burn.interval);
+        if (dx * dx + dy * dy <= r * r) this.ignite(e, f.bd, f.bi);
       }
     }
   }
@@ -763,7 +811,6 @@ export class Game {
   }
 
   onEnemyTouchHero(e) {
-    if (this.hero.phase) return; // огненный рывок идёт сквозь врагов
     if (e.freezeT > 0) return; // замороженный враг не бьёт
     if (e.atk.state === 'strike') return; // рывок бьёт сам, касание поверх не считаем (иначе урон дважды)
     if (e.touchTimer > 0) return;
@@ -829,13 +876,13 @@ export class Game {
     }
     if (this.state === 'playing') {
       this.runTime += dt;
-      this.defense.fireDash = this.build.has('firedash');
-      this.defense.lightDash = this.build.has('lightdash');
+      const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
+      this.defense.kinetic = !!kid;
+      this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.update(dt);
-      this.hero.phase = !!((this.defense.fireDash || this.defense.lightDash) && this.hero.dashing); // в огненном рывке герой проходит сквозь врагов
-      this.updateFires(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
-      this.lightdash.update(dt);
+      this.updateKinetic(dt);
+      this.updateFires(dt);
       this.camera.zoomTarget = Math.max(this.boss.cameraZoom(), this.arena.zone ? this.config.waves.finale.zoom : 1); // клинки и финальный бой отдаляют экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
@@ -846,6 +893,7 @@ export class Game {
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
+      this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
       this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
@@ -1115,6 +1163,32 @@ export class Game {
     }
   }
 
+  /**
+   * Отладка: сразу к бою с боссом без зачистки волны. which: 'mid' (Тартас, waves.boss) или 'final' (Апофеоз, waves.finalBoss).
+   * Всё, что было на поле (враги, снаряды, отряд, апостолы, мошки, разрушение карты), убирается; герой остаётся как есть.
+   */
+  skipToBoss(which) {
+    if (this.state !== 'playing') return;
+    const W = this.config.waves;
+    const B = which === 'final' ? W.finalBoss : W.boss;
+    const def = B && this.config.enemies[B.enemy];
+    if (!def) return;
+    this.enemies.clear();
+    this.heroShots.clear();
+    this.enemyShots.clear();
+    this.pellets.clear();
+    this.boss.reset();
+    this.apostles.reset();
+    this.rockBeetles.reset(); // мошки исчезают, скалы и вся карта возвращаются
+    this.camera.resetZoom();
+    this.cine = null;
+    this.spawner.wave = B.wave;
+    this.crashResult = null;
+    this.hud.crashResult = '';
+    this.spawner.spawnBoss(def); // фаза 'boss' и событие boss:spawned (вступление)
+    this.syncWaveHud();
+  }
+
   jumpToWave(n) {
     this.spawner.jumpToWave(n);
     this.crashResult = null;
@@ -1175,7 +1249,8 @@ export class Game {
     this.effects.clear();
     this.steamClouds.length = 0;
     this.fires.length = 0;
-    this.lightdash.reset();
+    this.kPending = false;
+    this.kineticMods = null;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();
@@ -1189,6 +1264,7 @@ export class Game {
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();
+    this.apostles.reset();
     this.cine = null;
     this.hud.bossTitle = '';
     this.hud.bossTitleAlpha = 0;

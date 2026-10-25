@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 6 · сборка 41 (описания для игрока, награда в меню Билда)';
+export const BUILD = 'этап 6 · сборка 42 (кинетический рывок, кэш модов)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -13,8 +13,8 @@ export const CONFIG = {
   build: {
     size: 7,
     minCoreDistance: 5,
-    storageSlots: 16,  // ячеек в ряду хранилища над полем
-    startMods: ['lightdash', 'firedash', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    storageSlots: 15,  // ячеек в ряду хранилища над полем
+    startMods: ['kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -105,17 +105,12 @@ export const CONFIG = {
       description: 'Ставится на щит. Вокруг героя копятся клинки, а набрав максимум, разлетаются по врагам',
       effect: { kind: 'blades' },
     },
-    firedash: {
-      name: 'Огненный рывок',
-      icon: 'firedash',
-      description: 'Отдельное ядро, ставится в любую клетку. Рывок длиннее, проходит сквозь врагов и оставляет огонь на 2 секунды',
-      effect: { kind: 'firedash', secondary: true },
-    },
-    lightdash: {
-      name: 'Молниеносный рывок',
-      icon: 'lightdash',
-      description: 'Отдельное ядро, ставится в любую клетку. Рывок превращает героя в молнию: она 5 раз отскакивает от врагов с большим уроном и ставит героя подальше от них',
-      effect: { kind: 'lightdash', secondary: true },
+    kinetic: {
+      name: 'Кинетический рывок',
+      icon: 'kinetic',
+      description: 'Отдельное ядро, ставится в любую клетку. Рывок становится длиннее, а в точке остановки врагов отбрасывает. Можно добавить Горение',
+      canBurn: true,
+      effect: { kind: 'kinetic', secondary: true },
     },
     aura: {
       name: 'Смертельная аура',
@@ -229,29 +224,20 @@ export const CONFIG = {
 
   // Дробь (мод «Дробь»): снаряд вылетает веером мелких дробинок. Число снарядов умножает число дробинок.
   // Дробинки лежат в плоских массивах (systems/pellets.js), capacity это потолок дробинок на поле.
-  // Молниеносный рывок: вторичное ядро, рывок превращается в цепочку рикошетов по врагам.
-  lightdash: {
-    bounces: 5,      // рикошетов
-    damage: 80,      // урон каждого
-    range: 260,      // дальность первого прыжка от героя
-    hopRange: 220,   // дальность следующих прыжков от врага к врагу
-    hopTime: 0.07,   // с на один прыжок
-    pause: 0.1,      // с перед посадкой
-    safeMin: 130,    // посадка не ближе стольких от места последнего удара
-    safeMax: 260,    // и не дальше
-    cooldown: 3,     // с перезарядки рывка
-    color: '#9fd8ff',
-  },
-  // Огненный рывок: вторичное ядро (стоит в любой клетке сетки). Меняет рывок героя.
-  firedash: {
+  // Кинетический рывок: вторичное ядро (стоит в любой клетке сетки). Удлиняет рывок и расталкивает врагов там, где герой остановился.
+  kinetic: {
     distanceScale: 1.6, // во сколько раз длиннее рывок
+    pushRadius: 90,     // радиус расталкивания в точке остановки
+    pushDistance: 60,   // на сколько отлетают ближние враги
+    pushTime: 0.25,     // с: за какое время
+    color: '#bcd0e6',
+    // С Горением на рывке: огненный шлейф и поджог отброшенных врагов.
     trailStep: 16,      // расстояние между кострами шлейфа
     fireRadius: 24,     // радиус одного костра
     fireLife: 2,        // с: сколько горит земля
     fireTick: 0.25,     // с между поджогами врагов в огне
-    burnDamage: 6,      // урон тика горения, которое вешает огонь
+    burnDamage: 6,      // урон тика горения (умножается на Мощь на Горении)
     maxFires: 90,       // потолок кострищ в мире
-    color: '#ff8a2a',
   },
   // Смертельная аура: постоянное поле вокруг героя (мод на щит).
   aura: {
@@ -481,6 +467,24 @@ export const CONFIG = {
         },
       },
     },
+    // Апостолы Апофеоза (атака «Призыв апостолов», systems_apostles.js): высокие создания по углам острова.
+    // Стоят на месте (speed 0), умения применяют по очереди. apostle: вид умения. Цвета: ЗАГЛУШКА ГРАФИКИ.
+    apostleFaith: {
+      hp: 380, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'faith', color: '#f4f0d8', edge: '#ffffff',   // Вера: лечит остальных
+    },
+    apostleTruth: {
+      hp: 420, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'truth', color: '#e9b93a', edge: '#fff0b0',   // Правда: золотые клинки
+    },
+    apostleForce: {
+      hp: 480, speed: 0, radius: 18, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'force', color: '#c8503c', edge: '#ffc0b0',   // Сила: притягивает героя
+    },
+    apostleLove: {
+      hp: 340, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'love', color: '#e58ab8', edge: '#ffd6ea',    // Любовь: усиливает остальных
+    },
     // Апофеоз: финальный босс 20-й волны. Шаг 1: только арена (остаток карты рушится, герой на острове, босс в разрушенной зоне).
     // Атак пока нет. flies: летает над разрушенной зоной (не выталкивается за границу острова). Цвета: ЗАГЛУШКА ГРАФИКИ.
     apotheosis: {
@@ -499,6 +503,34 @@ export const CONFIG = {
       flies: true,
       passThroughHero: true,
       spawnDistance: 280,
+      // Атака 1 «Призыв апостолов»: босс призывает четырёх апостолов по углам острова (порядок и есть порядок хода).
+      // Каждые turnInterval с ходит следующий живой апостол (мёртвых пропускаем), перед умением замах spellCast.
+      // Перебиты все: через resummonDelay новый призыв. Времена в секундах.
+      apostles: {
+        firstDelay: 2.0,      // после ролика до первого призыва
+        castTime: 1.4,        // телеграф призыва: круги по углам
+        resummonDelay: 6.0,   // пауза до нового призыва после гибели всех
+        cornerInset: 70,      // отступ апостола от углов острова
+        firstTurnDelay: 2.5,  // до первого хода после призыва
+        turnInterval: 5.0,    // с между ходами (у Веры получается «раз в 5 секунд», если она одна)
+        spellCast: 0.7,       // замах умения (кольцо над апостолом)
+        order: ['faith', 'truth', 'force', 'love'],
+        defs: { faith: 'apostleFaith', truth: 'apostleTruth', force: 'apostleForce', love: 'apostleLove' },
+        faith: { heal: 0.5 },  // доля максимального здоровья, на которую лечит всех остальных (босса не лечит)
+        truth: {
+          blades: 5, spread: 22, width: 14, damage: 14,
+          telegraphDelay: 0.7, // с: линия первого клинка видна до вылета
+          launchInterval: 0.5, // с между вылетами; каждый следующий целится в героя в момент предыдущего
+          overshoot: 250, time: 0.08,
+        },
+        force: {
+          pullSpeed: 95,       // единиц/с: слабое притяжение (скорость героя 180)
+          pullTime: 4.0,       // с: сколько тянет
+          explodeDist: 28,     // дотянул ближе этого (плюс радиус апостола): взрыв
+          damage: 30,
+        },
+        love: { boost: 0.2, time: 17 }, // усиление эффектов остальных на 20% от базы, на time секунд (хватает на три следующих хода)
+      },
       color: '#9a7bd9',
       edge: '#e6dbff',
     },
@@ -642,7 +674,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, firedash: 1, lightdash: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1,
     },
   },
 
@@ -674,9 +706,12 @@ export const CONFIG = {
     shooterFromWave: 2,   // с какой волны стрелки появляются
     bullShare: 0.12,      // доля быков среди появляющихся
     bullFromWave: 4,      // с какой волны появляются быки
-    // Скелеты «временами»: с волны fromWave каждый появляющийся враг с шансом share становится скелетом
-    // (тип по весам). Остальные доли (жуки, быки, стрелки) делят оставшееся.
-    skeleton: { fromWave: 11, share: 0.3, weights: { skeletonArcher: 1, skeletonRam: 1, skeletonWarrior: 2 } },
+    // После босса Тартаса (волна 10) появляются только Замёрзшие, те же, которых он призывает атакой «Замёрзший отряд»
+    // (enemies.frozen*). Тип по весам (как в отряде: 2 лучника, 4 пехотинца, 1 таран). Жуки, быки и стрелки с этой волны не появляются.
+    frozen: { fromWave: 11, weights: { frozenArcher: 2, frozenSoldier: 4, frozenRam: 1 } },
+    // Скелеты «временами» (выключены: share 0, после Тартаса идут только Замёрзшие): с волны fromWave каждый появляющийся
+    // враг с шансом share становится скелетом (тип по весам).
+    skeleton: { fromWave: 11, share: 0, weights: { skeletonArcher: 1, skeletonRam: 1, skeletonWarrior: 2 } },
   },
 
   // Волны. Каждая строка: сколько врагов, интервал между появлениями, потолок живых одновременно.
@@ -743,8 +778,11 @@ export const CONFIG = {
     // pick: 'smallest' берёт самые маленькие из видимых скал, иначе случайные. Скалу рядом с героем (minHeroDist) не трогаем.
     rockWake: [
       { wave: 5, count: 1, pick: 'smallest' },
-      { wave: 12, count: 2 },
-      { wave: 15, count: 4 },
+      { wave: 7, count: 1 },
+      { wave: 9, count: 1 },
+      { wave: 11, count: 1 }, { wave: 12, count: 1 }, { wave: 13, count: 1 },
+      { wave: 15, count: 2 }, { wave: 16, count: 2 }, { wave: 17, count: 2 },
+      { wave: 19, count: 3 },
     ],
     rockWakeMinHeroDist: 160,
     rockWakeViewMargin: 20, // скала должна быть в кадре с таким запасом от края: игрок видит, как она просыпается

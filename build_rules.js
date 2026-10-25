@@ -56,7 +56,8 @@ export function canPlace(grid, modDef, x, y) {
   }
   const n = nodes[0];
   const core = grid.coreById(t.owner.get(n.y * grid.size + n.x));
-  const ok = parentAccepts(modDef, n.core || null, t.carry.get(n.y * grid.size + n.x), core);
+  const root = n.core || (n.mod && n.mod.def.effect.secondary ? core : null); // корень ветки: ядро или вторичное ядро
+  const ok = parentAccepts(modDef, root, t.carry.get(n.y * grid.size + n.x), core);
   return { ok, reason: ok ? '' : 'incompatible', core };
 }
 
