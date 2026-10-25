@@ -227,6 +227,10 @@ export class Game {
       meter: this.meter,
       storage: o.storage,
       storageKey: o.storageKey,
+      actions: [
+        { label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
+        { label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },
+      ],
       build: o.build,
       getStats: () => ({
         steps: this.stepper.lastSteps,
@@ -1122,6 +1126,32 @@ export class Game {
     } else {
       this.sagTimer = 0;
     }
+  }
+
+  /**
+   * Отладка: сразу к бою с боссом без зачистки волны. which: 'mid' (Тартас, waves.boss) или 'final' (Апофеоз, waves.finalBoss).
+   * Всё, что было на поле (враги, снаряды, отряд, апостолы, мошки, разрушение карты), убирается; герой остаётся как есть.
+   */
+  skipToBoss(which) {
+    if (this.state !== 'playing') return;
+    const W = this.config.waves;
+    const B = which === 'final' ? W.finalBoss : W.boss;
+    const def = B && this.config.enemies[B.enemy];
+    if (!def) return;
+    this.enemies.clear();
+    this.heroShots.clear();
+    this.enemyShots.clear();
+    this.pellets.clear();
+    this.boss.reset();
+    this.apostles.reset();
+    this.rockBeetles.reset(); // мошки исчезают, скалы и вся карта возвращаются
+    this.camera.resetZoom();
+    this.cine = null;
+    this.spawner.wave = B.wave;
+    this.crashResult = null;
+    this.hud.crashResult = '';
+    this.spawner.spawnBoss(def); // фаза 'boss' и событие boss:spawned (вступление)
+    this.syncWaveHud();
   }
 
   jumpToWave(n) {
