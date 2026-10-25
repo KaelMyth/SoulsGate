@@ -492,3 +492,7 @@ body { font-family: var(--serif); }
   touch-action: manipulation;
 }
 .lu-exchange:active { color: #fff; border-color: var(--accent); }
+
+#pause-screen.preview { z-index: 26; background: radial-gradient(ellipse at 50% 45%, rgba(8, 16, 30, 0.96), rgba(4, 7, 14, 0.99) 80%); }
+.lu-card { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+#pause-screen .row[hidden] { display: none; }

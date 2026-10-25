@@ -39,12 +39,11 @@ export class PauseUI {
       type: 'button', id: 'tools-toggle', class: 'tools-toggle', onclick: () => this.showTools(this.toolsList.hidden),
     }, '＋ Добавить мод (тест) ▴');
     this.tools = h('div', { class: 'test-tools' }, this.toolsBtn, this.toolsList);
-    this.main = h('div', { class: 'card', id: 'pause-main' },
-      this.builder.root,
-      this.tools,
-      h('div', { class: 'row' },
+    this.previewRow = h('div', { class: 'row', hidden: '' });
+    this.mainRow = h('div', { class: 'row' },
         h('button', { id: 'pause-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
-        h('button', { id: 'pause-menu', class: 'secondary', type: 'button', onclick: () => this.showMenu(true) }, 'Меню')));
+        h('button', { id: 'pause-menu', class: 'secondary', type: 'button', onclick: () => this.showMenu(true) }, 'Меню'));
+    this.main = h('div', { class: 'card', id: 'pause-main' }, this.builder.root, this.tools, this.mainRow, this.previewRow);
     this.menu = h('div', { class: 'card', id: 'menu-card', hidden: '' },
       h('h2', {}, 'Меню'),
       h('button', { id: 'menu-new', type: 'button', onclick: () => handlers.onRestart() }, 'Новая игра'),
@@ -53,8 +52,41 @@ export class PauseUI {
     root.append(this.button, this.screen);
   }
 
+  /**
+   * Предпросмотр награды: поверх окна выбора открывается меню Билда, на поле подсвечены места для мода def.
+   * Кнопки: «Выбрать этот» (onChoose) и «Назад» (onBack).
+   */
+  showPreview(def, onChoose, onBack) {
+    this.previewing = true;
+    this.screen.classList.toggle('preview', true);
+    this.screen.hidden = false;
+    this.showMenu(false);
+    this.showTools(false);
+    this.tools.hidden = true;
+    this.mainRow.hidden = true;
+    this.previewRow.hidden = false;
+    this.previewRow.replaceChildren(
+      h('button', { type: 'button', class: 'secondary', onclick: () => { this.hidePreview(); onBack(); } }, 'Назад'),
+      h('button', { type: 'button', onclick: () => { this.hidePreview(); onChoose(); } }, 'Выбрать этот'));
+    this.builder.sel = { kind: 'preview', def };
+    this.builder.refresh();
+  }
+
+  hidePreview() {
+    if (!this.previewing) return;
+    this.previewing = false;
+    this.screen.classList.toggle('preview', false);
+    this.screen.hidden = true;
+    this.mainRow.hidden = false;
+    this.previewRow.hidden = true;
+    this.tools.hidden = !this.testTools;
+    if (this.builder.sel && this.builder.sel.kind === 'preview') this.builder.sel = null;
+    this.builder.refresh();
+  }
+
   /** Набор для тестов виден только в режиме «Тестирование». */
   setTestTools(on) {
+    this.testTools = on;
     this.tools.hidden = !on;
     if (!on) this.showTools(false);
   }
