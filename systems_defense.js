@@ -27,6 +27,8 @@ export class HeroDefense {
     this.bus = o.bus;
     this.modifiers = o.modifiers || null; // (id) => { стат: { percent, flat } }: моды билда
     this.state = 'move';
+    this.dashSeq = 0;       // номер рывка (чтобы враг отлетал один раз за рывок)
+    this.dashCdMul = 1;     // множитель перезарядки рывка (Ускорение на Кинетическом рывке)
     this.lightDash = false; // Молния на рывке: цепочка рикошетов
     this.lightning = null;  // система рывка-молнии (задаёт игра)
     this.kinetic = false; // стоит «Кинетический рывок»: рывок длиннее
@@ -127,7 +129,7 @@ export class HeroDefense {
     if (light) { // героя двигает цепочка рикошетов, обычной скорости нет
       this.dashTime = this.lightning.duration;
       this.dashT = Math.max(0.02, this.lightning.duration);
-      this.dashCd = this.cfg.lightdash.cooldown;
+      this.dashCd = this.cfg.lightdash.cooldown * this.dashCdMul;
       this.dashCdMax = Math.max(0.001, this.dashCd);
       this.dashV0 = 0;
       this.dashElapsed = 0;
@@ -140,8 +142,9 @@ export class HeroDefense {
     }
     this.dashTime = d.duration;
     this.dashT = Math.max(0.02, d.duration);
-    this.dashCd = d.cooldown;
-    this.dashCdMax = Math.max(0.001, d.cooldown);
+    const cdm = this.kinetic ? this.dashCdMul : 1;
+    this.dashCd = d.cooldown * cdm;
+    this.dashCdMax = Math.max(0.001, d.cooldown * cdm);
     // Рывок с инерцией: скорость быстро падает по экспоненте (резкий старт, мягкое торможение),
     // остаток скорости не обрывается, а плавно перетекает в обычное движение (glide).
     // v0 подобрана так, что рывок вместе с «скольжением» проходит ровно distance.
@@ -155,6 +158,7 @@ export class HeroDefense {
     this.hero.dashVy = this.dashY * this.dashV0;
     this.hero.facing = Math.atan2(this.dashY, this.dashX);
     if (d.invuln > 0 && this.hero.invuln < d.invuln) this.hero.invuln = d.invuln;
+    this.dashSeq++;
     this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
     return true;
   }
