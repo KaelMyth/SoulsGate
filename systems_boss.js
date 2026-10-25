@@ -391,7 +391,7 @@ export class Boss {
     }
   }
 
-  /** Атака клинками: босс стоит, камера отъезжает (cameraZoom), потом волны клинков 4, 8, 16 (cycle.blades.waves). */
+  /** Атака клинками: босс стоит, камера отъезжает (cameraZoom), потом волны клинков 4, 8 (cycle.blades.waves). */
   startBlades(e, C) {
     this.bladeWave = 0;
     this.bladeCount = 0;
