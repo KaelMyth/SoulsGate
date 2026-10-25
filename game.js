@@ -711,38 +711,39 @@ export class Game {
    */
   updateKinetic(dt) {
     const h = this.hero;
-    if (!this.defense.kinetic) { this.kPending = false; return; }
-    if (h.dashing) this.kPending = true;
-    if (this.kPending && !h.dashing && h.glideTime <= 0) {
-      this.kPending = false;
-      this.kineticPush();
-    }
+    if (!this.defense.kinetic) return;
+    const moving = h.dashing || h.glideTime > 0;
+    if (moving && h.invuln < 0.1) h.invuln = 0.1; // таран: пока герой в рывке и скольжении, урон от врагов не проходит
+    if (h.dashing && !this.lightdash.active) this.kineticRam();
   }
 
-  kineticPush() {
+  /** Кинетический рывок: каждый враг, которого герой задел в рывке, отлетает сразу в момент касания (один раз за рывок). */
+  kineticRam() {
     const K = this.config.kinetic;
     const m = this.kineticMods;
     const h = this.hero;
     const en = this.enemies.items;
     const grid = this.swarm.grid;
-    const n = grid.query(h.x, h.y, K.pushRadius + 40);
+    const reach = h.radius + 14;
+    const n = grid.query(h.x, h.y, reach + 30);
     const buf = grid.buf;
     const bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
     const bi = m && m.burn ? this.config.burn.interval / m.burn.rate : 0;
+    const wide = 1 + (m && m.bounces ? m.bounces.percent / 200 : 0); // Х2 расширяет толчок
+    const id = this.defense.dashSeq;
     for (let k = 0; k < n; k++) {
       const e = en[buf[k]];
-      if (!e || !e.active) continue;
+      if (!e || !e.active || e.pushId === id) continue;
       const dx = e.x - h.x;
       const dy = e.y - h.y;
       const d = Math.hypot(dx, dy) || 1;
-      if (d > K.pushRadius + e.radius) continue;
-      const fall = 1 - 0.5 * Math.min(1, d / (K.pushRadius + e.radius)); // ближние отлетают дальше
-      applyKnockback(e, dx / d, dy / d, K.pushDistance * fall, K.pushTime);
+      if (d > reach + e.radius) continue;
+      e.pushId = id;
+      applyKnockback(e, dx / d, dy / d, K.pushDistance * wide, K.pushTime);
+      this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (bd > 0) this.ignite(e, bd, bi);
       if (m && m.frost) this.chill(e, bd > 0 && m.steam ? m.steam.damage : 0, bd, bi);
     }
-    this.burst(h.x, h.y, 0.35, h.radius, K.pushRadius, K.color);
-    this.burst(h.x, h.y, 0.2, h.radius * 0.6, K.pushRadius * 0.6, '#ffffff');
   }
 
   /** Костры шлейфа (только с Горением на рывке): пока идёт огненный рывок, через trailStep оставляем костёр; костры горят fireLife с и поджигают врагов внутри. */
@@ -968,6 +969,13 @@ export class Game {
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам
+      { // моды рывка: Х2/Х3 (рикошеты, толчок), Мощь (урон), Ускорение (перезарядка)
+        const km0 = this.kineticMods;
+        const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
+        this.defense.dashCdMul = 1 / (1 + pc('rate'));
+        this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
+        this.lightdash.damageMul = 1 + pc('damage');
+      }
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.lightdash.update(dt);
