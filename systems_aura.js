@@ -19,6 +19,7 @@ export class Aura {
     this.active = false;  // стоит ли мод
     this.radius = 0;      // текущий радиус поля (для рисования)
     this.pulse = 0;       // вспышка поля на тике: 1 → 0
+    this.kind = 0;        // стихия поля для рисования: 0 нет, 1 Мороз, 2 Горение, 3 пар
     this.timer = 0;
     this.n = 0;           // номер тика: каждый effectEvery-й несёт огонь и мороз
     this.hit = [];
@@ -38,6 +39,7 @@ export class Aura {
     }
     const A = this.cfg.aura;
     this.active = true;
+    this.kind = m.frost && m.burn ? 3 : m.burn ? 2 : m.frost ? 1 : 0; // стихия для отрисовки: 0 нет, 1 лёд, 2 огонь, 3 пар
     this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)); // Х2/Х3 на ауре: шире
     const dmg = A.damage * (a.damage || 1);                            // Мощь
     const interval = 1 / (A.ticks * (a.rate || 1));                    // Ускорение: больше тиков в секунду

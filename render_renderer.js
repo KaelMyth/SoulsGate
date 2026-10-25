@@ -501,6 +501,8 @@ export class Renderer {
     this.enemyShots = deps.enemyShots || EMPTY;
     this.midges = deps.midges || EMPTY;
     this.apostles = deps.apostles || null;
+    this.apotheosis = deps.apotheosis || null;
+    this.getPortal = deps.getPortal || null; // () => портал финального босса или null
     this.effects = deps.effects || EMPTY;
     this.gems = deps.gems || EMPTY;
     this.autoattack = deps.autoattack || null;
@@ -547,7 +549,8 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
-    this.beetleState = new WeakMap(); // у каждого жука свой угол поворота и фаза анимации (только для вида)
+    this.beetleState = new WeakMap();
+    this.fxSeed = new WeakMap(); // зерно врага для внешнего вида его состояний (лёд, огонь) // у каждого жука свой угол поворота и фаза анимации (только для вида)
   }
 
   /** Подогнать размер холста под экран и плотность пикселей. Зовётся при изменении размера. */
@@ -623,12 +626,17 @@ export class Renderer {
       ctx.fillStyle = C.void;
       ctx.beginPath();
       ctx.rect(arena.left - 8, arena.top - 8, arena.width + 16, arena.height + 16);
-      ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      if (z.poly) { // ломаный остров: плоская верхняя сторона, три другие рваные
+        ctx.moveTo(z.poly[0].x, z.poly[0].y);
+        for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
+        ctx.closePath();
+      } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
       ctx.fill('evenodd');
       ctx.globalAlpha = 1;
       ctx.lineWidth = 3;
       ctx.strokeStyle = C.snowLight;
-      ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      if (z.poly) ctx.stroke();
+      else ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
       ctx.restore();
     }
 
@@ -656,6 +664,8 @@ export class Renderer {
     this.drawTelegraphs(C, alpha);
     this.drawBossGround(C);
     this.drawApostles(C);
+    this.drawPortal();
+    this.drawHands();
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -730,6 +740,7 @@ export class Renderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawStick(C);
     this.drawHud(C);
+    this.drawPortalArrow();
   }
 
   /** Камни опыта: маленькие ромбики; красный крупнее. Вне экрана не рисуем. */
@@ -821,6 +832,130 @@ export class Renderer {
    * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
    * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Руки». По бокам острова чёрные худые руки (тонкая линия и квадратная ладонь), на очереди
+   * полоса с красным телеграфом, упавшая полоса закрашена чёрным и тает. Всё внутри острова обрезано по его кромке.
+   */
+  drawHands() {
+    const a = this.apotheosis;
+    const z = this.arena.zone;
+    if (!a || !z || !a.hands.length) return;
+    const ctx = this.ctx;
+    const H = a.H;
+    if (!H) return;
+    const e = a.emerge;
+    // Руки по бокам: вылезают наружу из пустоты, тянутся к своей полосе.
+    ctx.save();
+    ctx.strokeStyle = '#07070b';
+    ctx.fillStyle = '#07070b';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < a.hands.length; i++) {
+      const b = a.hands[i];
+      if (b.state === 4) continue;
+      const cy = (b.y0 + b.y1) / 2;
+      const edge = b.side < 0 ? z.left : z.right;
+      const reach = b.state === 2 ? 1 : b.state === 1 ? 0.85 : 0.55;
+      const palmX = edge + b.side * (230 - 200 * e * reach);
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(edge + b.side * 420, cy + 120);
+      ctx.lineTo(edge + b.side * 320, cy + 40 * (1 - e));
+      ctx.lineTo(palmX, cy);
+      ctx.stroke();
+      ctx.fillRect(palmX - 22 * b.side - 22, cy - 34, 44, 68);
+    }
+    ctx.restore();
+    // Полосы: клип по острову.
+    ctx.save();
+    ctx.beginPath();
+    if (z.poly) {
+      ctx.moveTo(z.poly[0].x, z.poly[0].y);
+      for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
+      ctx.closePath();
+    } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    ctx.clip();
+    for (let i = 0; i < a.hands.length; i++) {
+      const b = a.hands[i];
+      if (b.state === 1) {
+        const k = Math.min(1, b.t / Math.max(0.01, H.telegraph));
+        ctx.fillStyle = 'rgba(190,30,40,' + (0.2 + 0.3 * k).toFixed(3) + ')';
+        ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
+      } else if (b.state === 2 || b.state === 3) {
+        const k = Math.min(1, b.t / Math.max(0.01, H.slamHold));
+        ctx.fillStyle = 'rgba(5,5,9,' + (0.9 * (1 - 0.7 * k)).toFixed(3) + ')';
+        ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
+      }
+    }
+    ctx.restore();
+  }
+
+  /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
+  drawPortal() {
+    const p = this.getPortal ? this.getPortal() : null;
+    if (!p || p.alpha <= 0) return;
+    const ctx = this.ctx;
+    const t = this.clock;
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.strokeStyle = '#c7a8ff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * (1 + 0.06 * Math.sin(t * 4)), 0, TAU);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 30;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 0.7, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = p.alpha * 0.35;
+    ctx.fillStyle = '#7a4fd6';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 0.55, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** ЗАГЛУШКА ГРАФИКИ: стрелка на краю экрана в сторону портала, пока самого портала не видно. */
+  drawPortalArrow() {
+    const p = this.getPortal ? this.getPortal() : null;
+    if (!p || p.state !== 'open' || p.alpha <= 0) return;
+    const cam = this.camera;
+    const w = this.w;
+    const h = this.h;
+    const ins = this.hud && this.hud.insets ? this.hud.insets : { top: 0, bottom: 0, left: 0, right: 0 };
+    const sx = w / 2 + (p.x - cam.x) * cam.scale;
+    const sy = h / 2 + (p.y - cam.y) * cam.scale;
+    const pad = 36;
+    const pr = p.r * cam.scale;
+    if (sx > -pr && sx < w + pr && sy > -pr && sy < h + pr) return; // портал в кадре
+    const dx = sx - w / 2;
+    const dy = sy - h / 2;
+    const k = Math.min((w / 2 - pad) / Math.max(1e-6, Math.abs(dx)), (h / 2 - pad - Math.max(ins.top || 0, ins.bottom || 0)) / Math.max(1e-6, Math.abs(dy)));
+    const ax = w / 2 + dx * k;
+    const ay = h / 2 + dy * k;
+    const ang = Math.atan2(dy, dx);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = p.alpha * (0.75 + 0.25 * Math.sin(this.clock * 6));
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#c7a8ff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-10, -13);
+    ctx.lineTo(-4, 0);
+    ctx.lineTo(-10, 13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /**
    * ЗАГЛУШКА ГРАФИКИ: призыв апостолов, замах умений, золотые клинки, притяжение Силы. Круги, линии и кольца без деталей.
    * Данные из systems_apostles.js: state, t, corners, cast { e, kind, t }, pull { e }, blades, bladeCount, boost().
@@ -1625,8 +1760,44 @@ export class Renderer {
       else if (st === 'windup') fill = '#f6d9a4';
       else if (st === 'stun') fill = '#8fa8c8';
       ctx.fillStyle = hit ? '#ffffff' : fill;
+      if (e.def.sunHead) { // ЗАГЛУШКА ГРАФИКИ: Апофеоз из двух частей, голова-солнце сверху и туловище снизу
+        const R = rr;
+        const zn = this.arena.zone;
+        ctx.save();
+        if (zn && zn.poly) { // нижнюю часть скрывает поле: босс «вылезает из пустоты». Рисуем только вне острова.
+          ctx.beginPath();
+          ctx.rect(this.arena.left - 400, this.arena.top - 400, this.arena.width + 800, this.arena.height + 800);
+          ctx.moveTo(zn.poly[0].x, zn.poly[0].y);
+          for (let i = 1; i < zn.poly.length; i++) ctx.lineTo(zn.poly[i].x, zn.poly[i].y);
+          ctx.closePath();
+          ctx.clip('evenodd');
+        }
+        ctx.beginPath(); // туловище
+        ctx.ellipse(x, y + R * 0.35, R * 0.9, R * 0.75, 0, 0, TAU);
+        ctx.fill();
+        const hy = y - R * 0.85;
+        const hr = R * 0.5;
+        const rays = e.def.head ? e.def.head.rays : 10;
+        ctx.fillStyle = hit ? '#ffffff' : '#ffd24a';
+        ctx.beginPath(); // лучи солнца: rays остриёв, голова сама не вращается (поворот только по умениям, e.headAngle)
+        for (let i = 0; i < rays * 2; i++) {
+          const a = -Math.PI / 2 + e.headAngle + (i / (rays * 2)) * TAU;
+          const rad = i % 2 ? hr * 1.15 : hr * 1.9;
+          if (i === 0) ctx.moveTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
+          else ctx.lineTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = hit ? '#ffffff' : '#fff0b0';
+        ctx.beginPath();
+        ctx.arc(x, hy, hr, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = hit ? '#ffffff' : fill;
+      }
       ctx.beginPath();
-      if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
+      if (e.def.sunHead) ctx.arc(x, y, 0.01, 0, TAU); // тело уже нарисовано
+      else if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
       else ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
       if (e.def.slam && st === 'windup') { // ЗАГЛУШКА ГРАФИКИ: кольцо замаха растёт к моменту удара
@@ -1643,58 +1814,8 @@ export class Renderer {
       ctx.stroke();
     }
 
-    // Мороз: голубая кайма по числу зарядов; заморожен: ледяная заливка и белая кайма.
-    if (e.freezeT > 0) {
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = this.cfg.frost.color;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, TAU);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x, y, r + 1, 0, TAU);
-      ctx.stroke();
-    } else if (e.frostStacks > 0) {
-      ctx.lineWidth = 1 + e.frostStacks * 0.6;
-      ctx.strokeStyle = this.cfg.frost.color;
-      ctx.beginPath();
-      ctx.arc(x, y, r + 1.5, 0, TAU);
-      ctx.stroke();
-    }
-
-    // Электризация: жёлтые искры вокруг по числу зарядов.
-    if (e.shockStacks > 0) {
-      ctx.strokeStyle = this.cfg.shock.color;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      const ph = Math.floor(this.clock * 16);
-      for (let k = 0; k < e.shockStacks; k++) {
-        const a0 = ((Math.sin((ph + k * 3 + e.x) * 12.9898) * 43758.5453) % 1) * TAU;
-        ctx.moveTo(x + Math.cos(a0) * (r + 1), y + Math.sin(a0) * (r + 1));
-        ctx.lineTo(x + Math.cos(a0 + 0.2) * (r + 5), y + Math.sin(a0 + 0.2) * (r + 5));
-        ctx.lineTo(x + Math.cos(a0 - 0.1) * (r + 9), y + Math.sin(a0 - 0.1) * (r + 9));
-      }
-      ctx.stroke();
-    }
-
-    // Горит: тонкое огненное кольцо с мерцанием и язычок над врагом (минималистично).
-    if (e.burnT > 0) {
-      const f = 0.6 + 0.4 * Math.sin(e.burnT * 22);
-      ctx.beginPath();
-      ctx.arc(x, y, r + 2.5, 0, TAU);
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = f;
-      ctx.strokeStyle = this.cfg.burn.color;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x - 3, y - r - 2);
-      ctx.quadraticCurveTo(x, y - r - 6 - 4 * f, x + 3, y - r - 2);
-      ctx.fillStyle = this.cfg.burn.color;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
+    this.drawStatusFx(e, x, y, r);
+    if (e.shockStacks > 0) this.drawShockFx(e, x, y, r);
 
     // Стрелок целится: расширяющееся кольцо, сигнал «сейчас выстрелит, можно парировать».
     if (aiming) {
@@ -1714,6 +1835,181 @@ export class Renderer {
     ctx.fillRect(bx, by, bw, 4);
     ctx.fillStyle = C.hpFill;
     ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, e.hp / e.maxHp)), 4);
+  }
+
+  /**
+   * Состояния на враге. Заряды Мороза: ледяные грани-осколки торчат вокруг, по числу зарядов, и вокруг светится
+   * холодная дымка. Заморожен: враг в огранённой ледяной глыбе с бликами, трещинами и искрами. Горит: языки пламени из
+   * огранённых лепестков поднимаются над ним, снизу тёплый свет, вверх летят угольки.
+   */
+  /** Электризация: жёлтые искры вокруг врага по числу зарядов. */
+  drawShockFx(e, x, y, r) {
+    const ctx = this.ctx;
+    ctx.strokeStyle = this.cfg.shock.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const ph = Math.floor(this.clock * 16);
+    for (let k = 0; k < e.shockStacks; k++) {
+      const a0 = ((Math.sin((ph + k * 3 + e.x) * 12.9898) * 43758.5453) % 1) * TAU;
+      ctx.moveTo(x + Math.cos(a0) * (r + 1), y + Math.sin(a0) * (r + 1));
+      ctx.lineTo(x + Math.cos(a0 + 0.2) * (r + 5), y + Math.sin(a0 + 0.2) * (r + 5));
+      ctx.lineTo(x + Math.cos(a0 - 0.1) * (r + 9), y + Math.sin(a0 - 0.1) * (r + 9));
+    }
+    ctx.stroke();
+  }
+
+  drawStatusFx(e, x, y, r) {
+    const frozen = e.freezeT > 0;
+    const stacks = e.frostStacks | 0;
+    const burning = e.burnT > 0;
+    if (!frozen && stacks <= 0 && !burning) return;
+    const ctx = this.ctx;
+    const t = this.clock;
+    let sd = this.fxSeed.get(e);
+    if (sd === undefined) {
+      sd = Math.random() * 100;
+      this.fxSeed.set(e, sd);
+    }
+    const rnd = (k) => { const h = Math.sin(sd * 12.9898 + k * 78.233) * 43758.5453; return h - Math.floor(h); };
+    const ice = this.getGlow('blue');
+    const fire = this.getGlow();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineJoin = 'round';
+    if (frozen) {
+      const fade = Math.min(1, e.freezeT / 0.35);
+      const R = r * 1.2;
+      const n = 9;
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU + rnd(i) * 0.3;
+        const rr = R * (0.88 + 0.22 * rnd(i + 20));
+        pts.push(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.6 * fade;
+      ctx.drawImage(ice, -R * 1.9, -R * 1.9, R * 3.8, R * 3.8);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.62 * fade;
+      ctx.beginPath(); tracePoly(ctx, pts, 1);
+      ctx.fillStyle = '#9edcff';
+      ctx.fill();
+      // Грань со стороны света и тёмная грань внизу справа: объём.
+      ctx.save();
+      ctx.clip();
+      ctx.globalAlpha = 0.5 * fade;
+      ctx.fillStyle = '#eaf8ff';
+      ctx.translate(-R * 0.35, -R * 0.45);
+      ctx.beginPath(); tracePoly(ctx, [-R, -R, R * 0.2, -R, -R * 0.2, R * 0.1, -R, R * 0.4], 1);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath(); tracePoly(ctx, pts, 1); ctx.clip();
+      ctx.globalAlpha = 0.28 * fade;
+      ctx.fillStyle = '#2a5f9a';
+      ctx.beginPath(); tracePoly(ctx, [R * 0.15, R * 0.3, R * 1.3, R * 0.1, R * 1.3, R * 1.3, -R * 0.3, R * 1.3], 1);
+      ctx.fill();
+      ctx.restore();
+      // Контур, внутренние трещины.
+      ctx.globalAlpha = 0.95 * fade;
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = '#f2fcff';
+      ctx.beginPath(); tracePoly(ctx, pts, 1); ctx.stroke();
+      ctx.globalAlpha = 0.5 * fade;
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      for (let k = 0; k < 3; k++) {
+        const a = rnd(k + 40) * TAU;
+        ctx.moveTo(Math.cos(a) * R * 0.2, Math.sin(a) * R * 0.2);
+        ctx.lineTo(Math.cos(a + 0.2) * R * 0.55, Math.sin(a + 0.2) * R * 0.55);
+        ctx.lineTo(Math.cos(a - 0.1) * R * 0.9, Math.sin(a - 0.1) * R * 0.9);
+      }
+      ctx.stroke();
+      // Острые осколки по углам глыбы.
+      for (let k = 0; k < 4; k++) {
+        const a = rnd(k + 60) * TAU;
+        const bx = Math.cos(a) * R * 0.92;
+        const by = Math.sin(a) * R * 0.92;
+        const ex = Math.cos(a) * R * 1.3;
+        const ey = Math.sin(a) * R * 1.3;
+        const nx = -Math.sin(a) * 2.2;
+        const ny = Math.cos(a) * 2.2;
+        ctx.globalAlpha = 0.85 * fade;
+        ctx.fillStyle = '#d6f1ff';
+        ctx.beginPath(); tracePoly(ctx, [bx - nx, by - ny, ex, ey, bx + nx, by + ny], 1); ctx.fill();
+      }
+      // Блики: искорки перемигиваются.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffffff';
+      for (let k = 0; k < 3; k++) {
+        const tw = Math.max(0, Math.sin(t * 3 + k * 2.1 + sd));
+        const a = rnd(k + 80) * TAU;
+        const px = Math.cos(a) * R * 0.6;
+        const py = Math.sin(a) * R * 0.6;
+        const sz = 1 + 3 * tw;
+        ctx.globalAlpha = tw * fade;
+        ctx.beginPath(); tracePoly(ctx, [px, py - sz, px + sz * 0.3, py, px, py + sz, px - sz * 0.3, py], 1); ctx.fill();
+        ctx.beginPath(); tracePoly(ctx, [px - sz, py, px, py - sz * 0.3, px + sz, py, px, py + sz * 0.3], 1); ctx.fill();
+      }
+    } else if (stacks > 0) {
+      const k5 = Math.min(1, stacks / this.cfg.frost.maxStacks);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.12 + 0.3 * k5;
+      ctx.drawImage(ice, -r * 1.6, -r * 1.6, r * 3.2, r * 3.2);
+      ctx.globalCompositeOperation = 'source-over';
+      for (let k = 0; k < stacks; k++) {
+        const a = sd + (k / this.cfg.frost.maxStacks) * TAU + rnd(k) * 0.4;
+        const c = Math.cos(a);
+        const sn = Math.sin(a);
+        const len = 7 + 5 * rnd(k + 5) + stacks;
+        const base = r * 0.8;
+        const nx = -sn * 3;
+        const ny = c * 3;
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = '#7fcfff';
+        ctx.beginPath(); tracePoly(ctx, [c * base - nx, sn * base - ny, c * (base + len), sn * (base + len), c * base + nx, sn * base + ny], 1); ctx.fill();
+        ctx.fillStyle = '#e9f9ff';
+        ctx.beginPath(); tracePoly(ctx, [c * base - nx, sn * base - ny, c * (base + len), sn * (base + len), c * base, sn * base], 1); ctx.fill();
+      }
+    }
+    if (burning) {
+      const fade = Math.min(1, e.burnT / 0.35) * Math.min(1, 1.4);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.45 * fade;
+      ctx.drawImage(fire, -r * 1.7, -r * 1.7, r * 3.4, r * 3.4);
+      ctx.globalCompositeOperation = 'source-over';
+      const tongues = 4;
+      for (let k = 0; k < tongues; k++) {
+        const a = -Math.PI * (0.2 + 0.6 * ((k + 0.5) / tongues)) + (rnd(k + 100) - 0.5) * 0.3; // дуга сверху
+        const fl = 0.65 + 0.35 * Math.sin(t * 11 + k * 2.3 + sd) * Math.sin(t * 5.1 + k);
+        const bx = Math.cos(a) * r * 0.7;
+        const by = Math.sin(a) * r * 0.7 + 1;
+        const h = r * (1.0 + 0.6 * rnd(k + 120)) * (0.65 + 0.55 * fl);
+        const w = Math.max(3, r * 0.3);
+        const sway = Math.sin(t * 7 + k * 1.7 + sd) * w * 0.6;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.globalAlpha = 0.85 * fade;
+        ctx.fillStyle = '#ff7a2a';
+        ctx.beginPath(); tracePoly(ctx, [-w, 0, -w * 0.55, -h * 0.5, sway, -h, w * 0.5, -h * 0.55, w, 0], 1); ctx.fill();
+        ctx.globalAlpha = 0.9 * fade;
+        ctx.fillStyle = '#ffc24a';
+        ctx.beginPath(); tracePoly(ctx, [-w * 0.5, 0, -w * 0.25, -h * 0.35, sway * 0.6, -h * 0.68, w * 0.25, -h * 0.38, w * 0.5, 0], 1); ctx.fill();
+        ctx.restore();
+      }
+      // Угольки поднимаются и гаснут.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffb56a';
+      for (let k = 0; k < 4; k++) {
+        const ph = (t * 0.9 + k * 0.25 + rnd(k + 140)) % 1;
+        const a = rnd(k + 150) * TAU;
+        ctx.globalAlpha = (1 - ph) * 0.9 * fade;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * r * 0.6 + Math.sin(t * 3 + k) * 2, -r * 0.5 - ph * r * 1.6, 1.2, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   /** Мягкое тёплое пятно света (белое в центре, оранжевое по краям, прозрачное на границе). Один спрайт на всех. */
@@ -4129,28 +4425,118 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** Смертельная аура: мягкое поле с пульсацией на тике и медленно бегущим пунктирным краем. */
+  /**
+   * Смертельная аура: слабая негативная магия. В радиусе две тонкие вещи: лёгкое дрожащее искажение пространства
+   * (картинка внутри чуть увеличена кольцами и «дышит») и редкие завихрения, в которых на миг проступает негатив
+   * (инверсия цвета через difference). Всё еле заметно; на тике поле вздрагивает сильнее. Резкой границы нет.
+   */
   drawAura(ctx, hx, hy) {
     const au = this.aura;
     if (!au || !au.active) return;
     const R = au.radius;
-    const col = this.cfg.aura.color;
     const t = this.clock;
+    const pl = au.pulse || 0;
+    // Искажение: копия экрана под полем, нарисованная обратно с лёгким увеличением вложенными дисками.
+    const m = ctx.getTransform();
+    const sc = Math.hypot(m.a, m.b);
+    const D = Math.ceil(2 * R * sc);
+    const dx = m.a * hx + m.c * hy + m.e;
+    const dy = m.b * hx + m.d * hy + m.f;
+    if (D > 8 && D < 2400 && sc > 0) {
+      let tc = this.auraTmp;
+      if (!tc || tc.width < D || tc.height < D) tc = this.auraTmp = makeCanvas(D, D);
+      const tg = tc.getContext('2d');
+      tg.setTransform(1, 0, 0, 1, 0, 0);
+      tg.clearRect(0, 0, tc.width, tc.height);
+      tg.drawImage(ctx.canvas, Math.round(dx - D / 2), Math.round(dy - D / 2), D, D, 0, 0, D, D);
+      ctx.save();
+      ctx.translate(hx, hy);
+      const rings = 4;
+      for (let i = 1; i < rings; i++) {
+        const rr = R * (1 - i / rings * 0.78);
+        const k = 1 + (0.012 + 0.012 * i) * (1 + 0.5 * Math.sin(t * 1.5 + i * 1.3)) * (1 + pl * 1.2);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, rr, 0, TAU);
+        ctx.clip();
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(tc, 0, 0, D, D, -R * k, -R * k, 2 * R * k, 2 * R * k);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
     ctx.save();
     ctx.translate(hx, hy);
-    ctx.globalAlpha = 0.1 + 0.1 * au.pulse;
-    ctx.fillStyle = col;
+    // Едва заметная тёмно-фиолетовая дымка по краю: поле читается без линии.
+    const gr = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R);
+    const kd = au.kind | 0;
+    const tint = ['110,80,165', '110,185,255', '255,130,50', '225,236,248'][kd]; // цвет стихии: лёгкий, поле остаётся тёмным
+    gr.addColorStop(0, 'rgba(' + tint + ',0)');
+    gr.addColorStop(0.7, 'rgba(' + tint + ',' + (kd ? 0.09 : 0.05) + ')');
+    gr.addColorStop(1, 'rgba(' + tint + ',0)');
+    ctx.globalAlpha = 1 + pl * 0.8;
+    ctx.fillStyle = gr;
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, TAU);
     ctx.fill();
-    ctx.globalAlpha = 0.5 + 0.3 * au.pulse;
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = -t * 18;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * (1 + 0.02 * au.pulse), 0, TAU);
-    ctx.stroke();
+    // Завихрения с негативом: возникают, закручиваются и тают по очереди.
+    ctx.globalCompositeOperation = 'difference';
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = '#ffffff';
+    const sw = 5;
+    for (let i = 0; i < sw; i++) {
+      const u = (t * 0.27 + i / sw) % 1;
+      const vis = Math.sin(Math.PI * u);
+      const al = vis * vis * (0.55 + 0.6 * pl);
+      if (al < 0.02) continue;
+      const dir = i % 2 ? -1 : 1;
+      const base = (i * 2.399 + Math.floor(t * 0.27 + i / sw) * 1.7) + dir * u * 1.4;
+      const n = 12;
+      let px = 0;
+      let py = 0;
+      for (let j = 0; j <= n; j++) {
+        const v = j / n;
+        const r = R * (0.1 + 0.8 * v) * (0.85 + 0.15 * vis);
+        const ang = base + dir * v * 2.3;
+        const x = Math.cos(ang) * r;
+        const y = Math.sin(ang) * r;
+        if (j > 0) {
+          const w = 7 * Math.sin(Math.PI * v) * (0.6 + 0.4 * vis);
+          ctx.globalAlpha = 0.07 * al;
+          ctx.lineWidth = w * 2.2 + 1;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+          ctx.globalAlpha = 0.11 * al;
+          ctx.lineWidth = w + 0.6;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+          if (kd) { // окраска завихрения стихией поверх негатива
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgb(' + tint + ')';
+            ctx.globalAlpha = 0.09 * al;
+            ctx.lineWidth = w * 1.4 + 0.6;
+            ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+            ctx.globalCompositeOperation = 'difference';
+            ctx.strokeStyle = '#ffffff';
+          }
+        }
+        px = x;
+        py = y;
+      }
+    }
+    // Стихия: редкие частицы поднимаются из поля (угольки, ледяная пыль, пар).
+    if (kd) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgb(' + tint + ')';
+      for (let i = 0; i < 9; i++) {
+        const ph = (t * (kd === 2 ? 0.5 : 0.28) + i * 0.113) % 1;
+        const a = i * 2.17 + Math.floor(t * 0.3 + i) * 0.9;
+        const rr = R * (0.2 + 0.7 * ((i * 0.37) % 1));
+        const up = kd === 1 ? -ph * 8 + 6 * ph : -ph * 22; // лёд почти не поднимается и оседает
+        ctx.globalAlpha = Math.sin(Math.PI * ph) * (kd === 3 ? 0.35 : 0.6);
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * rr + Math.sin(t * 2 + i) * 2, Math.sin(a) * rr * 0.9 + up, kd === 3 ? 3.2 : 1.3, 0, TAU);
+        ctx.fill();
+      }
+    }
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -4310,22 +4696,97 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Дробь: все дробинки одним путём и одной заливкой, без объектов и градиентов. */
+  /**
+   * Дробь это частицы. Без модов: яркие синие искры-чёрточки. С Горением: огненное дыхание, пышущие язычки, которые
+   * растут и гаснут по пути. С Морозом: ледяной пар, холодные клубы. Мороз и Горение вместе: простой белый пар.
+   * Возраст частицы: 1 - left / mx (доля пройденной дальности). Искры рисуются одним путём, клубы спрайтами.
+   */
   drawPellets(ctx, alpha, viewL, viewR, viewT, viewB) {
     const P = this.pellets;
     if (!P || !P.n) return;
-    const S = this.cfg.shot;
-    const r = S.radius;
-    const d = r * 2;
-    ctx.fillStyle = S.color;
+    const t = this.clock;
+    const puff = this.getPuff();
+    const gOr = this.getGlow();
+    const gGold = this.getGlow('gold');
+    const gBl = this.getGlow('blue');
+    // Проход 1: клубы и огонь (сложение цветов для огня и льда, обычное наложение для пара).
+    ctx.globalCompositeOperation = 'lighter';
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < P.n; i++) {
+        const fire = P.bd[i] > 0;
+        const ice = P.fr[i] === 1;
+        if (!fire && !ice) continue;
+        const steam = fire && ice;
+        if ((pass === 0) === steam) continue; // пар рисуем вторым проходом, обычным наложением
+        const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+        const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+        if (x < viewL - 20 || x > viewR + 20 || y < viewT - 20 || y > viewB + 20) continue;
+        const u = Math.min(1, 1 - P.left[i] / (P.mx[i] || 1));
+        const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
+        const bx = -P.vx[i] / sp;
+        const by = -P.vy[i] / sp;
+        const nx = -by;
+        const ny = bx;
+        const sd = P.sd[i]; // стабильное зерно дробинки: клубы не прыгают, когда соседние дробинки гаснут
+        // Шлейф из клубов позади дробинки. Клубы разбросаны в стороны всё шире с возрастом, плывут плавно и
+        // не стоят на линии: вместе они дают расползающуюся струю дыхания или пара.
+        const puffs = steam ? 6 : 5;
+        for (let j = 0; j < puffs; j++) {
+          const h1 = Math.sin(sd * 127.1 + j * 311.7) * 43758.5453;
+          const r1 = h1 - Math.floor(h1);
+          const h2 = Math.sin(sd * 269.5 + j * 183.3) * 43758.5453;
+          const r2 = h2 - Math.floor(h2);
+          const uu = Math.min(1, u + j * 0.04);
+          const back = j * 5 + r1 * 5;
+          const spread = (r2 - 0.5) * 2 * (3 + 16 * uu); // в стороны шире с возрастом
+          const drift = Math.sin(t * 1.4 + sd * 6.28 + j * 1.3) * 2.5 * uu;
+          const cx = x + bx * back + nx * (spread + drift);
+          const cy = y + by * back + ny * (spread + drift) - uu * (steam ? 10 : 7) * (0.5 + r1);
+          const fall = 1 - j * 0.13;
+          const sz = 0.8 + 0.5 * r2;
+          if (steam) {
+            const s2 = (6 + 13 * uu) * sz;
+            ctx.globalAlpha = 0.34 * (1 - uu) * Math.min(1, uu * 5 + 0.45) * fall;
+            ctx.drawImage(puff, cx - s2, cy - s2, s2 * 2, s2 * 2);
+          } else if (fire) {
+            const s2 = (4.5 + 9 * uu) * sz;
+            ctx.globalAlpha = Math.min(1, 1.15 - uu) * 0.6 * fall;
+            ctx.drawImage(j === 0 && uu < 0.35 ? gGold : gOr, cx - s2, cy - s2, s2 * 2, s2 * 2);
+          } else {
+            const s2 = (4.5 + 8 * uu) * sz;
+            ctx.globalAlpha = 0.45 * (1 - uu * 0.9) * fall;
+            ctx.drawImage(gBl, cx - s2, cy - s2, s2 * 2, s2 * 2);
+            ctx.globalAlpha = 0.3 * (1 - uu) * fall;
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(puff, cx - s2, cy - s2, s2 * 2, s2 * 2);
+            ctx.globalCompositeOperation = 'lighter';
+          }
+        }
+      }
+      ctx.globalCompositeOperation = pass === 0 ? 'source-over' : 'lighter';
+    }
+    // Проход 2: обычные дробинки: тонкие светящиеся чёрточки по ходу полёта, одним путём.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
     ctx.beginPath();
     for (let i = 0; i < P.n; i++) {
+      if (P.bd[i] > 0 || P.fr[i] === 1) continue;
       const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
       const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
-      if (x < viewL - 8 || x > viewR + 8 || y < viewT - 8 || y > viewB + 8) continue;
-      ctx.rect(x - r, y - r, d, d);
+      if (x < viewL - 12 || x > viewR + 12 || y < viewT - 12 || y > viewB + 12) continue;
+      const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - (P.vx[i] / sp) * 9, y - (P.vy[i] / sp) * 9);
     }
-    ctx.fill();
+    ctx.lineWidth = 3.2;
+    ctx.strokeStyle = 'rgba(90,160,255,0.35)';
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(225,242,255,0.95)';
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   }
 
   /**

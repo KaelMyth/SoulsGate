@@ -91,7 +91,7 @@ export class Swarm {
     for (let it = 0; it < iters; it++) {
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
-        if (!e.active) continue;
+        if (!e.active || e.def.immovable) continue; // неподвижного (Апофеоз) не двигаем: расходятся те, кто о него упёрся
         const m = grid.query(e.x, e.y, e.radius * 2 + slack);
         const buf = grid.buf;
         for (let k = 0; k < m; k++) {
@@ -134,6 +134,12 @@ export class Swarm {
         const d2 = dx * dx + dy * dy;
         if (d2 >= min * min) continue;
         const d = Math.sqrt(d2) || 1e-4;
+        if (e.def.immovable) { // босс как стена: отодвигаем героя, не босса
+          hero.x = e.x - (dx / d) * min;
+          hero.y = e.y - (dy / d) * min;
+          arena.resolveCircle(hero);
+          continue;
+        }
         e.x = hero.x + (dx / d) * min;
         e.y = hero.y + (dy / d) * min;
       }

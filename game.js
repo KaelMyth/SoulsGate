@@ -23,6 +23,7 @@ import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { RockBeetles } from './systems_rockbeetle.js';
 import { Apostles } from './systems_apostles.js';
+import { ApotheosisAI } from './systems_apotheosis.js';
 import { Shooters } from './systems_shooters.js';
 import { Attacks } from './systems_attacks.js';
 import { Boss } from './systems_boss.js';
@@ -105,6 +106,7 @@ export class Game {
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.apostles = new Apostles({ config, hero: this.hero, arena: this.arena, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
+    this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus });
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
@@ -164,6 +166,8 @@ export class Game {
       enemyShots: this.enemyShots,
       midges: this.rockBeetles.midges,
       apostles: this.apostles,
+      apotheosis: this.apotheosis,
+      getPortal: () => this.spawner.portal,
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -302,6 +306,11 @@ export class Game {
       this.burst(x, y, 0.4, 8, 46, config.render.colors.fissureCore);
       this.sparks(x, y, hit ? 10 : 6, config.render.colors.fissureCore);
     });
+    // Портал (ЗАГЛУШКА вспышек): вспышка при открытии и при гашении.
+    this.bus.on('portal:opened', ({ portal }) => this.burst(portal.x, portal.y, 0.6, 10, 90, '#c7a8ff'));
+    this.bus.on('portal:closing', ({ portal }) => this.burst(portal.x, portal.y, 0.7, 20, 140, '#ffffff'));
+    // Руки Апофеоза (ЗАГЛУШКИ вспышек): удар по полосе.
+    this.bus.on('apotheosis:slam', ({ x, y }) => { this.burst(x, y, 0.5, 20, 120, '#6a4a7a'); this.sparks(x, y, 8, '#ff6a6a'); });
     // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
     this.bus.on('apostle:summon', ({ x, y }) => this.burst(x, y, 0.5, 10, 50, config.render.colors.snowLight));
     this.bus.on('apostle:heal', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.4, enemy.radius, enemy.radius * 2.2, '#9cffb0'));
@@ -975,6 +984,7 @@ export class Game {
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
+      this.apotheosis.update(dt);  // голова-солнце, умение «Руки», очерёдность умений босса
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
       this.shooters.update(dt, en);
       this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
@@ -1088,21 +1098,10 @@ export class Game {
     const A = this.arena;
     this.state = 'cutscene';
     this.stick.cancel();
-    // Остров: прямоугольник вокруг героя, не ближе zoneMargin к краю арены.
-    const hw = F.zoneWidth / 2;
-    const hh = F.zoneHeight / 2;
-    const cx = Math.min(A.right - F.zoneMargin - hw, Math.max(A.left + F.zoneMargin + hw, this.hero.x));
-    const cy = Math.min(A.bottom - F.zoneMargin - hh, Math.max(A.top + F.zoneMargin + hh, this.hero.y));
-    const zone = { left: cx - hw, right: cx + hw, top: cy - hh, bottom: cy + hh };
-    // Босс там, где разрушенной зоны больше всего: за ближайшим к центру арены краем... берём самую просторную сторону.
-    const room = [zone.top - A.top, A.bottom - zone.bottom, zone.left - A.left, A.right - zone.right];
-    let side = 0;
-    for (let i = 1; i < 4; i++) if (room[i] > room[side]) side = i;
-    const gap = F.bossGap;
-    if (side === 0) { boss.x = cx; boss.y = zone.top - gap; }
-    else if (side === 1) { boss.x = cx; boss.y = zone.bottom + gap; }
-    else if (side === 2) { boss.x = zone.left - gap; boss.y = cy; }
-    else { boss.x = zone.right + gap; boss.y = cy; }
+    // Остров: многоугольник под центром карты, верхняя сторона плоская, остальные ломаные. Босс всегда сверху.
+    const zone = A.buildIsland(F, this.rnd);
+    boss.x = (zone.left + zone.right) / 2;
+    boss.y = zone.top - F.bossGap;
     boss.prevX = boss.x;
     boss.prevY = boss.y;
     this.cine = { finale: true, t: 0, zone, boss, rocksGone: false, dust: 0 };
@@ -1261,13 +1260,15 @@ export class Game {
     this.pellets.clear();
     this.boss.reset();
     this.apostles.reset();
+    this.apotheosis.reset();
     this.rockBeetles.reset(); // мошки исчезают, скалы и вся карта возвращаются
     this.camera.resetZoom();
     this.cine = null;
     this.spawner.wave = B.wave;
     this.crashResult = null;
     this.hud.crashResult = '';
-    this.spawner.spawnBoss(def); // фаза 'boss' и событие boss:spawned (вступление)
+    if (which === 'final' && W.finale && W.finale.portal) this.spawner.openPortal(); // финал начинается с портала
+    else this.spawner.spawnBoss(def); // фаза 'boss' и событие boss:spawned (вступление)
     this.syncWaveHud();
   }
 
@@ -1349,6 +1350,7 @@ export class Game {
     this.hitStop = 0;
     this.boss.reset();
     this.apostles.reset();
+    this.apotheosis.reset();
     this.cine = null;
     this.hud.bossTitle = '';
     this.hud.bossTitleAlpha = 0;
