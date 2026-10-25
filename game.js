@@ -750,6 +750,7 @@ export class Game {
       q.color = F.color;
       q.owner = p.owner;
       q.gen = p.gen + 1;
+      q.glow = p.glow;
       q.phantom = p.phantom;
       this.burst(x, y, 0.3, 4, 16, F.color);
       return;

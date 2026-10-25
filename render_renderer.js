@@ -3060,7 +3060,9 @@ export class Renderer {
     const cy = H / 2;
     const stops = kind === 'Ice'
       ? [[0, 'rgba(150,235,255,0)'], [0.55, 'rgba(170,240,255,0.35)'], [1, 'rgba(240,252,255,0.95)']]
-      : kind === 'Steam'
+      : kind === 'Violet'
+        ? [[0, 'rgba(120,60,255,0)'], [0.5, 'rgba(165,110,255,0.4)'], [1, 'rgba(240,226,255,0.95)']]
+        : kind === 'Steam'
         ? [[0, 'rgba(255,120,40,0)'], [0.5, 'rgba(255,170,90,0.4)'], [1, 'rgba(235,248,255,0.95)']]
         : kind === 'Fire'
           ? [[0, 'rgba(255,70,20,0)'], [0.5, 'rgba(255,120,30,0.4)'], [1, 'rgba(255,225,150,0.95)']]
@@ -3093,8 +3095,8 @@ export class Renderer {
   drawShots(list, alpha, viewL, viewR, viewT, viewB) {
     const ctx = this.ctx;
     const t = this.clock;
-    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold')];
-    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam')];
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true)];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet')];
     // Проход 1: свет и хвосты сложением цветов.
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < list.length; i++) {
@@ -3105,7 +3107,7 @@ export class Renderer {
       if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
+      const kd = p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
       const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
       const ang = Math.atan2(p.vy, p.vx);
       const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
@@ -3136,13 +3138,13 @@ export class Renderer {
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
+      const kd = p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
       ctx.globalAlpha = 1;
-      ctx.fillStyle = kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
+      ctx.fillStyle = kd === 4 ? '#8a5cff' : kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
       ctx.beginPath();
       ctx.arc(px, py, r * 0.95, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = kd === 3 ? '#f2fbff' : kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
+      ctx.fillStyle = kd === 4 ? '#efe4ff' : kd === 3 ? '#f2fbff' : kd === 2 ? (gl > 0.5 ? '#fff6dc' : '#ffd890') : kd === 1 ? '#f2fcff' : '#d6ecff';
       ctx.beginPath();
       ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
       ctx.fill();
@@ -3157,7 +3159,7 @@ export class Renderer {
         const ang = Math.atan2(p.vy, p.vx);
         const c = Math.cos(ang);
         const s2 = Math.sin(ang);
-        ctx.fillStyle = kd === 2 ? 'rgba(255,200,110,0.9)' : 'rgba(170,215,255,0.9)';
+        ctx.fillStyle = kd === 4 ? 'rgba(205,170,255,0.9)' : kd === 2 ? 'rgba(255,200,110,0.9)' : 'rgba(170,215,255,0.9)';
         for (let k = 0; k < 2; k++) {
           const ph = (t * 3.2 + i * 0.37 + k * 0.5) % 1;
           const back = r * 2 + ph * r * 9;
@@ -4196,9 +4198,8 @@ export class Renderer {
     const B = this.cfg.blades;
     const k = B.size * 0.8;
     const t = this.clock;
-    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold')];
-    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam')];
-    const violet = this.getGlow(true);
+    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true)];
+    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet')];
     const mainC = ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'];
     const liteC = ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'];
     // Проход 1: хвосты и свечение сложением цветов.
@@ -4207,16 +4208,16 @@ export class Renderer {
       const b = bl[i];
       const kd = b.kind | 0;
       const fly = b.state === 'fly';
-      const gl = b.gen ? violet : glows[kd];
+      const gl = b.gen ? glows[4] : glows[kd];
       const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
-      if (fly && !b.sphere && !b.gen) {
+      if (fly && !b.sphere) {
         const sc = (k * 0.5) / 14;
         ctx.save();
         ctx.translate(b.x, b.y);
         ctx.rotate(b.a);
         ctx.globalAlpha = 0.7 * Math.min(1, (b.age || 0) / 0.08);
         ctx.scale(0.55, 1);
-        ctx.drawImage(tails[kd], -224 * sc, -32 * sc, 256 * sc, 64 * sc);
+        ctx.drawImage(tails[b.gen ? 4 : kd], -224 * sc, -32 * sc, 256 * sc, 64 * sc);
         ctx.restore();
       }
       const g = k * (fly ? 4.6 : 3.8) * pulse;
