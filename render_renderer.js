@@ -3016,25 +3016,124 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /** Хвост кометы: горизонтальный спрайт, голова справа. Огонь (по умолчанию) или лёд (снаряд с Морозом). */
+  getComet(ice) {
+    const key = ice ? 'cometIce' : 'cometFire';
+    if (this[key]) return this[key];
+    const W = 256;
+    const H = 64;
+    const cv = makeCanvas(W, H);
+    const g = cv.getContext('2d');
+    const hx = 224;
+    const cy = H / 2;
+    const stops = ice
+      ? [[0, 'rgba(120,190,255,0)'], [0.55, 'rgba(120,190,255,0.35)'], [1, 'rgba(225,245,255,0.95)']]
+      : [[0, 'rgba(255,70,20,0)'], [0.5, 'rgba(255,120,30,0.4)'], [1, 'rgba(255,225,150,0.95)']];
+    const layer = (hw, a) => {
+      const gr = g.createLinearGradient(6, 0, hx, 0);
+      for (const st of stops) gr.addColorStop(st[0], st[1]);
+      g.globalAlpha = a;
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(6, cy);
+      g.quadraticCurveTo(hx * 0.55, cy - hw * 0.8, hx, cy - hw);
+      g.lineTo(hx, cy + hw);
+      g.quadraticCurveTo(hx * 0.55, cy + hw * 0.8, 6, cy);
+      g.closePath();
+      g.fill();
+    };
+    layer(18, 0.4);
+    layer(10, 0.8);
+    layer(5, 1);
+    g.globalAlpha = 1;
+    this[key] = cv;
+    return cv;
+  }
+
+  /**
+   * Снаряды героя: маленький огненный шар с хвостом, как у кометы. Чем больше снарядов в залпе (p.glow 0..1), тем
+   * ярче свечение: крупнее ореол, длиннее хвост, белее сердцевина, от 0.5 летят искры. Заморозка: тот же шар, но ледяной.
+   */
   drawShots(list, alpha, viewL, viewR, viewT, viewB) {
     const ctx = this.ctx;
+    const t = this.clock;
+    const fireGlow = this.getGlow();
+    const iceGlow = this.getGlow('blue');
+    const tailF = this.getComet(false);
+    const tailI = this.getComet(true);
+    // Проход 1: свет и хвосты сложением цветов.
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (!p.active) continue;
+      const px = p.prevX + (p.x - p.prevX) * alpha;
+      const py = p.prevY + (p.y - p.prevY) * alpha;
+      if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
+      const r = p.radius;
+      const gl = p.glow || 0;
+      const ice = p.frost;
+      const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
+      const ang = Math.atan2(p.vy, p.vx);
+      const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(ang);
+      ctx.globalAlpha = 0.6 - 0.15 * gl;
+      ctx.drawImage(ice ? tailI : tailF, -224 * sc, -32 * sc, 256 * sc, 64 * sc);
+      ctx.restore();
+      const hs = r * (4 + 2.2 * gl) * fl;
+      ctx.globalAlpha = 0.4 + 0.2 * gl;
+      ctx.drawImage(ice ? iceGlow : fireGlow, px - hs, py - hs, hs * 2, hs * 2);
+      if (gl > 0.3) {
+        const hs2 = hs * 1.7;
+        ctx.globalAlpha = 0.1 * gl;
+        ctx.drawImage(ice ? iceGlow : fireGlow, px - hs2, py - hs2, hs2 * 2, hs2 * 2);
+      }
+    }
+    // Проход 2: сердцевина (обычное наложение) и искры.
+    ctx.globalCompositeOperation = 'source-over';
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (!p.active) continue;
       const px = p.prevX + (p.x - p.prevX) * alpha;
       const py = p.prevY + (p.y - p.prevY) * alpha;
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
-      ctx.fillStyle = p.color;
+      const r = p.radius;
+      const gl = p.glow || 0;
+      const ice = p.frost;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = ice ? '#7fc4ff' : '#ff8a2a';
       ctx.beginPath();
-      ctx.arc(px, py, p.radius, 0, TAU);
+      ctx.arc(px, py, r * 0.95, 0, TAU);
       ctx.fill();
-      if (p.parryable) {
-        // Парируемые снаряды обведены: видно, что их можно поймать.
-        ctx.lineWidth = 1.5;
+      ctx.fillStyle = ice ? '#d8f0ff' : gl > 0.5 ? '#fff6dc' : '#ffd890';
+      ctx.beginPath();
+      ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
+      ctx.fill();
+      if (p.parryable) { // парируемый снаряд (если вдруг в этом списке): светлая обводка
+        ctx.lineWidth = 1.2;
         ctx.strokeStyle = '#fff3d0';
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, TAU);
         ctx.stroke();
       }
+      if (gl >= 0.5) {
+        const ang = Math.atan2(p.vy, p.vx);
+        const c = Math.cos(ang);
+        const s2 = Math.sin(ang);
+        ctx.fillStyle = ice ? 'rgba(210,238,255,0.9)' : 'rgba(255,200,110,0.9)';
+        for (let k = 0; k < 2; k++) {
+          const ph = (t * 3.2 + i * 0.37 + k * 0.5) % 1;
+          const back = r * 2 + ph * r * 9;
+          const off = Math.sin(i * 12.9 + k * 4.1) * r * 1.4 * ph;
+          ctx.globalAlpha = (1 - ph) * gl;
+          ctx.beginPath();
+          ctx.arc(px - c * back - s2 * off, py - s2 * back + c * off, Math.max(0.6, r * 0.18 * (1 - ph)), 0, TAU);
+          ctx.fill();
+        }
+      }
     }
+    ctx.globalAlpha = 1;
   }
 
   /** Сухие кусты, камешки и наметы на полу: рисуются только те, что в кадре. */
