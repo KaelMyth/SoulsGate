@@ -14,6 +14,7 @@ export class BuildGrid {
   /** Новый пустой размер (параметр config.build.size). Всё содержимое сбрасывается. */
   resize(size) {
     this.size = Math.max(1, Math.round(size));
+    this.ver = (this.ver || 0) + 1; // версия содержимого: по ней сбрасывается кэш дерева и модификаторов
     this.cells = [];
     for (let y = 0; y < this.size; y++) {
       for (let x = 0; x < this.size; x++) this.cells.push({ x, y, core: null, mod: null });
@@ -24,6 +25,7 @@ export class BuildGrid {
   clear() {
     for (const c of this.cells) { c.core = null; c.mod = null; }
     this.cores = [];
+    this.ver++;
   }
 
   inBounds(x, y) {
@@ -56,11 +58,28 @@ export class BuildGrid {
     const core = { id, x, y, def };
     c.core = core;
     this.cores.push(core);
+    this.ver++;
     return core;
   }
 
   coreById(id) {
-    return this.cores.find((k) => k.id === id) || null;
+    const k = this.cores.find((c) => c.id === id);
+    if (k) return k;
+    // Вторичное ядро (мод-ядро в клетке): id 'sec:<индекс клетки>', ведёт себя как ядро с данными самого мода.
+    if (typeof id === 'string' && id.startsWith('sec:')) {
+      const c = this.cells[+id.slice(4)];
+      if (c && c.mod && c.mod.def.effect.secondary) return { id, x: c.x, y: c.y, def: c.mod.def, secondary: true };
+    }
+    return null;
+  }
+
+  /** id вторичного ядра вида kind (например 'kinetic') или null, если такого на поле нет. */
+  secondaryId(kind) {
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (c.mod && c.mod.def.effect.kind === kind && c.mod.def.effect.secondary) return 'sec:' + i;
+    }
+    return null;
   }
 
   /** Поставить мод ({ key, def }) в пустую клетку. Правила «можно ли» проверяет rules.js, тут только данные. */
@@ -68,6 +87,7 @@ export class BuildGrid {
     const c = this.cell(x, y);
     if (!c || c.core || c.mod) return false;
     c.mod = mod;
+    this.ver++;
     return true;
   }
 
@@ -83,6 +103,7 @@ export class BuildGrid {
     if (!c || !c.mod) return null;
     const m = c.mod;
     c.mod = null;
+    this.ver++;
     return m;
   }
 
@@ -94,6 +115,13 @@ export class BuildGrid {
    * carry: какой стат ядра мод изменяет: «Мощь» несёт damage, «Х2» на ядре несёт multStat ядра, «Х2» на моде несёт то же, что родитель.
    */
   tree() {
+    if (this._tree && this._treeVer === this.ver) return this._tree;
+    this._tree = this.treeRaw();
+    this._treeVer = this.ver;
+    return this._tree;
+  }
+
+  treeRaw() {
     const owner = new Map();
     const parent = new Map();
     const carry = new Map();
@@ -103,6 +131,15 @@ export class BuildGrid {
       parent.set(k.y * this.size + k.x, -2);
       queue.push(this.cell(k.x, k.y));
     }
+    // Вторичные ядра (отдельные, стоят где угодно) тоже корни: к ним можно прикрепить моды, например Горение.
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (c.mod && c.mod.def.effect.secondary) {
+        owner.set(i, 'sec:' + i);
+        parent.set(i, -2);
+        queue.push(c);
+      }
+    }
     for (let i = 0; i < queue.length; i++) {
       const c = queue[i];
       const ci = c.y * this.size + c.x;
@@ -111,7 +148,7 @@ export class BuildGrid {
         const ni = n.y * this.size + n.x;
         if (!n.mod || owner.has(ni) || n.mod.def.effect.secondary) continue; // вторичное ядро в деревья не входит
         owner.set(ni, id);
-        parent.set(ni, c.core ? -1 : ci);
+        parent.set(ni, c.core || c.mod.def.effect.secondary ? -1 : ci);
         queue.push(n);
       }
     }
@@ -130,7 +167,7 @@ export class BuildGrid {
     }
     // Что несёт каждый мод: родители раньше детей (порядок обхода в ширину).
     for (const c of queue) {
-      if (c.core) continue;
+      if (c.core || c.mod.def.effect.secondary) continue;
       const ci = c.y * this.size + c.x;
       const p = parent.get(ci);
       const pc = p < 0 ? '' : carry.get(p);
@@ -192,6 +229,14 @@ export class BuildGrid {
    * «Х2» на моде удваивает накопленный бонус ветки до него (+21% → +42%).
    */
   modifiersFor(coreId) {
+    // Кэш по версии поля: системы просят модификаторы каждый кадр, а поле меняется редко.
+    if (this._modsVer !== this.ver) { this._mods = new Map(); this._modsVer = this.ver; }
+    let res = this._mods.get(coreId);
+    if (!res) { res = this.modifiersRaw(coreId); this._mods.set(coreId, res); }
+    return res;
+  }
+
+  modifiersRaw(coreId) {
     const { owner, parent, carry } = this.tree();
     const kids = new Map();
     for (const c of this.cells) {

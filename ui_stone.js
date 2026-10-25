@@ -12,7 +12,7 @@ const RARITY = {
 
 /** Вид плитки для мода: вторичные ядра имеют свой дизайн, остальные: камень, железо или золото по редкости. */
 export function tileOfMod(key, def) {
-  if (def && def.effect && def.effect.secondary) return key === 'firedash' ? 'dash-fire' : key === 'lightdash' ? 'dash-light' : 'dash-steel';
+  if (def && def.effect && def.effect.secondary) return 'dash-steel';
   const r = (def && def.rarity) || RARITY[key] || 'common';
   return r === 'legendary' ? 'gold' : r === 'rare' ? 'iron' : 'stone';
 }
@@ -131,12 +131,8 @@ let sprite = null;
 /** Кладёт спрайт плиток в документ (один раз). */
 function ensureSprite() {
   if (sprite || typeof document === 'undefined' || !document.body) return;
-  const ember = ['#ff8a2e', '#ffd079', '#ff5a1c', '#ffb24a'];
-  const bolt = ['#bfe9ff', '#6fc8ff', '#ffffff', '#8fdcff'];
   sprite = svg('svg', { width: 0, height: 0, style: 'position:absolute', 'aria-hidden': 'true' },
     svg('defs', {}, tileStone(), tileIron(), tileGold(), tileCoreBolt(), tileCoreShield(),
-      tileDash('t-dash-fire', ember, '#ff7a1c', 'M20 34l5-3M42 20l4 4'),
-      tileDash('t-dash-light', bolt, '#6fc8ff', 'M16 40l6-4 4 3 6-6M38 16l5 5-4 4 6 5'),
       tileDash('t-dash-steel', ['#c3ced9', '#8fa2bb'], '#8fa2bb', '')));
   document.body.append(sprite);
 }

@@ -275,8 +275,6 @@ body {
 .piece.t-gold { color: #ffe9a6; --glow: rgba(255, 196, 70, 0.95); --hi: #fffbe6; --dark: #3a2c0c; }
 .piece.t-core-bolt { color: #c4e8ff; --glow: rgba(70, 150, 255, 0.95); --hi: #ffffff; --dark: #18203a; }
 .piece.t-core-shield { color: #ffdca8; --glow: rgba(255, 170, 80, 0.85); --hi: #fff3dc; --dark: #3a2616; }
-.piece.t-dash-fire { color: #ffc888; --glow: rgba(255, 110, 30, 0.95); --hi: #fff1d0; --dark: #2a1408; }
-.piece.t-dash-light { color: #e2f7ff; --glow: rgba(100, 200, 255, 0.95); --hi: #ffffff; --dark: #14202e; }
 .piece.t-dash-steel { color: #e0e8f2; --glow: rgba(150, 175, 210, 0.85); --hi: #ffffff; --dark: #1b2230; }
 .piece .icon-svg.i-flame { color: #ffb36a; --hi: #fff0c0; --glow: rgba(255, 120, 30, 0.95); }
 

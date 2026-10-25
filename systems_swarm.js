@@ -123,7 +123,7 @@ export class Swarm {
       }
     }
     // Герой не проходим для жуков (и они не залезают в него, когда сзади давит толпа).
-    if (hero.active && !hero.phase) { // огненный рывок проходит сквозь врагов
+    if (hero.active) {
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
         if (!e.active) continue;

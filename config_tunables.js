@@ -99,6 +99,10 @@ export const TUNABLES = [
   { group: 'Лазер', path: 'laser.width', label: 'Толщина луча', min: 4, max: 30, step: 1 },
   { group: 'Лазер', path: 'laser.length', label: 'Длина луча', min: 100, max: 500, step: 10 },
 
+  { group: 'Кинетический рывок', path: 'kinetic.distanceScale', label: 'Удлинение рывка (множитель)', min: 1, max: 3, step: 0.1 },
+  { group: 'Кинетический рывок', path: 'kinetic.pushRadius', label: 'Радиус расталкивания', min: 30, max: 250, step: 5 },
+  { group: 'Кинетический рывок', path: 'kinetic.pushDistance', label: 'Сила расталкивания', min: 0, max: 200, step: 5 },
+  { group: 'Кинетический рывок', path: 'kinetic.burnDamage', label: 'Урон горения шлейфа', min: 1, max: 50, step: 1 },
   { group: 'Награды за уровень', path: 'rewards.exchangeFrac', label: 'Обмен: доля опыта следующего уровня', min: 0, max: 1, step: 0.05 },
   { group: 'Награды за уровень', path: 'rewards.inTest', label: 'Окно выбора в Тестировании (0/1)', min: 0, max: 1, step: 1 },
   { group: 'Смертельная аура', path: 'aura.radius', label: 'Радиус', min: 40, max: 250, step: 5 },

@@ -14,7 +14,6 @@ export class Hero {
     this.vy = 0;
     this.facing = -Math.PI / 2; // куда смотрит (посох), радианы; вверх по умолчанию
     this.dashing = false; // идёт рывок: стик не слушаем, летим со скоростью рывка
-    this.phase = false;   // огненный рывок: проходит сквозь врагов
     this.dashVx = 0;
     this.dashVy = 0;
     this.glideTime = 0;   // после рывка: сколько ещё скорость гаснет плавно
