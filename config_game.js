@@ -794,8 +794,9 @@ export const CONFIG = {
       { wave: 5, count: 1, pick: 'smallest' },
       { wave: 7, count: 1 },
       { wave: 9, count: 1 },
-      { wave: 12, count: 2 },
-      { wave: 15, count: 4 },
+      { wave: 11, count: 1 }, { wave: 12, count: 1 }, { wave: 13, count: 1 },
+      { wave: 15, count: 2 }, { wave: 16, count: 2 }, { wave: 17, count: 2 },
+      { wave: 19, count: 3 },
     ],
     rockWakeMinHeroDist: 160,
     rockWakeViewMargin: 20, // скала должна быть в кадре с таким запасом от края: игрок видит, как она просыпается
