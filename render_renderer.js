@@ -1472,6 +1472,8 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.bull) {
       // Бык: жук-носорог с красным акцентом, размытием в рывке и пылью при торможении.
       this.drawBull(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.rockBeetle) {
+      this.drawRockBeetle(e, x, y, hit);
     } else if (e.def === this.cfg.enemies.tartas) {
       // Тартас: замёрзший рыцарь с ледяным мечом.
       this.drawTartas(e, x, y, hit);
@@ -1982,19 +1984,41 @@ export class Renderer {
   drawMidges(list, alpha, viewL, viewR, viewT, viewB) {
     if (!list.length) return;
     const ctx = this.ctx;
-    ctx.fillStyle = '#e8f1ff';
-    ctx.strokeStyle = '#7fb4ff';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < list.length; i++) {
-      const m = list[i];
-      if (!m.active) continue;
-      const px = m.prevX + (m.x - m.prevX) * alpha;
-      const py = m.prevY + (m.y - m.prevY) * alpha;
-      if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
-      ctx.beginPath();
-      ctx.arc(px, py, m.radius, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
+    const t = this.clock;
+    const glow = this.getGlow('blue');
+    // Мошки: крошечное тёмное тельце с мелькающими крыльями и холодным огоньком; поворачиваются по ходу полёта.
+    for (let pass = 0; pass < 2; pass++) {
+      if (pass === 0) ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (!m.active) continue;
+        const px = m.prevX + (m.x - m.prevX) * alpha;
+        const py = m.prevY + (m.y - m.prevY) * alpha;
+        if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
+        if (pass === 0) {
+          ctx.globalAlpha = 0.75;
+          const g = m.radius * 4.2;
+          ctx.drawImage(glow, px - g / 2, py - g / 2, g, g);
+        } else {
+          const a = Math.atan2(m.vy, m.vx);
+          const fl = Math.sin(t * 90 + m.phase);
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(a);
+          ctx.beginPath();
+          tracePoly(ctx, [-1, 0, -3.5, -m.radius * (1.1 + 0.5 * fl), 1.5, -0.8], 1);
+          tracePoly(ctx, [-1, 0, -3.5, m.radius * (1.1 + 0.5 * fl), 1.5, 0.8], 1);
+          ctx.fillStyle = 'rgba(200,228,255,0.7)';
+          ctx.fill();
+          ctx.beginPath();
+          tracePoly(ctx, [m.radius * 0.9, 0, 0, -m.radius * 0.5, -m.radius * 0.9, 0, 0, m.radius * 0.5], 1);
+          ctx.fillStyle = '#e9f4ff';
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
     }
   }
 
@@ -2231,6 +2255,123 @@ export class Renderer {
    * Замах: жук напрягается и дрожит, красное разгорается. Рывок: тело вытягивается, за ним шлейф теней и
    * линии скорости. Конец рывка: облачко пыли. Оглушение: холодный оттенок, над головой кружат звёздочки.
    */
+  /**
+   * Горный жук: ожившая скала. Приземистый панцирь из каменных граней со снежной шапкой, четыре каменные лапы,
+   * в трещинах тёплый оранжевый свет. Пробуждение: поднимается из скалы (пыль, трещины разгораются). Замах: приседает,
+   * светится сильнее и дрожит; после удара вздрагивает. Взгляд следует за героем.
+   */
+  drawRockBeetle(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    const A = e.atk;
+    const as = A.state;
+    let st = this.beetleState.get(e);
+    if (!st || t - (st.t || 0) > 0.5) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU, pa: as, step: 0, ox: x, oy: y };
+      this.beetleState.set(e, st);
+      if (as === 'wake') this.spawnDust(x, y, 0, -1);
+    }
+    st.t = t;
+    if (st.pa === 'windup' && as === 'recovery') this.spawnDust(x, y, 0, 1); // удар в землю
+    st.pa = as;
+    const frozen = e.freezeT > 0;
+    if (!frozen) {
+      const target = Math.atan2(this.hero.y - y, this.hero.x - x);
+      let da = (target - st.a) % TAU;
+      if (da > Math.PI) da -= TAU;
+      else if (da < -Math.PI) da += TAU;
+      st.a += da * 0.12;
+      st.step += Math.hypot(x - st.ox, y - st.oy) * 0.16;
+    }
+    st.ox = x;
+    st.oy = y;
+
+    const wake = as === 'wake' && e.def.wakeTime > 0 ? Math.min(1, A.t / e.def.wakeTime) : 1;
+    const wind = as === 'windup' && e.def.slam.windup > 0 ? Math.min(1, A.t / e.def.slam.windup) : 0;
+    const rec = as === 'recovery' ? Math.max(0, 1 - A.t / 0.35) : 0;
+    const heat = hit ? 1 : Math.min(1, 0.25 + wind * 0.9 + rec * 0.6 + (1 - wake) * 0.5);
+    const grow = 0.72 + 0.28 * (1 - Math.pow(1 - wake, 3)) + rec * 0.07;
+    const squat = 1 - wind * 0.12;
+    const shake = wind * Math.sin(t * 60) * 0.9;
+
+    ctx.save();
+    ctx.translate(x + shake, y - (as === 'wake' ? (1 - wake) * 0 : 0));
+    ctx.rotate(st.a);
+    this.localLight(st.a);
+    const k = r * grow;
+    ctx.scale(1, squat);
+    ctx.lineJoin = 'round';
+    const base = hit ? '#ffffff' : '#3a4560';
+    const lite = hit ? '#ffffff' : '#7d8aa8';
+    const dark = hit ? '#ffffff' : '#222b3e';
+
+    // Лапы: по две с каждой стороны, переступают при ходьбе.
+    ctx.strokeStyle = dark;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2.5, k * 0.2);
+    for (let i = 0; i < 4; i++) {
+      const sd = i < 2 ? -1 : 1;
+      const fx = (i % 2 === 0 ? 0.45 : -0.35) * k;
+      const sw = Math.sin(st.step + (i % 2) * Math.PI + (i < 2 ? 0 : Math.PI)) * k * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(fx, sd * k * 0.5);
+      ctx.lineTo(fx + sw, sd * k * 1.28);
+      ctx.stroke();
+    }
+
+    // Панцирь: рваный каменный силуэт, грани и снежная шапка со стороны света.
+    const body = [1.05, 0.05, 0.7, -0.5, 0.45, -0.98, -0.1, -0.7, -0.62, -0.92, -1.0, -0.3, -0.8, 0.2, -0.98, 0.62, -0.3, 0.78, 0.25, 1.0, 0.75, 0.6].map((v, i) => v * k);
+    this.bevel(body, base, lite, k * 0.14);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(14,20,34,0.75)';
+    ctx.beginPath();
+    tracePoly(ctx, body, 1);
+    ctx.stroke();
+    // Грани-плиты по спине.
+    const plate = (pts, fill) => { ctx.beginPath(); tracePoly(ctx, pts.map((v) => v * k), 1); ctx.fillStyle = fill; ctx.fill(); };
+    plate([0.5, -0.3, 0.1, -0.55, -0.3, -0.35, 0.05, -0.1], hit ? '#ffffff' : '#5a6886');
+    plate([-0.1, 0.1, -0.5, 0.25, -0.35, 0.6, 0.1, 0.45], hit ? '#ffffff' : '#3b465e');
+    plate([0.55, 0.2, 0.25, 0.1, 0.2, 0.5, 0.5, 0.55], hit ? '#ffffff' : '#52607c');
+    // Снежок на гранях, обращённых к свету.
+    ctx.beginPath();
+    tracePoly(ctx, [0.2, -0.62, 0.55, -0.4, 0.3, -0.25, -0.1, -0.5].map((v) => v * k), 1);
+    ctx.fillStyle = 'rgba(214,228,248,0.7)';
+    ctx.fill();
+
+    // Трещины с тёплым светом и «глаза»-щели спереди.
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.75 + 0.25 * Math.sin(t * 4 + st.ph);
+    ctx.strokeStyle = 'rgba(255,150,60,' + (0.55 * heat * pulse + 0.15) + ')';
+    ctx.lineWidth = Math.max(1.3, k * 0.07);
+    ctx.beginPath();
+    ctx.moveTo(0.1 * k, 0.1 * k); ctx.lineTo(-0.25 * k, 0.0); ctx.lineTo(-0.55 * k, -0.15 * k);
+    ctx.moveTo(-0.25 * k, 0.0); ctx.lineTo(-0.4 * k, 0.32 * k);
+    ctx.moveTo(0.1 * k, 0.1 * k); ctx.lineTo(0.38 * k, 0.28 * k);
+    ctx.stroke();
+    const glow = this.getGlow();
+    ctx.globalAlpha = (0.5 + 0.5 * heat) * pulse;
+    for (let s2 = -1; s2 <= 1; s2 += 2) {
+      ctx.drawImage(glow, 0.7 * k - 6, s2 * 0.3 * k - 6, 12, 12);
+    }
+    ctx.globalAlpha = 0.5 * heat * pulse;
+    ctx.drawImage(glow, -k * 0.5, -k * 0.5, k * 1.0, k * 1.0);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Замах: ударная волна на земле растёт к моменту удара.
+    if (wind > 0) {
+      ctx.save();
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = 'rgba(255,170,90,' + (0.25 + 0.5 * wind) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, r * (1 + wind * 2.2), 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   drawBull(e, x, y, hit) {
     const ctx = this.ctx;
     const r = e.radius;

@@ -1,7 +1,8 @@
 // Горные жуки: скалы «просыпаются» и становятся врагами; их единственная атака выпускает мошек.
 //
-// Пробуждение (config.waves.rockWake): в начале указанной волны несколько скал исчезают, и на месте каждой
-// просыпается Горный жук (enemies.rockBeetle). Скала не возвращается до нового забега. Размер и здоровье жука
+// Пробуждение (config.waves.rockWake): в начале указанной волны заводится «долг» на несколько жуков. Скала
+// просыпается только когда герой её видит: целиком в кадре камеры и дальше rockWakeMinHeroDist. Пока подходящей
+// скалы в кадре нет, долг ждёт. На месте скалы просыпается Горный жук (enemies.rockBeetle). Скала не возвращается до нового забега. Размер и здоровье жука
 // зависят от размера скалы.
 //
 // Атака (def.slam): жук подходит на slam.range, замирает (замах: на земле кольцо), бьёт в землю, и из него вылетают
@@ -51,6 +52,9 @@ export class RockBeetles {
     this.hero = o.hero;
     this.arena = o.arena;
     this.nav = o.nav || null;
+    this.camera = o.camera || null;
+    this.pending = []; // долги пробуждения { pick, left }
+    this.scan = 0;
     this.enemies = o.enemies;
     this.combat = o.combat;
     this.defense = o.defense || null;
@@ -64,6 +68,7 @@ export class RockBeetles {
   /** Новый забег: мошки исчезают, скалы возвращаются. */
   reset() {
     this.midges.clear();
+    this.pending.length = 0;
     this.arena.restoreRocks();
     if (this.nav) this.nav.buildBlocked();
   }
@@ -72,28 +77,49 @@ export class RockBeetles {
 
   wake(wave) {
     const table = this.cfg.waves.rockWake;
-    const def = this.cfg.enemies.rockBeetle;
-    if (!table || !def) return;
+    if (!table || !this.cfg.enemies.rockBeetle) return;
     for (let k = 0; k < table.length; k++) {
-      const W = table[k];
-      if (W.wave !== wave) continue;
-      const rocks = this.arena.rocks;
-      const minD = this.cfg.waves.rockWakeMinHeroDist || 0;
+      if (table[k].wave === wave) this.pending.push({ pick: table[k].pick, left: table[k].count });
+    }
+  }
+
+  /** Скала целиком в кадре камеры (с запасом от края) и не вплотную к герою. */
+  rockSeen(rock) {
+    const cam = this.camera;
+    const minD = this.cfg.waves.rockWakeMinHeroDist || 0;
+    if (Math.hypot(rock.x - this.hero.x, rock.y - this.hero.y) < minD + rock.r) return false;
+    if (!cam) return true;
+    const m = this.cfg.waves.rockWakeViewMargin || 0;
+    return Math.abs(rock.x - cam.x) + rock.r + m <= cam.viewW / 2 && Math.abs(rock.y - cam.y) + rock.r + m <= cam.viewH / 2;
+  }
+
+  /** Раз в scanEvery секунд: из ждущих долгов будим скалы, которые сейчас видны. */
+  tryWake(dt) {
+    if (!this.pending.length) return;
+    this.scan -= dt;
+    if (this.scan > 0) return;
+    this.scan = this.cfg.waves.rockWakeScan || 0.25;
+    const def = this.cfg.enemies.rockBeetle;
+    let woke = false;
+    for (let k = this.pending.length - 1; k >= 0; k--) {
+      const W = this.pending[k];
       const cand = this.cand;
       cand.length = 0;
-      for (let i = 0; i < rocks.length; i++) {
-        if (Math.hypot(rocks[i].x - this.hero.x, rocks[i].y - this.hero.y) >= minD + rocks[i].r) cand.push(rocks[i]);
-      }
+      const rocks = this.arena.rocks;
+      for (let i = 0; i < rocks.length; i++) if (this.rockSeen(rocks[i])) cand.push(rocks[i]);
       if (W.pick === 'smallest') cand.sort((a, b) => a.r - b.r);
       else for (let i = cand.length - 1; i > 0; i--) { // перемешать (Фишер-Йейтс)
         const j = Math.floor(this.rnd() * (i + 1));
         const t = cand[i]; cand[i] = cand[j]; cand[j] = t;
       }
-      const n = Math.min(W.count, cand.length);
+      const n = Math.min(W.left, cand.length);
       for (let i = 0; i < n; i++) this.wakeRock(cand[i], def);
+      W.left -= n;
+      if (n > 0) woke = true;
       cand.length = 0;
-      if (n > 0 && this.nav) this.nav.buildBlocked(); // скал стало меньше: враги ходят напрямик
+      if (W.left <= 0) this.pending.splice(k, 1);
     }
+    if (woke && this.nav) this.nav.buildBlocked(); // скал стало меньше: враги ходят напрямик
   }
 
   wakeRock(rock, def) {
@@ -115,6 +141,7 @@ export class RockBeetles {
 
   update(dt, list) {
     const hero = this.hero;
+    this.tryWake(dt);
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       if (!e.active || !e.def.slam || e.freezeT > 0) continue;
