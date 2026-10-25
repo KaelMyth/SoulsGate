@@ -72,6 +72,7 @@ export class Game {
       wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
       bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
+    this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
     this.fires = [];       // костры огненного рывка: { x, y, age, tick }
@@ -122,7 +123,7 @@ export class Game {
         if (!e.active) return;
         if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
         if (fr) this.chill(e, bd > 0 ? st : 0, bd, bi);
-        if (zp) this.zap(e);
+        if (zp) this.zap(e, bd, bi, fr, st);
       },
     });
     this.autoattack = new AutoAttack({
@@ -134,7 +135,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
-    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => this.zap(e) });
+    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st); } });
     this.defense.lightning = this.lightdash;
     this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
     this.blades = new Blades({
@@ -144,7 +145,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
-      zap: (e) => this.zap(e),
+      zap: (e, bd, bi, fr, st) => this.zap(e, bd, bi, fr, st),
     });
 
     this.aura = new Aura({
@@ -152,7 +153,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
-      zap: (e) => this.zap(e),
+      zap: (e, bd, bi, fr, st) => this.zap(e, bd, bi, fr, st),
       rnd: this.rnd,
     });
 
@@ -178,6 +179,7 @@ export class Game {
       aura: this.aura,
       lightdash: this.lightdash,
       zapBolts: this.zapBolts,
+      dashBeams: this.dashBeams,
       fires: this.fires,
       pellets: this.pellets,
       lasers: this.lasers,
@@ -277,6 +279,7 @@ export class Game {
       this.hud.kills = this.kills;
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
     });
+    this.bus.on('dash:started', () => this.startDashBeam());
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
@@ -460,8 +463,11 @@ export class Game {
     e.burnT = b.duration;
   }
 
-  /** Электризация: +1 заряд; на последнем враг разряжается (см. discharge). */
-  zap(e) {
+  /**
+   * Электризация: +1 заряд; на последнем враг разряжается (см. discharge).
+   * bd, bi, fr, st: стихии источника (горение: урон и интервал, мороз, пар): их разряд разносит цепью.
+   */
+  zap(e, bd = 0, bi = 0, fr = 0, st = 0) {
     if (!e || !e.active) return;
     const S = this.config.shock;
     e.shockStacks++;
@@ -469,21 +475,25 @@ export class Game {
     if (e.shockStacks >= S.maxStacks) {
       e.shockStacks = 0;
       e.shockT = 0;
-      this.discharge(e);
+      this.discharge(e, bd, bi, fr, st);
     }
   }
 
-  /** Разряд: удар по врагу и цепная молния на 2–3 ближайших (цепь электризации не копит, чтобы не было бесконечных цепей). */
-  discharge(e) {
+  /**
+   * Разряд: удар по врагу и цепная молния на 2–3 ближайших. С Горением молния оранжевая и поджигает, с Морозом синяя и морозит,
+   * со всеми тремя белая: электризует, поджигает, морозит и поднимает паровые взрывы. Цепь заряды электризации не копит.
+   */
+  discharge(e, bd = 0, bi = 0, fr = 0, st = 0) {
     const S = this.config.shock;
+    const kind = (bd > 0 ? 1 : 0) | (fr ? 2 : 0);
+    const col = S.colors[kind];
     const grid = this.swarm.grid;
     const en = this.enemies.items;
     this.combat.damageEnemy(e, S.damage, this.shockSource, null);
-    this.burst(e.x, e.y, 0.3, e.radius, e.radius * 2.4, S.color);
+    this.burst(e.x, e.y, 0.3, e.radius, e.radius * 2.4, col);
     const want = S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1));
     const n = grid.query(e.x, e.y, S.chainRange);
     const buf = grid.buf;
-    // Выбираем want ближайших (простая вставка в малый массив без аллокаций на врага).
     const bestE = this._zapE || (this._zapE = []);
     const bestD = this._zapD || (this._zapD = []);
     bestE.length = 0; bestD.length = 0;
@@ -501,9 +511,12 @@ export class Game {
     }
     for (let k = 0; k < bestE.length; k++) {
       const o = bestE[k];
-      this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0 });
+      this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0, k: kind });
       this.combat.damageEnemy(o, S.damage * S.chainFrac, this.shockSource, null);
-      if (o.active) this.burst(o.x, o.y, 0.2, 3, 12, S.color);
+      if (!o.active) continue;
+      this.burst(o.x, o.y, 0.2, 3, 12, col);
+      if (bd > 0) this.ignite(o, bd, bi);
+      if (fr) this.chill(o, st, bd, bi);
     }
   }
 
@@ -679,7 +692,7 @@ export class Game {
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
       if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
-      if (l.zap) this.zap(e);
+      if (l.zap) this.zap(e, l.burnDmg, l.burnInt, l.frost ? 1 : 0, l.steam);
     }
     if (l.phantom > 0) { // фантом: каждый тик лазера может породить луч из точки рядом с первой целью
       for (const e of hit) if (e.active) { this.tryPhantomLaser(l, e); break; }
@@ -697,7 +710,7 @@ export class Game {
     ls.push({
       x: s.x, y: s.y, dx: (e.x - s.x) / s.d, dy: (e.y - s.y) / s.d, len: s.d,
       target: e, pierce: 0, fixed: true,
-      width: l.width, age: 0, life: l.life, interval: l.interval, ticks: l.ticks, done: 0, tick: l.tick * F.damageFrac, big: l.big,
+      width: l.width, age: 0, life: l.life, interval: l.interval, ticks: l.ticks, done: 0, tick: l.tick * F.damageFrac * (l.phDmg || 1), phDmg: l.phDmg, big: l.big,
       burnDmg: l.burnDmg, burnInt: l.burnInt, frost: l.frost, steam: l.steam, pulse: 0,
       zap: l.zap,
       gen: (l.gen | 0) + 1, phantom: l.phantom,
@@ -709,26 +722,41 @@ export class Game {
    * Кинетический рывок: когда герой остановился после рывка, враги рядом отлетают от него.
    * С Горением на рывке отброшенные враги поджигаются (и остаётся огненный шлейф), с Морозом замедляются.
    */
+  /** Стихии рывка из модов вторичного ядра: горение, мороз, пар и вид молнии (0 жёлтая, 1 огонь, 2 мороз, 3 все). */
+  kineticEl() {
+    const m = this.kineticMods;
+    const K = this.config.kinetic;
+    const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0 });
+    el.bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
+    el.bi = m && m.burn ? this.config.burn.interval / m.burn.rate : 0;
+    el.fr = m && m.frost ? 1 : 0;
+    el.st = el.bd > 0 && m && m.frost && m.steam ? m.steam.damage : 0;
+    el.kind = (el.bd > 0 ? 1 : 0) | (el.fr ? 2 : 0);
+    return el;
+  }
+
   updateKinetic(dt) {
     const h = this.hero;
-    if (!this.defense.kinetic) return;
+    this.updateBeams(dt);
+    if (!this.defense.kinetic) { this.shotLast = null; return; }
+    this.lightdash.kind = this.kineticEl().kind;
     const moving = h.dashing || h.glideTime > 0;
     if (moving && h.invuln < 0.1) h.invuln = 0.1; // таран: пока герой в рывке и скольжении, урон от врагов не проходит
     if (h.dashing && !this.lightdash.active) this.kineticRam();
+    this.kineticShots();
   }
 
   /** Кинетический рывок: каждый враг, которого герой задел в рывке, отлетает сразу в момент касания (один раз за рывок). */
   kineticRam() {
     const K = this.config.kinetic;
     const m = this.kineticMods;
+    const el = this.kineticEl();
     const h = this.hero;
     const en = this.enemies.items;
     const grid = this.swarm.grid;
     const reach = h.radius + 14;
     const n = grid.query(h.x, h.y, reach + 30);
     const buf = grid.buf;
-    const bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
-    const bi = m && m.burn ? this.config.burn.interval / m.burn.rate : 0;
     const wide = 1 + (m && m.bounces ? m.bounces.percent / 200 : 0); // Х2 расширяет толчок
     const id = this.defense.dashSeq;
     for (let k = 0; k < n; k++) {
@@ -741,8 +769,109 @@ export class Game {
       e.pushId = id;
       applyKnockback(e, dx / d, dy / d, K.pushDistance * wide, K.pushTime);
       this.burst(e.x, e.y, 0.2, 3, 14, K.color);
-      if (bd > 0) this.ignite(e, bd, bi);
-      if (m && m.frost) this.chill(e, bd > 0 && m.steam ? m.steam.damage : 0, bd, bi);
+      if (el.bd > 0) this.ignite(e, el.bd, el.bi);
+      if (el.fr) this.chill(e, el.st, el.bd, el.bi);
+      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st);
+    }
+  }
+
+  /** Дробь на рывке: вдоль пути каждые shotStep от героя в обе стороны разлетаются дробинки (половина с эффектами). */
+  kineticShots() {
+    const m = this.kineticMods;
+    const h = this.hero;
+    if (!m || !m.shot || !h.active || !h.dashing || this.lightdash.active) { this.shotLast = null; return; }
+    const K = this.config.kinetic;
+    const S = this.config.shot;
+    const P = this.pellets;
+    const last = this.shotLast || (this.shotLast = { x: h.x, y: h.y });
+    const dx = h.x - last.x;
+    const dy = h.y - last.y;
+    const d = Math.hypot(dx, dy);
+    if (d < K.shotStep) return;
+    const el = this.kineticEl();
+    const steps = Math.floor(d / K.shotStep);
+    const pc = (k) => (m[k] ? m[k].percent / 100 : 0);
+    const dmg = K.shotDamage * (m.shot.damage || 1) * (1 + pc('damage'));
+    const bd = el.bd > 0 ? dmg * this.config.burn.damageFrac * m.burn.damage : 0;
+    const per = Math.max(2, Math.round(K.shotPerStep * (m.shotMul || 1)));
+    const nx = -this.defense.dashY;
+    const ny = this.defense.dashX;
+    for (let s = 1; s <= steps; s++) {
+      const px = last.x + (dx / d) * K.shotStep * s;
+      const py = last.y + (dy / d) * K.shotStep * s;
+      for (let i = 0; i < per && P.free() > 0; i++) {
+        const side = (i & 1) === 0 ? 1 : -1;
+        const a = Math.atan2(ny * side, nx * side) + (this.rnd() - 0.5) * 0.7;
+        const sp = S.speed * 0.8 * (0.8 + this.rnd() * 0.4);
+        const fx = ((i >> 1) & 1) === 0; // половина несёт эффекты
+        P.add(px, py, Math.cos(a) * sp, Math.sin(a) * sp, S.range * 0.6, dmg,
+          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? 1 : 0, 0);
+      }
+    }
+    last.x += (dx / d) * K.shotStep * steps;
+    last.y += (dy / d) * K.shotStep * steps;
+  }
+
+  /** Лазер на рывке: в начале рывка в точку прибытия бьёт луч; когда он долетел, там срабатывает зона эффектов. */
+  startDashBeam() {
+    const m = this.kineticMods;
+    if (!this.defense.kinetic || !m || !m.laser || this.lightdash.active) return;
+    const K = this.config.kinetic;
+    const h = this.hero;
+    const dist = this.config.dash.distance * K.distanceScale;
+    let ex = h.x;
+    let ey = h.y;
+    const ar = this.arena;
+    for (let s = 1; s <= 12; s++) { // идём к цели шагами: упёрлись в край или скалу, луч кончается там
+      const x = h.x + this.defense.dashX * dist * (s / 12);
+      const y = h.y + this.defense.dashY * dist * (s / 12);
+      if (x < ar.left + 12 || x > ar.right - 12 || y < ar.top + 12 || y > ar.bottom - 12 || ar.circleHitsRock(x, y, h.radius)) break;
+      ex = x; ey = y;
+    }
+    this.dashBeams.push({ x0: h.x, y0: h.y, x1: ex, y1: ey, age: 0, done: false, zap: !!m.lightning, kind: this.kineticEl().kind });
+  }
+
+  updateBeams(dt) {
+    const bm = this.dashBeams;
+    if (!bm.length) return;
+    const K = this.config.kinetic;
+    for (let i = bm.length - 1; i >= 0; i--) {
+      const b = bm[i];
+      b.age += dt;
+      if (!b.done && b.age >= K.beamTime) { b.done = true; this.beamZone(b); }
+      if (b.age > K.beamTime + 0.25) bm.splice(i, 1);
+    }
+  }
+
+  /** Зона у точки прибытия: урон лазера и все стихии рывка (горение, мороз, пар, электризация). */
+  beamZone(b) {
+    const K = this.config.kinetic;
+    const m = this.kineticMods;
+    const el = this.kineticEl();
+    const en = this.enemies.items;
+    const grid = this.swarm.grid;
+    const n = grid.query(b.x1, b.y1, K.laserZone + 40);
+    const buf = grid.buf;
+    const pcd = m && m.damage ? 1 + m.damage.percent / 100 : 1;
+    const dmg = K.laserDamage * pcd * (m && m.laser ? m.laser.damage || 1 : 1);
+    const hit = this._zoneHit || (this._zoneHit = []);
+    hit.length = 0;
+    for (let k = 0; k < n; k++) {
+      const e = en[buf[k]];
+      if (!e || !e.active) continue;
+      const dx = e.x - b.x1;
+      const dy = e.y - b.y1;
+      const r = K.laserZone + e.radius;
+      if (dx * dx + dy * dy <= r * r) hit.push(e);
+    }
+    this.burst(b.x1, b.y1, 0.3, 8, K.laserZone, this.config.shock.colors[b.zap ? b.kind : 2]);
+    for (const e of hit) {
+      if (!e.active) continue;
+      this.combat.damageEnemy(e, dmg, this.laserSource, null);
+      if (!e.active) continue;
+      if (el.bd > 0) this.ignite(e, el.bd, el.bi);
+      if (el.fr) this.chill(e, el.st, el.bd, el.bi);
+      if (b.zap) this.zap(e, el.bd, el.bi, el.fr, el.st);
     }
   }
 
@@ -840,7 +969,7 @@ export class Game {
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
     if (p.frost && e.active) this.chill(e, p.burnDmg > 0 ? p.steam : 0, p.burnDmg, p.burnInt);
-    if (p.zap && e.active) this.zap(e);
+    if (p.zap && e.active) this.zap(e, p.burnDmg, p.burnInt, p.frost ? 1 : 0, p.steam);
     if (p.phantom > 0) this.tryPhantom(p, e);
     if (p.pierce > 0) {
       p.pierce--;
@@ -871,7 +1000,8 @@ export class Game {
       q.vx = ((e.x - x) / d) * sp;
       q.vy = ((e.y - y) / d) * sp;
       q.radius = p.radius;
-      q.damage = p.damage * F.damageFrac;
+      q.damage = p.damage * F.damageFrac * (p.phDmg || 1);
+      q.phDmg = p.phDmg;
       q.speed = p.speed;
       q.range = Math.max(p.range, d + 60);
       q.knockback = p.knockback;
@@ -1344,6 +1474,7 @@ export class Game {
     this.kineticMods = null;
     this.lightdash.reset();
     this.zapBolts.length = 0;
+    this.dashBeams.length = 0;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();

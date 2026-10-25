@@ -11,6 +11,7 @@ export class LightDash {
     this.arena = o.arena;
     this.combat = o.combat;
     this.rnd = o.rnd || Math.random;
+    this.kind = 0;     // вид молнии по стихиям (0 жёлтая, 1 огонь, 2 мороз, 3 все)
     this.bounces = 0;  // сколько рикошетов (0 = по конфигу); задаёт игра из модов
     this.damageMul = 1;
     this.onHit = o.onHit || null; // (враг) => void: заряд электризации за каждый удар
@@ -104,7 +105,7 @@ export class LightDash {
       h.x = this.fromX + (e.x - this.fromX) * k;
       h.y = this.fromY + (e.y - this.fromY) * k;
       if (k >= 1) {
-        this.bolts.push({ x0: this.fromX, y0: this.fromY, x1: e.x, y1: e.y, age: 0 });
+        this.bolts.push({ x0: this.fromX, y0: this.fromY, x1: e.x, y1: e.y, age: 0, k: this.kind });
         this.combat.damageEnemy(e, L.damage * this.damageMul, this.source, { knockback: 0 });
         if (e.active && this.onHit) this.onHit(e);
         this.fromX = h.x;
@@ -146,7 +147,7 @@ export class LightDash {
       }
       if (near > bs) { bs = near; bx = x; by = y; }
     }
-    this.bolts.push({ x0: h.x, y0: h.y, x1: bx, y1: by, age: 0 });
+    this.bolts.push({ x0: h.x, y0: h.y, x1: bx, y1: by, age: 0, k: this.kind });
     h.x = bx;
     h.y = by;
     h.prevX = bx;

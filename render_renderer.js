@@ -4,6 +4,9 @@
 import { getTelegraph } from './systems_attacks.js';
 
 const TAU = Math.PI * 2;
+// Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
+const ZAP_RGB = ['255,225,70', '255,150,50', '110,205,255', '255,255,255'];
+const ZAP_CORE = ['255,252,225', '255,236,200', '232,248,255', '255,255,255'];
 const SERIF = '"Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif'; // шрифт надписей интерфейса
 const EMPTY = { items: [] };
 
@@ -514,6 +517,7 @@ export class Renderer {
     this.aura = deps.aura || null;
     this.lightdash = deps.lightdash || null;
     this.zapBolts = deps.zapBolts || [];
+    this.dashBeams = deps.dashBeams || [];
     this.fires = deps.fires || [];
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
@@ -3521,7 +3525,7 @@ export class Renderer {
       if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.zap ? 5 : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
+      const kd = p.zap ? (p.frost && p.burnDmg > 0 ? 3 : p.frost ? 1 : p.burnDmg > 0 ? 2 : 5) : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
       const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
       const ang = Math.atan2(p.vy, p.vx);
       const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
@@ -3552,7 +3556,7 @@ export class Renderer {
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.zap ? 5 : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
+      const kd = p.zap ? (p.frost && p.burnDmg > 0 ? 3 : p.frost ? 1 : p.burnDmg > 0 ? 2 : 5) : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
       ctx.globalAlpha = 1;
       ctx.fillStyle = kd === 5 ? '#ffd21e' : kd === 4 ? '#8a5cff' : kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
       ctx.beginPath();
@@ -3562,7 +3566,7 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
       ctx.fill();
-      if (kd === 5) { // шар молний: потрескивающие дуги вокруг
+      if (p.zap) { // шар молний: потрескивающие дуги вокруг
         ctx.strokeStyle = '#fffbe0';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
@@ -4387,7 +4391,7 @@ export class Renderer {
     const ld = this.lightdash;
     const zb = this.zapBolts;
     const n1 = ld ? ld.bolts.length : 0;
-    if (!n1 && !zb.length) return;
+    if (!n1 && !zb.length && !this.dashBeams.length) return;
     const col = this.cfg.shock.color;
     ctx.save();
     ctx.lineCap = 'round';
@@ -4396,7 +4400,36 @@ export class Renderer {
     for (let i = 0; i < n1 + zb.length; i++) {
       const b = i < n1 ? ld.bolts[i] : zb[i - n1];
       const k = Math.max(0, 1 - b.age / 0.25);
-      this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, 2.2, k, i, '255,225,70', '255,252,225');
+      this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, 2.2, k, i, ZAP_RGB[b.k | 0], ZAP_CORE[b.k | 0]);
+    }
+    // Лучи Лазера на рывке: быстрый удар в точку прибытия.
+    const bm = this.dashBeams;
+    const T = this.cfg.kinetic.beamTime;
+    for (let i = 0; i < bm.length; i++) {
+      const b = bm[i];
+      const fade = Math.max(0, 1 - Math.max(0, b.age - T) / 0.25);
+      const prog = Math.min(1, b.age / T);
+      const ex = b.x0 + (b.x1 - b.x0) * prog;
+      const ey = b.y0 + (b.y1 - b.y0) * prog;
+      if (b.zap) this.drawZapArc(ctx, b.x0, b.y0, ex, ey, 2.4, fade, i + 40, ZAP_RGB[b.kind], ZAP_CORE[b.kind]);
+      else {
+        const rgb = b.kind === 1 ? '255,150,50' : b.kind === 3 ? '255,255,255' : '110,205,255';
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.35 * fade + ')';
+        ctx.lineWidth = 9;
+        ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + fade + ')';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+      if (b.done) { // зона эффектов в точке прибытия
+        ctx.globalAlpha = 0.5 * fade;
+        ctx.strokeStyle = this.cfg.shock.colors[b.kind];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(b.x1, b.y1, this.cfg.kinetic.laserZone * (1 - 0.3 * fade), 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
     ctx.restore();
   }
@@ -4653,8 +4686,9 @@ export class Renderer {
       const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
       const ph = !!l.gen;
       const zp = !!l.zap;
-      const rgb = zp ? '255,225,70' : ph ? '190,120,255' : '110,205,255';
-      const core = zp ? '255,252,225' : ph ? '248,232,255' : '232,248,255';
+      const zk = (l.burnDmg > 0 ? 1 : 0) | (l.frost ? 2 : 0);
+      const rgb = zp ? ZAP_RGB[zk] : ph ? '190,120,255' : '110,205,255';
+      const core = zp ? ZAP_CORE[zk] : ph ? '248,232,255' : '232,248,255';
       if (zp) { this.drawZapArc(ctx, x0, y0, x1, y1, w, fade, li, rgb, core); } else {
       ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
       ctx.lineWidth = w * 6;
@@ -4833,7 +4867,7 @@ export class Renderer {
     for (let i = 0; i < bl.length; i++) {
       const b = bl[i];
       const kd = b.kind | 0;
-      const mc = b.zap ? '#ffd21e' : b.gen ? '#a577ff' : mainC[kd];
+      const mc = b.zap ? ['#ffd21e', '#7fd8ff', '#ff9a3a', '#ffffff'][b.kind | 0] : b.gen ? '#a577ff' : mainC[kd];
       const lc = b.zap ? '#fffbe0' : b.gen ? '#f0e4ff' : liteC[kd];
       ctx.globalAlpha = 1;
       if (b.zap && !b.sphere) { // клинок-молния: зигзаг по ходу полёта
