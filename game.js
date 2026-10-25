@@ -1,5 +1,7 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
 import { LightDash } from './systems_lightdash.js';
+import { Rewards } from './systems_rewards.js';
+import { LevelUpScreen } from './ui_levelup.js';
 import { Aura } from './systems_aura.js';
 import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
@@ -183,6 +185,10 @@ export class Game {
     this.collisions.addRule(Layer.ENEMY, Layer.HERO, (e) => this.onEnemyTouchHero(e));
 
     this.deathScreen = new DeathScreen(o.uiRoot, () => this.restart());
+    this.rewards = new Rewards({ config, rnd: this.rnd });
+    this.pendingLevels = 0; // повышений уровня, по которым ещё не выбрана награда
+    this.levelUpOffers = [];
+    this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward());
     this.build = new BuildGrid(config.build.size);
     this.inventory = new Storage(config.build.storageSlots);
     this.layoutBuild();
@@ -304,6 +310,7 @@ export class Game {
       this.burst(this.hero.x, this.hero.y, 0.3, this.defense.blockRadius, this.defense.blockRadius * 1.9, C.parry);
       this.sparks(e.x, e.y, config.block.sparks, C.spark);
     });
+    this.bus.on('hero:levelup', () => { if (this.mode === 'game' || config.rewards.inTest) this.pendingLevels++; });
     this.bus.on('hero:levelup', () => this.burst(this.hero.x, this.hero.y, 0.6, this.hero.radius, this.hero.radius * 5, '#7dffb0'));
     this.bus.on('hero:died', () => {
       this.state = 'dead';
@@ -763,8 +770,39 @@ export class Game {
     if (this.combat.damageHero(e.def.touchDamage, e)) e.touchTimer = e.def.touchCooldown;
   }
 
+  /** Окно награды: показывает 3 предложения из мешка (и обмен на опыт). */
+  openLevelUp() {
+    const R = this.config.rewards;
+    this.state = 'levelup';
+    this.stick.cancel();
+    this.levelUpOffers = this.rewards.draw(R.choices).map((o) => ({ ...o, def: this.config.mods[o.key] })).filter((o) => o.def);
+    const need = Math.round(this.xp.need * R.exchangeFrac);
+    this.levelUpScreen.show(this.xp.level, this.levelUpOffers, 'Обменять на ' + Math.round(R.exchangeFrac * 100) + '% опыта' + (need ? ' (+' + need + ')' : ''));
+  }
+
+  closeLevelUp() {
+    this.pendingLevels = Math.max(0, this.pendingLevels - 1);
+    this.state = 'playing';
+    this.stepper.reset(); // время выбора не «догоняем»
+    this.meter.interrupt();
+    this.stick.cancel();
+  }
+
+  pickReward(offer) {
+    this.rewards.take(offer.token);
+    this.inventory.addAlways({ key: offer.key, def: offer.def });
+    this.pauseUI.refresh();
+    this.closeLevelUp();
+  }
+
+  exchangeReward() {
+    this.closeLevelUp();
+    this.xp.add(this.xp.need * this.config.rewards.exchangeFrac, true);
+  }
+
   update(dt) {
-    if (this.state === 'paused' || this.state === 'menu') return; // пауза и меню: мир стоит, отрисовка продолжается
+    if (this.state === 'paused' || this.state === 'menu' || this.state === 'levelup') return;
+    if (this.pendingLevels > 0 && this.state === 'playing' && this.hero.active) { this.openLevelUp(); return; } // пауза и меню: мир стоит, отрисовка продолжается
     if (this.state === 'cutscene') { // вступление босса: мир замер, двигается только камера и надпись
       this.updateCine(dt);
       return;
@@ -1078,7 +1116,7 @@ export class Game {
     const c = this.config;
     if (this.build.size !== Math.round(c.build.size)) this.build.resize(c.build.size);
     this.inventory.resize(c.build.storageSlots);
-    this.inventory.fill(c.mods, c.build.startMods);
+    this.inventory.fill(c.mods, this.mode === 'game' ? [] : c.build.startMods); // в «Игре» инвентарь пуст: моды выдают награды за уровень
     layoutCores(this.build, c.cores, this.rnd, c.build.minCoreDistance);
   }
 
@@ -1126,6 +1164,9 @@ export class Game {
     this.steamClouds.length = 0;
     this.fires.length = 0;
     this.lightdash.reset();
+    this.rewards.reset();
+    this.pendingLevels = 0;
+    this.levelUpScreen.hide();
     this.fireLast = null;
     this.lasers.length = 0;
     this.gems.clear();

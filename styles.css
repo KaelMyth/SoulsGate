@@ -462,3 +462,33 @@ body { font-family: var(--serif); }
   font: italic calc(var(--W) * 0.03) var(--serif); opacity: 0.7; text-align: center; touch-action: manipulation;
 }
 @media (prefers-reduced-motion: reduce) { #mode-screen .fx { display: none; } }
+
+/* ---------- Окно награды за уровень (ui_levelup.js) ---------- */
+#levelup-screen {
+  position: fixed; z-index: 24; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: radial-gradient(ellipse at 50% 45%, rgba(8, 16, 30, 0.7), rgba(4, 7, 14, 0.94) 75%);
+  touch-action: manipulation; animation: ui-fade .35s ease-out both;
+}
+#levelup-screen[hidden] { display: none; }
+#levelup-screen .card { width: min(92vw, 400px); margin: auto; padding: 18px 8px; background: none; border: 0; box-shadow: none; text-align: center; }
+#levelup-screen h2 { margin: 0 0 14px; font: 500 30px/1.1 var(--serif); letter-spacing: 0.12em; text-transform: uppercase; color: #ffd9a0; text-shadow: 0 0 20px rgba(255, 177, 74, 0.45); }
+.lu-list { display: flex; flex-direction: column; gap: 10px; }
+.lu-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left;
+  color: var(--ink); background: rgba(20, 32, 52, 0.85); border: 1px solid rgba(160, 200, 240, 0.28); border-radius: 10px;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.lu-card:active { border-color: var(--accent); background: rgba(40, 52, 76, 0.95); }
+.lu-icon { flex: none; width: 44px; height: 44px; color: #ffd9a0; }
+.lu-icon svg { width: 100%; height: 100%; }
+.lu-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lu-text b { font: 500 19px/1.15 var(--serif); letter-spacing: 0.03em; }
+.lu-text small { font-size: 12px; line-height: 1.3; color: #9fb3cc; }
+.lu-exchange {
+  margin-top: 16px; width: 100%; padding: 12px; color: #b9c9de; background: transparent;
+  border: 1px dashed rgba(160, 200, 240, 0.35); border-radius: 10px; font: italic 16px/1.2 var(--serif);
+  touch-action: manipulation;
+}
+.lu-exchange:active { color: #fff; border-color: var(--accent); }
