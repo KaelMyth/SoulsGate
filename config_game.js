@@ -481,6 +481,24 @@ export const CONFIG = {
         },
       },
     },
+    // Апостолы Апофеоза (атака «Призыв апостолов», systems_apostles.js): высокие создания по углам острова.
+    // Стоят на месте (speed 0), умения применяют по очереди. apostle: вид умения. Цвета: ЗАГЛУШКА ГРАФИКИ.
+    apostleFaith: {
+      hp: 380, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'faith', color: '#f4f0d8', edge: '#ffffff',   // Вера: лечит остальных
+    },
+    apostleTruth: {
+      hp: 420, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'truth', color: '#e9b93a', edge: '#fff0b0',   // Правда: золотые клинки
+    },
+    apostleForce: {
+      hp: 480, speed: 0, radius: 18, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'force', color: '#c8503c', edge: '#ffc0b0',   // Сила: притягивает героя
+    },
+    apostleLove: {
+      hp: 340, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      apostle: 'love', color: '#e58ab8', edge: '#ffd6ea',    // Любовь: усиливает остальных
+    },
     // Апофеоз: финальный босс 20-й волны. Шаг 1: только арена (остаток карты рушится, герой на острове, босс в разрушенной зоне).
     // Атак пока нет. flies: летает над разрушенной зоной (не выталкивается за границу острова). Цвета: ЗАГЛУШКА ГРАФИКИ.
     apotheosis: {
@@ -499,6 +517,34 @@ export const CONFIG = {
       flies: true,
       passThroughHero: true,
       spawnDistance: 280,
+      // Атака 1 «Призыв апостолов»: босс призывает четырёх апостолов по углам острова (порядок и есть порядок хода).
+      // Каждые turnInterval с ходит следующий живой апостол (мёртвых пропускаем), перед умением замах spellCast.
+      // Перебиты все: через resummonDelay новый призыв. Времена в секундах.
+      apostles: {
+        firstDelay: 2.0,      // после ролика до первого призыва
+        castTime: 1.4,        // телеграф призыва: круги по углам
+        resummonDelay: 6.0,   // пауза до нового призыва после гибели всех
+        cornerInset: 70,      // отступ апостола от углов острова
+        firstTurnDelay: 2.5,  // до первого хода после призыва
+        turnInterval: 5.0,    // с между ходами (у Веры получается «раз в 5 секунд», если она одна)
+        spellCast: 0.7,       // замах умения (кольцо над апостолом)
+        order: ['faith', 'truth', 'force', 'love'],
+        defs: { faith: 'apostleFaith', truth: 'apostleTruth', force: 'apostleForce', love: 'apostleLove' },
+        faith: { heal: 0.5 },  // доля максимального здоровья, на которую лечит всех остальных (босса не лечит)
+        truth: {
+          blades: 5, spread: 22, width: 14, damage: 14,
+          telegraphDelay: 0.7, // с: линия первого клинка видна до вылета
+          launchInterval: 0.5, // с между вылетами; каждый следующий целится в героя в момент предыдущего
+          overshoot: 250, time: 0.08,
+        },
+        force: {
+          pullSpeed: 95,       // единиц/с: слабое притяжение (скорость героя 180)
+          pullTime: 4.0,       // с: сколько тянет
+          explodeDist: 28,     // дотянул ближе этого (плюс радиус апостола): взрыв
+          damage: 30,
+        },
+        love: { boost: 0.2, time: 17 }, // усиление эффектов остальных на 20% от базы, на time секунд (хватает на три следующих хода)
+      },
       color: '#9a7bd9',
       edge: '#e6dbff',
     },
