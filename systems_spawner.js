@@ -237,7 +237,7 @@ export class Spawner {
     return h;
   }
 
-  /** Тип скелета по весам (ключ из enemies) или null, если весов нет. Без выделений памяти. */
+  /** Тип врага по весам { ключ: вес } (ключи из enemies; скелеты, Замёрзшие) или null, если весов нет. Без выделений памяти. */
   pickSkeleton(weights) {
     let sum = 0;
     for (const k in weights) if (this.cfg.enemies[k]) sum += weights[k];
@@ -262,6 +262,8 @@ export class Spawner {
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
     const r = this.rnd();
     let kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
+    const fz = sp.frozen;
+    if (fz && this.wave >= fz.fromWave) kind = this.pickSkeleton(fz.weights) || kind; // после Тартаса только Замёрзшие
     const sk = sp.skeleton;
     if (sk && this.wave >= sk.fromWave && this.rnd() < sk.share) kind = this.pickSkeleton(sk.weights) || kind; // скелеты временами
     initEnemy(e, this.cfg.enemies[kind], this.pt.x, this.pt.y);

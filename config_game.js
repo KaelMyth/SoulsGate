@@ -720,9 +720,12 @@ export const CONFIG = {
     shooterFromWave: 2,   // с какой волны стрелки появляются
     bullShare: 0.12,      // доля быков среди появляющихся
     bullFromWave: 4,      // с какой волны появляются быки
-    // Скелеты «временами»: с волны fromWave каждый появляющийся враг с шансом share становится скелетом
-    // (тип по весам). Остальные доли (жуки, быки, стрелки) делят оставшееся.
-    skeleton: { fromWave: 11, share: 0.3, weights: { skeletonArcher: 1, skeletonRam: 1, skeletonWarrior: 2 } },
+    // После босса Тартаса (волна 10) появляются только Замёрзшие, те же, которых он призывает атакой «Замёрзший отряд»
+    // (enemies.frozen*). Тип по весам (как в отряде: 2 лучника, 4 пехотинца, 1 таран). Жуки, быки и стрелки с этой волны не появляются.
+    frozen: { fromWave: 11, weights: { frozenArcher: 2, frozenSoldier: 4, frozenRam: 1 } },
+    // Скелеты «временами» (выключены: share 0, после Тартаса идут только Замёрзшие): с волны fromWave каждый появляющийся
+    // враг с шансом share становится скелетом (тип по весам).
+    skeleton: { fromWave: 11, share: 0, weights: { skeletonArcher: 1, skeletonRam: 1, skeletonWarrior: 2 } },
   },
 
   // Волны. Каждая строка: сколько врагов, интервал между появлениями, потолок живых одновременно.
@@ -789,6 +792,8 @@ export const CONFIG = {
     // pick: 'smallest' берёт самые маленькие из видимых скал, иначе случайные. Скалу рядом с героем (minHeroDist) не трогаем.
     rockWake: [
       { wave: 5, count: 1, pick: 'smallest' },
+      { wave: 7, count: 1 },
+      { wave: 9, count: 1 },
       { wave: 12, count: 2 },
       { wave: 15, count: 4 },
     ],
