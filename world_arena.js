@@ -13,7 +13,26 @@ export class Arena {
     this.right = cfg.width / 2;
     this.top = -cfg.height / 2;
     this.bottom = cfg.height / 2;
-    this.rocks = cfg.rocks.map((r) => ({ x: r.x, y: r.y, r: r.r }));
+    this.cfgRocks = cfg.rocks;
+    this.rocks = [];
+    this.restoreRocks();
+  }
+
+  /** Скалы как в конфиге (новый забег после того, как жуки проснулись и скалы исчезли). id стабильный: по нему рисуется спрайт. */
+  restoreRocks() {
+    this.rocks.length = 0;
+    for (let i = 0; i < this.cfgRocks.length; i++) {
+      const r = this.cfgRocks[i];
+      this.rocks.push({ x: r.x, y: r.y, r: r.r, id: i });
+    }
+  }
+
+  /** Убрать скалу из мира (жук проснулся). Возвращает убранную скалу или null. */
+  removeRock(rock) {
+    const i = this.rocks.indexOf(rock);
+    if (i < 0) return null;
+    this.rocks.splice(i, 1);
+    return rock;
   }
 
   get objectCount() {
