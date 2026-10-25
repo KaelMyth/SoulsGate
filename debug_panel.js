@@ -6,7 +6,8 @@ import { h } from './ui_dom.js';
 
 export class DebugPanel {
   /**
-   * @param o { root, config, defaults, tunables, bus, meter, getStats, storage, storageKey, build }
+   * @param o { root, config, defaults, tunables, bus, meter, getStats, storage, storageKey, build, actions }
+   *   actions: [{ label, run }] — кнопки быстрых действий над ползунками (например, переход к боссу)
    *   getStats() -> { steps, objects, stick }
    */
   constructor(o) {
@@ -22,6 +23,7 @@ export class DebugPanel {
     this.panel = h('div', { id: 'dbg-panel', hidden: '' },
       h('h3', {}, 'Отладка · ' + o.build),
       this.stats,
+      this.buildActions(),
       this.buildSliders(),
       h('div', { class: 'dbg-btns' },
         h('button', { type: 'button', onclick: () => o.meter.resetMin() }, 'Сбросить мин. FPS'),
@@ -44,6 +46,17 @@ export class DebugPanel {
     document.addEventListener('keydown', (e) => {
       if (e.key === '`') this.toggle();
     });
+  }
+
+  /** Кнопки быстрых действий: нажатие выполняет действие и закрывает панель, чтобы было видно результат. */
+  buildActions() {
+    const acts = this.o.actions || [];
+    if (!acts.length) return h('div', {});
+    const row = h('div', { class: 'dbg-btns' });
+    for (const a of acts) {
+      row.append(h('button', { type: 'button', onclick: () => { a.run(); this.toggle(); } }, a.label));
+    }
+    return row;
   }
 
   buildSliders() {
