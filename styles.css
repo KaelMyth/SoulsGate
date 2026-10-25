@@ -501,3 +501,5 @@ body { font-family: var(--serif); }
 .lu-text small { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .slot-cell.fresh { animation: fresh-pulse 1s ease-in-out infinite; }
 @keyframes fresh-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 201, 106, 0.0); } 50% { box-shadow: 0 0 14px 3px rgba(255, 201, 106, 0.85); } }
+
+.lu-card { height: 104px; }

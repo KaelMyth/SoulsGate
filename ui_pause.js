@@ -105,7 +105,7 @@ export class PauseUI {
     this.button.classList.toggle('on', on);
     this.showMenu(false);
     this.showTools(false);
-    if (on) this.builder.refresh();
+    if (on) this.builder.rebuild(); // хранилище могло измениться (награда за уровень): пересобираем ячейки, а не только подсветку
   }
 
   /** Сетка перерасставлена или сменила размер. */
