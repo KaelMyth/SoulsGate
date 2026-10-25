@@ -10,7 +10,8 @@
 // Миниборс (config.waves.boss): когда на волне босса убиты все враги, выходит босс, и новые враги не появляются,
 // пока он жив. Убили босса: передышка и обычные волны дальше.
 //
-// События: 'wave:started' { wave, crash }, 'wave:cleared' { wave }, 'boss:spawned' { enemy }, 'boss:defeated' { wave }.
+// После waves.total волн забег пройден: событие 'run:completed' { wave }, новые враги не выходят.
+// События: 'wave:started' { wave, crash }, 'wave:cleared' { wave }, 'boss:spawned' { enemy }, 'boss:defeated' { wave }, 'run:completed' { wave }.
 import { initEnemy } from './world_enemy.js';
 
 const MAX_SPAWNS_PER_STEP = 20; // страховка: даже при интервале 0 за шаг не больше стольких
@@ -131,6 +132,8 @@ export class Spawner {
       return;
     }
 
+    if (this.phase === 'complete') return; // забег пройден: ждём перезапуска
+
     // Бой с боссом: новые враги не выходят, пока босс жив. Убили босса: обычные волны идут дальше.
     if (this.phase === 'boss') {
       this.alive = this.countAlive();
@@ -164,6 +167,13 @@ export class Spawner {
       const B = this.cfg.waves.boss;
       if (B && this.wave === B.wave && this.cfg.enemies[B.enemy]) {
         this.spawnBoss(this.cfg.enemies[B.enemy]);
+        return;
+      }
+      // Последняя волна забега зачищена: забег пройден, новые враги не выходят.
+      const total = this.cfg.waves.total;
+      if (total > 0 && this.wave >= total) {
+        this.phase = 'complete';
+        if (this.bus) this.bus.emit('run:completed', { wave: this.wave });
         return;
       }
       this.wave++;
@@ -220,6 +230,22 @@ export class Spawner {
     return h;
   }
 
+  /** Тип скелета по весам (ключ из enemies) или null, если весов нет. Без выделений памяти. */
+  pickSkeleton(weights) {
+    let sum = 0;
+    for (const k in weights) if (this.cfg.enemies[k]) sum += weights[k];
+    if (sum <= 0) return null;
+    let x = this.rnd() * sum;
+    let last = null;
+    for (const k in weights) {
+      if (!this.cfg.enemies[k]) continue;
+      last = k;
+      x -= weights[k];
+      if (x < 0) return k;
+    }
+    return last;
+  }
+
   spawnOne() {
     if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return false;
     const e = this.enemies.spawn();
@@ -228,7 +254,9 @@ export class Spawner {
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
     const r = this.rnd();
-    const kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
+    let kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
+    const sk = sp.skeleton;
+    if (sk && this.wave >= sk.fromWave && this.rnd() < sk.share) kind = this.pickSkeleton(sk.weights) || kind; // скелеты временами
     initEnemy(e, this.cfg.enemies[kind], this.pt.x, this.pt.y);
     e.hp = e.maxHp = this.hpFor(this.cfg.enemies[kind].hp);
     this.arena.resolveCircle(e); // не внутри скалы

@@ -50,7 +50,8 @@ export const TUNABLES = [
   { group: 'Волны', path: 'waves.hp.perWave', label: 'Здоровье врагов: прирост за волну', min: 0, max: 50, step: 1 },
   { group: 'Волны', path: 'waves.hp.jumpPct', label: 'Здоровье врагов: скачок каждые 5 волн (доля)', min: 0, max: 1, step: 0.05 },
   { group: 'Волны', path: 'waves.intermission', label: 'Передышка между волнами, с', min: 0.5, max: 6, step: 0.5 },
-  { group: 'Волны', path: 'waves.startWave', label: 'Прыгнуть на волну (10 = краш-тест, если включён)', min: 1, max: 10, step: 1 },
+  { group: 'Волны', path: 'waves.startWave', label: 'Прыгнуть на волну (10 = босс)', min: 1, max: 20, step: 1 },
+  { group: 'Волны', path: 'spawn.skeleton.share', label: 'Скелеты: доля среди врагов после волны 10', min: 0, max: 1, step: 0.05 },
   { group: 'Волны', path: 'limits.maxEnemies', label: 'Жёсткий потолок живых врагов', min: 50, max: 2000, step: 50 },
   { group: 'Волны', path: 'limits.maxShots', label: 'Жёсткий потолок снарядов', min: 5, max: 400, step: 5 },
 
