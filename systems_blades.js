@@ -155,8 +155,11 @@ export class Blades {
     for (let r = 0; r < this.items.length; r++) if (this.items[r].state !== 'gone') this.items[w++] = this.items[r];
     this.items.length = w;
     const sphere = !!m.laser;
+    // Вид клинка для отрисовки: 0 меч, 1 кристалл (Мороз), 2 огненная стрела (Горение), 3 кристальная стрела (оба: пар).
+    const kind = m.frost && m.burn ? 3 : m.burn ? 2 : m.frost ? 1 : 0;
     for (const b of this.items) {
       b.sphere = sphere;
+      b.kind = kind;
       if (b.state === 'fire') { // луч светит из сферы: она продолжает кружить
         b.a += B.spin * dt;
         b.x = hero.x + Math.cos(b.a) * B.orbit;
