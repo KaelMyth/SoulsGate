@@ -119,6 +119,9 @@ export class Game {
       config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
       onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp) => {
         const sp = Math.hypot(vx, vy) || 1;
+        this.pelletSource.el = bd > 0 ? (fr && st > 0 ? 3 : 2) : fr ? 1 : 0; // для эффекта попадания (только вид)
+        this.pelletSource.dx = vx / sp;
+        this.pelletSource.dy = vy / sp;
         this.combat.damageEnemy(e, dmg, this.pelletSource, { knockback: config.shot.knockback, dirX: vx / sp, dirY: vy / sp });
         if (!e.active) return;
         if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
@@ -290,8 +293,7 @@ export class Game {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
         else if (e.source && e.source.shock) this.burst(e.target.x, e.target.y, 0.2, 3, 14, config.shock.color);
-        else if (e.source && (e.source.laser || e.source.pellet || e.source.aura)) { /* тики луча без вспышек: хватает мигания врага */ }
-        else this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
+        else if (!this.hitFxFor(e)) this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
     });
@@ -390,6 +392,39 @@ export class Game {
   objectCount() {
     return 1 + this.arena.objectCount + this.enemies.count + this.heroShots.count
       + this.enemyShots.count + this.effects.count;
+  }
+
+  /**
+   * Эффект попадания по врагу: по источнику урона выбираем вид удара и стихию (см. render_hitfx.js) и порождаем частицы.
+   * Возвращает false, если источник неизвестен (тогда остаётся старая белая вспышка).
+   */
+  hitFxFor(ev) {
+    const s = ev.source;
+    const t = ev.target;
+    if (!s || !this.renderer || !this.renderer.hitfx) return false;
+    let kind = null;
+    let el = 0;
+    let dx = 0;
+    let dy = 0;
+    let power = 0;
+    let big = false;
+    if (s.laser) { kind = 'laser'; el = s.el | 0; dx = s.dx; dy = s.dy; big = !!s.big; }
+    else if (s.pellet) { kind = 'pellet'; el = s.el | 0; dx = s.dx; dy = s.dy; }
+    else if (s.blade) { kind = 'blade'; el = s.gen > 0 ? 4 : s.kind | 0; dx = s.dx; dy = s.dy; }
+    else if (s.aura) { kind = 'aura'; el = s.kind | 0; dx = 0; dy = -1; }
+    else if (s.shock || s.lightning) { kind = 'zap'; dx = t.x - this.hero.x; dy = t.y - this.hero.y; }
+    else if (s.hits && typeof s.vx === 'number') { // снаряд героя
+      kind = 'bolt';
+      el = s.gen > 0 ? 4 : s.steam > 0 ? 3 : s.burnDmg > 0 ? 2 : s.frost ? 1 : 0;
+      dx = s.vx;
+      dy = s.vy;
+      power = s.glow || 0;
+    } else return false;
+    const L = Math.hypot(dx, dy);
+    if (L < 1e-6) { dx = 0; dy = -1; } else { dx /= L; dy /= L; }
+    const k = kind === 'aura' ? 0 : kind === 'laser' ? 0.4 : 0.85; // удар ближе к краю врага со стороны подлёта
+    this.renderer.hitfx.spawn({ kind, el, x: t.x - dx * t.radius * k, y: t.y - dy * t.radius * k, dx, dy, power, big });
+    return true;
   }
 
   burst(x, y, life, r0, r1, color) {
@@ -696,6 +731,10 @@ export class Game {
     // Бьём после поиска: убийство меняет пул врагов.
     for (const e of hit) {
       if (!e.active) continue;
+      this.laserSource.el = l.gen > 0 ? 4 : l.steam > 0 ? 3 : l.burnDmg > 0 ? 2 : l.frost ? 1 : 0; // для эффекта попадания (только вид)
+      this.laserSource.big = !!l.big;
+      this.laserSource.dx = l.dx;
+      this.laserSource.dy = l.dy;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
@@ -875,6 +914,10 @@ export class Game {
     this.burst(b.x1, b.y1, 0.3, 8, K.laserZone, this.config.shock.colors[b.zap ? b.kind : 2]);
     for (const e of hit) {
       if (!e.active) continue;
+      this.laserSource.el = 0;
+      this.laserSource.big = false;
+      this.laserSource.dx = 0;
+      this.laserSource.dy = -1;
       this.combat.damageEnemy(e, dmg, this.laserSource, null);
       if (!e.active) continue;
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);

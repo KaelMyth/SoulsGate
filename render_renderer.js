@@ -2,6 +2,7 @@
 // Мир рисуется с интерполяцией между прошлым и текущим шагом логики (alpha из цикла).
 
 import { getTelegraph } from './systems_attacks.js';
+import { HitFx } from './render_hitfx.js';
 
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
@@ -553,6 +554,7 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
+    this.hitfx = new HitFx(this); // частицы попаданий по врагам (render_hitfx.js)
     this.beetleState = new WeakMap();
     this.fxSeed = new WeakMap(); // зерно врага для внешнего вида его состояний (лёд, огонь) // у каждого жука свой угол поворота и фаза анимации (только для вида)
   }
@@ -692,6 +694,7 @@ export class Renderer {
     }
 
     this.drawDust(this.dt);
+    this.hitfx.draw(ctx, this.dt);
     this.drawBeams();
 
     this.drawTargetGlow(alpha, true);

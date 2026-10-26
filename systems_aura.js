@@ -67,6 +67,7 @@ export class Aura {
       if (dx * dx + dy * dy <= r * r) hit.push(e);
     }
     this.pulse = 1;
+    this.source.kind = this.kind; // для эффекта попадания (только вид)
     const fx = ++this.n % this.cfg.aura.effectEvery === 0 && (m.burn || m.frost);
     const bd = fx && m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
     const bi = fx && m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
