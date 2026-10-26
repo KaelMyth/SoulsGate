@@ -670,6 +670,7 @@ export class Renderer {
     this.drawApostles(C);
     this.drawPortal();
     this.drawHands();
+    this.drawCrumble();
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -689,6 +690,7 @@ export class Renderer {
     }
 
     this.drawDust(this.dt);
+    this.drawBeams();
 
     this.drawTargetGlow(alpha, true);
 
@@ -700,6 +702,7 @@ export class Renderer {
       this.drawHeroArcs(hx, hy, C);
     }
 
+    this.drawFlash(viewL, viewR, viewT, viewB);
     this.drawLasers(ctx);
     this.drawBolts(ctx);
     this.drawBlades(ctx);
@@ -889,6 +892,117 @@ export class Renderer {
         ctx.fillStyle = 'rgba(5,5,9,' + (0.9 * (1 - 0.7 * k)).toFixed(3) + ')';
         ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
       }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Распад острова». Кусок поля: красный круг-телеграф, потом тёмный провал в пустоту
+   * со светлым краем, потом зарастает. Всё обрезано по кромке острова.
+   */
+  drawCrumble() {
+    const a = this.apotheosis;
+    const z = this.arena.zone;
+    if (!a || !z || !a.patches.length) return;
+    const C = a.boss && a.boss.def.crumble;
+    if (!C) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.beginPath();
+    if (z.poly) {
+      ctx.moveTo(z.poly[0].x, z.poly[0].y);
+      for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
+      ctx.closePath();
+    } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    ctx.clip();
+    for (let i = 0; i < a.patches.length; i++) {
+      const p = a.patches[i];
+      if (p.state === 3) continue;
+      ctx.beginPath();
+      if (p.state === 0) {
+        const k = Math.min(1, p.t / Math.max(0.01, C.telegraph));
+        ctx.arc(p.x, p.y, p.r, 0, TAU);
+        ctx.fillStyle = 'rgba(190,30,40,' + (0.15 + 0.3 * k).toFixed(3) + ')';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * k, 0, TAU);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(255,110,110,0.8)';
+        ctx.stroke();
+      } else {
+        const al = p.state === 2 ? 1 - Math.min(1, p.t / Math.max(0.01, C.fadeTime)) : 1;
+        ctx.arc(p.x, p.y, p.r, 0, TAU);
+        ctx.fillStyle = 'rgba(6,5,12,' + (0.95 * al).toFixed(3) + ')';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(200,190,230,' + (0.7 * al).toFixed(3) + ')';
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Лучи». Из центра головы-солнца по каждому её лучу: тонкая красная линия (телеграф),
+   * потом толстый золотой луч с белой серединой. Углы те же, что у острий головы (apotheosis.beamAngles()).
+   */
+  drawBeams() {
+    const a = this.apotheosis;
+    if (!a || !a.boss || (a.state !== 'beams-tele' && a.state !== 'beams-fire')) return;
+    const B = a.boss.def.beams;
+    const o = a.headPos();
+    const ang = a.beamAngles();
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < ang.length; i++) {
+      const ex = o.x + Math.cos(ang[i]) * B.length;
+      const ey = o.y + Math.sin(ang[i]) * B.length;
+      ctx.beginPath();
+      ctx.moveTo(o.x, o.y);
+      ctx.lineTo(ex, ey);
+      if (a.state === 'beams-tele') {
+        const k = Math.min(1, a.t / Math.max(0.01, B.telegraph));
+        ctx.lineWidth = 2 + 2 * k;
+        ctx.strokeStyle = 'rgba(255,70,70,' + (0.25 + 0.5 * k).toFixed(3) + ')';
+        ctx.stroke();
+      } else {
+        ctx.lineWidth = B.width;
+        ctx.strokeStyle = 'rgba(255,205,80,0.8)';
+        ctx.stroke();
+        ctx.lineWidth = B.width * 0.35;
+        ctx.strokeStyle = 'rgba(255,255,235,0.95)';
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Вспышка». Зарядка: голова разгорается, экран темнеет; вспышка: белый экран. Рисуется по всему
+   * видимому полю (границы кадра в мировых координатах).
+   */
+  drawFlash(l, r, t, b) {
+    const a = this.apotheosis;
+    if (!a || !a.boss || (a.flashDim <= 0 && a.flashWhite <= 0 && a.state !== 'flash-charge')) return;
+    const ctx = this.ctx;
+    ctx.save();
+    if (a.flashDim > 0) {
+      ctx.fillStyle = 'rgba(2,2,14,' + a.flashDim.toFixed(3) + ')';
+      ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
+    }
+    if (a.state === 'flash-charge') { // свечение головы растёт
+      const o = a.headPos();
+      const F = a.boss.def.flash;
+      const k = Math.min(1, a.t / Math.max(0.01, F.charge));
+      ctx.fillStyle = 'rgba(255,240,170,' + (0.25 + 0.5 * k).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, a.boss.radius * (0.5 + 0.9 * k), 0, TAU);
+      ctx.fill();
+    }
+    if (a.flashWhite > 0) {
+      ctx.fillStyle = 'rgba(255,250,225,' + (0.9 * a.flashWhite).toFixed(3) + ')';
+      ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
     }
     ctx.restore();
   }
@@ -1763,6 +1877,8 @@ export class Renderer {
       if (aiming) fill = '#ffe9a8';
       else if (st === 'windup') fill = '#f6d9a4';
       else if (st === 'stun') fill = '#8fa8c8';
+      const stunned = !!(e.def.sunHead && this.apotheosis && this.apotheosis.stunT > 0); // Апофеоз оглушён парированной вспышкой
+      if (stunned) fill = '#8fa8c8';
       ctx.fillStyle = hit ? '#ffffff' : fill;
       if (e.def.sunHead) { // ЗАГЛУШКА ГРАФИКИ: Апофеоз из двух частей, голова-солнце сверху и туловище снизу
         const R = rr;
@@ -1782,7 +1898,7 @@ export class Renderer {
         const hy = y - R * 0.85;
         const hr = R * 0.5;
         const rays = e.def.head ? e.def.head.rays : 10;
-        ctx.fillStyle = hit ? '#ffffff' : '#ffd24a';
+        ctx.fillStyle = hit ? '#ffffff' : stunned ? '#cfe2ff' : '#ffd24a';
         ctx.beginPath(); // лучи солнца: rays остриёв, голова сама не вращается (поворот только по умениям, e.headAngle)
         for (let i = 0; i < rays * 2; i++) {
           const a = -Math.PI / 2 + e.headAngle + (i / (rays * 2)) * TAU;
