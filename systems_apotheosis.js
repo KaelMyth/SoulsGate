@@ -28,6 +28,10 @@
 //   руки разрывают клочок, и на его месте вырастает туманная платформа; графика переходит в негатив (renderer.drawNegative).
 //   Платформа это новая arena.zone (многоугольник). Конец: событие 'apotheosis:phase2'.
 //
+// ВТОРАЯ ФАЗА (после «Превращения»): первое умение 'negApostles' «Призыв негативных апостолов» (systems_apostles.js, режим neg):
+//   те же четыре апостола, умения усилены, Вера бросает клинки с неба туда, где был герой, Сила отталкивает вместо притяжения.
+//   Умение кончается, когда они убиты. Дальше умения второй фазы пока не заданы: босс стоит (state 'done').
+//
 // События: 'apotheosis:ability' { id }, 'apotheosis:hands-start', 'apotheosis:slam' { band, x, y }, 'apotheosis:beams-fire',
 //          'apotheosis:crumble' { x, y, r }, 'apotheosis:flash' { parried }, 'apotheosis:stun', 'apotheosis:head-turn' { turns },
 //          'apotheosis:phase2',
@@ -36,7 +40,7 @@
 import { pointInPoly } from './world_arena.js';
 
 const TAU = Math.PI * 2;
-const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform'];
+const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform', 'negApostles'];
 const ease = (k) => k * k * (3 - 2 * k);
 
 /** Расстояние от (cx, cy) до границы многоугольника по лучу с углом ang. */
@@ -99,6 +103,8 @@ export class ApotheosisAI {
     this.madTurn = false;  // идёт последний, медленный проворот головы
     this.fog = 0;          // 0..1 туман на платформе (для отрисовки)
     this.negative = 0;     // 0..1 негатив картинки (для отрисовки)
+    this.p2seq = ['negApostles']; // умения второй фазы по порядку (пока одно)
+    this.p2i = 0;
     this.bus.on('boss:spawned', ({ enemy }) => this.attach(enemy));
     this.bus.on('apostles:defeated', () => this.onApostlesDefeated());
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.boss) this.reset(); });
@@ -156,6 +162,7 @@ export class ApotheosisAI {
     this.madTurn = false;
     this.fog = 0;
     this.negative = 0;
+    this.p2i = 0;
   }
 
   get H() { return this.boss ? this.boss.def.hands : null; }
@@ -200,12 +207,33 @@ export class ApotheosisAI {
   }
 
   onApostlesDefeated() {
-    if (!this.boss || this.ability !== 'apostles') return;
-    this.finishAbility(); // апостолы убиты: умение кончилось
+    if (!this.boss) return;
+    if (this.ability === 'apostles') this.finishAbility(); // апостолы убиты: умение кончилось
+    else if (this.ability === 'negApostles') this.finishP2Ability(); // негативные убиты: умение второй фазы кончилось
+  }
+
+  /** Вторая фаза: босс безумен, платформа готова. Первое умение через паузу. */
+  startPhase2() {
+    this.p2i = 0;
+    this.enterGap(this.boss.def.abilities.afterDelay);
+  }
+
+  /** Умение второй фазы кончилось (головы это не поворачивает: пять проворотов уже сделаны). */
+  finishP2Ability() {
+    this.ability = null;
+    this.p2i++;
+    this.bus.emit('apotheosis:p2-done', { index: this.p2i });
+    this.enterGap(this.boss.def.abilities.afterDelay);
   }
 
   /** Следующее умение по порядку. */
   startNext() {
+    if (this.phase2) { // вторая фаза: по списку p2seq; когда он кончился, босс стоит
+      const id = this.p2seq[this.p2i];
+      if (id) this.start(id);
+      else { this.ability = null; this.state = 'done'; }
+      return;
+    }
     this.start(this.sequence[this.turns % this.sequence.length]);
   }
 
@@ -220,17 +248,21 @@ export class ApotheosisAI {
       case 'crumble': this.startCrumble(); break;
       case 'flash': this.startFlash(); break;
       case 'transform': this.startTransform(); break;
+      case 'negApostles': this.state = 'apostles'; this.apostles.requestSummon(0, true); break;
       default: this.enterGap(0);
     }
   }
 
   /** Отладка: немедленно начать умение id (то, что шло, обрывается; счётчик проворотов не меняется). */
   force(id) {
-    if (!this.boss || this.phase2 || ABILITY_IDS.indexOf(id) < 0) return false;
+    if (!this.boss || ABILITY_IDS.indexOf(id) < 0) return false;
+    if (this.phase2 && id !== 'negApostles') return false;
+    if (id === 'negApostles' && !this.phase2 && !this.enterPhase2Debug()) return false;
     this.apostles.requestSummon(Infinity);
     this.apostles.dismiss();
     this.apostles.cast = null;
     this.apostles.pull = null;
+    this.apostles.rainCount = 0;
     this.hands.length = 0;
     this.emerge = 0;
     this.patches.length = 0;
@@ -632,5 +664,41 @@ export class ApotheosisAI {
     this.phase2 = true;
     this.state = 'done';
     this.bus.emit('apotheosis:phase2', {});
+    this.startPhase2();
+  }
+
+  /**
+   * Отладка: сразу в конец «Превращения»: круглая туманная платформа на месте острова, негатив, голова вверх ногами (5 проворотов),
+   * вторая фаза. false, если острова нет (не финальный бой).
+   */
+  enterPhase2Debug() {
+    const z = this.arena.zone;
+    const boss = this.boss;
+    if (!z || !boss || !boss.def.transform) return false;
+    const T = boss.def.transform;
+    const cx = (z.left + z.right) / 2;
+    const cy = (z.top + z.bottom) / 2;
+    const poly = [];
+    let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+    for (let i = 0; i < T.vertices; i++) {
+      const a = -Math.PI + (i + 0.5) * TAU / T.vertices;
+      const rad = T.platformRadius * (1 + (this.rnd() - 0.5) * T.platformWobble);
+      const x = cx + Math.cos(a) * rad;
+      const y = cy + Math.sin(a) * rad;
+      poly.push({ x, y });
+      if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y;
+    }
+    this.arena.setZone({ left: l, right: r, top: t, bottom: b, poly });
+    this.hands.length = 0;
+    this.patches.length = 0;
+    this.tf = null;
+    this.madTurn = false;
+    this.fog = 1;
+    this.negative = 1;
+    this.turns = boss.def.head.phaseAfter;
+    boss.headAngle = this.turns * (TAU / boss.def.head.rays);
+    this.phase2 = true;
+    this.bus.emit('apotheosis:phase2', {});
+    return true;
   }
 }

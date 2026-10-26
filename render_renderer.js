@@ -1236,9 +1236,9 @@ export class Renderer {
       ctx.arc(e.x, e.y, e.radius * (3 - 2 * k), 0, TAU);
       ctx.stroke();
     }
-    if (a.pull && a.pull.e.active) { // притяжение: линия от Силы к герою
+    if (a.pull && a.pull.e.active) { // притяжение: линия от Силы к герою (отталкивание в негативе: голубая)
       ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = '#ff8a6a';
+      ctx.strokeStyle = a.pull.push ? '#6ad0ff' : '#ff8a6a';
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
@@ -1247,7 +1247,7 @@ export class Renderer {
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (a.boost() > 1) { // усилены Любовью: розовое кольцо вокруг остальных
+    if (a.loveT > 0) { // усилены Любовью: розовое кольцо вокруг остальных
       ctx.globalAlpha = 0.6;
       ctx.strokeStyle = '#ff9fcf';
       ctx.lineWidth = 2;
@@ -1258,6 +1258,41 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.radius + 6, 0, TAU);
         ctx.stroke();
+      }
+    }
+    // Негатив, Вера: клинки с неба. Красный круг сужается к удару, сверху падает светлая полоса, после удара остаётся след.
+    if (a.neg && a.rainCount > 0) {
+      const R = a.N.rain;
+      for (let i = 0; i < a.rainCount; i++) {
+        const b = a.rain[i];
+        if (b.state === 1) {
+          const k = Math.min(1, b.t / Math.max(0.01, R.fall));
+          ctx.globalAlpha = 0.35 + 0.4 * k;
+          ctx.fillStyle = '#d2283a';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R.radius, 0, TAU);
+          ctx.fill();
+          ctx.globalAlpha = 0.9;
+          ctx.strokeStyle = '#ff9a9a';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R.radius * (1.6 - 0.6 * k), 0, TAU);
+          ctx.stroke();
+          ctx.globalAlpha = 0.5 + 0.5 * k;
+          ctx.strokeStyle = '#fff6c8';
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(b.x, b.y - 520 * (1 - k));
+          ctx.lineTo(b.x, b.y - 520 * (1 - k) + 140);
+          ctx.stroke();
+        } else if (b.state === 2) {
+          const k = Math.min(1, b.t / Math.max(0.01, R.hold));
+          ctx.globalAlpha = 0.8 * (1 - k);
+          ctx.fillStyle = '#fff6c8';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R.radius * (0.6 + 0.5 * k), 0, TAU);
+          ctx.fill();
+        }
       }
     }
     // Золотые клинки: ждущий висит ромбиком над головой, нацеленный показывает линию, вылетевший вспыхивает.

@@ -252,6 +252,7 @@ export class Game {
         { label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
         { label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
         { label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
+        { label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
       ],
       build: o.build,
       getStats: () => ({
@@ -324,6 +325,7 @@ export class Game {
     this.bus.on('portal:closing', ({ portal }) => this.burst(portal.x, portal.y, 0.7, 20, 140, '#ffffff'));
     // Руки Апофеоза (ЗАГЛУШКИ вспышек): удар по полосе.
     this.bus.on('apotheosis:slam', ({ x, y }) => { this.burst(x, y, 0.5, 20, 120, '#6a4a7a'); this.sparks(x, y, 8, '#ff6a6a'); });
+    this.bus.on('apostle:rain-hit', ({ x, y }) => { this.burst(x, y, 0.4, 14, 70, '#fff6c8'); this.sparks(x, y, 6, '#ffe58a'); });
     this.bus.on('apotheosis:crumble', ({ x, y, r }) => { this.burst(x, y, 0.5, 16, r * 1.4, '#3a3050'); this.sparks(x, y, 6, '#8a7aa8'); });
     this.bus.on('apotheosis:flash', ({ parried }) => { const b = this.apotheosis.boss; if (b) { const h = this.apotheosis.headPos(); this.burst(h.x, h.y, 0.6, 24, 200, parried ? '#a8d8ff' : '#fff0b0'); this.sparks(h.x, h.y, 14, '#ffe58a'); } });
     // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
