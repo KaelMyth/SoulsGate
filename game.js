@@ -284,10 +284,11 @@ export class Game {
 
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
-    this.bus.on('enemy:killed', ({ enemy }) => {
+    this.bus.on('enemy:killed', ({ enemy, source }) => {
       this.kills++;
       this.hud.kills = this.kills;
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
+      this.deathFx(enemy, source);
     });
     this.bus.on('dash:started', () => this.startDashBeam());
     this.bus.on('damage:dealt', (e) => {
@@ -399,10 +400,9 @@ export class Game {
    * Эффект попадания по врагу: по источнику урона выбираем вид удара и стихию (см. render_hitfx.js) и порождаем частицы.
    * Возвращает false, если источник неизвестен (тогда остаётся старая белая вспышка).
    */
-  hitFxFor(ev) {
-    const s = ev.source;
-    const t = ev.target;
-    if (!s || !this.renderer || !this.renderer.hitfx) return false;
+  /** Чем попали: { kind, el, dx, dy, power, big } по источнику урона (единичное направление) или null, если источник неизвестен. */
+  fxClass(s, t) {
+    if (!s) return null;
     let kind = null;
     let el = 0;
     let dx = 0;
@@ -414,15 +414,37 @@ export class Game {
     else if (s.blade) { kind = 'blade'; el = s.gen > 0 ? 4 : s.kind | 0; dx = s.dx; dy = s.dy; }
     else if (s.aura) { kind = 'aura'; el = s.kind | 0; dx = 0; dy = -1; }
     else if (s.shock || s.lightning) { kind = 'zap'; dx = t.x - this.hero.x; dy = t.y - this.hero.y; }
+    else if (s.burn) { kind = 'burn'; el = 2; dx = 0; dy = -1; }
     else if (s.hits && typeof s.vx === 'number') { // снаряд героя
       kind = 'bolt';
       el = s.gen > 0 ? 4 : s.steam > 0 ? 3 : s.burnDmg > 0 ? 2 : s.frost ? 1 : 0;
       dx = s.vx;
       dy = s.vy;
       power = s.glow || 0;
-    } else return false;
+    } else return null;
     const L = Math.hypot(dx, dy);
     if (L < 1e-6) { dx = 0; dy = -1; } else { dx /= L; dy /= L; }
+    return { kind, el, dx, dy, power, big };
+  }
+
+  /** Смерть врага: вид зависит от того, чем добили, и от того, что на нём горело или мёрзло. */
+  deathFx(e, s) {
+    if (!this.renderer || !this.renderer.hitfx || !e.def) return;
+    const c = this.fxClass(s, e) || { kind: 'none', el: 0, dx: 0, dy: -1, power: 0, big: false };
+    const frozen = e.freezeT > 0 || e.frostStacks > 0;
+    const burning = e.burnT > 0 || c.kind === 'burn';
+    let el = c.el;
+    if (el !== 4) el = frozen && burning ? 3 : frozen ? 1 : burning ? 2 : el;
+    this.renderer.hitfx.spawn({ kind: 'death', src: c.kind, el, frozen, x: e.x, y: e.y, dx: c.dx, dy: c.dy, power: c.power, big: c.big, r: e.radius, col: e.def.color || '#2a3a5a', edge: e.def.edge || '#9fc0ff' });
+  }
+
+  hitFxFor(ev) {
+    const s = ev.source;
+    const t = ev.target;
+    if (!s || !this.renderer || !this.renderer.hitfx) return false;
+    const c = this.fxClass(s, t);
+    if (!c) return false;
+    const { kind, el, dx, dy, power, big } = c;
     const through = kind === 'bolt' ? s.pierce > 0 : !!s.pierce; // удар не остановил снаряд: он прошил врага
     const k = kind === 'aura' ? 0 : kind === 'laser' ? 0.4 : 0.85; // удар ближе к краю врага со стороны подлёта
     this.renderer.hitfx.spawn({ kind, el, x: t.x - dx * t.radius * k, y: t.y - dy * t.radius * k, dx, dy, power, big });
