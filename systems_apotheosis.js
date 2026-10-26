@@ -30,7 +30,9 @@
 //
 // ВТОРАЯ ФАЗА (после «Превращения»): первое умение 'negApostles' «Призыв негативных апостолов» (systems_apostles.js, режим neg):
 //   те же четыре апостола, умения усилены, Вера бросает клинки с неба туда, где был герой, Сила отталкивает вместо притяжения.
-//   Умение кончается, когда они убиты. Дальше умения второй фазы пока не заданы: босс стоит (state 'done').
+//   Умение кончается, когда они убиты. Убитые не исчезают, а лежат «выключенными».
+// 7 «Восстание» (второе умение второй фазы): выключенные апостолы встают и быстро бегут на героя (мало здоровья, урон касанием);
+//   кончается, когда все убиты. Дальше умения второй фазы пока не заданы: босс стоит (state 'done').
 //
 // События: 'apotheosis:ability' { id }, 'apotheosis:hands-start', 'apotheosis:slam' { band, x, y }, 'apotheosis:beams-fire',
 //          'apotheosis:crumble' { x, y, r }, 'apotheosis:flash' { parried }, 'apotheosis:stun', 'apotheosis:head-turn' { turns },
@@ -40,7 +42,7 @@
 import { pointInPoly } from './world_arena.js';
 
 const TAU = Math.PI * 2;
-const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform', 'negApostles'];
+const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform', 'negApostles', 'rise'];
 const ease = (k) => k * k * (3 - 2 * k);
 
 /** Расстояние от (cx, cy) до границы многоугольника по лучу с углом ang. */
@@ -103,10 +105,11 @@ export class ApotheosisAI {
     this.madTurn = false;  // идёт последний, медленный проворот головы
     this.fog = 0;          // 0..1 туман на платформе (для отрисовки)
     this.negative = 0;     // 0..1 негатив картинки (для отрисовки)
-    this.p2seq = ['negApostles']; // умения второй фазы по порядку (пока одно)
+    this.p2seq = ['negApostles', 'rise']; // умения второй фазы по порядку
     this.p2i = 0;
     this.bus.on('boss:spawned', ({ enemy }) => this.attach(enemy));
     this.bus.on('apostles:defeated', () => this.onApostlesDefeated());
+    this.bus.on('apostles:risen-defeated', () => { if (this.boss && this.ability === 'rise') this.finishP2Ability(); });
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.boss) this.reset(); });
     this.bus.on('enemy:hit-incoming', (inc) => { // оглушённый босс получает больше урона
       if (this.stunT > 0 && inc.enemy === this.boss) inc.amount *= this.boss.def.flash.stunDamageMult;
@@ -249,6 +252,7 @@ export class ApotheosisAI {
       case 'flash': this.startFlash(); break;
       case 'transform': this.startTransform(); break;
       case 'negApostles': this.state = 'apostles'; this.apostles.requestSummon(0, true); break;
+      case 'rise': this.state = 'rise'; this.apostles.startRise(); break;
       default: this.enterGap(0);
     }
   }
@@ -256,13 +260,15 @@ export class ApotheosisAI {
   /** Отладка: немедленно начать умение id (то, что шло, обрывается; счётчик проворотов не меняется). */
   force(id) {
     if (!this.boss || ABILITY_IDS.indexOf(id) < 0) return false;
-    if (this.phase2 && id !== 'negApostles') return false;
-    if (id === 'negApostles' && !this.phase2 && !this.enterPhase2Debug()) return false;
-    this.apostles.requestSummon(Infinity);
+    const p2id = id === 'negApostles' || id === 'rise'; // умения второй фазы
+    if (this.phase2 !== p2id && (this.phase2 || !this.enterPhase2Debug())) return false; // первой фазы после второй нет; второй без неё: сперва платформа
+    this.apostles.requestSummon(Infinity, this.phase2);
     this.apostles.dismiss();
     this.apostles.cast = null;
     this.apostles.pull = null;
     this.apostles.rainCount = 0;
+    this.apostles.rise.state = 'off';
+    if (id !== 'rise') this.apostles.husks.length = 0;
     this.hands.length = 0;
     this.emerge = 0;
     this.patches.length = 0;
