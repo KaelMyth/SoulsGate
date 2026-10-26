@@ -522,3 +522,17 @@ body { font-family: var(--serif); }
 #pause-screen .pcell.has { background: none; box-shadow: none; touch-action: none; }
 #pause-screen .pcell.target { background: linear-gradient(135deg, #0f2a33, #19404f); box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset 0 0 12px rgba(111, 211, 216, 0.75); }
 #pause-screen .pcell.selected::before { content: ''; position: absolute; inset: -3px; z-index: 4; border: 2px solid var(--accent); border-radius: 4px; pointer-events: none; box-shadow: 0 0 12px rgba(255, 177, 74, 0.85), inset 0 0 8px rgba(255, 177, 74, 0.5); }
+
+/* Настройки из главного меню: список модов с числом в пуле наград (временный экран). */
+#settings-screen { position: fixed; inset: 0; z-index: 45; display: flex; overflow-y: auto; background: rgba(6, 10, 22, 0.92); }
+#settings-screen[hidden] { display: none; }
+#settings-screen .card { width: min(94vw, 420px); margin: auto; padding: 16px 12px 20px; }
+#settings-screen h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
+#settings-screen p { margin: 0 0 12px; font-size: 14px; color: #9fb3cc; }
+#settings-screen .set-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+#settings-screen .set-name { flex: 1; text-align: left; font-size: 15px; }
+#settings-screen .set-n { min-width: 28px; text-align: center; font-size: 16px; }
+#settings-screen button.set-btn { width: 40px; min-height: 40px; margin: 0; padding: 0; font-size: 20px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); }
+#settings-screen .row { display: flex; gap: 8px; margin-top: 12px; }
+#settings-screen .row button { flex: 1; min-height: 44px; }
+#settings-screen .row button { border: 1px solid var(--line); border-radius: 10px; background: rgba(20, 30, 52, 0.9); color: var(--ink); font-size: 16px; }
