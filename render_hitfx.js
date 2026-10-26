@@ -25,6 +25,8 @@ const T_CHANNEL = 11;
 const T_CONE = 12;
 const T_ARCW = 13;
 const T_CHIP = 14;
+const T_BIT = 15; // обломок цвета самого врага
+const T_WISP = 16; // дымка/душа: мягкий поднимающийся огонёк
 
 function poly(ctx, p, k) {
   ctx.moveTo(p[0] * k, p[1] * k);
@@ -33,11 +35,11 @@ function poly(ctx, p, k) {
 }
 
 export class HitFx {
-  constructor(renderer, size = 480) {
+  constructor(renderer, size = 720) {
     this.r = renderer;
     this.p = [];
     for (let i = 0; i < size; i++) {
-      this.p.push({ on: false, type: 0, el: 0, t: 0, life: 0.3, x: 0, y: 0, vx: 0, vy: 0, size: 6, rot: 0, spin: 0, drag: 0, seed: 0 });
+      this.p.push({ on: false, type: 0, el: 0, t: 0, life: 0.3, x: 0, y: 0, vx: 0, vy: 0, size: 6, rot: 0, spin: 0, drag: 0, seed: 0, col: '#fff', edge: '#fff' });
     }
     this.cur = 0;
     this.rnd = Math.random;
@@ -68,6 +70,8 @@ export class HitFx {
       q.spin = o && o.spin ? o.spin : 0;
       q.drag = o && o.drag !== undefined ? o.drag : 3;
       q.seed = this.rnd() * 100;
+      q.col = o && o.col ? o.col : '#fff';
+      q.edge = o && o.edge ? o.edge : '#fff';
       return q;
     }
     return null;
@@ -208,6 +212,89 @@ export class HitFx {
         else if (el === 1) fwd(Math.round(4 * lg), 170, 5.5, 0.6, 0.5, T_SHARD);
         else if (el === 3) { fwd(Math.round(3 * lg), 100, 2.2, 1, 0.55, T_EMBER); this.add(T_PUFF, 3, x + dx * 5, y + dy * 5, dx * 46, dy * 46, 0.6, 14 * lg, { drag: 2 }); }
         else if (el === 4) { this.add(T_RIPPLE, 4, x, y, 0, 0, 0.32, 17 * lg); if (heavy) this.add(T_PUFF, 4, x + dx * 5, y + dy * 5, dx * 30, dy * 30, 0.6, 11, { drag: 2 }); }
+        break;
+      }
+      case 'death': { // смерть врага: рецепт по тому, чем добили (src), и по стихии (el); замороженный разлетается льдом
+        const sc = Math.max(0.7, Math.min(2.2, d.r / 14));
+        const nn = (n) => Math.max(2, Math.round(n * sc));
+        const col = d.col;
+        const edge = d.edge;
+        const ox = x;
+        const oy = y;
+        const bits = (n, spd, sz, spread, aim) => { // обломки цвета врага: сами грани летят в стороны
+          for (let i = 0; i < n; i++) {
+            const a = aim === undefined ? R() * TAU : aim + (R() - 0.5) * 2 * spread;
+            const s2 = spd * (0.45 + R() * 0.8);
+            this.add(T_BIT, el, ox + Math.cos(a) * d.r * 0.3, oy + Math.sin(a) * d.r * 0.3, Math.cos(a) * s2, Math.sin(a) * s2 * 0.85 - 18, 0.42 + R() * 0.3, sz * (0.7 + R() * 0.7) * sc, { rot: R() * TAU, spin: (R() - 0.5) * 16, drag: 3.2, col, edge });
+          }
+        };
+        const around = (type, e2, n, spd, sz, life, o) => {
+          for (let i = 0; i < n; i++) {
+            const a = R() * TAU;
+            const s2 = spd * (0.4 + R() * 0.8);
+            this.add(type, e2, ox + Math.cos(a) * d.r * 0.4, oy + Math.sin(a) * d.r * 0.4, Math.cos(a) * s2, Math.sin(a) * s2 - 10, life * (0.7 + R() * 0.6), sz * (0.7 + R() * 0.6), o || { drag: 3, rot: R() * TAU, spin: (R() - 0.5) * 12 });
+          }
+        };
+        const flash = (e2, s2) => this.add(T_FLASH, e2, ox, oy, 0, 0, 0.22, s2 * sc);
+        if (d.frozen || (el === 1 && d.src !== 'aura')) { // лёд: рассыпается осколками, белая вспышка и иней
+          flash(1, 18);
+          around(T_SHARD, 1, nn(d.frozen ? 11 : 6), 190, 5.5, 0.55);
+          around(T_SPARK, 1, nn(5), 170, 7, 0.25, { drag: 5 });
+          around(T_PUFF, 1, nn(3), 26, 9, 0.55, { drag: 2.2 });
+          this.add(T_RIPPLE, 1, ox, oy, 0, 0, 0.3, 24 * sc);
+          bits(nn(3), 100, 2.4, 0);
+        } else if (el === 3) { // пар: взрыв горячего облака
+          flash(3, 20);
+          around(T_PUFF, 3, nn(6), 50, 15, 0.8, { drag: 2 });
+          around(T_EMBER, 3, nn(6), 90, 1.8, 0.55, { drag: 2.2 });
+          this.add(T_WISP, 3, ox, oy, 0, -26, 0.9, 12 * sc, { drag: 1.2 });
+          bits(nn(4), 110, 2.4, 0);
+        } else if (el === 2) { // огонь: вспышка, угли, языки, дымок; тело выгорает
+          flash(2, 22);
+          around(T_EMBER, 2, nn(10), 120, 1.9, 0.7, { drag: 2.2 });
+          for (let i = 0; i < nn(3); i++) this.add(T_LICK, 2, ox + (R() - 0.5) * d.r, oy + d.r * 0.2, (R() - 0.5) * 16, -30, 0.38 + R() * 0.15, 6 + R() * 4, { drag: 1 });
+          around(T_PUFF, 2, nn(2), 22, 10, 0.7, { drag: 1.8 });
+          around(T_SPARK, 2, nn(5), 160, 7, 0.25, { drag: 5 });
+          bits(nn(4), 105, 2.6, 0);
+        } else if (el === 4) { // фантом: растворяется в фиолетовых огоньках, втягивается внутрь
+          flash(4, 18);
+          this.add(T_RIPPLE, 4, ox, oy, 0, 0, 0.35, 26 * sc);
+          for (let i = 0; i < nn(7); i++) { const a = R() * TAU; this.add(T_WISP, 4, ox + Math.cos(a) * d.r * 0.5, oy + Math.sin(a) * d.r * 0.5, Math.cos(a) * 14, -22 - R() * 30, 0.8 + R() * 0.5, 5 + R() * 4, { drag: 1.3 }); }
+          around(T_SPARK, 4, nn(4), 120, 6, 0.3, { drag: 4 });
+          bits(nn(2), 70, 2, 0);
+        } else if (d.src === 'zap') { // молния: ломаные разряды во все стороны
+          flash(0, 22);
+          this.add(T_STAR, 0, ox, oy, 0, 0, 0.24, 14 * sc, { rot: 0 });
+          for (let i = 0; i < 4; i++) { const a = R() * TAU; this.add(T_ZIG, 0, ox, oy, Math.cos(a) * 30 * sc, Math.sin(a) * 30 * sc, 0.16, 2); }
+          around(T_SPARK, 0, nn(7), 220, 8, 0.25, { drag: 5 });
+          bits(nn(5), 130, 2.6, 0);
+        } else if (d.src === 'laser') { // лазер: рассечён лучом, обломки вдоль линии
+          const ang2 = Math.atan2(dy, dx);
+          this.add(T_STREAK, el, ox + dx * d.r * 0.2, oy + dy * d.r * 0.2, 0, 0, 0.26, d.r * 3.2, { rot: ang2 });
+          flash(0, 14);
+          for (let i = 0; i < nn(6); i++) { const a = ang2 + (R() < 0.5 ? 0 : Math.PI) + (R() - 0.5) * 0.4; this.add(T_SPARK, 0, ox, oy, Math.cos(a) * 240 * (0.5 + R()), Math.sin(a) * 240 * (0.5 + R()), 0.26, 9, { drag: 4 }); }
+          bits(nn(6), 130, 2.6, 0.6, ang2);
+        } else if (d.src === 'blade') { // клинок: крест-накрест росчерки
+          const ang2 = Math.atan2(dy, dx);
+          this.add(T_SLASH, 0, ox, oy, 0, 0, 0.2, d.r * 2.1, { rot: ang2 + 0.6 });
+          this.add(T_SLASH, 0, ox, oy, 0, 0, 0.2, d.r * 1.8, { rot: ang2 - 0.9 });
+          flash(0, 14);
+          bits(nn(7), 150, 2.8, 1.1, ang2);
+        } else if (d.src === 'aura') { // аура: тихо истаивает тёмной дымкой
+          this.add(T_RIPPLE, 4, ox, oy, 0, 0, 0.5, 22 * sc);
+          for (let i = 0; i < nn(5); i++) { const a = R() * TAU; this.add(T_WISP, 4, ox + Math.cos(a) * d.r * 0.4, oy + Math.sin(a) * d.r * 0.4, Math.cos(a) * 10, -16 - R() * 18, 0.9 + R() * 0.5, 4 + R() * 3, { drag: 1.2 }); }
+          bits(nn(3), 60, 2.2, 0);
+        } else if (d.src === 'pellet') { // дробь: мелкая крошка
+          flash(0, 12);
+          bits(nn(8), 150, 2.1, 1.3, Math.atan2(dy, dx));
+          around(T_SPARK, 0, nn(4), 170, 6, 0.22, { drag: 5 });
+        } else { // снаряд и остальное: синий всплеск и обломки по ходу удара
+          flash(0, 18);
+          this.add(T_RIPPLE, 0, ox, oy, 0, 0, 0.28, 20 * sc);
+          around(T_SPARK, 0, nn(6), 190, 8, 0.26, { drag: 5 });
+          bits(nn(7), 150, 2.8, 1.4, Math.atan2(dy, dx));
+          around(T_PUFF, 0, nn(2), 20, 9, 0.5, { drag: 2 });
+        }
         break;
       }
       default: break;
@@ -476,6 +563,36 @@ export class HitFx {
           ctx.lineWidth = 0.9;
           ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(-s * 0.2, -s * 0.7); ctx.stroke();
           ctx.restore();
+          break;
+        }
+        case T_BIT: { // обломок самого врага: грань его цвета с светлой кромкой
+          q.rot += q.spin * dt;
+          q.vy += 60 * dt;
+          const s2 = q.size;
+          ctx.save();
+          ctx.translate(q.x, q.y);
+          ctx.rotate(q.rot);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = Math.min(1, a1 * 1.6);
+          ctx.fillStyle = q.col;
+          ctx.beginPath(); poly(ctx, [s2, 0, -s2 * 0.2, -s2 * 0.75, -s2 * 0.85, s2 * 0.1, -s2 * 0.1, s2 * 0.65], 1); ctx.fill();
+          ctx.strokeStyle = q.edge;
+          ctx.globalAlpha = 0.85 * a1;
+          ctx.lineWidth = 0.9;
+          ctx.beginPath(); ctx.moveTo(s2, 0); ctx.lineTo(-s2 * 0.2, -s2 * 0.75); ctx.stroke();
+          if (e === 2 || e === 3) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 * a1; ctx.fillStyle = '#ff7a2a'; ctx.beginPath(); poly(ctx, [s2, 0, -s2 * 0.2, -s2 * 0.75, -s2 * 0.1, -s2 * 0.05], 1); ctx.fill(); }
+          ctx.restore();
+          break;
+        }
+        case T_WISP: { // мягкий огонёк, поднимается и гаснет
+          q.vy -= 8 * dt;
+          const s2 = q.size * (1 - 0.35 * k);
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.8 * a1;
+          ctx.drawImage(gl(e), q.x - s2 * 2, q.y - s2 * 2, s2 * 4, s2 * 4);
+          ctx.globalAlpha = a1;
+          ctx.fillStyle = CORE[e];
+          ctx.beginPath(); ctx.arc(q.x, q.y, s2 * 0.3, 0, TAU); ctx.fill();
           break;
         }
         default: break;
