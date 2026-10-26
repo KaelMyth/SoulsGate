@@ -1,11 +1,14 @@
 // Апофеоз: оркестр умений финального босса и его голова-солнце.
 //
-// Пять умений первой фазы идут по очереди (enemies.apotheosis.abilities): сначала fixed ('apostles', 'hands'), затем pool
-//   ('beams', 'crumble', 'flash') в случайном порядке, каждое по разу. Между умениями пауза afterDelay.
+// Пять умений первой фазы идут по очереди (enemies.apotheosis.abilities): fixed ('apostles', 'hands'), затем poolPick случайных
+//   из pool ('beams', 'crumble', 'flash'; не вошедшие откладываются на вторую фазу, this.deferred), последним умением 'transform'.
+//   Между умениями пауза afterDelay.
 //   Каждое умение, когда оно кончилось, проворачивает голову на одно деление: у солнца rays лучей (10), поворот = 1/rays оборота.
 //   Сама голова не вращается: проворот = знак «умение применено». После phaseAfter умений (5) босс готов ко второй фазе:
 //   событие 'apotheosis:phase2' (поведения второй фазы пока нет, умения прекращаются). Будущее правило: если у босса кончилось
 //   здоровье раньше, чем применено phaseAfter умений, голова сразу доворачивается до фазы перехода, минуя повороты по умениям.
+//
+//   Пятое умение «Превращение» само делает пятый проворот (голова встаёт вверх ногами) и заканчивается фазой 2.
 //
 //   Важно: во время умения голова может крутиться (умение «Лучи» качает её), но к концу умения она возвращается в то же
 //   положение, где была, а засчитанный проворот на деление делает только завершение умения (finishAbility).
@@ -20,14 +23,40 @@
 //   герой стоит на провале (crumble.holdTime), потом кусок зарастает. Волны идут внахлёст, первый кусок каждой волны на герое.
 // 5 «Вспышка»: голова заряжается flash.charge секунд, экран темнеет, потом вспышка на всё поле. Парирование гасит вспышку целиком
 //   и оглушает босса (stunTime: он получает stunDamageMult урона, пауза между умениями стоит). Блок гасит часть.
+// 6 «Превращение» (пятое по счёту, конец первой фазы): остров сжимается в маленький клочок; из краёв экрана быстро вылезают
+//   руки и хватаются за его центр; голова проворачивается в последний раз (до 180°: рот сверху, голова снизу, босс безумен);
+//   руки разрывают клочок, и на его месте вырастает туманная платформа; графика переходит в негатив (renderer.drawNegative).
+//   Платформа это новая arena.zone (многоугольник). Конец: событие 'apotheosis:phase2'.
 //
 // События: 'apotheosis:ability' { id }, 'apotheosis:hands-start', 'apotheosis:slam' { band, x, y }, 'apotheosis:beams-fire',
 //          'apotheosis:crumble' { x, y, r }, 'apotheosis:flash' { parried }, 'apotheosis:stun', 'apotheosis:head-turn' { turns },
-//          'apotheosis:phase2'. Графика: ЗАГЛУШКА (renderer.drawHands / drawBeams / drawCrumble / drawFlash).
+//          'apotheosis:phase2',
+//          'apotheosis:transform' { stage: 'grab' | 'turn' | 'tear' | 'form' }.
+//          Графика: ЗАГЛУШКА (renderer.drawHands / drawBeams / drawCrumble / drawFlash / drawGrip / drawFog / drawNegative).
 import { pointInPoly } from './world_arena.js';
 
 const TAU = Math.PI * 2;
-const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash'];
+const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform'];
+const ease = (k) => k * k * (3 - 2 * k);
+
+/** Расстояние от (cx, cy) до границы многоугольника по лучу с углом ang. */
+function rayDist(poly, cx, cy, ang) {
+  const dx = Math.cos(ang);
+  const dy = Math.sin(ang);
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const t = ((a.x - cx) * ey - (a.y - cy) * ex) / den;
+    const u = ((a.x - cx) * dy - (a.y - cy) * dx) / den;
+    if (t > 0 && u >= -1e-9 && u <= 1 + 1e-9 && t < best) best = t;
+  }
+  return best;
+}
 
 export class ApotheosisAI {
   /** o: { config, hero, arena, apostles, combat, defense, bus, rnd } */
@@ -65,6 +94,11 @@ export class ApotheosisAI {
     this.cTick = 0;
     this.flashDim = 0;     // 0..1 затемнение экрана при зарядке вспышки (для отрисовки)
     this.flashWhite = 0;   // 0..1 белая вспышка (для отрисовки)
+    this.deferred = [];    // умения пула, не вошедшие в первую фазу (на вторую)
+    this.tf = null;        // данные «Превращения» (для отрисовки рук и клочка)
+    this.madTurn = false;  // идёт последний, медленный проворот головы
+    this.fog = 0;          // 0..1 туман на платформе (для отрисовки)
+    this.negative = 0;     // 0..1 негатив картинки (для отрисовки)
     this.bus.on('boss:spawned', ({ enemy }) => this.attach(enemy));
     this.bus.on('apostles:defeated', () => this.onApostlesDefeated());
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.boss) this.reset(); });
@@ -95,7 +129,9 @@ export class ApotheosisAI {
       const j = Math.floor(this.rnd() * (i + 1));
       const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
     }
-    return fixed.concat(pool);
+    const pick = A && A.poolPick !== undefined ? A.poolPick : pool.length;
+    this.deferred = pool.slice(pick);
+    return fixed.concat(pool.slice(0, pick), A && A.final ? A.final : []);
   }
 
   reset() {
@@ -115,6 +151,11 @@ export class ApotheosisAI {
     this.cT = 0;
     this.flashDim = 0;
     this.flashWhite = 0;
+    this.deferred = [];
+    this.tf = null;
+    this.madTurn = false;
+    this.fog = 0;
+    this.negative = 0;
   }
 
   get H() { return this.boss ? this.boss.def.hands : null; }
@@ -178,6 +219,7 @@ export class ApotheosisAI {
       case 'beams': this.startBeams(); break;
       case 'crumble': this.startCrumble(); break;
       case 'flash': this.startFlash(); break;
+      case 'transform': this.startTransform(); break;
       default: this.enterGap(0);
     }
   }
@@ -195,6 +237,10 @@ export class ApotheosisAI {
     this.spin = 0;
     this.flashDim = 0;
     this.flashWhite = 0;
+    if (id === 'transform') { // отладка: «Превращение» всегда пятое, голова уже на 4 деления
+      this.turns = this.boss.def.head.phaseAfter - 1;
+      this.boss.headAngle = this.turns * (TAU / this.boss.def.head.rays);
+    }
     this.start(id);
     return true;
   }
@@ -206,7 +252,8 @@ export class ApotheosisAI {
     // Голова плавно доворачивается до нужного деления (плюс качание умения «Лучи»).
     const D = boss.def.head;
     const target = this.turns * (TAU / D.rays) + this.spin;
-    boss.headAngle += (target - boss.headAngle) * (1 - Math.exp(-dt / Math.max(0.01, D.turnSmooth)));
+    const sm = this.madTurn && boss.def.transform ? boss.def.transform.turnSmooth : D.turnSmooth; // последний проворот медленный
+    boss.headAngle += (target - boss.headAngle) * (1 - Math.exp(-dt / Math.max(0.01, sm)));
     if (Math.abs(target - boss.headAngle) < 1e-4) boss.headAngle = target;
     if (this.stunT > 0) this.stunT = Math.max(0, this.stunT - dt);
 
@@ -240,6 +287,9 @@ export class ApotheosisAI {
         break;
       case 'flash-charge': case 'flash-burst':
         this.updateFlash(dt);
+        break;
+      case 'tf-shrink': case 'tf-grab': case 'tf-turn': case 'tf-tear': case 'tf-form':
+        this.updateTransform(dt);
         break;
       default: break;
     }
@@ -480,5 +530,107 @@ export class ApotheosisAI {
       this.stunT = F.stunTime;
       this.bus.emit('apotheosis:stun', {});
     }
+  }
+
+  // ---------- Превращение ----------
+
+  /** Остров в клочок, руки хватают центр, последний проворот головы, руки рвут клочок, вырастает туманная платформа. */
+  startTransform() {
+    const z = this.arena.zone;
+    const T = this.boss.def.transform;
+    if (!z || !z.poly) { this.enterGap(0); return; }
+    const cx = (z.left + z.right) / 2;
+    const cy = (z.top + z.bottom) / 2;
+    const P0 = z.poly.map((p) => ({ x: p.x, y: p.y }));
+    // Общий набор лучей от центра: вершины острова (чтобы он не менялся в первом кадре) и ровные углы (чтобы платформа была круглой).
+    const ang = [];
+    for (let i = 0; i < P0.length; i++) ang.push(Math.atan2(P0[i].y - cy, P0[i].x - cx));
+    for (let j = 0; j < T.vertices; j++) ang.push(-Math.PI + (j + 0.5) * TAU / T.vertices);
+    ang.sort((a, b) => a - b);
+    const A = [];
+    for (let i = 0; i < ang.length; i++) if (!A.length || ang[i] - A[A.length - 1] > 1e-3) A.push(ang[i]);
+    const R0 = A.map((a) => rayDist(P0, cx, cy, a));
+    const R1 = A.map(() => T.fragmentRadius * (1 - T.fragmentJag * this.rnd()));
+    const R2 = A.map(() => T.platformRadius * (1 + (this.rnd() - 0.5) * T.platformWobble));
+    this.tf = { cx, cy, ang: A, R0, R1, R2, handK: 0, apart: 0, crack: 0 };
+    this.state = 'tf-shrink';
+    this.t = 0;
+    this.fog = 0;
+    this.negative = 0;
+    this.madTurn = false;
+  }
+
+  /** Поставить остров по лучам с радиусами, смешанными из a и b на долю k (0..1). Многоугольник звёздный относительно центра. */
+  setRadii(a, b, k) {
+    const f = this.tf;
+    const poly = [];
+    let l = Infinity, r = -Infinity, t = Infinity, bt = -Infinity;
+    for (let i = 0; i < f.ang.length; i++) {
+      const rad = a[i] + (b[i] - a[i]) * k;
+      const x = f.cx + Math.cos(f.ang[i]) * rad;
+      const y = f.cy + Math.sin(f.ang[i]) * rad;
+      poly.push({ x, y });
+      if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > bt) bt = y;
+    }
+    this.arena.setZone({ left: l, right: r, top: t, bottom: bt, poly });
+  }
+
+  updateTransform(dt) {
+    const T = this.boss.def.transform;
+    const f = this.tf;
+    if (!f) { this.enterGap(0); return; }
+    switch (this.state) {
+      case 'tf-shrink': {
+        this.setRadii(f.R0, f.R1, ease(Math.min(1, this.t / Math.max(0.01, T.shrinkTime))));
+        if (this.t >= T.shrinkTime) { this.state = 'tf-grab'; this.t = 0; this.bus.emit('apotheosis:transform', { stage: 'grab' }); }
+        break;
+      }
+      case 'tf-grab': // руки быстро вылезают из краёв экрана и хватаются за центр клочка
+        f.handK = Math.min(1, this.t / Math.max(0.01, T.grabTime));
+        if (this.t >= T.grabTime) {
+          this.state = 'tf-turn';
+          this.t = 0;
+          this.madTurn = true;
+          this.turns++; // последний проворот: 180°, рот сверху, голова снизу
+          this.bus.emit('apotheosis:head-turn', { turns: this.turns });
+          this.bus.emit('apotheosis:transform', { stage: 'turn' });
+        }
+        break;
+      case 'tf-turn':
+        if (this.t >= T.turnTime) { this.state = 'tf-tear'; this.t = 0; this.bus.emit('apotheosis:transform', { stage: 'tear' }); }
+        break;
+      case 'tf-tear': { // руки тянут в стороны и рвут клочок
+        const k = Math.min(1, this.t / Math.max(0.01, T.tearTime));
+        f.crack = k;
+        f.apart = ease(k);
+        if (this.t >= T.tearTime) {
+          this.state = 'tf-form';
+          this.t = 0;
+          f.handK = 0;
+          this.bus.emit('apotheosis:transform', { stage: 'form' });
+        }
+        break;
+      }
+      case 'tf-form': { // на месте клочка растёт туманная платформа, картинка уходит в негатив
+        const k = ease(Math.min(1, this.t / Math.max(0.01, T.formTime)));
+        this.setRadii(f.R1, f.R2, k);
+        this.fog = k;
+        this.negative = Math.min(1, this.t / Math.max(0.01, T.negativeTime));
+        if (this.t >= T.formTime) this.finishTransform();
+        break;
+      }
+      default: break;
+    }
+  }
+
+  /** Превращение закончено: босс безумен, первая фаза кончилась, платформа это новое поле боя. */
+  finishTransform() {
+    this.madTurn = false;
+    this.ability = null;
+    this.fog = 1;
+    this.negative = 1;
+    this.phase2 = true;
+    this.state = 'done';
+    this.bus.emit('apotheosis:phase2', {});
   }
 }

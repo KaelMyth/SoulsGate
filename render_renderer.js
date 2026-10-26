@@ -671,6 +671,8 @@ export class Renderer {
     this.drawPortal();
     this.drawHands();
     this.drawCrumble();
+    this.drawGrip(viewL, viewR, viewT, viewB);
+    this.drawFog();
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -742,6 +744,8 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+
+    this.drawNegative(viewL, viewR, viewT, viewB);
 
     // Стик и HUD рисуем в экранных координатах (px), поверх мира.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1004,6 +1008,118 @@ export class Renderer {
       ctx.fillStyle = 'rgba(255,250,225,' + (0.9 * a.flashWhite).toFixed(3) + ')';
       ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
     }
+    ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: «Превращение» Апофеоза. Руки из краёв экрана тянутся к центру клочка и хватают его; когда рвут,
+   * расходятся к краям, а по клочку бегут трещины. Края экрана берутся из границ кадра (l, r, t, b) в мировых координатах.
+   */
+  drawGrip(l, r, t, b) {
+    const a = this.apotheosis;
+    const f = a && a.tf;
+    if (!f || (a.state !== 'tf-grab' && a.state !== 'tf-turn' && a.state !== 'tf-tear')) return;
+    const T = a.boss.def.transform;
+    const ctx = this.ctx;
+    const reach = f.handK * (1 - f.apart);
+    ctx.save();
+    ctx.strokeStyle = '#07070b';
+    ctx.fillStyle = '#07070b';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const n = T.handCount;
+    for (let i = 0; i < n; i++) {
+      const ang = 0.35 + (i / n) * TAU;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      const tx = dx > 0 ? (r - f.cx) / dx : dx < 0 ? (l - f.cx) / dx : Infinity;
+      const ty = dy > 0 ? (b - f.cy) / dy : dy < 0 ? (t - f.cy) / dy : Infinity;
+      const far = Math.min(tx, ty) + 80; // за краем экрана
+      const near = T.fragmentRadius * 0.35;
+      const d = far + (near - far) * reach;
+      const shake = a.state === 'tf-tear' ? 5 * Math.sin(this.clock * 40 + i * 2) : 0;
+      const px = f.cx + dx * d + -dy * shake;
+      const py = f.cy + dy * d + dx * shake;
+      const mx = f.cx + dx * (d + far) / 2 + -dy * 26 * Math.sin(i * 1.7 + 1);
+      const my = f.cy + dy * (d + far) / 2 + dx * 26 * Math.sin(i * 1.7 + 1);
+      for (let pass = 0; pass < 2; pass++) { // сначала светлая кайма, чтобы рука читалась на тёмной пустоте, потом чёрная рука
+        ctx.strokeStyle = pass ? '#07070b' : '#4a4468';
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.lineWidth = pass ? 16 : 22;
+        ctx.beginPath();
+        ctx.moveTo(f.cx + dx * far, f.cy + dy * far);
+        ctx.lineTo(mx, my);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(px, py, pass ? 20 : 25, 0, TAU);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#07070b';
+      ctx.fillStyle = '#07070b';
+      ctx.lineWidth = 7;
+      for (let k = -1; k <= 1; k++) { // пальцы
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - dx * 26 + -dy * k * 16, py - dy * 26 + dx * k * 16);
+        ctx.stroke();
+      }
+    }
+    if (f.crack > 0) { // трещины по клочку
+      ctx.strokeStyle = '#05050a';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 7; i++) {
+        const ang = i * 0.9 + 0.2;
+        ctx.beginPath();
+        ctx.moveTo(f.cx, f.cy);
+        ctx.lineTo(f.cx + Math.cos(ang) * T.fragmentRadius * 1.1 * f.crack, f.cy + Math.sin(ang) * T.fragmentRadius * 1.1 * f.crack);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** ЗАГЛУШКА ГРАФИКИ: туман на платформе после «Превращения»: медленно плывущие бледные пятна, обрезаны по полю. */
+  drawFog() {
+    const a = this.apotheosis;
+    const z = this.arena.zone;
+    if (!a || !z || a.fog <= 0) return;
+    const ctx = this.ctx;
+    const cx = (z.left + z.right) / 2;
+    const cy = (z.top + z.bottom) / 2;
+    const zr = (z.right - z.left) / 2;
+    ctx.save();
+    ctx.beginPath();
+    if (z.poly) {
+      ctx.moveTo(z.poly[0].x, z.poly[0].y);
+      for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
+      ctx.closePath();
+    } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(205,215,240,' + (0.22 * a.fog).toFixed(3) + ')';
+    ctx.fillRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    for (let j = 0; j < 14; j++) {
+      const ph = j * 2.4 + this.clock * (0.12 + (j % 3) * 0.05);
+      const px = cx + Math.cos(ph) * zr * 0.65;
+      const py = cy + Math.sin(ph * 0.8 + j) * zr * 0.65;
+      ctx.fillStyle = 'rgba(235,240,255,' + (0.14 * a.fog).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(px, py, zr * (0.28 + 0.05 * (j % 4)), 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** ЗАГЛУШКА ГРАФИКИ: негатив картинки мира (режим composite 'difference' с белым), доля apotheosis.negative. HUD не трогаем. */
+  drawNegative(l, r, t, b) {
+    const a = this.apotheosis;
+    if (!a || a.negative <= 0) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'difference';
+    ctx.globalAlpha = Math.min(1, a.negative);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
     ctx.restore();
   }
 
@@ -1912,6 +2028,22 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(x, hy, hr, 0, TAU);
         ctx.fill();
+        ctx.save(); // ЗАГЛУШКА ГРАФИКИ: лицо поворачивается вместе с головой (по нему видно проворот; после 5 умений рот сверху)
+        ctx.translate(x, hy);
+        ctx.rotate(e.headAngle);
+        ctx.fillStyle = '#5a3b00';
+        ctx.beginPath();
+        ctx.arc(-hr * 0.35, -hr * 0.2, hr * 0.12, 0, TAU);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(hr * 0.35, -hr * 0.2, hr * 0.12, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = '#5a3b00';
+        ctx.lineWidth = hr * 0.1;
+        ctx.beginPath();
+        ctx.arc(0, hr * 0.05, hr * 0.45, 0.2 * Math.PI, 0.8 * Math.PI);
+        ctx.stroke();
+        ctx.restore();
         ctx.restore();
         ctx.fillStyle = hit ? '#ffffff' : fill;
       }

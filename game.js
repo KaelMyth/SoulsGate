@@ -247,6 +247,7 @@ export class Game {
         { label: 'Апофеоз: Лучи', run: () => this.apotheosis.force('beams') },
         { label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
         { label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
+        { label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
       ],
       build: o.build,
       getStats: () => ({
