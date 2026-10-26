@@ -427,7 +427,8 @@ export class ApotheosisArt {
     const rim = o.rim;
     const dk = o.dk || 0;
     const P = o.pose || NOPOSE;
-    const sway = (yy) => Math.sin(t * 0.9 + yy * 1.7) * 0.05 * (1 + 1.6 * dk) + 0.05 * Math.sin(t * 0.37 + 2) * (yy + 0.4);
+    const hun = (o.hunch || 0) * (o.hd || 1);
+    const sway = (yy) => Math.sin(t * 0.9 + yy * 1.7) * 0.05 * (1 + 1.6 * dk) + 0.05 * Math.sin(t * 0.37 + 2) * (yy + 0.4) + hun * 0.6 * Math.pow(clamp01(1 - (yy + 0.44) / 0.95), 1.6);
     const topL = -0.44;
     const topR = -0.34; // правое плечо выше: перекос
     const wAt = (yy) => { // полуширина: узкие плечи, талия, расширение к подолу
@@ -450,7 +451,7 @@ export class ApotheosisArt {
     }
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(R, R);
+    ctx.scale(R, R * (o.stretch || 1)); // вытянутая по вертикали фигура
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     // Ореол за спиной.
@@ -878,64 +879,78 @@ export class ApotheosisArt {
 
   // ---------- апостолы ----------
 
+  /**
+   * Размеры высокой фигуры. K: во сколько раз крупнее хитбокса, st: вытянутость по вертикали, hunch 0..1: горб вперёд (hd сторона).
+   * Возвращает центр тела, центр и радиус головы (низ подола стоит чуть ниже точки врага).
+   */
+  layout(x, y, rr, K, st, foot, hunch, hd) {
+    const V = rr * K;
+    const cy = y + foot * rr - 1.12 * st * V;
+    const hr = V * (0.5 - 0.04 * hunch);
+    const shY = cy - 0.44 * st * V;
+    return { V, cy, hr, hx: x + hd * hunch * 0.7 * V, hy: shY - hr * (0.95 - 0.35 * hunch) + hunch * 0.28 * V };
+  }
+
   apostle(ctx, e, x, y, rr, hit) {
     const r = this.r;
     const t = r.clock + (e.x * 0.013);
     const kind = e.def.apostle;
     const st = APOSTLE[kind] || APOSTLE.faith;
-    const hr = rr * 0.62;
-    const hy = y - rr * 1.2;
+    const Lg = this.layout(x, y, rr, 1.9, 1.35, 1.3, 0, 1);
     const hero = r.hero;
     let lx = hero ? hero.x - x : 0;
-    let ly = hero ? hero.y - hy : 1;
+    let ly = hero ? hero.y - Lg.hy : 1;
     const ll = Math.hypot(lx, ly) || 1;
     lx /= ll; ly /= ll;
     const pal = hit ? HITP : st.pal;
-    // Мантия меньше босса: центр ниже головы.
     const pose = this.smoothPose(e, this.apostlePose(e, x, y, rr, kind), r.dt);
-    this.robe(ctx, x, y - rr * 0.1, rr * 0.92, {
-      pose, t, rim: st.rim, dk: 0, hit, fold: mix('#101226', st.pal.mid, 0.18), hem: 7,
-      glowV: st.pal.glow === undefined ? undefined : st.pal.glow, haloA: 0.18, spill: hit ? 0 : 0.22, spillV: st.pal.glow, crack: st.rim,
+    this.robe(ctx, x, Lg.cy, Lg.V, {
+      pose, stretch: 1.35, t, rim: st.rim, dk: 0.25, hit, fold: mix('#101226', st.pal.mid, 0.18), hem: 7,
+      glowV: st.pal.glow === undefined ? undefined : st.pal.glow, haloA: 0.2, spill: hit ? 0 : 0.22, spillV: st.pal.glow, crack: st.rim,
     });
-    this.mask(ctx, x, hy, hr, {
+    this.mask(ctx, x, Lg.hy, Lg.hr, {
       angle: Math.sin(t * 0.7) * 0.05, expr: (kind === 'force' ? 0.15 : 0) + 0.5 * pose.glow, pal, st, t, look: { x: lx, y: ly }, hit, glowA: 0.4,
     });
   }
 
   // ---------- вторая фаза: оболочки и восставшие ----------
 
-  /** Восставший апостол: бегущая тёмная фигура с костяной маской, наклон по ходу. */
+  /** Восставший апостол: ещё выше апостола, сгорблен вперёд к герою, длинные руки болтаются, бежит рывками. */
   risen(ctx, e, x, y, rr, hit) {
     const r = this.r;
     const t = r.clock + e.x * 0.02;
     const hero = r.hero;
-    const dx = hero ? hero.x - x : 0;
-    const lean = Math.max(-0.3, Math.min(0.3, dx * 0.01));
-    const hr = rr * 0.7;
-    this.neg(ctx, x, y, rr * 4, (c) => {
+    const want = hero && hero.x < x ? -1 : 1;
+    let S = this.ps.get(e);
+    if (!S) { S = { hd: want }; this.ps.set(e, S); }
+    S.hd = S.hd === undefined ? want : S.hd + (want - S.hd) * (1 - Math.exp(-r.dt / 0.2));
+    const hd = S.hd;
+    const bob = Math.sin(t * 14);
+    const Lg = this.layout(x, y + bob * rr * 0.07, rr, 2.1, 1.6, 1.0, 1, hd);
+    this.neg(ctx, x, y, rr * 6, (c) => {
       c.save();
       c.translate(x, y);
-      c.rotate(lean);
-      c.translate(-x, -y + Math.sin(t * 14) * rr * 0.06);
-      this.robe(c, x, y - rr * 0.1, rr * 0.95, { pose: { arms: 0.5 + 0.2 * Math.sin(t * 14), spread: 0.3, glow: 0, motes: 0, open: 1, aimW: 0, shake: 0, limp: 0 }, t: t * 2, rim: '#cfc8ff', dk: 1, hit, fold: '#1b1d38', hem: 7, glowV: 'blue', haloA: 0.2, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
-      this.mask(c, x, y - rr * 1.2, hr, { angle: Math.sin(t * 9) * 0.12, expr: 0.8, pal: hit ? HITP : BONE, st: RISEN, t, look: { x: 0, y: 0.4 }, hit, glowA: 0.25 });
+      c.rotate(hd * 0.1 + Math.sin(t * 7) * 0.03);
+      c.translate(-x, -y);
+      this.robe(c, x, Lg.cy, Lg.V, { pose: { arms: 0.22 + 0.2 * Math.sin(t * 14), spread: 0.15, glow: 0, motes: 0, open: 1, aimW: 0, shake: 0.2, limp: 0 }, stretch: 1.6, hunch: 1, hd, t: t * 2, rim: '#cfc8ff', dk: 1, hit, fold: '#1b1d38', hem: 7, glowV: 'blue', haloA: 0.2, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
+      this.mask(c, Lg.hx, Lg.hy, Lg.hr, { angle: hd * 0.25 + Math.sin(t * 9) * 0.1, expr: 0.85, pal: hit ? HITP : BONE, st: RISEN, t, look: { x: 0, y: 0.4 }, hit, glowA: 0.28 });
       c.restore();
     });
   }
 
-  /** Выключенная оболочка апостола: лежит боком тусклая и мёртвая, при вставании светлеет (k, e 0..1). */
+  /** Выключенная оболочка апостола: лежит боком тусклая и мёртвая, при вставании светлеет и выпрямляется до горба (k, e 0..1). */
   husk(ctx, x, y, rr, kind, k, e, rot) {
     const t = this.r.clock;
     const st = APOSTLE[kind] || RISEN;
-    const hr = rr * 0.62;
-    this.neg(ctx, x, y, rr * 4, (c) => {
+    const Lg = this.layout(x, y, rr, 2.0, 1.5, 1.0, e, 1);
+    this.neg(ctx, x, y, rr * 6, (c) => {
       c.save();
       c.translate(x, y);
       c.rotate(rot);
       c.translate(-x, -y);
-      this.robe(c, x, y - rr * 0.1, rr * 0.92, { pose: { arms: 0.1 + 0.6 * e, spread: 0.2, glow: 0, motes: 0, open: 0.3, aimW: 0, shake: 0, limp: 1 - e }, t, rim: '#9a96c0', dk: 0.6 * e, hit: false, fold: '#14162a', hem: 7, glowV: 'blue', haloA: 0.08 + 0.15 * e, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
+      this.robe(c, x, Lg.cy, Lg.V, { pose: { arms: 0.1 + 0.4 * e, spread: 0.2, glow: 0, motes: 0, open: 0.3, aimW: 0, shake: 0, limp: 1 - e }, stretch: 1.5, hunch: e, hd: 1, t, rim: '#9a96c0', dk: 0.6 * e, hit: false, fold: '#14162a', hem: 7, glowV: 'blue', haloA: 0.08 + 0.15 * e, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
       c.globalAlpha = 0.55 + 0.45 * e;
-      this.mask(c, x, y - rr * 1.2, hr, { angle: 0, expr: 0.3 + 0.6 * e, pal: palMix(BONE, INK, 0.55 * (1 - e)), st: Object.assign({}, st, { long: RISEN.long, mid: null, halo: false, teeth: 0 }), t, look: { x: 0, y: 0.4 }, hit: false, glowA: 0.1 + 0.2 * e });
+      this.mask(c, Lg.hx, Lg.hy, Lg.hr, { angle: 0, expr: 0.3 + 0.6 * e, pal: palMix(BONE, INK, 0.55 * (1 - e)), st: Object.assign({}, st, { long: RISEN.long, mid: null, halo: false, teeth: 0 }), t, look: { x: 0, y: 0.4 }, hit: false, glowA: 0.1 + 0.2 * e });
       c.globalAlpha = 1;
       c.restore();
     });
