@@ -4,6 +4,7 @@
 import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
 import { DashFx } from './render_dashfx.js';
+import { ApotheosisArt } from './render_apotheosis.js';
 
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
@@ -555,6 +556,7 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
+    this.apoArt = new ApotheosisArt(this); // Апофеоз и апостолы: маска-солнце и мантии (render_apotheosis.js)
     this.dashfx = new DashFx(this); // эффекты рывков, костров и героя-молнии (render_dashfx.js)
     this.dashKind = 0;     // стихия кинетического рывка (0 нет, 1 огонь, 2 мороз, 3 пар): выставляет игра
     this.dashKinetic = false;
@@ -1290,18 +1292,7 @@ export class Renderer {
       const e = k * k * (3 - 2 * k);
       const rr = h.def ? h.def.radius : 16;
       const shake = a.rise.state === 'stand' ? Math.sin(this.clock * 50 + i * 2) * 2 * (1 - e) : 0;
-      ctx.save();
-      ctx.translate(h.x + shake, h.y);
-      ctx.rotate((1 - e) * (i % 2 ? 1.45 : -1.45)); // лежит боком, встаёт
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = k > 0 ? '#3a3a46' : '#25252e';
-      ctx.beginPath();
-      ctx.ellipse(0, -rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU);
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = k > 0 ? '#b8b8d0' : '#5a5a68';
-      ctx.stroke();
-      ctx.restore();
+      this.apoArt.husk(ctx, h.x + shake, h.y, rr, h.kind, k, e, (1 - e) * (i % 2 ? 1.45 : -1.45)); // лежит боком, встаёт
       ctx.save();
       ctx.globalAlpha = 0.25 + 0.2 * Math.sin(this.clock * 2 + i) + 0.4 * e;
       ctx.strokeStyle = k > 0 ? '#ff6a6a' : '#707080';
@@ -2091,11 +2082,10 @@ export class Renderer {
       const stunned = !!(e.def.sunHead && this.apotheosis && this.apotheosis.stunT > 0); // Апофеоз оглушён парированной вспышкой
       if (stunned) fill = '#8fa8c8';
       ctx.fillStyle = hit ? '#ffffff' : fill;
-      if (e.def.sunHead) { // ЗАГЛУШКА ГРАФИКИ: Апофеоз из двух частей, голова-солнце сверху и туловище снизу
-        const R = rr;
+      if (e.def.sunHead) { // Апофеоз: мантия и маска-солнце (render_apotheosis.js); нижнюю часть скрывает поле: босс «вылезает из пустоты»
         const zn = this.arena.zone;
         ctx.save();
-        if (zn && zn.poly) { // нижнюю часть скрывает поле: босс «вылезает из пустоты». Рисуем только вне острова.
+        if (zn && zn.poly) {
           ctx.beginPath();
           ctx.rect(this.arena.left - 400, this.arena.top - 400, this.arena.width + 800, this.arena.height + 800);
           ctx.moveTo(zn.poly[0].x, zn.poly[0].y);
@@ -2103,50 +2093,16 @@ export class Renderer {
           ctx.closePath();
           ctx.clip('evenodd');
         }
-        ctx.beginPath(); // туловище
-        ctx.ellipse(x, y + R * 0.35, R * 0.9, R * 0.75, 0, 0, TAU);
-        ctx.fill();
-        const hy = y - R * 0.85;
-        const hr = R * 0.5;
-        const rays = e.def.head ? e.def.head.rays : 10;
-        ctx.fillStyle = hit ? '#ffffff' : stunned ? '#cfe2ff' : '#ffd24a';
-        ctx.beginPath(); // лучи солнца: rays остриёв, голова сама не вращается (поворот только по умениям, e.headAngle)
-        for (let i = 0; i < rays * 2; i++) {
-          const a = -Math.PI / 2 + e.headAngle + (i / (rays * 2)) * TAU;
-          const rad = i % 2 ? hr * 1.15 : hr * 1.9;
-          if (i === 0) ctx.moveTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
-          else ctx.lineTo(x + Math.cos(a) * rad, hy + Math.sin(a) * rad);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = hit ? '#ffffff' : '#fff0b0';
-        ctx.beginPath();
-        ctx.arc(x, hy, hr, 0, TAU);
-        ctx.fill();
-        ctx.save(); // ЗАГЛУШКА ГРАФИКИ: лицо поворачивается вместе с головой (по нему видно проворот; после 5 умений рот сверху)
-        ctx.translate(x, hy);
-        ctx.rotate(e.headAngle);
-        ctx.fillStyle = '#5a3b00';
-        ctx.beginPath();
-        ctx.arc(-hr * 0.35, -hr * 0.2, hr * 0.12, 0, TAU);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(hr * 0.35, -hr * 0.2, hr * 0.12, 0, TAU);
-        ctx.fill();
-        ctx.strokeStyle = '#5a3b00';
-        ctx.lineWidth = hr * 0.1;
-        ctx.beginPath();
-        ctx.arc(0, hr * 0.05, hr * 0.45, 0.2 * Math.PI, 0.8 * Math.PI);
-        ctx.stroke();
+        this.apoArt.boss(ctx, e, x, y, rr, hit, stunned);
         ctx.restore();
-        ctx.restore();
-        ctx.fillStyle = hit ? '#ffffff' : fill;
+      } else if (e.def.apostle) {
+        this.apoArt.apostle(ctx, e, x, y, rr, hit);
+      } else if (e.def.risen) {
+        this.apoArt.risen(ctx, e, x, y, rr, hit);
       }
+      if (!e.def.sunHead && !e.def.apostle && !e.def.risen) {
       ctx.beginPath();
-      if (e.def.sunHead) ctx.arc(x, y, 0.01, 0, TAU); // тело уже нарисовано
-      else if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
-      else if (e.def.risen) ctx.ellipse(x, y - rr * 0.6, rr * 0.7, rr * 1.5, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: восставший апостол, тёмная фигура
-      else ctx.arc(x, y, rr, 0, TAU);
+      ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
       if (e.def.slam && st === 'windup') { // ЗАГЛУШКА ГРАФИКИ: кольцо замаха растёт к моменту удара
         ctx.save();
@@ -2160,6 +2116,7 @@ export class Renderer {
       ctx.lineWidth = 2;
       ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
       ctx.stroke();
+      }
     }
 
     this.drawStatusFx(e, x, y, r);
