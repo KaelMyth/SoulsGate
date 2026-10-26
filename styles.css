@@ -502,15 +502,19 @@ body { font-family: var(--serif); }
 
 .lu-card { height: 104px; }
 
-/* Пассивы: по углам меню группы 2×2 маленьких ячеек (вне ромба поля). */
-.board-wrap { --ps: calc(var(--cell) * 0.78); }
-.pcorner { position: absolute; display: grid; grid-template-columns: repeat(2, var(--ps)); grid-auto-rows: var(--ps); gap: 3px; z-index: 2; }
-.pcorner.c0 { left: 0; top: 0; }
-.pcorner.c1 { right: 0; top: 0; }
-.pcorner.c2 { left: 0; bottom: 0; }
-.pcorner.c3 { right: 0; bottom: 0; }
+/* Пассивы: по углам меню группы 2×2 маленьких ячеек, повёрнутые на 45° как основное поле (вне ромба, места занимают меньше). */
+.board-wrap { --ps: calc(var(--cell) * 0.85); --pside: calc(var(--ps) * 2 + 3px); }
+.pcorner {
+  position: absolute; display: grid; grid-template-columns: repeat(2, var(--ps)); grid-auto-rows: var(--ps); gap: 3px; z-index: 2;
+  width: var(--pside); height: var(--pside); transform: rotate(45deg);
+}
+.pcorner .piece { --rot: -45deg; }
+.pcorner.c0 { left: calc(var(--pside) * 0.2071); top: calc(var(--pside) * 0.2071); }
+.pcorner.c1 { right: calc(var(--pside) * 0.2071); top: calc(var(--pside) * 0.2071); }
+.pcorner.c2 { left: calc(var(--pside) * 0.2071); bottom: calc(var(--pside) * 0.2071); }
+.pcorner.c3 { right: calc(var(--pside) * 0.2071); bottom: calc(var(--pside) * 0.2071); }
 #pause-screen .pcell {
-  position: relative; display: block; width: auto; min-height: 0; margin: 0; padding: 0; box-sizing: border-box;
+  position: relative; display: block; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; box-sizing: border-box;
   border: 0; border-radius: 3px; color: var(--ink);
   background: linear-gradient(135deg, #0d1324, #1b2438);
   box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.75), inset -1px -1px 0 rgba(150, 175, 220, 0.16);

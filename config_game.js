@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 7 · сборка 46 (пассивы: угловые ячейки, Магнетизм)';
+export const BUILD = 'этап 7 · сборка 47 (пассивы: вампиризм, опыт, здоровье, дальность; ромбы в углах)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -13,8 +13,8 @@ export const CONFIG = {
   build: {
     size: 7,
     minCoreDistance: 5,
-    storageSlots: 17,  // ячеек в ряду хранилища над полем
-    startMods: ['magnet', 'lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    storageSlots: 21,  // ячеек в ряду хранилища над полем
+    startMods: ['magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -117,6 +117,30 @@ export const CONFIG = {
       icon: 'magnet',
       description: 'Пассив для угловой ячейки. Камни опыта притягиваются с расстояния в 1.5 раза больше. Рядом можно поставить Х2 или Х3',
       effect: { kind: 'passive', passive: 'magnet', value: 1.5 },
+    },
+    vamp: {
+      name: 'Вампиризм',
+      icon: 'vamp',
+      description: 'Пассив для угловой ячейки. За каждого убитого врага герой восстанавливает 1 здоровье. Х2 и Х3 рядом усиливают лечение',
+      effect: { kind: 'passive', passive: 'vamp', value: 1 },
+    },
+    xpmul: {
+      name: 'Множитель опыта',
+      icon: 'xpmul',
+      description: 'Пассив для угловой ячейки. Опыта за камни в 1.5 раза больше. Х2 и Х3 рядом усиливают бонус',
+      effect: { kind: 'passive', passive: 'xp', value: 1.5 },
+    },
+    vitality: {
+      name: 'Бонусное здоровье',
+      icon: 'vitality',
+      description: 'Пассив для угловой ячейки. Максимум здоровья больше на 25%. Х2 и Х3 рядом усиливают бонус',
+      effect: { kind: 'passive', passive: 'hp', value: 1.25 },
+    },
+    reach: {
+      name: 'Дальность атаки',
+      icon: 'reach',
+      description: 'Пассив для угловой ячейки. Герой замечает врагов и бьёт дальше на 25%. Х2 и Х3 рядом усиливают бонус',
+      effect: { kind: 'passive', passive: 'range', value: 1.25 },
     },
     kinetic: {
       name: 'Кинетический рывок',
@@ -845,7 +869,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1, magnet: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1,
     },
   },
 
