@@ -254,6 +254,7 @@ export class Game {
         { label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
         { label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
         { label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
+        { label: 'Апофеоз: Фаза 2, четыре умения сразу', run: () => this.apotheosis.force('omni') },
       ],
       build: o.build,
       getStats: () => ({

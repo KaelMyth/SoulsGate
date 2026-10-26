@@ -713,6 +713,7 @@ export class Renderer {
     }
 
     this.drawFlash(viewL, viewR, viewT, viewB);
+    this.drawOmni();
     this.drawLasers(ctx);
     this.drawBolts(ctx);
     this.drawBlades(ctx);
@@ -1128,6 +1129,28 @@ export class Renderer {
     ctx.globalAlpha = Math.min(1, a.negative);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
+    ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение «Единство». Заряд: четыре цветных кольца (вера, правда, сила, любовь) сходятся к голове босса.
+   */
+  drawOmni() {
+    const a = this.apotheosis;
+    if (!a || !a.boss || a.state !== 'omni-charge') return;
+    const o = a.headPos();
+    const k = Math.min(1, a.t / Math.max(0.01, a.boss.def.omni.castTime));
+    const cols = ['#ffffff', '#ffd24a', '#ff8a6a', '#ff9fcf'];
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      ctx.globalAlpha = 0.5 + 0.5 * k;
+      ctx.strokeStyle = cols[i];
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, a.boss.radius * (2.6 - 1.5 * k) + i * 7, 0, TAU);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
