@@ -128,6 +128,8 @@ export class RockBeetles {
     initEnemy(e, def, rock.x, rock.y);
     const r = Math.min(def.maxRadius, Math.max(def.minRadius, rock.r * def.radiusScale));
     e.radius = r;
+    e.rockR = rock.r;   // размер и вид скалы: жук рисуется той же скалой (только вид)
+    e.rockId = rock.id;
     e.hp = e.maxHp = def.hp * (rock.r / def.hpRockRef);
     e.prevX = e.x;
     e.prevY = e.y;
