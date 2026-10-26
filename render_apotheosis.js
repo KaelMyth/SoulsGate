@@ -106,9 +106,12 @@ const RISEN = { // восставший апостол: костяная мас�
   teeth: 0, eyes: 'angry', mouth: 'grit',
 };
 
+const NOPOSE = { arms: 0, spread: 0, glow: 0, motes: 0, aimW: 0, open: 0.3, shake: 0, limp: 0 };
+
 export class ApotheosisArt {
   constructor(renderer) {
     this.r = renderer;
+    this.ps = new WeakMap(); // сглаженные позы по врагу
     this.ex = 0;   // сглаженная жуть лица 0..1 босса
     this.dk = 0;   // сглаженная мертвенность 0..1 (золото уходит в кость)
     this.glows = [];
@@ -410,154 +413,134 @@ export class ApotheosisArt {
     ctx.globalAlpha = 1;
   }
 
-  // ---------- мантия ----------
+  // ---------- тело ----------
 
   /**
-   * Чёрная мантия с гранёными складами: слева светлее. Контур подсвечен холодным светом, чтобы фигура читалась на тьме.
-   * s: масштаб в единицах R; rim: цвет контурного света; dk 0..1: мертвенность (вторая фаза).
+   * Тонкое, искажённое тело: узкие неровные плечи, длинная ломаная фигура, рваный подол с лентами, слишком длинные руки.
+   * Чёрное, но контур подсвечен холодным светом: фигура читается на тьме. Единицы: R (центр у пояса головы).
+   * o: { t, rim, dk 0..1 мертвенность, hit, fold, hem, glowV, haloA, spill, spillV, crack, pose }.
+   * pose: { arms 0 опущены..1 вскинуты, spread 0..1 в стороны, aim {x,y} куда тянутся, glow 0..1, gv цвет света в руках,
+   *         open 0..1 растопырены пальцы, orbs [цвета], motes 0..1 сходящиеся огоньки, limp 0..1 обвисли }.
    */
   robe(ctx, x, y, R, o) {
     const t = o.t;
     const rim = o.rim;
-    const flut = (i) => Math.sin(t * 1.6 + i * 1.3) * 0.04;
-    // Контур: плечи, бока, подол зигзагом.
-    const top = [[-0.3, -0.64], [0.3, -0.64], [0.95, -0.3]];
-    const hemN = o.hem || 9;
-    const hem = [];
-    for (let i = 0; i <= hemN; i++) {
-      const u = i / hemN;
-      const hx = lerp(1.1, -1.1, u);
-      const hy = 1.0 + (i % 2 ? 0.26 : 0.04) + flut(i) * (1 + o.dk);
-      hem.push([hx, hy]);
+    const dk = o.dk || 0;
+    const P = o.pose || NOPOSE;
+    const sway = (yy) => Math.sin(t * 0.9 + yy * 1.7) * 0.05 * (1 + 1.6 * dk) + 0.05 * Math.sin(t * 0.37 + 2) * (yy + 0.4);
+    const topL = -0.44;
+    const topR = -0.34; // правое плечо выше: перекос
+    const wAt = (yy) => { // полуширина: узкие плечи, талия, расширение к подолу
+      const u = clamp01((yy + 0.44) / 0.95);
+      const sh = lerp(0.36, 0.17, u * u * (3 - 2 * u));
+      const flare = yy > 0.5 ? (yy - 0.5) * 0.28 : 0;
+      return sh + flare;
+    };
+    const ROWS = 10;
+    const yEnd = 1.12;
+    const L = [];
+    const Rr = [];
+    for (let i = 0; i <= ROWS; i++) {
+      const yy = lerp(topL, yEnd, i / ROWS);
+      const notch = (i % 2 ? 0.045 : -0.02) * (0.6 + hash(i + 51));
+      const cx = sway(yy);
+      const w = wAt(yy);
+      L.push([cx - w - notch, yy]);
+      Rr.push([cx + w * 1.06 + notch * 0.7, lerp(topR, yEnd, i / ROWS)]);
     }
-    const sides = [[1.0, 0.25], [1.1, 0.7]];
-    const lsides = [[-1.1, 0.7], [-1.0, 0.25]];
-    const pts = top.concat(sides, hem, lsides, [[-0.95, -0.3]]);
-    // Тень под фигурой остаётся от общего кода; рисуем тело.
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(R, R);
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    // Ореол за спиной: холодный, чтобы силуэт отделялся от тьмы.
+    // Ореол за спиной.
     ctx.globalCompositeOperation = 'lighter';
     const g = this.glow(o.glowV);
     ctx.globalAlpha = o.haloA;
-    ctx.drawImage(g, -1.9, -1.7, 3.8, 3.8);
+    ctx.drawImage(g, -1.7, -1.5, 3.4, 3.4);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
-    // Основа.
-    ctx.fillStyle = o.hit ? '#ffffff' : '#05060c';
+    const ink = o.hit ? '#ffffff' : '#05060c';
+    // Рваные ленты подола: длинные, разной длины; во второй фазе тянутся плетьми.
+    const NT = o.hem || 7;
+    const tat = [];
+    for (let i = 0; i < NT; i++) {
+      const u = (i + 0.5) / NT;
+      const xx = lerp(L[ROWS][0], Rr[ROWS][0], u);
+      const len = 0.3 + 0.45 * hash(i + 61) + 0.5 * dk * hash(i + 67);
+      const sw = Math.sin(t * (1.1 + 0.4 * hash(i + 3)) + i * 1.9) * (0.08 + 0.14 * dk);
+      tat.push([xx, yEnd, xx + sw * 0.5, yEnd + len * 0.5, xx + sw, yEnd + len, 0.05 + 0.04 * hash(i + 71)]);
+    }
+    ctx.fillStyle = ink;
+    for (let i = 0; i < NT; i++) {
+      const q = tat[i];
+      ctx.beginPath();
+      ctx.moveTo(q[0] - q[6] * 1.6, q[1] - 0.05);
+      ctx.quadraticCurveTo(q[2] - q[6], q[3], q[4], q[5]);
+      ctx.quadraticCurveTo(q[2] + q[6], q[3], q[0] + q[6] * 1.6, q[1] - 0.05);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Корпус: ломаный силуэт.
     ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.moveTo(L[0][0], L[0][1]);
+    for (let i = 1; i <= ROWS; i++) ctx.lineTo(L[i][0], L[i][1]);
+    for (let i = ROWS; i >= 0; i--) ctx.lineTo(Rr[i][0], Rr[i][1]);
     ctx.closePath();
     ctx.fill();
     if (!o.hit) {
-      // Грани складок: полосы от плеч к подолу, левые светлее, с тёмными промежутками.
-      const K = 8;
-      for (let i = 0; i < K; i++) {
-        const u0 = i / K;
-        const u1 = (i + 1) / K;
-        const tx0 = lerp(-0.95, 0.95, u0);
-        const tx1 = lerp(-0.95, 0.95, u1);
-        const ty0 = lerp(-0.3, -0.3, u0) - 0.3 * Math.sin(Math.PI * u0) * 0.9;
-        const ty1 = -0.3 - 0.3 * Math.sin(Math.PI * u1) * 0.9;
-        const h0 = hem[Math.min(hemN, Math.round((1 - u0) * hemN))];
-        const h1 = hem[Math.min(hemN, Math.round((1 - u1) * hemN))];
-        const b = (1 - (u0 + u1) / 2) * 0.55 + 0.1 * (i % 2);
-        ctx.fillStyle = mix('#05060c', o.fold, clamp01(b));
+      // Грани: вертикальные полосы между левым краем и серединой, левые светлее.
+      const K = 3;
+      for (let k = 0; k < K; k++) {
+        const f0 = k / K;
+        const f1 = (k + 1) / K;
         ctx.beginPath();
-        ctx.moveTo(tx0 * 0.98, ty0);
-        ctx.lineTo(tx1 * 0.98, ty1);
-        ctx.lineTo(h1[0] * (0.9 + 0.1 * u1), h1[1]);
-        ctx.lineTo(h0[0] * (0.9 + 0.1 * u0), h0[1]);
+        for (let i = 0; i <= ROWS; i++) { const px = lerp(L[i][0], Rr[i][0], f0); const py = lerp(L[i][1], Rr[i][1], f0); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+        for (let i = ROWS; i >= 0; i--) ctx.lineTo(lerp(L[i][0], Rr[i][0], f1), lerp(L[i][1], Rr[i][1], f1));
         ctx.closePath();
+        ctx.fillStyle = mix('#05060c', o.fold, clamp01(0.55 - 0.22 * k + 0.1 * (k % 2)));
         ctx.fill();
       }
-      // Контурный свет: слева и по плечам яркий, справа слабый.
+      // Контурный свет: слева и по плечам ярко, справа слабо.
       ctx.strokeStyle = rim;
-      ctx.lineWidth = 0.035;
+      ctx.lineWidth = 0.03;
       ctx.globalAlpha = 0.9;
       ctx.beginPath();
-      ctx.moveTo(0.3, -0.64); ctx.lineTo(-0.3, -0.64); ctx.lineTo(-0.95, -0.3); ctx.lineTo(-1.0, 0.25); ctx.lineTo(-1.1, 0.7); ctx.lineTo(hem[hemN][0], hem[hemN][1]);
+      for (let i = 0; i <= ROWS; i++) { if (i) ctx.lineTo(L[i][0], L[i][1]); else ctx.moveTo(L[i][0], L[i][1]); }
       ctx.stroke();
       ctx.globalAlpha = 0.4;
       ctx.beginPath();
-      ctx.moveTo(0.3, -0.64); ctx.lineTo(0.95, -0.3); ctx.lineTo(1.0, 0.25); ctx.lineTo(1.1, 0.7); ctx.lineTo(hem[0][0], hem[0][1]);
+      for (let i = 0; i <= ROWS; i++) { if (i) ctx.lineTo(Rr[i][0], Rr[i][1]); else ctx.moveTo(Rr[i][0], Rr[i][1]); }
       ctx.stroke();
-      // Подол: светящаяся кромка зубцов.
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = 0.5; // лезвия подола подсвечены
+      ctx.lineWidth = 0.018;
+      for (let i = 0; i < NT; i++) { const q = tat[i]; ctx.beginPath(); ctx.moveTo(q[0] - q[6] * 1.4, q[1]); ctx.quadraticCurveTo(q[2] - q[6], q[3], q[4], q[5]); ctx.stroke(); }
+      ctx.globalCompositeOperation = 'lighter'; // широкое мягкое свечение по левому краю
+      ctx.globalAlpha = 0.14;
+      ctx.lineWidth = 0.13;
       ctx.beginPath();
-      ctx.moveTo(hem[0][0], hem[0][1]);
-      for (let i = 1; i <= hemN; i++) ctx.lineTo(hem[i][0], hem[i][1]);
-      ctx.stroke();
-      // Свечение по контуру: широкая мягкая полоса, видна на тёмном.
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.16;
-      ctx.lineWidth = 0.14;
-      ctx.beginPath();
-      ctx.moveTo(0.3, -0.64); ctx.lineTo(-0.3, -0.64); ctx.lineTo(-0.95, -0.3); ctx.lineTo(-1.0, 0.25); ctx.lineTo(-1.1, 0.7);
+      for (let i = 0; i <= ROWS; i++) { if (i) ctx.lineTo(L[i][0], L[i][1]); else ctx.moveTo(L[i][0], L[i][1]); }
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
-    }
-    // Воротник: чёрные осколки веером вокруг шеи, повторяют лучи солнца.
-    const nS = 13;
-    for (let i = 0; i < nS; i++) {
-      const a = Math.PI * (0.02 + 0.96 * (i / (nS - 1)));
-      const L = 0.36 + 0.18 * hash(i + 41) + 0.1 * o.dk;
-      const bx = Math.cos(a) * 0.42;
-      const by = -0.85 + Math.sin(a) * 0.3 + 0.18;
-      ctx.fillStyle = o.hit ? '#fff' : mix('#05060c', o.fold, 0.2 + 0.4 * (1 - i / nS));
-      ctx.beginPath();
-      ctx.moveTo(bx - Math.sin(a) * 0.06, by + Math.cos(a) * 0.0);
-      ctx.lineTo(bx + Math.cos(a) * L * 1.2, by + Math.sin(a) * L * 0.9 + 0.05);
-      ctx.lineTo(bx + Math.sin(a) * 0.06, by);
-      ctx.closePath();
-      ctx.fill();
     }
     // Свет головы стекает на плечи.
     if (!o.hit && o.spill > 0) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = o.spill;
       const gs = this.glow(o.spillV);
-      ctx.drawImage(gs, -1.3, -1.35, 2.6, 2.1);
+      ctx.drawImage(gs, -1.0, -1.0, 2.0, 1.8);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
-    // Щупальца-лоскуты подола (вторая фаза): тонкие чёрные плети качаются под фигурой.
-    if (o.dk > 0.05 && !o.hit) {
-      ctx.strokeStyle = '#05060c';
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 6; i++) {
-        const hx = lerp(-0.85, 0.85, i / 5);
-        const sw = Math.sin(t * 1.4 + i * 1.9);
-        ctx.lineWidth = 0.1 * (0.6 + 0.4 * hash(i + 71));
-        ctx.globalAlpha = Math.min(1, o.dk * 1.2);
-        ctx.beginPath();
-        ctx.moveTo(hx, 1.1);
-        ctx.quadraticCurveTo(hx + sw * 0.18, 1.45, hx + sw * 0.34, 1.8 + 0.2 * hash(i + 33));
-        ctx.stroke();
-        ctx.strokeStyle = rim;
-        ctx.lineWidth = 0.02;
-        ctx.globalAlpha = Math.min(0.7, o.dk);
-        ctx.beginPath();
-        ctx.moveTo(hx - 0.03, 1.1);
-        ctx.quadraticCurveTo(hx - 0.03 + sw * 0.18, 1.45, hx - 0.03 + sw * 0.34, 1.8 + 0.2 * hash(i + 33));
-        ctx.stroke();
-        ctx.strokeStyle = '#05060c';
-      }
-      ctx.globalAlpha = 1;
-    }
     // Трещины света на груди (вторая фаза).
-    if (o.dk > 0.3 && !o.hit) {
+    if (dk > 0.3 && !o.hit) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = o.crack;
       const pul = 0.6 + 0.4 * Math.sin(t * 3);
-      ctx.globalAlpha = (o.dk - 0.3) * 1.2 * pul;
-      ctx.lineWidth = 0.025;
-      const cr = [[-0.4, -0.2, -0.5, 0.2, -0.38, 0.5, -0.46, 0.85], [0.3, -0.25, 0.42, 0.1, 0.3, 0.45], [0, 0.0, -0.05, 0.4, 0.06, 0.8]];
+      ctx.globalAlpha = (dk - 0.3) * 1.2 * pul;
+      ctx.lineWidth = 0.022;
+      const cr = [[-0.12, -0.2, -0.17, 0.1, -0.09, 0.4, -0.14, 0.75], [0.1, -0.22, 0.14, 0.05, 0.08, 0.35]];
       for (let i = 0; i < cr.length; i++) {
         const c = cr[i];
         ctx.beginPath(); ctx.moveTo(c[0], c[1]);
@@ -567,7 +550,149 @@ export class ApotheosisArt {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
+    // Руки.
+    if (!o.noArms) {
+      this.arm(ctx, L[1][0] + 0.05, L[1][1] + 0.05, -1, P, o, t);
+      this.arm(ctx, Rr[1][0] - 0.05, Rr[1][1] + 0.05, 1, P, o, t);
+      // Огни вокруг: сходящиеся огоньки (заряд умения) и орбиты четырёх умений.
+      this.motes(ctx, P, t, o);
+    }
     ctx.restore();
+  }
+
+  /** Одна длинная тонкая рука: плечо, локоть, кисть с длинными пальцами. side -1 левая, 1 правая (на экране). */
+  arm(ctx, sx, sy, side, P, o, t) {
+    const dk = o.dk || 0;
+    const limp = P.limp || 0;
+    const a = clamp01(P.arms) * (1 - limp);
+    // Направление плеча: вниз (0) через в стороны (π/2) до вверх (π). spread разводит руки шире.
+    let al = 0.14 + a * (2.5 + 0.5 * (P.spread || 0)) + (P.spread || 0) * 0.9 * (1 - a);
+    al += Math.sin(t * 2.1 + side * 1.3) * 0.06 * (1 + dk) + (P.shake ? Math.sin(t * 47 + side) * 0.12 * P.shake : 0);
+    let dx = side * Math.sin(al);
+    let dy = Math.cos(al);
+    if (P.aim && P.aimW > 0) { // тянутся к цели
+      const L = Math.hypot(P.aim.x, P.aim.y) || 1;
+      dx = lerp(dx, P.aim.x / L, P.aimW);
+      dy = lerp(dy, P.aim.y / L, P.aimW);
+      const m = Math.hypot(dx, dy) || 1;
+      dx /= m; dy /= m;
+    }
+    const U = 0.68;
+    const F = 0.78;
+    const ex = sx + dx * U;
+    const ey = sy + dy * U;
+    // Предплечье изгибается внутрь: кисть тянется вперёд, суставы лишние.
+    const bend = (0.55 - 0.35 * a) * side * (limp ? 0.2 : 1) + Math.sin(t * 1.3 + side) * 0.08;
+    const ca = Math.cos(bend);
+    const sa = Math.sin(bend);
+    const fx = dx * ca - dy * sa;
+    const fy = dx * sa + dy * ca;
+    const hx = ex + fx * F;
+    const hy = ey + fy * F + limp * 0.1;
+    const wob = Math.sin(t * 1.7 + side * 2) * 0.03;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // Рука: чёрная, с подсвеченной кромкой.
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.strokeStyle = pass ? o.rim : (o.hit ? '#ffffff' : '#05060c');
+      ctx.lineWidth = pass ? 0.03 : 0.08;
+      ctx.globalAlpha = pass ? 0.9 : 1;
+      const off = pass ? -0.035 * side : 0;
+      ctx.beginPath();
+      ctx.moveTo(sx + off, sy);
+      ctx.quadraticCurveTo(ex + wob + off, ey, hx + off * 0.2, hy);
+      ctx.stroke();
+      ctx.lineWidth = pass ? 0.012 : 0.05;
+    }
+    ctx.globalAlpha = 1;
+    // Пальцы: четыре тонких когтя веером вдоль предплечья.
+    const open = P.open || 0.3;
+    const base = Math.atan2(fy, fx);
+    ctx.strokeStyle = o.hit ? '#ffffff' : '#05060c';
+    ctx.lineWidth = 0.032;
+    for (let i = 0; i < 4; i++) {
+      const ang = base + (i - 1.5) * (0.22 + 0.3 * open) + Math.sin(t * 3 + i + side) * 0.06;
+      const len = 0.3 + 0.08 * hash(i + 91) + 0.12 * dk;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(hx + Math.cos(ang) * len * 0.5 + 0.02, hy + Math.sin(ang) * len * 0.5, hx + Math.cos(ang + 0.2 * side) * len, hy + Math.sin(ang + 0.2 * side) * len);
+      ctx.stroke();
+    }
+    // Свет в ладони.
+    if (P.glow > 0.02 && !o.hit) {
+      ctx.globalCompositeOperation = 'lighter';
+      const gg = this.glow(P.gv);
+      const s = 0.2 + 0.4 * P.glow;
+      ctx.globalAlpha = Math.min(1, P.glow * 1.2);
+      ctx.drawImage(gg, hx - s, hy - s, s * 2, s * 2);
+      ctx.fillStyle = '#fff';
+      ctx.globalAlpha = Math.min(1, P.glow);
+      ctx.beginPath(); ctx.arc(hx, hy, 0.03 + 0.04 * P.glow, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+    this.hand = this.hand || [0, 0];
+    if (side > 0) { this.handR = [hx, hy]; } else { this.handL = [hx, hy]; }
+  }
+
+  /** Огоньки заряда: сходятся к рукам (motes) и орбиты четырёх цветов (orbs). */
+  motes(ctx, P, t, o) {
+    if (o.hit) return;
+    ctx.globalCompositeOperation = 'lighter';
+    if (P.motes > 0.02 && this.handL && this.handR) {
+      const gg = this.glow(P.gv);
+      const hands = [this.handL, this.handR];
+      for (let h = 0; h < 2; h++) {
+        for (let i = 0; i < 6; i++) {
+          const ph = (t * 1.2 + i / 6 + h * 0.5) % 1;
+          const k = 1 - ph;
+          const ang = (i / 6) * TAU + t * 2 + h;
+          const rad = 0.75 * k * P.motes;
+          const px = hands[h][0] + Math.cos(ang) * rad;
+          const py = hands[h][1] + Math.sin(ang) * rad * 0.8;
+          ctx.globalAlpha = Math.min(1, ph * 2) * P.motes;
+          const s = 0.06 + 0.05 * ph;
+          ctx.drawImage(gg, px - s * 2, py - s * 2, s * 4, s * 4);
+        }
+      }
+    }
+    if (P.orbs && P.orbs.length && this.handL && this.handR) {
+      const cx = (this.handL[0] + this.handR[0]) / 2;
+      const cy = Math.min(this.handL[1], this.handR[1]) - 0.1;
+      const n = P.orbs.length;
+      for (let i = 0; i < n; i++) {
+        const ang = t * 2.2 + (i / n) * TAU;
+        const px = cx + Math.cos(ang) * 0.55;
+        const py = cy + Math.sin(ang) * 0.22 - 0.1;
+        const gg = this.glow(P.orbs[i]);
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(gg, px - 0.2, py - 0.2, 0.4, 0.4);
+        ctx.fillStyle = '#fff';
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.arc(px, py, 0.035, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  /** Сглаженная поза: плавно переходим от прежней к целевой, чтобы руки не дёргались. */
+  smoothPose(key, T, dt) {
+    let S = this.ps.get(key);
+    if (!S) { S = { arms: T.arms || 0, spread: T.spread || 0, glow: 0, motes: 0, aimW: 0, open: 0.3, shake: 0, limp: 0 }; this.ps.set(key, S); }
+    const k = 1 - Math.exp(-dt / (T.fast ? 0.07 : 0.22));
+    S.arms += ((T.arms || 0) - S.arms) * k;
+    S.spread += ((T.spread || 0) - S.spread) * k;
+    S.glow += ((T.glow || 0) - S.glow) * k;
+    S.motes += ((T.motes || 0) - S.motes) * k;
+    S.aimW += ((T.aim ? T.aimW : 0) - S.aimW) * k;
+    S.open += ((T.open === undefined ? 0.3 : T.open) - S.open) * k;
+    S.shake += ((T.shake || 0) - S.shake) * k;
+    S.limp += ((T.limp || 0) - S.limp) * k;
+    S.aim = T.aim || S.aim;
+    S.gv = T.gv;
+    S.orbs = T.orbs;
+    return S;
   }
 
   // ---------- босс ----------
@@ -665,8 +790,9 @@ export class ApotheosisArt {
     lx /= ll; ly /= ll;
     const rim = dead > 0.5 ? mix('#8a7cd0', '#cfc8ff', 0.4) : mix('#8f7bff', '#b9a8ff', 0.3);
     const hcol = dead > 0.5 ? 'blue' : 'gold';
+    const pose = this.smoothPose(e, this.bossPose(a, e, st, dead), dt);
     this.robe(ctx, x, y + R * 0.08, R, {
-      t, rim, dk: dead, hit, fold: dead > 0.5 ? '#1b1d38' : '#1a1735', hem: 9,
+      pose, t, rim, dk: dead, hit, fold: dead > 0.5 ? '#1b1d38' : '#1a1735', hem: 9,
       glowV: dead > 0.5 ? 'blue' : true, haloA: 0.2 + 0.2 * dead,
       spill: hit ? 0 : 0.2 - 0.1 * dead, spillV: hcol, crack: '#ff4a5a',
     });
@@ -699,6 +825,57 @@ export class ApotheosisArt {
     }
   }
 
+  /** Целевая поза босса по умению: руки, свет в ладонях, сходящиеся огоньки. */
+  bossPose(a, e, st, dead) {
+    const r = this.r;
+    const ap = r.apostles;
+    const gv = dead > 0.5 ? 'blue' : 'gold';
+    const T = { arms: 0.04, spread: 0, glow: 0, motes: 0, gv, open: 0.3, shake: 0 };
+    if (!a) return T;
+    const tt = a.t || 0;
+    if (st === 'apostles' || (ap && ap.state === 'summon')) { // призыв: руки к небу, свет собирается
+      const k = ap && ap.A ? Math.min(1, ap.t / Math.max(0.01, ap.A.castTime)) : 0.7;
+      T.arms = 0.5 + 0.45 * k; T.spread = 0.3; T.glow = 0.4 + 0.5 * k; T.motes = 0.9; T.open = 1; T.fast = true;
+    } else if (st === 'emerge' || st === 'retract') { T.arms = 0.55; T.spread = 0.5; T.glow = 0.4; T.gv = true; T.open = 0.8; }
+    else if (st === 'slams') { T.arms = 0.75; T.spread = 0.3; T.glow = 0.6; T.gv = true; T.shake = 0.4; T.open = 1; }
+    else if (st === 'beams-tele') { T.arms = 0.5; T.spread = 1; T.glow = 0.6; T.motes = 0.5; T.open = 1; }
+    else if (st === 'beams-fire') { T.arms = 0.5; T.spread = 1; T.glow = 1; T.shake = 0.6; T.open = 1; T.fast = true; }
+    else if (st === 'crumble') { T.arms = 0.1; T.spread = 0.6; T.aim = { x: 0, y: 1 }; T.aimW = 0.6; T.glow = 0.8; T.gv = true; T.shake = 0.5; T.open = 1; }
+    else if (st === 'flash-charge') {
+      const F = e.def.flash;
+      const k = Math.min(1, tt / Math.max(0.01, F ? F.charge : 2));
+      T.arms = 0.55 + 0.45 * k; T.spread = 0.2; T.glow = k; T.motes = k; T.open = 1; T.shake = 0.5 * k; T.gv = undefined;
+    } else if (st === 'flash-burst') { T.arms = 1; T.spread = 1; T.glow = 1; T.shake = 0.6; T.open = 1; T.fast = true; T.gv = undefined; }
+    else if (st === 'rise') { T.arms = 0.9; T.spread = 0.25; T.glow = 0.7; T.motes = 0.7; T.open = 1; T.gv = 'blue'; }
+    else if (st === 'omni-charge' || st === 'omni-run') { T.arms = 0.65; T.spread = 0.8; T.glow = 0.8; T.motes = 0.7; T.open = 1; T.orbs = ['gold', 'red', 'blue', true]; T.gv = 'blue'; }
+    else if (st === 'tf-shrink') { T.arms = 0.3; T.shake = 0.3; }
+    else if (st === 'tf-grab') { T.arms = 0.95; T.spread = 0; T.shake = 0.8; T.open = 1; }
+    else if (st === 'tf-turn') { T.arms = 0.7; T.spread = 0.2; T.shake = 1; T.open = 1; }
+    else if (st === 'tf-tear' || st === 'tf-form') { T.arms = 1; T.spread = 1; T.shake = 0.6; T.glow = 0.5; T.gv = 'red'; T.open = 1; }
+    return T;
+  }
+
+  /** Целевая поза апостола: идёт замах его умения (cast) или тянется притяжение/отталкивание. */
+  apostlePose(e, x, y, rr, kind) {
+    const r = this.r;
+    const ap = r.apostles;
+    const hero = r.hero;
+    const T = { arms: 0.04, spread: 0, glow: 0, motes: 0, gv: undefined, open: 0.3, shake: 0 };
+    const col = { faith: 'gold', truth: 'gold', force: undefined, love: 'red' }[kind];
+    T.gv = col;
+    const toHero = hero ? { x: hero.x - x, y: hero.y - (y - rr * 0.6) } : { x: 0, y: 1 };
+    if (ap && ap.cast && ap.cast.e === e) {
+      const k = Math.min(1, ap.cast.t / Math.max(0.01, ap.A.spellCast));
+      T.fast = true; T.glow = 0.3 + 0.7 * k; T.motes = k; T.open = 1;
+      if (kind === 'faith') { T.arms = 0.5 + 0.45 * k; T.spread = 0.25; }
+      else if (kind === 'truth') { T.arms = 0.7 + 0.25 * k; T.spread = 0.1; }
+      else if (kind === 'force') { T.arms = 0.45; T.aim = toHero; T.aimW = 0.9; T.shake = 0.5 * k; }
+      else { T.arms = 0.35; T.spread = 1; }
+    } else if (ap && ap.pull && ap.pull.e === e) { T.arms = 0.45; T.aim = toHero; T.aimW = 0.9; T.glow = 0.7; T.open = 1; T.shake = 0.3; }
+    else if (ap && ap.loveT > 0 && kind === 'love') { T.arms = 0.3; T.spread = 1; T.glow = 0.5; T.open = 1; }
+    return T;
+  }
+
   // ---------- апостолы ----------
 
   apostle(ctx, e, x, y, rr, hit) {
@@ -715,12 +892,13 @@ export class ApotheosisArt {
     lx /= ll; ly /= ll;
     const pal = hit ? HITP : st.pal;
     // Мантия меньше босса: центр ниже головы.
+    const pose = this.smoothPose(e, this.apostlePose(e, x, y, rr, kind), r.dt);
     this.robe(ctx, x, y - rr * 0.1, rr * 0.92, {
-      t, rim: st.rim, dk: 0, hit, fold: mix('#101226', st.pal.mid, 0.18), hem: 7,
+      pose, t, rim: st.rim, dk: 0, hit, fold: mix('#101226', st.pal.mid, 0.18), hem: 7,
       glowV: st.pal.glow === undefined ? undefined : st.pal.glow, haloA: 0.18, spill: hit ? 0 : 0.22, spillV: st.pal.glow, crack: st.rim,
     });
     this.mask(ctx, x, hy, hr, {
-      angle: Math.sin(t * 0.7) * 0.05, expr: kind === 'force' ? 0.15 : 0, pal, st, t, look: { x: lx, y: ly }, hit, glowA: 0.4,
+      angle: Math.sin(t * 0.7) * 0.05, expr: (kind === 'force' ? 0.15 : 0) + 0.5 * pose.glow, pal, st, t, look: { x: lx, y: ly }, hit, glowA: 0.4,
     });
   }
 
@@ -739,7 +917,7 @@ export class ApotheosisArt {
       c.translate(x, y);
       c.rotate(lean);
       c.translate(-x, -y + Math.sin(t * 14) * rr * 0.06);
-      this.robe(c, x, y - rr * 0.1, rr * 0.95, { t: t * 2, rim: '#cfc8ff', dk: 1, hit, fold: '#1b1d38', hem: 7, glowV: 'blue', haloA: 0.2, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
+      this.robe(c, x, y - rr * 0.1, rr * 0.95, { pose: { arms: 0.5 + 0.2 * Math.sin(t * 14), spread: 0.3, glow: 0, motes: 0, open: 1, aimW: 0, shake: 0, limp: 0 }, t: t * 2, rim: '#cfc8ff', dk: 1, hit, fold: '#1b1d38', hem: 7, glowV: 'blue', haloA: 0.2, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
       this.mask(c, x, y - rr * 1.2, hr, { angle: Math.sin(t * 9) * 0.12, expr: 0.8, pal: hit ? HITP : BONE, st: RISEN, t, look: { x: 0, y: 0.4 }, hit, glowA: 0.25 });
       c.restore();
     });
@@ -755,7 +933,7 @@ export class ApotheosisArt {
       c.translate(x, y);
       c.rotate(rot);
       c.translate(-x, -y);
-      this.robe(c, x, y - rr * 0.1, rr * 0.92, { t, rim: '#9a96c0', dk: 0.6 * e, hit: false, fold: '#14162a', hem: 7, glowV: 'blue', haloA: 0.08 + 0.15 * e, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
+      this.robe(c, x, y - rr * 0.1, rr * 0.92, { pose: { arms: 0.1 + 0.6 * e, spread: 0.2, glow: 0, motes: 0, open: 0.3, aimW: 0, shake: 0, limp: 1 - e }, t, rim: '#9a96c0', dk: 0.6 * e, hit: false, fold: '#14162a', hem: 7, glowV: 'blue', haloA: 0.08 + 0.15 * e, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
       c.globalAlpha = 0.55 + 0.45 * e;
       this.mask(c, x, y - rr * 1.2, hr, { angle: 0, expr: 0.3 + 0.6 * e, pal: palMix(BONE, INK, 0.55 * (1 - e)), st: Object.assign({}, st, { long: RISEN.long, mid: null, halo: false, teeth: 0 }), t, look: { x: 0, y: 0.4 }, hit: false, glowA: 0.1 + 0.2 * e });
       c.globalAlpha = 1;
