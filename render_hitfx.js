@@ -20,6 +20,11 @@ const T_RIPPLE = 6;
 const T_ZIG = 7;
 const T_LICK = 8;
 const T_STAR = 9;
+const T_STREAK = 10;
+const T_CHANNEL = 11;
+const T_CONE = 12;
+const T_ARCW = 13;
+const T_CHIP = 14;
 
 function poly(ctx, p, k) {
   ctx.moveTo(p[0] * k, p[1] * k);
@@ -28,7 +33,7 @@ function poly(ctx, p, k) {
 }
 
 export class HitFx {
-  constructor(renderer, size = 360) {
+  constructor(renderer, size = 480) {
     this.r = renderer;
     this.p = [];
     for (let i = 0; i < size; i++) {
@@ -178,6 +183,33 @@ export class HitFx {
         spark(4, 190, 6, 3, 0.2);
         break;
       }
+      case 'through': { // снаряд прошил врага насквозь: канал через тело, вспышка-выброс на выходе, конус обломков
+        const lg = d.src === 'laser' ? 0.5 : d.src === 'pellet' ? 0.65 : d.big ? 1.25 : 1; // лазер бьёт часто, дробь мелкая
+        const heavy = lg >= 0.9;
+        const L = d.len;
+        const fwd = (n, spd, len, spread, life, t0, o) => {
+          for (let i = 0; i < n; i++) {
+            const a = ang + (R() - 0.5) * 2 * spread;
+            const s = spd * (0.6 + R() * 0.7);
+            this.add(t0, el, x, y, Math.cos(a) * s, Math.sin(a) * s, life * (0.7 + R() * 0.6), len * (0.7 + R() * 0.6), o || { drag: 4, rot: R() * TAU, spin: (R() - 0.5) * 12 });
+          }
+        };
+        // канал: тёмная рана через всё тело с раскалённой кромкой, затягивается от входа к выходу
+        this.add(T_CHANNEL, el, x, y, 0, 0, heavy ? 0.45 : 0.28, L * (d.src === 'blade' ? 1.1 : 1), { rot: ang });
+        this.add(T_STREAK, el, x, y, 0, 0, 0.22, L * 0.8, { rot: ang });
+        if (heavy) this.add(T_CONE, el, x, y, 0, 0, 0.22, 46 + 22 * pw, { rot: ang });
+        this.add(T_ARCW, el, x, y, 0, 0, 0.3, (heavy ? 34 : 20) * lg, { rot: ang });
+        this.add(T_FLASH, el, x, y, 0, 0, 0.2, (12 + 6 * pw) * lg);
+        this.add(T_STAR, el, x, y, 0, 0, 0.24, 11 * lg, { rot: ang });
+        fwd(Math.max(2, Math.round(7 * lg)), 260, 10, 0.55, 0.26, T_SPARK);
+        // обломки: тёмные грани с подсветкой, конусом вперёд (сквозь врага и дальше)
+        fwd(heavy ? 7 : Math.round(3 * lg), 190, 4.2, 0.5, 0.5, T_CHIP);
+        if (el === 2) { fwd(Math.round(4 * lg), 90, 1.9, 1.3, 0.55, T_EMBER); if (heavy) this.add(T_LICK, 2, x, y, dx * 14, dy * 14 - 20, 0.34, 8, { drag: 1 }); }
+        else if (el === 1) fwd(Math.round(4 * lg), 170, 5.5, 0.6, 0.5, T_SHARD);
+        else if (el === 3) { fwd(Math.round(3 * lg), 100, 2.2, 1, 0.55, T_EMBER); this.add(T_PUFF, 3, x + dx * 5, y + dy * 5, dx * 46, dy * 46, 0.6, 14 * lg, { drag: 2 }); }
+        else if (el === 4) { this.add(T_RIPPLE, 4, x, y, 0, 0, 0.32, 17 * lg); if (heavy) this.add(T_PUFF, 4, x + dx * 5, y + dy * 5, dx * 30, dy * 30, 0.6, 11, { drag: 2 }); }
+        break;
+      }
       default: break;
     }
   }
@@ -198,7 +230,7 @@ export class HitFx {
       if (q.t >= q.life) { q.on = false; continue; }
       const k = q.t / q.life;
       const e = q.el;
-      if (q.type !== T_FLASH && q.type !== T_SLASH && q.type !== T_RIPPLE) {
+      if (q.type !== T_FLASH && q.type !== T_SLASH && q.type !== T_RIPPLE && q.type !== T_STREAK && q.type !== T_CHANNEL && q.type !== T_CONE && q.type !== T_ARCW) {
         q.x += q.vx * dt;
         q.y += q.vy * dt;
         const dr = Math.exp(-q.drag * dt);
@@ -339,6 +371,111 @@ export class HitFx {
           ctx.fillStyle = CORE[e];
           ctx.beginPath(); poly(ctx, [q.x, q.y - s, q.x + s * 0.22, q.y, q.x, q.y + s, q.x - s * 0.22, q.y], 1); ctx.fill();
           ctx.beginPath(); poly(ctx, [q.x - s, q.y, q.x, q.y - s * 0.22, q.x + s, q.y, q.x, q.y + s * 0.22], 1); ctx.fill();
+          break;
+        }
+        case T_STREAK: { // раскалённый след через тело: острый у входа, расширяется к выходу, гаснет с хвоста
+          const L = q.size;
+          const w = 1.6 + 2.2 * a1;
+          ctx.save();
+          ctx.translate(q.x, q.y);
+          ctx.rotate(q.rot);
+          ctx.globalCompositeOperation = 'lighter';
+          const tail = -L * (1 - Math.min(1, k * 2.2) * 0.7); // хвост догоняет голову
+          const g1 = ctx.createLinearGradient(tail, 0, 0, 0);
+          g1.addColorStop(0, 'rgba(0,0,0,0)');
+          g1.addColorStop(1, MAIN[e]);
+          ctx.globalAlpha = 0.75 * a1;
+          ctx.fillStyle = g1;
+          ctx.beginPath(); poly(ctx, [tail, 0, 0, -w * 1.5, w * 2.2, 0, 0, w * 1.5], 1); ctx.fill();
+          const g2 = ctx.createLinearGradient(tail, 0, 0, 0);
+          g2.addColorStop(0, 'rgba(0,0,0,0)');
+          g2.addColorStop(1, CORE[e]);
+          ctx.globalAlpha = a1;
+          ctx.fillStyle = g2;
+          ctx.beginPath(); poly(ctx, [tail * 0.9, 0, 0, -w * 0.6, w * 1.6, 0, 0, w * 0.6], 1); ctx.fill();
+          ctx.restore();
+          break;
+        }
+        case T_CHANNEL: { // рана через тело: x=выход, уходит назад на size; затягивается с входного конца
+          const L = q.size;
+          const tail = -L * (1 - Math.min(1, k * 1.4));
+          const open = k < 0.18 ? 1 : 1 - (k - 0.18) / 0.82; // раскрытие потом сужение
+          ctx.save();
+          ctx.translate(q.x, q.y);
+          ctx.rotate(q.rot);
+          ctx.lineCap = 'round';
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 0.6 * open;
+          ctx.strokeStyle = '#070d1c';
+          ctx.lineWidth = 4.2 * open + 0.6;
+          ctx.beginPath(); ctx.moveTo(tail, 0); ctx.lineTo(0, 0); ctx.stroke();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = MAIN[e];
+          ctx.globalAlpha = 0.55 * open;
+          ctx.lineWidth = 6.5 * open + 1;
+          ctx.beginPath(); ctx.moveTo(tail, 0); ctx.lineTo(0, 0); ctx.stroke();
+          const gh = ctx.createLinearGradient(tail, 0, 0, 0);
+          gh.addColorStop(0, 'rgba(255,255,255,0)');
+          gh.addColorStop(1, CORE[e]);
+          ctx.strokeStyle = gh;
+          ctx.globalAlpha = Math.max(0, 1 - k * 2.6);
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(tail, 0); ctx.lineTo(0, 0); ctx.stroke();
+          ctx.restore();
+          break;
+        }
+        case T_CONE: { // выброс на выходе: расширяющийся клин света вперёд
+          const Lc = q.size * (0.5 + 0.7 * Math.min(1, k * 3));
+          const hw = Lc * (0.32 + 0.25 * k);
+          ctx.save();
+          ctx.translate(q.x, q.y);
+          ctx.rotate(q.rot);
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createLinearGradient(0, 0, Lc, 0);
+          g.addColorStop(0, CORE[e]);
+          g.addColorStop(0.35, MAIN[e]);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.85 * a1 * a1;
+          ctx.fillStyle = g;
+          ctx.beginPath(); poly(ctx, [0, -hw * 0.18, Lc * 0.55, -hw * 0.7, Lc, -hw * 0.25, Lc * 0.8, 0, Lc, hw * 0.3, Lc * 0.5, hw * 0.75, 0, hw * 0.18], 1); ctx.fill();
+          ctx.restore();
+          break;
+        }
+        case T_ARCW: { // ударная дуга, выгнутая вперёд, перпендикулярно полёту
+          const rr = q.size * (0.3 + 0.9 * k);
+          ctx.save();
+          ctx.translate(q.x, q.y);
+          ctx.rotate(q.rot);
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = MAIN[e];
+          ctx.globalAlpha = 0.6 * a1;
+          ctx.lineWidth = 2.2 * a1 + 0.5;
+          ctx.beginPath(); ctx.ellipse(rr * 0.2, 0, rr * 0.55, rr, 0, -1.25, 1.25); ctx.stroke();
+          ctx.strokeStyle = CORE[e];
+          ctx.globalAlpha = 0.9 * a1;
+          ctx.lineWidth = 0.9;
+          ctx.beginPath(); ctx.ellipse(rr * 0.2, 0, rr * 0.55, rr, 0, -1.25, 1.25); ctx.stroke();
+          ctx.restore();
+          break;
+        }
+        case T_CHIP: { // низкополигональный обломок: тёмная грань, светлая кромка цвета стихии
+          q.rot += q.spin * dt;
+          const s = q.size;
+          ctx.save();
+          ctx.translate(q.x, q.y);
+          ctx.rotate(q.rot);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = a1;
+          ctx.fillStyle = '#1a2a48';
+          ctx.beginPath(); poly(ctx, [s, 0, -s * 0.2, -s * 0.7, -s * 0.8, s * 0.1, -s * 0.1, s * 0.6], 1); ctx.fill();
+          ctx.fillStyle = '#3b5a8c';
+          ctx.beginPath(); poly(ctx, [s, 0, -s * 0.2, -s * 0.7, -s * 0.1, -s * 0.05], 1); ctx.fill();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = MAIN[e];
+          ctx.globalAlpha = 0.8 * a1;
+          ctx.lineWidth = 0.9;
+          ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(-s * 0.2, -s * 0.7); ctx.stroke();
+          ctx.restore();
           break;
         }
         default: break;

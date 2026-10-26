@@ -117,11 +117,12 @@ export class Game {
     this.pelletSource = { pellet: true, active: true };
     this.pellets = new Pellets({
       config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
-      onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp) => {
+      onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp, pc) => {
         const sp = Math.hypot(vx, vy) || 1;
         this.pelletSource.el = bd > 0 ? (fr && st > 0 ? 3 : 2) : fr ? 1 : 0; // для эффекта попадания (только вид)
         this.pelletSource.dx = vx / sp;
         this.pelletSource.dy = vy / sp;
+        this.pelletSource.pierce = pc > 0; // прошьёт насквозь: эффект выхода (только вид)
         this.combat.damageEnemy(e, dmg, this.pelletSource, { knockback: config.shot.knockback, dirX: vx / sp, dirY: vy / sp });
         if (!e.active) return;
         if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
@@ -422,8 +423,12 @@ export class Game {
     } else return false;
     const L = Math.hypot(dx, dy);
     if (L < 1e-6) { dx = 0; dy = -1; } else { dx /= L; dy /= L; }
+    const through = kind === 'bolt' ? s.pierce > 0 : !!s.pierce; // удар не остановил снаряд: он прошил врага
     const k = kind === 'aura' ? 0 : kind === 'laser' ? 0.4 : 0.85; // удар ближе к краю врага со стороны подлёта
     this.renderer.hitfx.spawn({ kind, el, x: t.x - dx * t.radius * k, y: t.y - dy * t.radius * k, dx, dy, power, big });
+    if (through && kind !== 'zap' && kind !== 'aura') { // выход с обратной стороны и росчерк через тело
+      this.renderer.hitfx.spawn({ kind: 'through', src: kind, el, x: t.x + dx * t.radius * 0.9, y: t.y + dy * t.radius * 0.9, dx, dy, power, big, len: t.radius * 1.8 });
+    }
     return true;
   }
 
@@ -729,8 +734,10 @@ export class Game {
     const hit = [];
     for (let k = 0; k < l.hits; k++) hit.push(E[k]);
     // Бьём после поиска: убийство меняет пул врагов.
-    for (const e of hit) {
+    for (let hi = 0; hi < hit.length; hi++) {
+      const e = hit[hi];
       if (!e.active) continue;
+      this.laserSource.pierce = hi < hit.length - 1; // луч идёт дальше сквозь этого врага
       this.laserSource.el = l.gen > 0 ? 4 : l.steam > 0 ? 3 : l.burnDmg > 0 ? 2 : l.frost ? 1 : 0; // для эффекта попадания (только вид)
       this.laserSource.big = !!l.big;
       this.laserSource.dx = l.dx;

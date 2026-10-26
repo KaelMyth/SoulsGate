@@ -106,7 +106,7 @@ export class Pellets {
         const dy = y - e.y;
         const r = S.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
-          this.onHit(e, this.dmg[i], vx, vy, this.bd[i], this.bi[i], this.fr[i], this.st[i], this.zp[i]);
+          this.onHit(e, this.dmg[i], vx, vy, this.bd[i], this.bi[i], this.fr[i], this.st[i], this.zp[i], this.pc[i]);
           if (this.pc[i] > 0) { this.pc[i]--; this.lh[i] = e; break; } // пробила: летит дальше
           hit = true;
           break;
