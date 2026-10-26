@@ -792,8 +792,9 @@ export class Game {
   updateKinetic(dt) {
     const h = this.hero;
     this.updateBeams(dt);
-    if (!this.defense.kinetic) { this.shotLast = null; return; }
+    if (!this.defense.kinetic) { this.shotLast = null; if (this.renderer) this.renderer.dashKinetic = false; return; }
     this.lightdash.kind = this.kineticEl().kind;
+    if (this.renderer) { this.renderer.dashKind = this.lightdash.kind; this.renderer.dashKinetic = true; }
     const moving = h.dashing || h.glideTime > 0;
     if (moving && h.invuln < 0.1) h.invuln = 0.1; // таран: пока герой в рывке и скольжении, урон от врагов не проходит
     if (h.dashing && !this.lightdash.active) this.kineticRam();
