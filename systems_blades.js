@@ -209,6 +209,7 @@ export class Blades {
           const bd = b.mul ? dmg * b.mul : dmg; // фантомный клинок бьёт чуть иначе (phantom.damageFrac)
           this.source.kind = b.kind | 0; // для эффекта попадания (только вид)
           this.source.gen = b.gen | 0;
+          this.source.pierce = !m.laser && (b.pc === undefined ? (m.pierce ? m.pierce.count : 0) : b.pc) > 0; // клинок пройдёт дальше (только вид)
           this.source.dx = Math.cos(b.a);
           this.source.dy = Math.sin(b.a);
           this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
