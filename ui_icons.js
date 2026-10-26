@@ -90,6 +90,12 @@ const ICONS = {
     ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
     ['path', S({ d: 'M26 5L28 8M5 24L3 27', 'stroke-width': 1.8, opacity: 0.7 })],
   ],
+  // Магнетизм: подкова с притягиваемыми точками.
+  magnet: [
+    ['path', S({ d: 'M8 5V15A8 8 0 0 0 24 15V5', 'stroke-width': 4.2 })],
+    ['path', Object.assign({ d: 'M5.5 5H10.5V9H5.5ZM21.5 5H26.5V9H21.5Z' }, HI)],
+    ['circle', { cx: 16, cy: 28, r: 1.7, fill: 'currentColor' }], ['circle', { cx: 11, cy: 27, r: 1.2, fill: 'currentColor', opacity: 0.7 }], ['circle', { cx: 21, cy: 27, r: 1.2, fill: 'currentColor', opacity: 0.7 }],
+  ],
   // Смертельная аура: поле вокруг точки.
   aura: [
     ['circle', { cx: 16, cy: 16, r: 3.4, fill: 'currentColor' }],

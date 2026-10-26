@@ -20,10 +20,14 @@ export class BuildGrid {
       for (let x = 0; x < this.size; x++) this.cells.push({ x, y, core: null, mod: null });
     }
     this.cores = [];
+    // Ячейки пассивов: по углам меню четыре группы 2×2 (всего 16). Это отдельный слой, не часть поля из ромбов.
+    this.pcells = [];
+    for (let k = 0; k < 4; k++) for (let j = 0; j < 4; j++) this.pcells.push({ id: k * 4 + j, corner: k, px: j & 1, py: j >> 1, mod: null });
   }
 
   clear() {
     for (const c of this.cells) { c.core = null; c.mod = null; }
+    for (const p of this.pcells) p.mod = null;
     this.cores = [];
     this.ver++;
   }
@@ -49,6 +53,54 @@ export class BuildGrid {
       if (c) out.push(c);
     }
     return out;
+  }
+
+  /** Соседи ячейки пассива по граням внутри того же угла. */
+  pNeighbors(id) {
+    const a = this.pcells[id];
+    return this.pcells.filter((b) => b.corner === a.corner && Math.abs(b.px - a.px) + Math.abs(b.py - a.py) === 1);
+  }
+
+  placePassive(mod, id) {
+    const p = this.pcells[id];
+    if (!p || p.mod) return false;
+    p.mod = mod;
+    this.ver++;
+    return true;
+  }
+
+  takePassive(id) {
+    const p = this.pcells[id];
+    if (!p || !p.mod) return null;
+    const m = p.mod;
+    p.mod = null;
+    this.ver++;
+    return m;
+  }
+
+  /** Множители Х2/Х3 в углах, которые остались без пассива рядом: их надо вернуть в хранилище. */
+  passiveOrphans() {
+    return this.pcells.filter((p) => p.mod && p.mod.def.effect.kind === 'double'
+      && !this.pNeighbors(p.id).some((n) => n.mod && n.mod.def.effect.kind === 'passive'));
+  }
+
+  /**
+   * Действие пассивов: { magnet: во сколько раз шире радиус подбора опыта }.
+   * Каждый пассив усиливается соседними Х2/Х3 (их добавки складываются), разные пассивы друг на друга не влияют.
+   */
+  passives() {
+    if (this._pVer === this.ver && this._p) return this._p;
+    const res = { magnet: 1 };
+    for (const p of this.pcells) {
+      if (!p.mod || p.mod.def.effect.kind !== 'passive') continue;
+      let f = 1;
+      for (const n of this.pNeighbors(p.id)) if (n.mod && n.mod.def.effect.kind === 'double') f += n.mod.def.effect.value - 1;
+      const e = p.mod.def.effect;
+      if (e.passive === 'magnet') res.magnet *= 1 + (e.value - 1) * f;
+    }
+    this._p = res;
+    this._pVer = this.ver;
+    return res;
   }
 
   /** Поставить ядро в клетку. Возвращает ядро или null, если клетка занята или её нет. */

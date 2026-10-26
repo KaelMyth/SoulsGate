@@ -47,6 +47,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
 
 /** Можно ли поставить мод modDef в клетку (x, y). { ok, reason, core } */
 export function canPlace(grid, modDef, x, y) {
+  if (modDef.effect && modDef.effect.kind === 'passive') return { ok: false, reason: 'passive' }; // пассивы ставятся только в угловые ячейки
   const c = grid.cell(x, y);
   if (!c) return { ok: false, reason: 'out' };
   if (c.core || c.mod) return { ok: false, reason: 'busy' };
@@ -73,7 +74,25 @@ const DIRS = [['t', 0, -1], ['r', 1, 0], ['b', 0, 1], ['l', -1, 0]];
  *   ok: сюда мод можно прикрепить, bad: этой детали он не подходит (грани щита красные у «Мощи»: у щита нет урона).
  * targets: клетки, куда мод можно поставить.
  */
+/** Можно ли поставить мод в угловую ячейку пассива id: пассив в любую пустую, Х2/Х3 только рядом с пассивом. */
+export function canPlacePassive(grid, modDef, id) {
+  const p = grid.pcells[id];
+  if (!p || p.mod) return false;
+  const k = modDef.effect && modDef.effect.kind;
+  if (k === 'passive') return true;
+  if (k === 'double') return grid.pNeighbors(id).some((n) => n.mod && n.mod.def.effect.kind === 'passive');
+  return false;
+}
+
 export function highlight(grid, modDef) {
+  const pt = grid.pcells.filter((p) => canPlacePassive(grid, modDef, p.id)).map((p) => p.id); // подсветка угловых ячеек
+  if (modDef.effect && modDef.effect.kind === 'passive') return { faces: [], targets: [], ptargets: pt };
+  const r = highlightMain(grid, modDef);
+  r.ptargets = pt;
+  return r;
+}
+
+function highlightMain(grid, modDef) {
   if (modDef.effect && modDef.effect.secondary) return { faces: [], targets: grid.cells.filter((c) => !c.core && !c.mod) }; // любая пустая клетка
   const owner = grid.branches();
   const faces = [];

@@ -1096,6 +1096,7 @@ export class Game {
     if (this.state === 'playing') {
       this.runTime += dt;
       const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
+      this.xp.radiusMul = this.build.passives().magnet; // пассив «Магнетизм»
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам
