@@ -107,7 +107,7 @@ export class Game {
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.apostles = new Apostles({ config, hero: this.hero, arena: this.arena, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
-    this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus });
+    this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
@@ -242,6 +242,11 @@ export class Game {
       actions: [
         { label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
         { label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },
+        { label: 'Апофеоз: Апостолы', run: () => this.apotheosis.force('apostles') },
+        { label: 'Апофеоз: Руки', run: () => this.apotheosis.force('hands') },
+        { label: 'Апофеоз: Лучи', run: () => this.apotheosis.force('beams') },
+        { label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
+        { label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
       ],
       build: o.build,
       getStats: () => ({
@@ -314,6 +319,8 @@ export class Game {
     this.bus.on('portal:closing', ({ portal }) => this.burst(portal.x, portal.y, 0.7, 20, 140, '#ffffff'));
     // Руки Апофеоза (ЗАГЛУШКИ вспышек): удар по полосе.
     this.bus.on('apotheosis:slam', ({ x, y }) => { this.burst(x, y, 0.5, 20, 120, '#6a4a7a'); this.sparks(x, y, 8, '#ff6a6a'); });
+    this.bus.on('apotheosis:crumble', ({ x, y, r }) => { this.burst(x, y, 0.5, 16, r * 1.4, '#3a3050'); this.sparks(x, y, 6, '#8a7aa8'); });
+    this.bus.on('apotheosis:flash', ({ parried }) => { const b = this.apotheosis.boss; if (b) { const h = this.apotheosis.headPos(); this.burst(h.x, h.y, 0.6, 24, 200, parried ? '#a8d8ff' : '#fff0b0'); this.sparks(h.x, h.y, 14, '#ffe58a'); } });
     // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
     this.bus.on('apostle:summon', ({ x, y }) => this.burst(x, y, 0.5, 10, 50, config.render.colors.snowLight));
     this.bus.on('apostle:heal', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.4, enemy.radius, enemy.radius * 2.2, '#9cffb0'));
