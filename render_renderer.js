@@ -660,7 +660,7 @@ export class Renderer {
     // Дальность автоатаки: еле заметное кольцо, по нему видно, кого герой достанет.
     if (hero.active && !(this.hud && this.hud.gameMode)) {
       ctx.beginPath();
-      ctx.arc(hx, hy, this.cfg.attack.radius, 0, TAU);
+      ctx.arc(hx, hy, this.cfg.attack.radius * (this.autoattack ? this.autoattack.rangeMul || 1 : 1), 0, TAU);
       ctx.lineWidth = 1.5 / s;
       ctx.strokeStyle = C.range;
       ctx.stroke();
@@ -715,6 +715,7 @@ export class Renderer {
     }
 
     this.drawFlash(viewL, viewR, viewT, viewB);
+    this.drawOmni();
     this.drawLasers(ctx);
     this.drawBolts(ctx);
     this.drawBlades(ctx);
@@ -1133,6 +1134,28 @@ export class Renderer {
     ctx.restore();
   }
 
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение «Единство». Заряд: четыре цветных кольца (вера, правда, сила, любовь) сходятся к голове босса.
+   */
+  drawOmni() {
+    const a = this.apotheosis;
+    if (!a || !a.boss || a.state !== 'omni-charge') return;
+    const o = a.headPos();
+    const k = Math.min(1, a.t / Math.max(0.01, a.boss.def.omni.castTime));
+    const cols = ['#ffffff', '#ffd24a', '#ff8a6a', '#ff9fcf'];
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      ctx.globalAlpha = 0.5 + 0.5 * k;
+      ctx.strokeStyle = cols[i];
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, a.boss.radius * (2.6 - 1.5 * k) + i * 7, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
   drawPortal() {
     const p = this.getPortal ? this.getPortal() : null;
@@ -1238,9 +1261,9 @@ export class Renderer {
       ctx.arc(e.x, e.y, e.radius * (3 - 2 * k), 0, TAU);
       ctx.stroke();
     }
-    if (a.pull && a.pull.e.active) { // притяжение: линия от Силы к герою
+    if (a.pull && a.pull.e.active) { // притяжение: линия от Силы к герою (отталкивание в негативе: голубая)
       ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = '#ff8a6a';
+      ctx.strokeStyle = a.pull.push ? '#6ad0ff' : '#ff8a6a';
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
@@ -1249,7 +1272,7 @@ export class Renderer {
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (a.boost() > 1) { // усилены Любовью: розовое кольцо вокруг остальных
+    if (a.loveT > 0) { // усилены Любовью: розовое кольцо вокруг остальных
       ctx.globalAlpha = 0.6;
       ctx.strokeStyle = '#ff9fcf';
       ctx.lineWidth = 2;
@@ -1260,6 +1283,59 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.radius + 6, 0, TAU);
         ctx.stroke();
+      }
+    }
+    // Выключенные апостолы (вторая фаза): тёмная оболочка лежит, тусклое кольцо мигает; в «Восстании» встаёт и светлеет.
+    for (let i = 0; i < a.husks.length; i++) {
+      const h = a.husks[i];
+      const k = h.k;
+      const e = k * k * (3 - 2 * k);
+      const rr = h.def ? h.def.radius : 16;
+      const shake = a.rise.state === 'stand' ? Math.sin(this.clock * 50 + i * 2) * 2 * (1 - e) : 0;
+      this.apoArt.husk(ctx, h.x + shake, h.y, rr, h.kind, k, e, (1 - e) * (i % 2 ? 1.45 : -1.45)); // лежит боком, встаёт
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.2 * Math.sin(this.clock * 2 + i) + 0.4 * e;
+      ctx.strokeStyle = k > 0 ? '#ff6a6a' : '#707080';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, rr * (1.6 + 0.6 * e), 0, TAU); // «выключено»: пунктир; встаёт: красное кольцо
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Негатив, Вера: клинки с неба. Красный круг сужается к удару, сверху падает светлая полоса, после удара остаётся след.
+    if (a.neg && a.rainCount > 0) {
+      const R = a.N.rain;
+      for (let i = 0; i < a.rainCount; i++) {
+        const b = a.rain[i];
+        if (b.state === 1) {
+          const k = Math.min(1, b.t / Math.max(0.01, R.fall));
+          ctx.globalAlpha = 0.35 + 0.4 * k;
+          ctx.fillStyle = '#d2283a';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R.radius, 0, TAU);
+          ctx.fill();
+          ctx.globalAlpha = 0.9;
+          ctx.strokeStyle = '#ff9a9a';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R.radius * (1.6 - 0.6 * k), 0, TAU);
+          ctx.stroke();
+          ctx.globalAlpha = 0.5 + 0.5 * k;
+          ctx.strokeStyle = '#fff6c8';
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(b.x, b.y - 520 * (1 - k));
+          ctx.lineTo(b.x, b.y - 520 * (1 - k) + 140);
+          ctx.stroke();
+        } else if (b.state === 2) {
+          const k = Math.min(1, b.t / Math.max(0.01, R.hold));
+          ctx.globalAlpha = 0.8 * (1 - k);
+          ctx.fillStyle = '#fff6c8';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, R.radius * (0.6 + 0.5 * k), 0, TAU);
+          ctx.fill();
+        }
       }
     }
     // Золотые клинки: ждущий висит ромбиком над головой, нацеленный показывает линию, вылетевший вспыхивает.
@@ -2021,8 +2097,10 @@ export class Renderer {
         ctx.restore();
       } else if (e.def.apostle) {
         this.apoArt.apostle(ctx, e, x, y, rr, hit);
+      } else if (e.def.risen) {
+        this.apoArt.risen(ctx, e, x, y, rr, hit);
       }
-      if (!e.def.sunHead && !e.def.apostle) {
+      if (!e.def.sunHead && !e.def.apostle && !e.def.risen) {
       ctx.beginPath();
       ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
@@ -3966,7 +4044,7 @@ export class Renderer {
       if (d.dashCd > 0) arc(r, -half, half, 1 - d.dashCd / d.dashCdMax, '#b79cff', 3);
     }
     // Здоровье: плавно проявляется, когда оно не полное, и исчезает при полном.
-    const maxHp = this.cfg.hero.maxHp || 1;
+    const maxHp = Math.round(hero.maxHp || this.cfg.hero.maxHp || 1);
     const full = hero.hp >= maxHp - 1e-6;
     U.hpShow += ((full ? 0 : 1) - U.hpShow) * (1 - Math.exp(-this.dt / (full ? 0.5 : 0.1)));
     if (full) U.hp = U.hpTrail = 1;

@@ -252,6 +252,9 @@ export class Game {
         { label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
         { label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
         { label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
+        { label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
+        { label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
+        { label: 'Апофеоз: Фаза 2, четыре умения сразу', run: () => this.apotheosis.force('omni') },
       ],
       build: o.build,
       getStats: () => ({
@@ -262,7 +265,7 @@ export class Game {
         effects: this.effects.count,
         gems: this.gems.count,
         level: this.xp.level + ' (' + Math.floor(this.xp.xp) + '/' + (this.xp.need || 'макс') + ')',
-        hp: Math.ceil(this.hero.hp) + '/' + config.hero.maxHp,
+        hp: Math.ceil(this.hero.hp) + '/' + Math.round(this.hero.maxHp),
         kills: this.kills,
         wave: this.waveLabel(),
         cap: this.hud.cap,
@@ -285,6 +288,8 @@ export class Game {
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
     this.bus.on('enemy:killed', ({ enemy, source }) => {
+      const vamp = this.build.passives().vamp; // пассив «Вампиризм»
+      if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
       this.kills++;
       this.hud.kills = this.kills;
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
@@ -324,6 +329,8 @@ export class Game {
     this.bus.on('portal:closing', ({ portal }) => this.burst(portal.x, portal.y, 0.7, 20, 140, '#ffffff'));
     // Руки Апофеоза (ЗАГЛУШКИ вспышек): удар по полосе.
     this.bus.on('apotheosis:slam', ({ x, y }) => { this.burst(x, y, 0.5, 20, 120, '#6a4a7a'); this.sparks(x, y, 8, '#ff6a6a'); });
+    this.bus.on('apostle:risen', ({ x, y }) => { this.burst(x, y, 0.4, 14, 60, '#8a8aa8'); this.sparks(x, y, 8, '#ff6a6a'); });
+    this.bus.on('apostle:rain-hit', ({ x, y }) => { this.burst(x, y, 0.4, 14, 70, '#fff6c8'); this.sparks(x, y, 6, '#ffe58a'); });
     this.bus.on('apotheosis:crumble', ({ x, y, r }) => { this.burst(x, y, 0.5, 16, r * 1.4, '#3a3050'); this.sparks(x, y, 6, '#8a7aa8'); });
     this.bus.on('apotheosis:flash', ({ parried }) => { const b = this.apotheosis.boss; if (b) { const h = this.apotheosis.headPos(); this.burst(h.x, h.y, 0.6, 24, 200, parried ? '#a8d8ff' : '#fff0b0'); this.sparks(h.x, h.y, 14, '#ffe58a'); } });
     // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
@@ -1177,6 +1184,20 @@ export class Game {
     if (this.state === 'playing') {
       this.runTime += dt;
       const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
+      { // пассивы из угловых ячеек
+        const ps = this.build.passives();
+        this.xp.radiusMul = ps.magnet;
+        this.xp.gainMul = ps.xp;
+        this.autoattack.rangeMul = ps.range;
+        const hh = this.hero;
+        hh.hpMul = ps.hp;
+        const want = this.config.hero.maxHp * ps.hp;
+        if (Math.abs(hh.maxHp - want) > 1e-6) { // здоровье выросло: прибавка сразу в запас; упало: запас обрезается
+          if (want > hh.maxHp) hh.hp += want - hh.maxHp;
+          hh.maxHp = want;
+          if (hh.hp > want) hh.hp = want;
+        }
+      }
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам

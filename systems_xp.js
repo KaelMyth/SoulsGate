@@ -101,7 +101,7 @@ export class Xp {
   /** Добавить опыт (с множителем скорости набора). Возвращает, сколько уровней взято. */
   add(amount, raw) {
     if (this.level >= this.maxLevel) return 0;
-    const got = raw ? amount : amount * this.cfg.xp.gainMult; // raw: без множителя скорости набора (обмен награды на опыт)
+    const got = raw ? amount : amount * this.cfg.xp.gainMult * (this.gainMul || 1); // raw: без множителя скорости набора (обмен награды на опыт)
     this.xp += got;
     this.total += got;
     let ups = 0;
@@ -122,7 +122,7 @@ export class Xp {
     const hero = this.hero;
     const c = this.cfg.xp;
     const items = this.gems.items;
-    const R = c.pickupRadius;
+    const R = c.pickupRadius * (this.radiusMul || 1); // Магнетизм расширяет подбор
     for (let i = 0; i < items.length; i++) {
       const g = items[i];
       if (!g.active) continue;

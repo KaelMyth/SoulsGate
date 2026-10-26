@@ -90,6 +90,34 @@ const ICONS = {
     ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
     ['path', S({ d: 'M26 5L28 8M5 24L3 27', 'stroke-width': 1.8, opacity: 0.7 })],
   ],
+  // Вампиризм: капля крови с клыком.
+  vamp: [
+    ['path', { d: 'M16 3C16 3 6.5 14 6.5 20A9.5 9.5 0 0 0 25.5 20C25.5 14 16 3 16 3Z', fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M11 19L13 25L15 19ZM17 19L19 25L21 19Z' }, HI)],
+  ],
+  // Множитель опыта: камень со стрелкой вверх.
+  xpmul: [
+    ['path', { d: 'M16 9L24 16L16 29L8 16Z', fill: 'currentColor' }],
+    ['path', S({ d: 'M16 2V8M12.5 5.5L16 2L19.5 5.5', 'stroke-width': 2.2 })],
+    ['path', Object.assign({ d: 'M16 12L20 16L16 22L12 16Z' }, HI)],
+  ],
+  // Бонусное здоровье: сердце с плюсом.
+  vitality: [
+    ['path', { d: 'M16 28C16 28 3.5 20 3.5 11.5A6.5 6.5 0 0 1 16 9A6.5 6.5 0 0 1 28.5 11.5C28.5 20 16 28 16 28Z', fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M14.6 12H17.4V14.6H20V17.4H17.4V20H14.6V17.4H12V14.6H14.6Z' }, HI)],
+  ],
+  // Дальность атаки: прицел.
+  reach: [
+    ['circle', S({ cx: 16, cy: 16, r: 9, 'stroke-width': 2.4 })],
+    ['circle', { cx: 16, cy: 16, r: 2.6, fill: 'currentColor' }],
+    ['path', S({ d: 'M16 2V8M16 24V30M2 16H8M24 16H30', 'stroke-width': 2.4 })],
+  ],
+  // Магнетизм: подкова с притягиваемыми точками.
+  magnet: [
+    ['path', S({ d: 'M8 5V15A8 8 0 0 0 24 15V5', 'stroke-width': 4.2 })],
+    ['path', Object.assign({ d: 'M5.5 5H10.5V9H5.5ZM21.5 5H26.5V9H21.5Z' }, HI)],
+    ['circle', { cx: 16, cy: 28, r: 1.7, fill: 'currentColor' }], ['circle', { cx: 11, cy: 27, r: 1.2, fill: 'currentColor', opacity: 0.7 }], ['circle', { cx: 21, cy: 27, r: 1.2, fill: 'currentColor', opacity: 0.7 }],
+  ],
   // Смертельная аура: поле вокруг точки.
   aura: [
     ['circle', { cx: 16, cy: 16, r: 3.4, fill: 'currentColor' }],

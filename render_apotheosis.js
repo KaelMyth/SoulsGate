@@ -100,6 +100,12 @@ const APOSTLE = {
   },
 };
 
+const RISEN = { // восставший апостол: костяная маска, короткие острые лучи, оскал
+  pal: BONE, rim: '#cfc8ff',
+  long: { n: 9, len: 1.65, w: 0.11, wave: 0.05, kind: 'blade' },
+  teeth: 0, eyes: 'angry', mouth: 'grit',
+};
+
 export class ApotheosisArt {
   constructor(renderer) {
     this.r = renderer;
@@ -572,41 +578,45 @@ export class ApotheosisArt {
    * (чёрное тело, бледное лицо, красные огни).
    */
   boss(ctx, e, x, y, R, hit, stunned) {
+    this.neg(ctx, x, y, R * 3, (c) => this.bossDraw(c, e, x, y, R, hit, stunned));
+  }
+
+  /** Рисует fn(ctx) в мире; в негативе (вторая фаза) через буфер с обратными цветами. S: половина стороны области. */
+  neg(ctx, x, y, S, fn) {
     const a = this.r.apotheosis;
     const neg = a ? a.negative : 0;
-    if (neg < 0.02) { this.bossDraw(ctx, e, x, y, R, hit, stunned); return; }
+    if (neg < 0.02) { fn(ctx); return; }
     const m = ctx.getTransform();
     const sc = Math.max(0.2, Math.hypot(m.a, m.b));
-    const W = R * 6;
-    const H = R * 6;
+    const W = S * 2;
     const pw = Math.ceil(W * sc);
-    const ph = Math.ceil(H * sc);
-    if (pw > 2600 || ph > 2600) { this.bossDraw(ctx, e, x, y, R, hit, stunned); return; }
+    if (pw > 2600) { fn(ctx); return; }
     let A = this.bufA;
     let B = this.bufB;
-    if (!A || A.width !== pw || A.height !== ph) {
-      A = this.bufA = this.mk(pw, ph);
-      B = this.bufB = this.mk(pw, ph);
+    if (!A || A.width < pw) {
+      A = this.bufA = this.mk(pw, pw);
+      B = this.bufB = this.mk(pw, pw);
     }
     const ca = A.getContext('2d');
     const cb = B.getContext('2d');
     ca.setTransform(1, 0, 0, 1, 0, 0);
-    ca.clearRect(0, 0, pw, ph);
-    ca.setTransform(sc, 0, 0, sc, pw / 2 - x * sc, ph / 2 - y * sc);
-    this.bossDraw(ca, e, x, y, R, hit, stunned);
+    ca.clearRect(0, 0, A.width, A.height);
+    ca.setTransform(sc, 0, 0, sc, pw / 2 - x * sc, pw / 2 - y * sc);
+    fn(ca);
     ca.setTransform(1, 0, 0, 1, 0, 0);
     // B = обратные цвета A в форме A: белый фон, разность с A, затем маска по прозрачности A.
     cb.setTransform(1, 0, 0, 1, 0, 0);
     cb.globalCompositeOperation = 'source-over';
     cb.globalAlpha = 1;
+    cb.clearRect(0, 0, B.width, B.height);
     cb.fillStyle = '#ffffff';
-    cb.fillRect(0, 0, pw, ph);
+    cb.fillRect(0, 0, pw, pw);
     cb.globalCompositeOperation = 'difference';
     cb.drawImage(A, 0, 0);
     cb.globalCompositeOperation = 'destination-in';
     cb.drawImage(A, 0, 0);
     cb.globalCompositeOperation = 'source-over';
-    ctx.drawImage(B, x - W / 2, y - H / 2, W, H);
+    ctx.drawImage(B, 0, 0, pw, pw, x - W / 2, y - W / 2, W, W);
   }
 
   mk(w, h) {
@@ -711,6 +721,45 @@ export class ApotheosisArt {
     });
     this.mask(ctx, x, hy, hr, {
       angle: Math.sin(t * 0.7) * 0.05, expr: kind === 'force' ? 0.15 : 0, pal, st, t, look: { x: lx, y: ly }, hit, glowA: 0.4,
+    });
+  }
+
+  // ---------- вторая фаза: оболочки и восставшие ----------
+
+  /** Восставший апостол: бегущая тёмная фигура с костяной маской, наклон по ходу. */
+  risen(ctx, e, x, y, rr, hit) {
+    const r = this.r;
+    const t = r.clock + e.x * 0.02;
+    const hero = r.hero;
+    const dx = hero ? hero.x - x : 0;
+    const lean = Math.max(-0.3, Math.min(0.3, dx * 0.01));
+    const hr = rr * 0.7;
+    this.neg(ctx, x, y, rr * 4, (c) => {
+      c.save();
+      c.translate(x, y);
+      c.rotate(lean);
+      c.translate(-x, -y + Math.sin(t * 14) * rr * 0.06);
+      this.robe(c, x, y - rr * 0.1, rr * 0.95, { t: t * 2, rim: '#cfc8ff', dk: 1, hit, fold: '#1b1d38', hem: 7, glowV: 'blue', haloA: 0.2, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
+      this.mask(c, x, y - rr * 1.2, hr, { angle: Math.sin(t * 9) * 0.12, expr: 0.8, pal: hit ? HITP : BONE, st: RISEN, t, look: { x: 0, y: 0.4 }, hit, glowA: 0.25 });
+      c.restore();
+    });
+  }
+
+  /** Выключенная оболочка апостола: лежит боком тусклая и мёртвая, при вставании светлеет (k, e 0..1). */
+  husk(ctx, x, y, rr, kind, k, e, rot) {
+    const t = this.r.clock;
+    const st = APOSTLE[kind] || RISEN;
+    const hr = rr * 0.62;
+    this.neg(ctx, x, y, rr * 4, (c) => {
+      c.save();
+      c.translate(x, y);
+      c.rotate(rot);
+      c.translate(-x, -y);
+      this.robe(c, x, y - rr * 0.1, rr * 0.92, { t, rim: '#9a96c0', dk: 0.6 * e, hit: false, fold: '#14162a', hem: 7, glowV: 'blue', haloA: 0.08 + 0.15 * e, spill: 0, spillV: 'blue', crack: '#ff4a5a' });
+      c.globalAlpha = 0.55 + 0.45 * e;
+      this.mask(c, x, y - rr * 1.2, hr, { angle: 0, expr: 0.3 + 0.6 * e, pal: palMix(BONE, INK, 0.55 * (1 - e)), st: Object.assign({}, st, { long: RISEN.long, mid: null, halo: false, teeth: 0 }), t, look: { x: 0, y: 0.4 }, hit: false, glowA: 0.1 + 0.2 * e });
+      c.globalAlpha = 1;
+      c.restore();
     });
   }
 }

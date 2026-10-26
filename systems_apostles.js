@@ -14,9 +14,27 @@
 //   Любовь: «благословение»: на love.time секунд эффекты остальных апостолов сильнее на love.boost (20%) от базы:
 //           лечение, число и урон клинков, скорость притяжения и урон взрыва. Умерла Любовь: усиление пропадает.
 //
+// ВТОРАЯ ФАЗА, «Призыв негативных апостолов» (requestSummon(delay, true), режим this.neg): те же четыре апостола, но умения усилены
+//   в negative.power раз (урон, число клинков, скорость, взрыв), у апостолов больше здоровья (negative.hpMult), а два умения другие:
+//   Вера:  вместо исцеления: rain.count клинков с неба в то место, где был герой rain.trailDelay секунд назад. Клинки падают
+//          друг за другом через rain.interval, перед ударом rain.fall секунд виден красный круг. Урон парируется.
+//   Сила:  вместо притяжения ОТТАЛКИВАЕТ героя от себя (push.speed). Если герой прижат к краю платформы (тяга почти не двигает его
+//          push.pinTime секунд подряд), взрыв прямо на нём. Рывок героя вырывается из отталкивания.
+//   Правда и Любовь те же, но сильнее.
+//   Убитый негативный апостол не исчезает: он остаётся «выключенным» (this.husks, лежит тёмной оболочкой).
+//
+// ВТОРАЯ ФАЗА, умение 3 «Единство» (castAll, зовёт оркестр босса): сам босс применяет все четыре умения сразу в негативной форме
+//   (e = босс): сперва Любовь (усиление остальным), затем Вера (клинки с неба), Правда (клинки от головы), Сила (отталкивание).
+//   anyBusy(): идут ли ещё клинки, дождь или отталкивание.
+//
+// ВТОРАЯ ФАЗА, умение 2 «Восстание» (startRise, зовёт оркестр босса): выключенные апостолы встают (rise.wait лежат, rise.standTime
+//   поднимаются) и превращаются в быстрых бегунов (enemies.apostleRisen): мало здоровья, бегут на героя, бьют касанием.
+//   Умение кончается, когда все они убиты: событие 'apostles:risen-defeated'.
+//
 // Графику рисует renderer: ЗАГЛУШКИ (круги телеграфов, линии, кольца).
 // События: 'apostle:summon' { x, y }, 'apostle:cast' { enemy, kind }, 'apostle:heal' { enemy },
-//          'apostle:explode' { x, y, hit }, 'apostle:blade-fly' { blade }.
+//          'apostle:explode' { x, y, hit }, 'apostle:blade-fly' { blade }, 'apostle:rain' { x, y } (клинок с неба нацелен),
+//          'apostle:rain-hit' { x, y, hit }, 'apostle:rise' { x, y } (начал вставать), 'apostle:risen' { x, y } (побежал).
 import { initEnemy } from './world_enemy.js';
 import { segDist } from './systems_boss.js';
 
@@ -51,6 +69,14 @@ export class Apostles {
         state: 0, aimed: false, active: false, hit: false, parryable: true, enemy: null, gold: true,
       });
     }
+    this.neg = false;     // вторая фаза: негативные апостолы
+    this.husks = [];      // выключенные апостолы: { x, y, def, kind, k } k: 0 лежит .. 1 стоит (для отрисовки)
+    this.rise = { state: 'off', t: 0 }; // 'off' | 'wait' | 'stand' | 'run'
+    this.rain = [];       // клинки с неба Веры (негатив): { x, y, state 0 ждёт | 1 круг | 2 удар | 3 нет, t, launchAt, src }
+    this.rainCount = 0;
+    this.rainT = 0;
+    this.trail = [];      // последние положения героя по кадрам (для клинков с неба «туда, где он был»)
+    this.lastDt = 1 / 60;
     this.bladeCount = 0;  // сколько клинков в идущей серии
     this.bladeNext = 0;
     this.bladeT = 0;
@@ -59,6 +85,8 @@ export class Apostles {
   }
 
   get A() { return this.boss ? this.boss.def.apostles : null; }
+
+  get N() { return this.boss ? this.boss.def.apostles.negative : null; }
 
   attach(boss) {
     this.reset();
@@ -74,6 +102,12 @@ export class Apostles {
     this.cast = null;
     this.pull = null;
     this.loveT = 0;
+    this.neg = false;
+    this.husks.length = 0;
+    this.rise.state = 'off';
+    this.rainCount = 0;
+    this.rain.length = 0;
+    this.trail.length = 0;
     this.bladeCount = 0;
     for (let i = 0; i < this.blades.length; i++) { this.blades[i].state = 0; this.blades[i].active = false; }
   }
@@ -88,12 +122,13 @@ export class Apostles {
       if (this.cast && this.cast.e === e) this.cast = null;
       if (this.pull && this.pull.e === e) this.pull = null;
       if (e.def.apostle === 'love') this.loveT = 0; // без Любви усиления нет
+      if (this.neg) this.husks.push({ x: e.x, y: e.y, def: e.def, kind: e.def.apostle, k: 0 }); // выключился, но остался лежать
     }
   }
 
   dismiss() {
     const it = this.enemies.items;
-    for (let i = 0; i < it.length; i++) if (it[i].def && it[i].def.apostle) it[i].active = false;
+    for (let i = 0; i < it.length; i++) if (it[i].def && (it[i].def.apostle || it[i].def.risen)) it[i].active = false;
   }
 
   alive() {
@@ -112,16 +147,24 @@ export class Apostles {
 
   /** Множитель усиления Любви: 1 или 1 + love.boost. */
   boost() {
+    return (this.loveT > 0 ? 1 + this.A.love.boost : 1) * (this.neg ? this.N.power : 1);
+  }
+
+  /** Усиление только Любви (без множителя негатива). */
+  loveMult() {
     return this.loveT > 0 ? 1 + this.A.love.boost : 1;
   }
 
   update(dt) {
     const boss = this.boss;
     this.updateBlades(dt); // клинки летят и после смерти Правды
+    this.updateRain(dt);
+    this.recordTrail(dt);
     if (!boss) return;
     if (!boss.active) { this.dismiss(); this.reset(); return; }
     const A = boss.def.apostles;
     if (this.loveT > 0) this.loveT -= dt;
+    this.updateRise(dt);
     this.t += dt;
     switch (this.state) {
       case 'idle':
@@ -149,8 +192,9 @@ export class Apostles {
   }
 
   /** Призвать апостолов снова через delay секунд (по умолчанию resummonDelay). Зовёт оркестр босса. */
-  requestSummon(delay) {
+  requestSummon(delay, negative) {
     if (!this.boss) return;
+    this.neg = !!negative;
     this.state = 'idle';
     this.cd = delay !== undefined ? delay : this.A.resummonDelay;
   }
@@ -158,6 +202,7 @@ export class Apostles {
   /** Занят ли апостол этого вида своим предыдущим умением (серия клинков или притяжение ещё идут). */
   busy(kind) {
     if (kind === 'truth') return this.bladeCount > 0;
+    if (kind === 'faith') return this.rainCount > 0; // клинки с неба ещё падают
     if (kind === 'force') return !!this.pull;
     return false;
   }
@@ -183,6 +228,7 @@ export class Apostles {
       if (!def) continue;
       const e = this.enemies.spawn();
       initEnemy(e, def, this.corners[i].x, this.corners[i].y);
+      if (this.neg) e.hp = e.maxHp = def.hp * this.N.hpMult;
       this.arena.resolveCircle(e); // остров ломаный: угол мог оказаться за кромкой
       e.prevX = e.x;
       e.prevY = e.y;
@@ -223,7 +269,7 @@ export class Apostles {
 
   resolve(kind, e, A) {
     const m = this.boost();
-    if (kind === 'faith') this.castFaith(e, A, m);
+    if (kind === 'faith') (this.neg ? this.castRain(e, A, m) : this.castFaith(e, A, m));
     else if (kind === 'truth') this.castTruth(e, A, m);
     else if (kind === 'force') this.castForce(e, A, m);
     else if (kind === 'love') this.castLove(A);
@@ -244,10 +290,200 @@ export class Apostles {
     this.loveT = A.love.time;
   }
 
+  // ---------- Единство: все четыре умения сразу от босса ----------
+
+  castAll(boss) {
+    const A = this.A;
+    this.castLove(A); // Любовь первой: остальные уже усилены
+    const m = this.boost();
+    this.castRain(boss, A, m);
+    this.castTruth(boss, A, m);
+    this.castForce(boss, A, m);
+  }
+
+  anyBusy() {
+    return this.bladeCount > 0 || this.rainCount > 0 || !!this.pull;
+  }
+
+  // ---------- Восстание: выключенные апостолы встают и бегут ----------
+
+  /** Отладка: если выключенных нет, положить по одному в углах платформы. */
+  makeHusks() {
+    const z = this.arena.zone;
+    if (!z || !this.boss) return;
+    const A = this.A;
+    const k = A.cornerInset;
+    const pts = [[z.left + k, z.top + k], [z.right - k, z.top + k], [z.right - k, z.bottom - k], [z.left + k, z.bottom - k]];
+    this.husks.length = 0;
+    for (let i = 0; i < 4; i++) {
+      const c = { x: pts[i][0], y: pts[i][1], radius: 16 };
+      this.arena.resolveCircle(c);
+      this.husks.push({ x: c.x, y: c.y, def: this.cfg.enemies[A.defs[A.order[i]]], kind: A.order[i], k: 0 });
+    }
+  }
+
+  startRise() {
+    if (!this.boss) return;
+    if (!this.husks.length) this.makeHusks();
+    this.rise.state = 'wait';
+    this.rise.t = 0;
+  }
+
+  /** Бегуны ещё живы? */
+  risenAlive() {
+    const it = this.enemies.items;
+    let n = 0;
+    for (let i = 0; i < it.length; i++) if (it[i].active && it[i].def && it[i].def.risen) n++;
+    return n;
+  }
+
+  updateRise(dt) {
+    const R = this.rise;
+    if (R.state === 'off') return;
+    const RC = this.N.rise;
+    R.t += dt;
+    if (R.state === 'wait') {
+      if (R.t >= RC.wait) {
+        R.state = 'stand';
+        R.t = 0;
+        for (let i = 0; i < this.husks.length; i++) this.bus.emit('apostle:rise', { x: this.husks[i].x, y: this.husks[i].y });
+      }
+    } else if (R.state === 'stand') {
+      const k = Math.min(1, R.t / Math.max(0.01, RC.standTime));
+      for (let i = 0; i < this.husks.length; i++) this.husks[i].k = k;
+      if (R.t >= RC.standTime) {
+        const def = this.cfg.enemies[RC.def];
+        for (let i = 0; i < this.husks.length; i++) {
+          const h = this.husks[i];
+          const e = this.enemies.spawn();
+          initEnemy(e, def, h.x, h.y);
+          this.arena.resolveCircle(e);
+          e.prevX = e.x;
+          e.prevY = e.y;
+          this.bus.emit('apostle:risen', { x: e.x, y: e.y });
+        }
+        this.husks.length = 0;
+        R.state = 'run';
+        R.t = 0;
+      }
+    } else if (R.state === 'run' && this.risenAlive() === 0) {
+      R.state = 'off';
+      this.bus.emit('apostles:risen-defeated', {});
+    }
+  }
+
+  // ---------- Негатив: Сила отталкивает ----------
+
+  updatePush(p, dt, A) {
+    const e = p.e;
+    const hero = this.hero;
+    const F = A.force;
+    const P = this.N.push;
+    if (p.t >= F.pullTime) { this.pull = null; return; }
+    if (hero.dashing) return; // рывок героя вырывается из отталкивания
+    let dx = hero.x - e.x;
+    let dy = hero.y - e.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-3) { dx = 0; dy = 1; } else { dx /= d; dy /= d; }
+    const step = P.speed * p.m * dt;
+    const x0 = hero.x;
+    const y0 = hero.y;
+    hero.x += dx * step;
+    hero.y += dy * step;
+    this.arena.resolveCircle(hero);
+    const moved = Math.hypot(hero.x - x0, hero.y - y0);
+    p.pinned = moved < step * P.pinRatio ? p.pinned + dt : Math.max(0, p.pinned - dt);
+    if (p.pinned >= P.pinTime && this.hero.invuln <= 0) { // прижат к краю платформы: взрыв на герое (в неуязвимости ждёт)
+      this.pullSrc.x = hero.x;
+      this.pullSrc.y = hero.y;
+      this.pullSrc.active = true;
+      this.combat.damageHero(F.damage * p.m, this.pullSrc);
+      this.bus.emit('apostle:explode', { x: hero.x, y: hero.y, hit: this.pullSrc.active });
+      this.pull = null;
+    }
+  }
+
+  // ---------- Негатив: Вера, клинки с неба ----------
+
+  recordTrail(dt) {
+    if (!this.neg || !this.hero.active) { if (this.trail.length) this.trail.length = 0; return; }
+    this.lastDt = dt;
+    this.trail.push(this.hero.x, this.hero.y);
+    if (this.trail.length > 240) this.trail.splice(0, 2); // около 2 секунд истории
+  }
+
+  /** Где был герой delay секунд назад (по кадрам). */
+  trailAt(delay) {
+    const n = this.trail.length / 2;
+    if (n === 0) return { x: this.hero.x, y: this.hero.y };
+    const back = Math.min(n - 1, Math.max(0, Math.round(delay / Math.max(1e-4, this.lastDt))));
+    const i = (n - 1 - back) * 2;
+    return { x: this.trail[i], y: this.trail[i + 1] };
+  }
+
+  castRain(e, A, m) {
+    const R = this.N.rain;
+    const n = Math.round(R.count * this.loveMult());
+    while (this.rain.length < n) this.rain.push({ x: 0, y: 0, state: 3, t: 0, launchAt: 0, src: { x: 0, y: 0, active: true, parryable: true, enemy: null } });
+    for (let i = 0; i < n; i++) {
+      const b = this.rain[i];
+      b.state = 0;
+      b.t = 0;
+      b.launchAt = i * R.interval;
+      b.dmg = R.damage * this.N.power;
+    }
+    this.rainCount = n;
+    this.rainT = 0;
+  }
+
+  updateRain(dt) {
+    const n = this.rainCount;
+    if (n <= 0) return;
+    const R = this.cfg.enemies.apotheosis.apostles.negative.rain;
+    const hero = this.hero;
+    this.rainT += dt;
+    let live = 0;
+    for (let i = 0; i < n; i++) {
+      const b = this.rain[i];
+      if (b.state === 3) continue;
+      live++;
+      if (b.state === 0) {
+        if (this.rainT < b.launchAt) continue;
+        const p = this.trailAt(R.trailDelay); // место, где герой был недавно
+        b.x = p.x;
+        b.y = p.y;
+        b.state = 1;
+        b.t = 0;
+        this.bus.emit('apostle:rain', { x: b.x, y: b.y });
+      } else if (b.state === 1) {
+        b.t += dt;
+        if (b.t >= R.fall) {
+          b.state = 2;
+          b.t = 0;
+          let hit = false;
+          if (hero.active) {
+            const dx = hero.x - b.x;
+            const dy = hero.y - b.y;
+            if (dx * dx + dy * dy <= (R.radius + hero.radius * 0.5) * (R.radius + hero.radius * 0.5)) {
+              b.src.x = b.x; b.src.y = b.y; b.src.active = true;
+              this.combat.damageHero(b.dmg, b.src); // парируется (источник гаснет)
+              hit = b.src.active;
+            }
+          }
+          this.bus.emit('apostle:rain-hit', { x: b.x, y: b.y, hit });
+        }
+      } else if (b.state === 2) {
+        b.t += dt;
+        if (b.t >= R.hold) b.state = 3;
+      }
+    }
+    if (live === 0) this.rainCount = 0;
+  }
+
   // ---------- Сила: притяжение ----------
 
   castForce(e, A, m) {
-    this.pull = { e, t: 0, m };
+    this.pull = { e, t: 0, m, push: this.neg, pinned: 0 };
   }
 
   updatePull(dt, A) {
@@ -258,6 +494,7 @@ export class Apostles {
     if (!e.active || !hero.active) { this.pull = null; return; }
     const F = A.force;
     p.t += dt;
+    if (p.push) { this.updatePush(p, dt, A); return; }
     const dx = e.x - hero.x;
     const dy = e.y - hero.y;
     const d = Math.hypot(dx, dy);
