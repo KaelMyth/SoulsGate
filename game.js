@@ -34,6 +34,7 @@ import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
 import { ModeScreen } from './ui_mode-screen.js';
+import { SettingsScreen } from './ui_settings.js';
 import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
@@ -229,7 +230,8 @@ export class Game {
     this.burnSource = { burn: true, active: true };
     this.mode = 'test';
     this.testValues = null;
-    this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m));
+    this.settings = new SettingsScreen(o.uiRoot, config); // временные настройки: число модов в пуле наград
+    this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m), () => this.settings.show());
 
     this.stepper = new FixedStepper(config.step);
     this.meter = new FpsMeter();

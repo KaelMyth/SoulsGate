@@ -46,6 +46,7 @@ export class PauseUI {
     this.main = h('div', { class: 'card', id: 'pause-main' }, this.builder.root, this.tools, this.mainRow, this.previewRow);
     this.menu = h('div', { class: 'card', id: 'menu-card', hidden: '' },
       h('h2', {}, 'Меню'),
+      h('button', { id: 'menu-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
       h('button', { id: 'menu-new', type: 'button', onclick: () => handlers.onRestart() }, 'Новая игра'),
       h('button', { id: 'menu-exit', class: 'secondary', type: 'button', onclick: () => handlers.onExit() }, 'Выход'));
     this.screen = h('div', { id: 'pause-screen', hidden: '' }, this.main, this.menu);
