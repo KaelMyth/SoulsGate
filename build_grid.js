@@ -90,13 +90,14 @@ export class BuildGrid {
    */
   passives() {
     if (this._pVer === this.ver && this._p) return this._p;
-    const res = { magnet: 1 };
+    const res = { magnet: 1, xp: 1, hp: 1, range: 1, vamp: 0 }; // магнетизм, опыт, здоровье, дальность: множители; вампиризм: лечение за убийство
     for (const p of this.pcells) {
       if (!p.mod || p.mod.def.effect.kind !== 'passive') continue;
       let f = 1;
       for (const n of this.pNeighbors(p.id)) if (n.mod && n.mod.def.effect.kind === 'double') f += n.mod.def.effect.value - 1;
       const e = p.mod.def.effect;
-      if (e.passive === 'magnet') res.magnet *= 1 + (e.value - 1) * f;
+      if (e.passive === 'vamp') res.vamp += e.value * f;
+      else if (e.passive in res) res[e.passive] *= 1 + (e.value - 1) * f;
     }
     this._p = res;
     this._pVer = this.ver;

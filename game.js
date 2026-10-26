@@ -265,7 +265,7 @@ export class Game {
         effects: this.effects.count,
         gems: this.gems.count,
         level: this.xp.level + ' (' + Math.floor(this.xp.xp) + '/' + (this.xp.need || 'макс') + ')',
-        hp: Math.ceil(this.hero.hp) + '/' + config.hero.maxHp,
+        hp: Math.ceil(this.hero.hp) + '/' + Math.round(this.hero.maxHp),
         kills: this.kills,
         wave: this.waveLabel(),
         cap: this.hud.cap,
@@ -288,6 +288,8 @@ export class Game {
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
     this.bus.on('enemy:killed', ({ enemy, source }) => {
+      const vamp = this.build.passives().vamp; // пассив «Вампиризм»
+      if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
       this.kills++;
       this.hud.kills = this.kills;
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
@@ -1182,7 +1184,20 @@ export class Game {
     if (this.state === 'playing') {
       this.runTime += dt;
       const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
-      this.xp.radiusMul = this.build.passives().magnet; // пассив «Магнетизм»
+      { // пассивы из угловых ячеек
+        const ps = this.build.passives();
+        this.xp.radiusMul = ps.magnet;
+        this.xp.gainMul = ps.xp;
+        this.autoattack.rangeMul = ps.range;
+        const hh = this.hero;
+        hh.hpMul = ps.hp;
+        const want = this.config.hero.maxHp * ps.hp;
+        if (Math.abs(hh.maxHp - want) > 1e-6) { // здоровье выросло: прибавка сразу в запас; упало: запас обрезается
+          if (want > hh.maxHp) hh.hp += want - hh.maxHp;
+          hh.maxHp = want;
+          if (hh.hp > want) hh.hp = want;
+        }
+      }
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам

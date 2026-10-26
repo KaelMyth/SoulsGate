@@ -658,7 +658,7 @@ export class Renderer {
     // Дальность автоатаки: еле заметное кольцо, по нему видно, кого герой достанет.
     if (hero.active && !(this.hud && this.hud.gameMode)) {
       ctx.beginPath();
-      ctx.arc(hx, hy, this.cfg.attack.radius, 0, TAU);
+      ctx.arc(hx, hy, this.cfg.attack.radius * (this.autoattack ? this.autoattack.rangeMul || 1 : 1), 0, TAU);
       ctx.lineWidth = 1.5 / s;
       ctx.strokeStyle = C.range;
       ctx.stroke();
@@ -4087,7 +4087,7 @@ export class Renderer {
       if (d.dashCd > 0) arc(r, -half, half, 1 - d.dashCd / d.dashCdMax, '#b79cff', 3);
     }
     // Здоровье: плавно проявляется, когда оно не полное, и исчезает при полном.
-    const maxHp = this.cfg.hero.maxHp || 1;
+    const maxHp = Math.round(hero.maxHp || this.cfg.hero.maxHp || 1);
     const full = hero.hp >= maxHp - 1e-6;
     U.hpShow += ((full ? 0 : 1) - U.hpShow) * (1 - Math.exp(-this.dt / (full ? 0.5 : 0.1)));
     if (full) U.hp = U.hpTrail = 1;

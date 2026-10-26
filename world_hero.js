@@ -4,6 +4,8 @@ export class Hero {
   constructor(cfg) {
     this.cfg = cfg; // { speed, accelTime, radius, maxHp, iFrames }
     this.active = true; // жив; нужно слою столкновений
+    this.maxHp = cfg.maxHp; // с пассивом «Бонусное здоровье» больше
+    this.hpMul = 1;
     this.hp = cfg.maxHp;
     this.invuln = 0;    // сколько ещё секунд неуязвим
     this.x = 0;
@@ -81,7 +83,8 @@ export class Hero {
   /** Новая жизнь: в центр арены, полное здоровье. */
   reset() {
     this.place(0, 0);
-    this.hp = this.cfg.maxHp;
+    this.maxHp = this.cfg.maxHp * this.hpMul;
+    this.hp = this.maxHp;
     this.active = true;
     this.invuln = 0;
     this.facing = -Math.PI / 2;

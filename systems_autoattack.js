@@ -59,6 +59,7 @@ export class AutoAttack {
     this.bus = o.bus;
     this.modifiers = o.modifiers || null; // (coreId) => { стат: { percent, flat } }
     this.rnd = o.rnd || Math.random;
+    this.rangeMul = 1;  // пассив «Дальность атаки»
     this.timer = 0;
     this.acc = 1;       // поток (больше streamFrom снарядов): накопленные к выпуску снаряды
     this.target = null; // нужна отрисовке: метка на цели
@@ -85,7 +86,7 @@ export class AutoAttack {
     this.timer -= dt;
     const def = this.cfg.projectiles[atk.projectile];
     const arena = atk.requireLineOfSight ? this.arena : null;
-    const target = findNearest(this.enemies.items, hero.x, hero.y, atk.radius, arena, def.radius, this.grid);
+    const target = findNearest(this.enemies.items, hero.x, hero.y, atk.radius * this.rangeMul, arena, def.radius, this.grid);
     this.target = target;
     // Потолок снарядов: множители конструктора иначе заполнят мир выстрелами. Пока слотов нет, ждём.
     const lim = this.cfg.limits;
@@ -149,6 +150,7 @@ export class AutoAttack {
         initProjectile(p, def, hero.x + nx * side + fx * back, hero.y + ny * side + fy * back, dx, dy, hero);
         p.damage = applyMod(p.damage, m && m.damage) * pen;
         p.glow = countGlow(count);
+        p.range *= this.rangeMul;
         setBurn(p, this.cfg, m);
         if (!first) first = p;
         fired++;
@@ -184,7 +186,7 @@ export class AutoAttack {
       const a = base + (t * 2 - 1) * half;
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
       const fx = (i & 1) === 0; // половина несёт эффекты
-      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range, dmg,
+      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range * this.rangeMul, dmg,
         fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0, pc);
     }
     hero.facing = base;
@@ -198,13 +200,13 @@ export class AutoAttack {
     const en = this.enemies.items;
     const out = this.cand || (this.cand = []);
     out.length = 0;
-    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius) : en.length;
+    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius * this.rangeMul) : en.length;
     const buf = this.grid ? this.grid.buf : null;
     for (let k = 0; k < n; k++) {
       const e = en[buf ? buf[k] : k];
       if (!e || !e.active) continue;
       const d = Math.hypot(e.x - hero.x, e.y - hero.y);
-      if (d > atk.radius) continue;
+      if (d > atk.radius * this.rangeMul) continue;
       if (atk.requireLineOfSight && this.arena && this.arena.segmentBlocked(hero.x, hero.y, e.x, e.y, 4)) continue;
       out.push({ e, d });
     }
@@ -235,7 +237,7 @@ export class AutoAttack {
       const dy = t.y - hero.y;
       const len = Math.hypot(dx, dy) || 1;
       this.lasers.push({
-        x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
+        x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length * this.rangeMul, len),
         target: t, pierce: 0, // конец луча следует за целью и упирается в первого врага на пути
         width: ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0, tick: ls.tick, big: ls.big,
         burnDmg,
@@ -274,6 +276,7 @@ export class AutoAttack {
     if (!p) return;
     initProjectile(p, def, hero.x - fy * side + fx * back, hero.y + fx * side + fy * back, dx * c - dy * sn, dx * sn + dy * c, hero);
     p.glow = countGlow(count);
+    p.range *= this.rangeMul;
     p.damage = applyMod(p.damage, m && m.damage) * countPenalty(this.cfg, count);
     setBurn(p, this.cfg, m);
     hero.facing = Math.atan2(dy, dx);
