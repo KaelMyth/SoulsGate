@@ -3,6 +3,7 @@
 
 import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
+import { DashFx } from './render_dashfx.js';
 
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
@@ -554,6 +555,9 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
+    this.dashfx = new DashFx(this); // эффекты рывков, костров и героя-молнии (render_dashfx.js)
+    this.dashKind = 0;     // стихия кинетического рывка (0 нет, 1 огонь, 2 мороз, 3 пар): выставляет игра
+    this.dashKinetic = false;
     this.hitfx = new HitFx(this); // частицы попаданий по врагам (render_hitfx.js)
     this.beetleState = new WeakMap();
     this.fxSeed = new WeakMap(); // зерно врага для внешнего вида его состояний (лёд, огонь) // у каждого жука свой угол поворота и фаза анимации (только для вида)
@@ -701,6 +705,7 @@ export class Renderer {
 
     if (hero.active) {
       this.drawAura(ctx, hx, hy);
+      this.dashfx.frame(ctx, this.dt, hx, hy);
       if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния: герой превращается в молнию
       else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
@@ -4637,17 +4642,7 @@ export class Renderer {
 
   /** Герой-молния (рывок с Молнией): яркий шар с ореолом. */
   drawLightHero(ctx, hx, hy) {
-    const r = this.hero.radius;
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = this.cfg.lightdash.color;
-    ctx.beginPath();
-    ctx.arc(hx, hy, r * 2.2, 0, TAU);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(hx, hy, r * 0.9, 0, TAU);
-    ctx.fill();
+    this.dashfx.drawLightHero(ctx, hx, hy, this.lightdash.kind);
   }
 
   /** Молнии рывка и разрядов электризации: ломаные с дрожью, гаснут за 0.25 с. */
@@ -4700,26 +4695,8 @@ export class Renderer {
 
   /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
   drawFires(ctx) {
-    const fs = this.fires;
-    if (!fs.length) return;
     const F = this.cfg.kinetic;
-    const t = this.clock;
-    for (let i = 0; i < fs.length; i++) {
-      const f = fs[i];
-      const k = 1 - f.age / F.fireLife;
-      const fl = 0.8 + 0.2 * Math.sin(t * 17 + i * 1.9);
-      ctx.globalAlpha = 0.28 * Math.min(1, k * 2);
-      ctx.fillStyle = F.color;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, F.fireRadius * (0.8 + 0.2 * k), 0, TAU);
-      ctx.fill();
-      ctx.globalAlpha = 0.75 * Math.min(1, k * 2);
-      ctx.fillStyle = '#ffd36a';
-      ctx.beginPath();
-      ctx.arc(f.x, f.y - 3 * fl, F.fireRadius * 0.38 * fl * (0.5 + 0.5 * k), 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    this.dashfx.drawFires(ctx, this.fires, F.fireLife, F.fireRadius);
   }
 
   /**
