@@ -207,6 +207,10 @@ export class Blades {
         const dy = t.y - b.y;
         if (dx * dx + dy * dy <= r * r) {
           const bd = b.mul ? dmg * b.mul : dmg; // фантомный клинок бьёт чуть иначе (phantom.damageFrac)
+          this.source.kind = b.kind | 0; // для эффекта попадания (только вид)
+          this.source.gen = b.gen | 0;
+          this.source.dx = Math.cos(b.a);
+          this.source.dy = Math.sin(b.a);
           this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
           if (t.active) this.applyEffects(t, m, bd);
           if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0);
