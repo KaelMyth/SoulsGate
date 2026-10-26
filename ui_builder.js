@@ -5,7 +5,7 @@
 import { h, clear } from './ui_dom.js';
 import { piece, tileOfMod, tileOfCore, slab } from './ui_stone.js';
 import { coreStats } from './build_cores.js';
-import { canPlace, highlight } from './build_rules.js';
+import { canPlace, canPlacePassive, highlight } from './build_rules.js';
 
 const DRAG_START_PX = 8;
 
@@ -17,7 +17,9 @@ export class BuilderUI {
     this.fresh = -1; // ячейка хранилища с только что полученным модом
     this.sel = null; // { kind: 'core', id } | { kind: 'shelf', index } | { kind: 'placed', x, y }
     this.board = h('div', { class: 'board' });
-    this.wrap = h('div', { class: 'board-wrap' }, this.board);
+    // Угловые группы ячеек пассивов (по 2×2 в каждом углу меню).
+    this.corners = [0, 1, 2, 3].map((k) => h('div', { class: 'pcorner c' + k }));
+    this.wrap = h('div', { class: 'board-wrap' }, this.board, ...this.corners);
     this.info = h('div', { class: 'core-info' });
     this.shelf = h('div', { class: 'shelf' });
     this.root = h('div', { class: 'builder' }, this.shelf, this.wrap, this.info);
@@ -80,9 +82,64 @@ export class BuilderUI {
     return true;
   }
 
+  /** Мод из хранилища в угловую ячейку пассива. */
+  placePassiveFromShelf(index, id) {
+    const mod = this.storage.slots[index];
+    if (!mod || !canPlacePassive(this.grid, mod.def, id)) return false;
+    this.storage.slots[index] = null;
+    this.grid.placePassive(mod, id);
+    this.sel = { kind: 'pplaced', id };
+    this.rebuild();
+    return true;
+  }
+
+  /** Вернуть мод из угловой ячейки в хранилище вместе с Х2/Х3, оставшимися без пассива. */
+  returnPassiveToShelf(id) {
+    const p = this.grid.pcells[id];
+    if (!p || !p.mod) return false;
+    const probe = this.grid.takePassive(id);
+    const orph = this.grid.passiveOrphans();
+    const free = this.storage.slots.filter((s) => s === null).length;
+    if (free < 1 + orph.length) {
+      this.grid.placePassive(probe, id);
+      return false;
+    }
+    this.storage.add(probe);
+    for (const o of orph) this.storage.add(this.grid.takePassive(o.id));
+    this.sel = null;
+    this.rebuild();
+    return true;
+  }
+
+  /** Перенос между угловыми ячейками. */
+  movePassive(from, to) {
+    const a = this.grid.pcells[from];
+    const b = this.grid.pcells[to];
+    if (!a || !a.mod || !b || b.mod || from === to) return false;
+    const mod = this.grid.takePassive(from);
+    const orph = this.grid.passiveOrphans();
+    const free = this.storage.slots.filter((s) => s === null).length;
+    if (free < orph.length || !canPlacePassive(this.grid, mod.def, to)) {
+      this.grid.placePassive(mod, from);
+      return false;
+    }
+    for (const o of orph) this.storage.add(this.grid.takePassive(o.id));
+    this.grid.placePassive(mod, to);
+    this.sel = { kind: 'pplaced', id: to };
+    this.rebuild();
+    return true;
+  }
+
   /** Подсветка для выбранного мода: у мода на поле считается так, будто он уже снят (его можно переставить). */
   highlightFor(sel, mod) {
     if (sel.kind === 'shelf' || sel.kind === 'preview') return highlight(this.grid, mod.def);
+    if (sel.kind === 'pplaced') {
+      const taken = this.grid.takePassive(sel.id);
+      const hl = highlight(this.grid, taken.def);
+      this.grid.placePassive(taken, sel.id);
+      hl.ptargets = hl.ptargets.filter((i) => i !== sel.id);
+      return hl;
+    }
     const taken = this.grid.takeMod(sel.x, sel.y);
     const hl = highlight(this.grid, taken.def);
     this.grid.placeMod(taken, sel.x, sel.y);
@@ -109,6 +166,7 @@ export class BuilderUI {
       const c = this.grid.cell(s.x, s.y);
       return c ? c.mod : null;
     }
+    if (s.kind === 'pplaced') return this.grid.pcells[s.id] ? this.grid.pcells[s.id].mod : null;
     return null;
   }
 
@@ -160,6 +218,29 @@ export class BuilderUI {
       this.cellEls.push(el);
       this.board.append(el);
     }
+    // Угловые ячейки пассивов.
+    for (const c of this.corners) clear(c);
+    this.pEls = [];
+    for (const p of g.pcells) {
+      const el = h('button', { type: 'button', class: 'pcell', 'data-p': String(p.id), 'aria-label': p.mod ? p.mod.def.name : 'Пустая ячейка пассива' });
+      if (p.mod) {
+        el.classList.toggle('has', true);
+        el.setAttribute('data-mod', p.mod.key);
+        el.append(piece(tileOfMod(p.mod.key, p.mod.def), p.mod.def.icon));
+        this.attachDrag(el, { from: 'pplaced', id: p.id }, p.mod, () => this.select({ kind: 'pplaced', id: p.id }));
+      } else {
+        el.addEventListener('click', () => this.tapPassive(p.id));
+      }
+      this.pEls.push(el);
+      this.corners[p.corner].append(el);
+    }
+    this.refresh();
+  }
+
+  tapPassive(id) {
+    if (this.sel && this.sel.kind === 'shelf' && this.placePassiveFromShelf(this.sel.index, id)) return;
+    if (this.sel && this.sel.kind === 'pplaced' && this.movePassive(this.sel.id, id)) return;
+    this.sel = null;
     this.refresh();
   }
 
@@ -190,6 +271,11 @@ export class BuilderUI {
       }
       for (const f of faces.get(i) || []) el.classList.toggle((f.kind === 'ok' ? 'fg-' : 'fr-') + f.dir, true);
     });
+    const ptargets = new Set(hl && hl.ptargets ? hl.ptargets : []);
+    this.pEls.forEach((el, i) => {
+      el.classList.toggle('selected', !!sel && sel.kind === 'pplaced' && sel.id === i);
+      el.classList.toggle('target', ptargets.has(i));
+    });
     this.slotEls.forEach((el, i) => {
       el.classList.toggle('selected', !!sel && sel.kind === 'shelf' && sel.index === i);
       el.classList.toggle('fresh', this.fresh === i && !!sel && sel.kind === 'shelf' && sel.index === i); // новый мод из награды мигает, пока не тронули
@@ -206,6 +292,11 @@ export class BuilderUI {
       if (sel.kind === 'placed') {
         this.info.append(h('button', {
           id: 'mod-return', type: 'button', class: 'small', onclick: () => this.returnToShelf(sel.x, sel.y),
+        }, 'В хранилище'));
+      }
+      if (sel.kind === 'pplaced') {
+        this.info.append(h('button', {
+          id: 'mod-return', type: 'button', class: 'small', onclick: () => this.returnPassiveToShelf(sel.id),
         }, 'В хранилище'));
       }
       return;
@@ -241,9 +332,15 @@ export class BuilderUI {
       if (!wasDrag || cancelled || typeof document.elementFromPoint !== 'function') return;
       this.suppressClick = true;
       let t = document.elementFromPoint(e.clientX, e.clientY);
-      while (t && !(t.classList && (t.classList.contains('cell') || t.classList.contains('shelf')))) t = t.parentElement;
+      while (t && !(t.classList && (t.classList.contains('cell') || t.classList.contains('pcell') || t.classList.contains('shelf')))) t = t.parentElement;
       if (!t) return;
-      if (src.from === 'shelf' && t.classList.contains('cell')) {
+      if (src.from === 'shelf' && t.classList.contains('pcell')) {
+        this.placePassiveFromShelf(src.index, +t.getAttribute('data-p'));
+      } else if (src.from === 'pplaced' && t.classList.contains('pcell')) {
+        this.movePassive(src.id, +t.getAttribute('data-p'));
+      } else if (src.from === 'pplaced' && t.classList.contains('shelf')) {
+        this.returnPassiveToShelf(src.id);
+      } else if (src.from === 'shelf' && t.classList.contains('cell')) {
         this.placeFromShelf(src.index, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
       } else if (src.from === 'placed' && t.classList.contains('cell')) {
         this.moveOnField(src.x, src.y, +t.getAttribute('data-x'), +t.getAttribute('data-y'));

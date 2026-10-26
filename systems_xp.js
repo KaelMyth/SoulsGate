@@ -122,7 +122,7 @@ export class Xp {
     const hero = this.hero;
     const c = this.cfg.xp;
     const items = this.gems.items;
-    const R = c.pickupRadius;
+    const R = c.pickupRadius * (this.radiusMul || 1); // Магнетизм расширяет подбор
     for (let i = 0; i < items.length; i++) {
       const g = items[i];
       if (!g.active) continue;

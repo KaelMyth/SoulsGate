@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 7 · сборка 45 (пробитие, дробь и лазер на рывке, стихии молнии)';
+export const BUILD = 'этап 7 · сборка 46 (пассивы: угловые ячейки, Магнетизм)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -13,8 +13,8 @@ export const CONFIG = {
   build: {
     size: 7,
     minCoreDistance: 5,
-    storageSlots: 16,  // ячеек в ряду хранилища над полем
-    startMods: ['lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    storageSlots: 17,  // ячеек в ряду хранилища над полем
+    startMods: ['magnet', 'lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -111,6 +111,12 @@ export const CONFIG = {
       icon: 'lightning',
       description: 'Электризует врага. После 4 зарядов он разряжается и бьёт молнией ближайших врагов. С Горением и Морозом молния несёт их эффекты, а все три вместе вызывают паровые взрывы',
       effect: { kind: 'lightning' },
+    },
+    magnet: {
+      name: 'Магнетизм',
+      icon: 'magnet',
+      description: 'Пассив для угловой ячейки. Камни опыта притягиваются с расстояния в 1.5 раза больше. Рядом можно поставить Х2 или Х3',
+      effect: { kind: 'passive', passive: 'magnet', value: 1.5 },
     },
     kinetic: {
       name: 'Кинетический рывок',
@@ -804,7 +810,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1, magnet: 1,
     },
   },
 
