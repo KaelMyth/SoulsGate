@@ -4719,7 +4719,7 @@ export class Renderer {
     if (!au || !au.active) return;
     const R = au.radius;
     const t = this.clock;
-    const pl = au.pulse || 0;
+    // au.pulse (вздрагивание на тике) не используем: поле спокойное
     // Искажение: копия экрана под полем, нарисованная обратно с лёгким увеличением вложенными дисками.
     const m = ctx.getTransform();
     const sc = Math.hypot(m.a, m.b);
@@ -4738,7 +4738,7 @@ export class Renderer {
       const rings = 4;
       for (let i = 1; i < rings; i++) {
         const rr = R * (1 - i / rings * 0.78);
-        const k = 1 + (0.012 + 0.012 * i) * (1 + 0.5 * Math.sin(t * 1.5 + i * 1.3)) * (1 + pl * 1.2);
+        const k = 1 + (0.012 + 0.012 * i) * (1 + 0.15 * Math.sin(t * 0.5 + i * 1.3)); // почти неподвижное линзирование, без дрожи и вздрагивания на тике
         ctx.save();
         ctx.beginPath();
         ctx.arc(0, 0, rr, 0, TAU);
@@ -4758,7 +4758,7 @@ export class Renderer {
     gr.addColorStop(0, 'rgba(' + tint + ',0)');
     gr.addColorStop(0.7, 'rgba(' + tint + ',' + (kd ? 0.09 : 0.05) + ')');
     gr.addColorStop(1, 'rgba(' + tint + ',0)');
-    ctx.globalAlpha = 1 + pl * 0.8;
+    ctx.globalAlpha = 1;
     ctx.fillStyle = gr;
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, TAU);
@@ -4771,7 +4771,7 @@ export class Renderer {
     for (let i = 0; i < sw; i++) {
       const u = (t * 0.27 + i / sw) % 1;
       const vis = Math.sin(Math.PI * u);
-      const al = vis * vis * (0.55 + 0.6 * pl);
+      const al = vis * vis * 0.75;
       if (al < 0.02) continue;
       const dir = i % 2 ? -1 : 1;
       const base = (i * 2.399 + Math.floor(t * 0.27 + i / sw) * 1.7) + dir * u * 1.4;
