@@ -21,11 +21,16 @@
 //   Сила:  вместо притяжения ОТТАЛКИВАЕТ героя от себя (push.speed). Если герой прижат к краю платформы (тяга почти не двигает его
 //          push.pinTime секунд подряд), взрыв прямо на нём. Рывок героя вырывается из отталкивания.
 //   Правда и Любовь те же, но сильнее.
+//   Убитый негативный апостол не исчезает: он остаётся «выключенным» (this.husks, лежит тёмной оболочкой).
+//
+// ВТОРАЯ ФАЗА, умение 2 «Восстание» (startRise, зовёт оркестр босса): выключенные апостолы встают (rise.wait лежат, rise.standTime
+//   поднимаются) и превращаются в быстрых бегунов (enemies.apostleRisen): мало здоровья, бегут на героя, бьют касанием.
+//   Умение кончается, когда все они убиты: событие 'apostles:risen-defeated'.
 //
 // Графику рисует renderer: ЗАГЛУШКИ (круги телеграфов, линии, кольца).
 // События: 'apostle:summon' { x, y }, 'apostle:cast' { enemy, kind }, 'apostle:heal' { enemy },
 //          'apostle:explode' { x, y, hit }, 'apostle:blade-fly' { blade }, 'apostle:rain' { x, y } (клинок с неба нацелен),
-//          'apostle:rain-hit' { x, y, hit }.
+//          'apostle:rain-hit' { x, y, hit }, 'apostle:rise' { x, y } (начал вставать), 'apostle:risen' { x, y } (побежал).
 import { initEnemy } from './world_enemy.js';
 import { segDist } from './systems_boss.js';
 
@@ -61,6 +66,8 @@ export class Apostles {
       });
     }
     this.neg = false;     // вторая фаза: негативные апостолы
+    this.husks = [];      // выключенные апостолы: { x, y, def, kind, k } k: 0 лежит .. 1 стоит (для отрисовки)
+    this.rise = { state: 'off', t: 0 }; // 'off' | 'wait' | 'stand' | 'run'
     this.rain = [];       // клинки с неба Веры (негатив): { x, y, state 0 ждёт | 1 круг | 2 удар | 3 нет, t, launchAt, src }
     this.rainCount = 0;
     this.rainT = 0;
@@ -92,6 +99,8 @@ export class Apostles {
     this.pull = null;
     this.loveT = 0;
     this.neg = false;
+    this.husks.length = 0;
+    this.rise.state = 'off';
     this.rainCount = 0;
     this.rain.length = 0;
     this.trail.length = 0;
@@ -109,12 +118,13 @@ export class Apostles {
       if (this.cast && this.cast.e === e) this.cast = null;
       if (this.pull && this.pull.e === e) this.pull = null;
       if (e.def.apostle === 'love') this.loveT = 0; // без Любви усиления нет
+      if (this.neg) this.husks.push({ x: e.x, y: e.y, def: e.def, kind: e.def.apostle, k: 0 }); // выключился, но остался лежать
     }
   }
 
   dismiss() {
     const it = this.enemies.items;
-    for (let i = 0; i < it.length; i++) if (it[i].def && it[i].def.apostle) it[i].active = false;
+    for (let i = 0; i < it.length; i++) if (it[i].def && (it[i].def.apostle || it[i].def.risen)) it[i].active = false;
   }
 
   alive() {
@@ -150,6 +160,7 @@ export class Apostles {
     if (!boss.active) { this.dismiss(); this.reset(); return; }
     const A = boss.def.apostles;
     if (this.loveT > 0) this.loveT -= dt;
+    this.updateRise(dt);
     this.t += dt;
     switch (this.state) {
       case 'idle':
@@ -273,6 +284,73 @@ export class Apostles {
 
   castLove(A) {
     this.loveT = A.love.time;
+  }
+
+  // ---------- Восстание: выключенные апостолы встают и бегут ----------
+
+  /** Отладка: если выключенных нет, положить по одному в углах платформы. */
+  makeHusks() {
+    const z = this.arena.zone;
+    if (!z || !this.boss) return;
+    const A = this.A;
+    const k = A.cornerInset;
+    const pts = [[z.left + k, z.top + k], [z.right - k, z.top + k], [z.right - k, z.bottom - k], [z.left + k, z.bottom - k]];
+    this.husks.length = 0;
+    for (let i = 0; i < 4; i++) {
+      const c = { x: pts[i][0], y: pts[i][1], radius: 16 };
+      this.arena.resolveCircle(c);
+      this.husks.push({ x: c.x, y: c.y, def: this.cfg.enemies[A.defs[A.order[i]]], kind: A.order[i], k: 0 });
+    }
+  }
+
+  startRise() {
+    if (!this.boss) return;
+    if (!this.husks.length) this.makeHusks();
+    this.rise.state = 'wait';
+    this.rise.t = 0;
+  }
+
+  /** Бегуны ещё живы? */
+  risenAlive() {
+    const it = this.enemies.items;
+    let n = 0;
+    for (let i = 0; i < it.length; i++) if (it[i].active && it[i].def && it[i].def.risen) n++;
+    return n;
+  }
+
+  updateRise(dt) {
+    const R = this.rise;
+    if (R.state === 'off') return;
+    const RC = this.N.rise;
+    R.t += dt;
+    if (R.state === 'wait') {
+      if (R.t >= RC.wait) {
+        R.state = 'stand';
+        R.t = 0;
+        for (let i = 0; i < this.husks.length; i++) this.bus.emit('apostle:rise', { x: this.husks[i].x, y: this.husks[i].y });
+      }
+    } else if (R.state === 'stand') {
+      const k = Math.min(1, R.t / Math.max(0.01, RC.standTime));
+      for (let i = 0; i < this.husks.length; i++) this.husks[i].k = k;
+      if (R.t >= RC.standTime) {
+        const def = this.cfg.enemies[RC.def];
+        for (let i = 0; i < this.husks.length; i++) {
+          const h = this.husks[i];
+          const e = this.enemies.spawn();
+          initEnemy(e, def, h.x, h.y);
+          this.arena.resolveCircle(e);
+          e.prevX = e.x;
+          e.prevY = e.y;
+          this.bus.emit('apostle:risen', { x: e.x, y: e.y });
+        }
+        this.husks.length = 0;
+        R.state = 'run';
+        R.t = 0;
+      }
+    } else if (R.state === 'run' && this.risenAlive() === 0) {
+      R.state = 'off';
+      this.bus.emit('apostles:risen-defeated', {});
+    }
   }
 
   // ---------- Негатив: Сила отталкивает ----------

@@ -1260,6 +1260,35 @@ export class Renderer {
         ctx.stroke();
       }
     }
+    // Выключенные апостолы (вторая фаза): тёмная оболочка лежит, тусклое кольцо мигает; в «Восстании» встаёт и светлеет.
+    for (let i = 0; i < a.husks.length; i++) {
+      const h = a.husks[i];
+      const k = h.k;
+      const e = k * k * (3 - 2 * k);
+      const rr = h.def ? h.def.radius : 16;
+      const shake = a.rise.state === 'stand' ? Math.sin(this.clock * 50 + i * 2) * 2 * (1 - e) : 0;
+      ctx.save();
+      ctx.translate(h.x + shake, h.y);
+      ctx.rotate((1 - e) * (i % 2 ? 1.45 : -1.45)); // лежит боком, встаёт
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = k > 0 ? '#3a3a46' : '#25252e';
+      ctx.beginPath();
+      ctx.ellipse(0, -rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = k > 0 ? '#b8b8d0' : '#5a5a68';
+      ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.2 * Math.sin(this.clock * 2 + i) + 0.4 * e;
+      ctx.strokeStyle = k > 0 ? '#ff6a6a' : '#707080';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, rr * (1.6 + 0.6 * e), 0, TAU); // «выключено»: пунктир; встаёт: красное кольцо
+      ctx.stroke();
+      ctx.restore();
+    }
     // Негатив, Вера: клинки с неба. Красный круг сужается к удару, сверху падает светлая полоса, после удара остаётся след.
     if (a.neg && a.rainCount > 0) {
       const R = a.N.rain;
@@ -2093,6 +2122,7 @@ export class Renderer {
       ctx.beginPath();
       if (e.def.sunHead) ctx.arc(x, y, 0.01, 0, TAU); // тело уже нарисовано
       else if (e.def.apostle) ctx.ellipse(x, y - rr * 0.9, rr * 0.75, rr * 1.9, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: высокая фигура
+      else if (e.def.risen) ctx.ellipse(x, y - rr * 0.6, rr * 0.7, rr * 1.5, 0, 0, TAU); // ЗАГЛУШКА ГРАФИКИ: восставший апостол, тёмная фигура
       else ctx.arc(x, y, rr, 0, TAU);
       ctx.fill();
       if (e.def.slam && st === 'windup') { // ЗАГЛУШКА ГРАФИКИ: кольцо замаха растёт к моменту удара
