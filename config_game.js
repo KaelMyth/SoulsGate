@@ -493,8 +493,8 @@ export const CONFIG = {
       hp: 120, speed: 55, radius: 24, touchDamage: 12, touchCooldown: 0.9, knockbackScale: 0.4,
       drop: 'red', swarm: false,
       hpRockRef: 50,       // скала такого радиуса даёт здоровье hp; меньше скала: меньше здоровья и размер
-      radiusScale: 0.5,    // радиус жука = радиус скалы × это (в пределах minRadius..maxRadius)
-      minRadius: 16, maxRadius: 30,
+      radiusScale: 0.85,   // радиус жука = радиус скалы × это (в пределах minRadius..maxRadius): жук размером со скалу
+      minRadius: 28, maxRadius: 62,
       wakeTime: 1.0,       // с: просыпается на месте скалы и не двигается
       slam: {
         range: 280,        // с какого расстояния до героя бьёт в землю
