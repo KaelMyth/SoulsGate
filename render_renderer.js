@@ -9,6 +9,8 @@ import { ApotheosisArt } from './render_apotheosis.js';
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
 const ZAP_RGB = ['255,225,70', '255,150,50', '110,205,255', '255,255,255'];
+const LASER_RGB = ['110,205,255', '255,140,50', '150,242,255', '236,242,252', '190,120,255']; // луч: синий, огонь, мороз, пар, фантом
+const LASER_CORE = ['232,248,255', '255,240,200', '240,252,255', '255,255,255', '248,232,255'];
 const ZAP_CORE = ['255,252,225', '255,236,200', '232,248,255', '255,255,255'];
 const SERIF = '"Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif'; // шрифт надписей интерфейса
 const EMPTY = { items: [] };
@@ -4956,7 +4958,8 @@ export class Renderer {
     if (!ls || !ls.length) return;
     const L = this.cfg.laser;
     const t = this.clock;
-    const glow = this.getGlow('blue');
+    const glowBy = [this.getGlow('blue'), this.getGlow(), this.getGlow('blue'), this.getGlow('gold'), this.getGlow(true)];
+    const puffSp = this.getPuff();
     ctx.save();
     ctx.lineCap = 'round';
     ctx.globalCompositeOperation = 'lighter';
@@ -4973,8 +4976,10 @@ export class Renderer {
       const ph = !!l.gen;
       const zp = !!l.zap;
       const zk = (l.burnDmg > 0 ? 1 : 0) | (l.frost ? 2 : 0);
-      const rgb = zp ? ZAP_RGB[zk] : ph ? '190,120,255' : '110,205,255';
-      const core = zp ? ZAP_CORE[zk] : ph ? '248,232,255' : '232,248,255';
+      const el = ph ? 4 : zk; // 0 синий, 1 огонь, 2 мороз, 3 пар, 4 фантом
+      const glow = glowBy[el];
+      const rgb = zp ? ZAP_RGB[zk] : LASER_RGB[el];
+      const core = zp ? ZAP_CORE[zk] : LASER_CORE[el];
       if (zp) { this.drawZapArc(ctx, x0, y0, x1, y1, w, fade, li, rgb, core); } else {
       ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
       ctx.lineWidth = w * 6;
@@ -4989,6 +4994,7 @@ export class Renderer {
       ctx.lineWidth = Math.max(0.9, w * 0.6);
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       }
+      if (!zp && el !== 0 && el !== 4) this.laserElement(ctx, el, x0, y0, x1, y1, w, fade, li, t, puffSp);
       // Вспышка у посоха и точка попадания.
       const g0 = w * 5;
       ctx.globalAlpha = 0.7 * fade;
@@ -5012,6 +5018,64 @@ export class Renderer {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Стихия на луче (вдоль всей длины, без хранения состояния): огонь, угли и язычки, тянущиеся вверх;
+   * мороз, мерцающие ледяные искорки; пар, мягкие облачка, плывущие по лучу.
+   */
+  laserElement(ctx, el, x0, y0, x1, y1, w, fade, li, t, puffSp) {
+    w = Math.max(w * 1.6, 4.4); // детали крупнее самого луча: иначе не видно
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const n = Math.max(4, Math.min(18, Math.round(len / (el === 2 ? 20 : 26))));
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const hv = Math.sin((i + li * 7.3) * 12.9898) * 43758.5453;
+      const hr = hv - Math.floor(hv);
+      if (el === 1) { // огонь: угли поднимаются от луча
+        const u = (i + hr) / n;
+        const ph = (t * 1.1 + hr * 3 + i * 0.37) % 1;
+        const off = (hr - 0.5) * w * 2.2 + ph * w * 5 * (hr < 0.5 ? 1 : -1);
+        const px = x0 + dx * u + nx * off;
+        const py = y0 + dy * u + ny * off - ph * w * 2.5;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = (1 - ph) * fade * 0.9;
+        ctx.fillStyle = hr > 0.55 ? '#ffd36a' : '#ff8a2a';
+        ctx.beginPath(); ctx.arc(px, py, Math.max(0.7, w * 0.22 * (1 - ph * 0.6)), 0, TAU); ctx.fill();
+        if (i % 4 === 0) { // язычок пламени над лучом
+          const h = w * (2.2 + 1.2 * Math.sin(t * 17 + i)) * (0.6 + 0.4 * fade);
+          const bw = w * 0.7;
+          ctx.globalAlpha = 0.7 * fade;
+          ctx.fillStyle = '#ff7a2a';
+          ctx.beginPath(); ctx.moveTo(px - bw, py + w); ctx.lineTo(px - bw * 0.4, py + w - h * 0.5); ctx.lineTo(px, py + w - h); ctx.lineTo(px + bw * 0.4, py + w - h * 0.55); ctx.lineTo(px + bw, py + w); ctx.closePath(); ctx.fill();
+        }
+      } else if (el === 2) { // мороз: искорки-кристаллы мерцают на лучe
+        const u = (i + 0.2 + 0.6 * hr) / n;
+        const tw = 0.5 + 0.5 * Math.sin(t * (6 + 5 * hr) + i * 2.1);
+        if (tw < 0.2) continue;
+        const px = x0 + dx * u + nx * (hr - 0.5) * w * 3;
+        const py = y0 + dy * u + ny * (hr - 0.5) * w * 3;
+        const s = w * (1.1 + 0.9 * hr) * tw;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = fade * tw;
+        ctx.fillStyle = '#eafaff';
+        ctx.beginPath(); ctx.moveTo(px, py - s); ctx.lineTo(px + s * 0.2, py); ctx.lineTo(px, py + s); ctx.lineTo(px - s * 0.2, py); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(px - s, py); ctx.lineTo(px, py - s * 0.2); ctx.lineTo(px + s, py); ctx.lineTo(px, py + s * 0.2); ctx.closePath(); ctx.fill();
+      } else { // пар: облачка медленно плывут вдоль луча и растут
+        const ph = (t * 0.7 + hr + i / n) % 1;
+        const px = x0 + dx * ph + nx * (hr - 0.5) * w * 3;
+        const py = y0 + dy * ph + ny * (hr - 0.5) * w * 3 - ph * w * 2;
+        const s = w * (2.4 + 3 * ph);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.34 * fade * Math.sin(Math.PI * ph);
+        ctx.drawImage(puffSp, px - s, py - s, s * 2, s * 2);
+      }
     }
     ctx.restore();
   }
