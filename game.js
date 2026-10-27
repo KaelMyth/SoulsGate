@@ -896,7 +896,8 @@ export class Game {
       if (d > reach + e.radius) continue;
       e.pushId = id;
       applyKnockback(e, dx / d, dy / d, K.pushDistance * wide, K.pushTime);
-      this.burst(e.x, e.y, 0.2, 3, 14, K.color);
+      if (this.renderer && this.renderer.hitfx) this.renderer.hitfx.spawn({ kind: 'ram', el: el.kind === 1 ? 2 : el.kind === 2 ? 1 : el.kind === 3 ? 3 : 0, x: e.x - (dx / d) * e.radius * 0.7, y: e.y - (dy / d) * e.radius * 0.7, dx: dx / d, dy: dy / d, power: 0, r: e.radius }); // вид удара по стихии рывка
+      else this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
       if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
