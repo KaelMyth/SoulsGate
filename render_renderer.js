@@ -5,6 +5,7 @@ import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
 import { DashFx } from './render_dashfx.js';
 import { ApotheosisArt } from './render_apotheosis.js';
+import { ApoFinaleFx } from './render_apofinale.js';
 
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
@@ -558,6 +559,7 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
+    this.apoFin = new ApoFinaleFx(this); // Апофеоз: крик, обвал платформы, эпилог, портал (render_apofinale.js)
     this.apoArt = new ApotheosisArt(this); // Апофеоз и апостолы: маска-солнце и мантии (render_apotheosis.js)
     this.dashfx = new DashFx(this); // эффекты рывков, костров и героя-молнии (render_dashfx.js)
     this.dashKind = 0;     // стихия кинетического рывка (0 нет, 1 огонь, 2 мороз, 3 пар): выставляет игра
@@ -1160,129 +1162,23 @@ export class Renderer {
     ctx.restore();
   }
 
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: умение «Крик». Рот (центр головы) светится, из него расходятся кольца-волны: светлая дуга с чёрным краем,
-   * проём не нарисован; сплошное кольцо (его проходят рывком) белое и толще.
-   */
+  /** Апофеоз: волны «Крика» (render_apofinale.js). */
   drawScream() {
-    const a = this.apotheosis;
-    if (!a || !a.boss) return;
-    const o = a.headPos();
-    const ctx = this.ctx;
-    if (a.state === 'scream' && a.screamGlow > 0) { // рот светится, растёт
-      ctx.save();
-      ctx.globalAlpha = 0.35 + 0.5 * a.screamGlow;
-      ctx.fillStyle = '#fff0b0';
-      ctx.beginPath();
-      ctx.arc(o.x, o.y, a.boss.radius * (0.25 + 0.45 * a.screamGlow), 0, TAU);
-      ctx.fill();
-      ctx.restore();
-    }
-    if (!a.rings.length) return;
-    const S = a.boss.def.scream;
-    ctx.save();
-    ctx.lineCap = 'butt';
-    for (let i = 0; i < a.screamN; i++) {
-      const g = a.rings[i];
-      if (!g || !g.live) continue;
-      const fade = Math.min(1, (S.maxR - g.r) / 140);
-      ctx.globalAlpha = Math.max(0, fade) * (g.hit ? 0.4 : 1);
-      ctx.beginPath();
-      if (g.solid) ctx.arc(o.x, o.y, g.r, 0, TAU);
-      else ctx.arc(o.x, o.y, g.r, g.gap + g.gapW / 2, g.gap - g.gapW / 2 + TAU);
-      ctx.strokeStyle = '#05050a';
-      ctx.lineWidth = S.width + 6;
-      ctx.stroke();
-      ctx.strokeStyle = g.solid ? '#ffffff' : '#ffe98a';
-      ctx.lineWidth = g.solid ? S.width : S.width * 0.6;
-      ctx.stroke();
-    }
-    ctx.restore();
+    if (this.apotheosis && this.apoFin) this.apoFin.scream();
   }
 
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: эпилог Апофеоза. Реплика над боссом, свечение, осколки и портал конца игры (портал рисует drawPortal).
-   */
+  /** Апофеоз: обвал платформы, эпилог (свет, реплики, распад) (render_apofinale.js). */
   drawFinale() {
-    const a = this.apotheosis;
-    if (!a || !a.boss) return;
-    const f = a.fin;
-    const ctx = this.ctx;
-    const b = a.boss;
-    if (f.glow > 0 && b.active) { // босс всё сильнее светится и дрожит
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 3; i++) {
-        ctx.globalAlpha = Math.min(1, f.glow * (0.35 + 0.2 * i)) * (1 - f.dissolve);
-        ctx.fillStyle = i === 2 ? '#ffffff' : '#ffe9a0';
-        ctx.beginPath();
-        ctx.arc(b.x + Math.sin(this.clock * 60 + i) * 3 * f.glow, b.y - b.radius * 0.3, b.radius * (1.1 + 0.9 * f.glow - 0.3 * i), 0, TAU);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-    if (f.shards.length) {
-      ctx.save();
-      for (let i = 0; i < f.shards.length; i++) {
-        const s = f.shards[i];
-        if (s.age >= s.life) continue;
-        ctx.globalAlpha = Math.max(0, 1 - s.age / s.life);
-        ctx.fillStyle = '#fff3c0';
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y - s.r);
-        ctx.lineTo(s.x + s.r * 0.6, s.y);
-        ctx.lineTo(s.x, s.y + s.r);
-        ctx.lineTo(s.x - s.r * 0.6, s.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-    if (f.line && f.lineA > 0.01) { // реплика над боссом
-      const sc = this.camera ? this.camera.scale || 1 : 1;
-      ctx.save();
-      ctx.globalAlpha = f.lineA;
-      ctx.font = 'italic ' + Math.round(22 / sc) + 'px ' + SERIF;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const x = b.x;
-      const y = b.y - b.radius * 2.7;
-      ctx.lineWidth = 5 / sc;
-      ctx.strokeStyle = 'rgba(5,5,12,0.9)';
-      ctx.strokeText('— ' + f.line, x, y);
-      ctx.fillStyle = '#fff6d8';
-      ctx.fillText('— ' + f.line, x, y);
-      ctx.restore();
-    }
+    if (!this.apoFin) return;
+    this.apoFin.collapse();
+    this.apoFin.finale();
   }
 
-  /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
+  /** Портал-воронка (перед финальным боссом и в конце игры); alpha растёт при открытии и падает при гашении. */
   drawPortal() {
     const p = this.getPortal ? this.getPortal() : null;
     if (!p || p.alpha <= 0) return;
-    const ctx = this.ctx;
-    const t = this.clock;
-    ctx.save();
-    ctx.globalAlpha = p.alpha;
-    ctx.strokeStyle = '#c7a8ff';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * (1 + 0.06 * Math.sin(t * 4)), 0, TAU);
-    ctx.stroke();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#ffffff';
-    ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = -t * 30;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * 0.7, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = p.alpha * 0.35;
-    ctx.fillStyle = '#7a4fd6';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * 0.55, 0, TAU);
-    ctx.fill();
-    ctx.restore();
+    this.apoFin.portal(p);
   }
 
   /** ЗАГЛУШКА ГРАФИКИ: стрелка на краю экрана в сторону портала, пока самого портала не видно. */
