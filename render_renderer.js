@@ -718,6 +718,8 @@ export class Renderer {
 
     this.drawFlash(viewL, viewR, viewT, viewB);
     this.drawOmni();
+    this.drawScream();
+    this.drawFinale();
     this.drawLasers(ctx);
     this.drawBolts(ctx);
     this.drawBlades(ctx);
@@ -1156,6 +1158,102 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: умение «Крик». Рот (центр головы) светится, из него расходятся кольца-волны: светлая дуга с чёрным краем,
+   * проём не нарисован; сплошное кольцо (его проходят рывком) белое и толще.
+   */
+  drawScream() {
+    const a = this.apotheosis;
+    if (!a || !a.boss) return;
+    const o = a.headPos();
+    const ctx = this.ctx;
+    if (a.state === 'scream' && a.screamGlow > 0) { // рот светится, растёт
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.5 * a.screamGlow;
+      ctx.fillStyle = '#fff0b0';
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, a.boss.radius * (0.25 + 0.45 * a.screamGlow), 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    if (!a.rings.length) return;
+    const S = a.boss.def.scream;
+    ctx.save();
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < a.screamN; i++) {
+      const g = a.rings[i];
+      if (!g || !g.live) continue;
+      const fade = Math.min(1, (S.maxR - g.r) / 140);
+      ctx.globalAlpha = Math.max(0, fade) * (g.hit ? 0.4 : 1);
+      ctx.beginPath();
+      if (g.solid) ctx.arc(o.x, o.y, g.r, 0, TAU);
+      else ctx.arc(o.x, o.y, g.r, g.gap + g.gapW / 2, g.gap - g.gapW / 2 + TAU);
+      ctx.strokeStyle = '#05050a';
+      ctx.lineWidth = S.width + 6;
+      ctx.stroke();
+      ctx.strokeStyle = g.solid ? '#ffffff' : '#ffe98a';
+      ctx.lineWidth = g.solid ? S.width : S.width * 0.6;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * ЗАГЛУШКА ГРАФИКИ: эпилог Апофеоза. Реплика над боссом, свечение, осколки и портал конца игры (портал рисует drawPortal).
+   */
+  drawFinale() {
+    const a = this.apotheosis;
+    if (!a || !a.boss) return;
+    const f = a.fin;
+    const ctx = this.ctx;
+    const b = a.boss;
+    if (f.glow > 0 && b.active) { // босс всё сильнее светится и дрожит
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) {
+        ctx.globalAlpha = Math.min(1, f.glow * (0.35 + 0.2 * i)) * (1 - f.dissolve);
+        ctx.fillStyle = i === 2 ? '#ffffff' : '#ffe9a0';
+        ctx.beginPath();
+        ctx.arc(b.x + Math.sin(this.clock * 60 + i) * 3 * f.glow, b.y - b.radius * 0.3, b.radius * (1.1 + 0.9 * f.glow - 0.3 * i), 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (f.shards.length) {
+      ctx.save();
+      for (let i = 0; i < f.shards.length; i++) {
+        const s = f.shards[i];
+        if (s.age >= s.life) continue;
+        ctx.globalAlpha = Math.max(0, 1 - s.age / s.life);
+        ctx.fillStyle = '#fff3c0';
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y - s.r);
+        ctx.lineTo(s.x + s.r * 0.6, s.y);
+        ctx.lineTo(s.x, s.y + s.r);
+        ctx.lineTo(s.x - s.r * 0.6, s.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (f.line && f.lineA > 0.01) { // реплика над боссом
+      const sc = this.camera ? this.camera.scale || 1 : 1;
+      ctx.save();
+      ctx.globalAlpha = f.lineA;
+      ctx.font = 'italic ' + Math.round(22 / sc) + 'px ' + SERIF;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const x = b.x;
+      const y = b.y - b.radius * 2.7;
+      ctx.lineWidth = 5 / sc;
+      ctx.strokeStyle = 'rgba(5,5,12,0.9)';
+      ctx.strokeText('— ' + f.line, x, y);
+      ctx.fillStyle = '#fff6d8';
+      ctx.fillText('— ' + f.line, x, y);
+      ctx.restore();
+    }
   }
 
   /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
@@ -2087,6 +2185,7 @@ export class Renderer {
       if (e.def.sunHead) { // Апофеоз: мантия и маска-солнце (render_apotheosis.js); нижнюю часть скрывает поле: босс «вылезает из пустоты»
         const zn = this.arena.zone;
         ctx.save();
+        if (this.apotheosis && this.apotheosis.fin.dissolve > 0) ctx.globalAlpha = Math.max(0, 1 - this.apotheosis.fin.dissolve); // эпилог: рассыпается, тает
         if (zn && zn.poly) {
           ctx.beginPath();
           ctx.rect(this.arena.left - 400, this.arena.top - 400, this.arena.width + 800, this.arena.height + 800);
