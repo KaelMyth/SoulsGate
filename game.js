@@ -33,6 +33,7 @@ import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
+import { SlotUI } from './ui_slot.js';
 import { ModeScreen } from './ui_mode-screen.js';
 import { SettingsScreen } from './ui_settings.js';
 import { getPath, setPath } from './debug_tunables.js';
@@ -73,6 +74,7 @@ export class Game {
       wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
       bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
+    this.skillCd = [0, 0, 0]; // перезарядки умений (с)
     this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
@@ -221,6 +223,8 @@ export class Game {
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
+    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); });
+
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
     this.mode = 'test';
@@ -287,6 +291,9 @@ export class Game {
 
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
+    this.bus.on('enemy:hit-incoming', (inc) => { // уязвимость от дождя: входящий урон больше
+      if (inc.enemy.vuln) inc.amount *= 1 + this.config.skills.rain.vulnerability;
+    });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
       const vamp = this.build.passives().vamp; // пассив «Вампиризм»
       if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
@@ -605,6 +612,24 @@ export class Game {
       if (bd > 0) this.ignite(o, bd, bi);
       if (fr) this.chill(o, st, bd, bi);
     }
+  }
+
+  /** Магический дождь: на всю карту, все враги получают уязвимость до смерти. Перезарядка 15 с. */
+  castRain() {
+    const R = this.config.skills.rain;
+    if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0) return false;
+    this.skillCd[0] = R.cooldown;
+    this.hud.rainT = R.duration;
+    for (const e of this.enemies.items) if (e.active) e.vuln = true;
+    return true;
+  }
+
+  /** Перезарядки умений и время дождя на экране. */
+  updateSkills(dt) {
+    const sc = this.skillCd;
+    for (let i = 0; i < 3; i++) if (sc[i] > 0) sc[i] = Math.max(0, sc[i] - dt);
+    if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
+    this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
   }
 
   /** Заряды электризации тают, если давно не подновлялись; молнии разряда гаснут. */
@@ -1280,6 +1305,7 @@ export class Game {
       this.updateBurning(dt);
       this.updateFrost(dt);
       this.updateShock(dt);
+      this.updateSkills(dt);
       this.updateSteam(dt);
       this.updateLasers(dt);
       this.blades.update(dt);
@@ -1625,6 +1651,8 @@ export class Game {
     this.lightdash.reset();
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
+    this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
+    this.hud.rainT = 0;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();

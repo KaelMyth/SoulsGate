@@ -25,6 +25,7 @@ export function createEnemy() {
     fireTimer: 0,     // стрелок: до следующего прицеливания
     speedMul: 1,      // множитель скорости (мороз замедляет)
     pushId: 0, // номер рывка, который уже оттолкнул этого врага
+    vuln: false, // уязвимость от Магического дождя: до смерти, +урон
     shockStacks: 0, shockT: 0, // электризация: заряды и время до угасания
     frostStacks: 0, frostT: 0, freezeT: 0, // мороз: заряды замедления, до таяния, заморозка (с)
     burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, // горение: осталось, до тика, урон тика, интервал
@@ -50,6 +51,7 @@ export function initEnemy(e, def, x, y) {
   e.frostStacks = 0;
   e.shockStacks = 0;
   e.shockT = 0;
+  e.vuln = false;
   e.speedMul = 1;
   e.frostT = 0;
   e.freezeT = 0;
