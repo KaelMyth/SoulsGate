@@ -90,6 +90,11 @@ const ICONS = {
     ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
     ['path', S({ d: 'M26 5L28 8M5 24L3 27', 'stroke-width': 1.8, opacity: 0.7 })],
   ],
+  // Скорость движения: крыло и полосы скорости.
+  swift: [
+    ['path', { d: 'M9 24C11 14 17 8 28 6C26 12 22 16 17 17C20 17 22 17.5 23 18C20 21 15 23 9 24Z', fill: 'currentColor' }],
+    ['path', S({ d: 'M2 12H8M1 17H6M3 22H7', 'stroke-width': 2, opacity: 0.8 })],
+  ],
   // Вампиризм: капля крови с клыком.
   vamp: [
     ['path', { d: 'M16 3C16 3 6.5 14 6.5 20A9.5 9.5 0 0 0 25.5 20C25.5 14 16 3 16 3Z', fill: 'currentColor' }],

@@ -8,14 +8,14 @@ import { MenuFx } from './ui_menu-fx.js';
 
 export class ModeScreen {
   /** onPick(mode): 'game' | 'test' */
-  constructor(root, onPick) {
+  constructor(root, onPick, onSettings) {
     const idle = (id, text) => h('button', { id, class: 'ui-btn idle', type: 'button' }, text);
     this.fxCanvas = h('canvas', { class: 'fx' });
     this.stage = h('div', { class: 'stage' },
       buildScene(), buildLogo(),
       h('div', { class: 'menu' },
         h('button', { id: 'mode-game', class: 'ui-btn', type: 'button', onclick: () => onPick('game') }, 'Играть'),
-        idle('menu-settings', 'Настройки'),
+        h('button', { id: 'menu-settings', class: 'ui-btn', type: 'button', onclick: () => onSettings && onSettings() }, 'Настройки'),
         idle('menu-shop', 'Магазин'),
         idle('menu-quit', 'Выход')),
       h('button', { id: 'mode-test', class: 'test-link', type: 'button', onclick: () => onPick('test') }, 'Тестирование'));

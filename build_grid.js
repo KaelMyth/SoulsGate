@@ -90,7 +90,7 @@ export class BuildGrid {
    */
   passives() {
     if (this._pVer === this.ver && this._p) return this._p;
-    const res = { magnet: 1, xp: 1, hp: 1, range: 1, vamp: 0 }; // магнетизм, опыт, здоровье, дальность: множители; вампиризм: лечение за убийство
+    const res = { magnet: 1, xp: 1, hp: 1, range: 1, speed: 1, vamp: 0 }; // магнетизм, опыт, здоровье, дальность: множители; вампиризм: лечение за убийство
     for (const p of this.pcells) {
       if (!p.mod || p.mod.def.effect.kind !== 'passive') continue;
       let f = 1;

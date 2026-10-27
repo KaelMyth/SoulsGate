@@ -84,7 +84,7 @@ export class Blades {
   }
 
   /** Раздать цели орбитальным клинкам пачками по perTarget: следующий клинок идёт к ближайшему, где ещё есть место. */
-  launch(m, dmg, max) {
+  launch(m, dmg, max, rate = 1) {
     const B = this.cfg.blades;
     const cand = this.gather(B.range);
     if (!cand.length) return false;
@@ -94,7 +94,7 @@ export class Blades {
     for (const b of this.items) {
       if (b.state !== 'orbit') continue;
       if (this.gap > 0) break;   // клинки уходят по одному, а не все разом
-      this.gap += B.launchGap;
+      this.gap += B.launchGap / rate; // Ускорение на клинках учащает и запуски
       let pick = null;
       for (const c of cand) {
         if ((counts.get(c.e) || 0) < B.perTarget) { pick = c.e; break; }
@@ -133,11 +133,12 @@ export class Blades {
     const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
     const dmg = B.damage * bm.damage;                          // Мощь на клинках
 
-    // Копим клинки, пока их на орбите меньше максимума.
+    // Копим клинки, пока их на орбите меньше максимума. Когда их много, залп начинается не дожидаясь полного набора:
+    // первые уже летят, пока последние ещё появляются (launchAt).
     let orbit = this.orbiting();
     this.dtNow = dt;
     if (this.wave && orbit === 0) { this.wave = false; this.slot = 0; } // пачка ушла целиком: можно копить заново
-    if (!this.wave && orbit < max) {
+    if (orbit < max) {
       this.timer += dt;
       while (this.timer >= interval && orbit < max) {
         this.timer -= interval;
@@ -147,10 +148,8 @@ export class Blades {
         this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
         orbit++;
       }
-    } else if (orbit > 0) {
-      this.timer = 0;
-      this.launch(m, dmg, max); // нет врагов в зоне: остаёмся на орбите и ждём
-    }
+    } else this.timer = 0;
+    if (orbit > 0 && (this.wave || orbit >= (max >= (B.overlapFrom || 16) ? Math.min(max, B.launchAt || max) : max))) this.launch(m, dmg, max, bm.rate); // нет врагов в зоне: остаёмся на орбите и ждём
 
     let w = 0; // убираем погасшие на месте: на этот массив смотрит отрисовка
     for (let r = 0; r < this.items.length; r++) if (this.items[r].state !== 'gone') this.items[w++] = this.items[r];
