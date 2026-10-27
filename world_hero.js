@@ -50,8 +50,9 @@ export class Hero {
     if (this.glideTime > 0) this.glideTime -= dt;
     const accelTime = this.glideTime > 0 ? Math.max(this.cfg.accelTime, this.glideAccel) : this.cfg.accelTime;
     const sm = this.slowT > 0 ? this.slowMul : 1; // замедление не действует на рывок (он выше, в dashing)
-    const tvx = ix * this.cfg.speed * sm;
-    const tvy = iy * this.cfg.speed * sm;
+    const sp = this.cfg.speed * (this.speedMul || 1); // пассив «Скорость движения»
+    const tvx = ix * sp * sm;
+    const tvy = iy * sp * sm;
     if (accelTime > 0) {
       const k = 1 - Math.exp(-dt / accelTime);
       this.vx += (tvx - this.vx) * k;

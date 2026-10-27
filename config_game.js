@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 7 · сборка 50 (кинетический рывок только отдельно от веток)';
+export const BUILD = 'этап 7 · сборка 51 (стрельба медленнее на 30%, пассив скорости движения)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -13,8 +13,8 @@ export const CONFIG = {
   build: {
     size: 7,
     minCoreDistance: 5,
-    storageSlots: 21,  // ячеек в ряду хранилища над полем
-    startMods: ['magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    storageSlots: 22,  // ячеек в ряду хранилища над полем
+    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -142,6 +142,12 @@ export const CONFIG = {
       description: 'Пассив для угловой ячейки. Герой замечает врагов и бьёт дальше на 25%. Х2 и Х3 рядом усиливают бонус',
       effect: { kind: 'passive', passive: 'range', value: 1.25 },
     },
+    swift: {
+      name: 'Скорость движения',
+      icon: 'swift',
+      description: 'Пассив для угловой ячейки. Герой бегает на 20% быстрее. Х2 и Х3 рядом усиливают бонус',
+      effect: { kind: 'passive', passive: 'speed', value: 1.2 },
+    },
     kinetic: {
       name: 'Кинетический рывок',
       icon: 'kinetic',
@@ -210,7 +216,7 @@ export const CONFIG = {
   // Автоатака героя: ближайший враг в радиусе, снаряд берётся из projectiles по имени.
   attack: {
     radius: 230,        // дальность выбора цели, единиц мира
-    reload: 0.5,        // секунд между выстрелами
+    reload: 0.7143,     // секунд между выстрелами (базовая скорость стрельбы снижена на 30%: было 0.5)
     count: 1,           // снарядов за выстрел (умножается модом «Х2» на ядре снаряда)
     countDamage: 0.75,  // за каждое удвоение числа снарядов урон каждого умножается на это (2 снаряда по 75%, 4 по 56%, 8 по 42%)
     spread: 14,         // расстояние между снарядами в залпе, единиц мира
@@ -875,7 +881,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
 

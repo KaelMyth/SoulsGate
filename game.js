@@ -1221,6 +1221,7 @@ export class Game {
         this.autoattack.rangeMul = ps.range;
         const hh = this.hero;
         hh.hpMul = ps.hp;
+        hh.speedMul = ps.speed;
         const want = this.config.hero.maxHp * ps.hp;
         if (Math.abs(hh.maxHp - want) > 1e-6) { // здоровье выросло: прибавка сразу в запас; упало: запас обрезается
           if (want > hh.maxHp) hh.hp += want - hh.maxHp;
