@@ -118,7 +118,7 @@ export class Game {
     this.pelletSource = { pellet: true, active: true };
     this.pellets = new Pellets({
       config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
-      onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp, pc) => {
+      onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp, pc, pp, pg) => {
         const sp = Math.hypot(vx, vy) || 1;
         this.pelletSource.el = bd > 0 ? (fr && st > 0 ? 3 : 2) : fr ? 1 : 0; // для эффекта попадания (только вид)
         this.pelletSource.dx = vx / sp;
@@ -129,6 +129,7 @@ export class Game {
         if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
         if (fr) this.chill(e, bd > 0 ? st : 0, bd, bi);
         if (zp) this.zap(e, bd, bi, fr, st);
+        if (pp > 0 && e.active) this.tryPhantomPellets(e, dmg, bd, bi, fr, st, zp, pp, pg);
       },
     });
     this.autoattack = new AutoAttack({
@@ -698,6 +699,14 @@ export class Game {
         const ay = tg.y - l.y;
         const d = Math.hypot(ax, ay);
         if (d > 1e-3) { l.dx = ax / d; l.dy = ay / d; }
+        if (l.off && !l.fixed) { // тонкие лучи Дроби: начало сдвинуто в сторону, цель общая
+          l.x -= l.dy * l.off * this.config.laser.splitSpread;
+          l.y += l.dx * l.off * this.config.laser.splitSpread;
+          const bx = tg.x - l.x;
+          const by = tg.y - l.y;
+          const bd = Math.hypot(bx, by);
+          if (bd > 1e-3) { l.dx = bx / bd; l.dy = by / bd; }
+        }
       }
       this.scanLaser(l);
       l.age += dt;
@@ -1067,6 +1076,25 @@ export class Game {
     } else {
       p.active = false; // снаряд потрачен
     }
+  }
+
+  /** Фантом на Дроби: попавшая дробинка с шансом вызывает веер дробинок из точки рядом с врагом (шанс затухает с поколением). */
+  tryPhantomPellets(e, dmg, bd, bi, fr, st, zp, pp, pg) {
+    const F = this.config.phantom;
+    const S = this.config.shot;
+    const P = this.pellets;
+    if (!phantomRoll(F, this.rnd, pp, pg)) return;
+    const n = Math.min(F.pelletCount, P.free());
+    if (n <= 0) return;
+    const sp0 = this.phSpot;
+    if (!phantomSpot(this.arena, this.rnd, F, e, S.radius, sp0)) return;
+    const base = Math.atan2(e.y - sp0.y, e.x - sp0.x);
+    for (let k = 0; k < n; k++) {
+      const a = base + (k - (n - 1) / 2) * 0.22 + (this.rnd() - 0.5) * 0.1;
+      P.add(sp0.x, sp0.y, Math.cos(a) * S.speed, Math.sin(a) * S.speed, Math.min(S.range, sp0.d + 140), dmg * F.damageFrac,
+        bd, bi, fr, st, zp, 0, pp, pg + 1);
+    }
+    this.burst(sp0.x, sp0.y, 0.3, 4, 16, F.color);
   }
 
   /**

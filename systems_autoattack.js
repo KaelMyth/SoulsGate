@@ -177,6 +177,7 @@ export class AutoAttack {
     // Горение и Мороз: несут только каждая вторая дробинка, иначе заряды Мороза набирались бы за один залп.
     const full = applyMod(def.damage, m.damage) * sd;
     const pc = m.pierce ? m.pierce.count : 0; // Пробитие на Дроби: сколько врагов насквозь
+    const ph = m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0; // Фантом на Дроби: шанс веера (несёт каждая четвёртая дробинка)
     const bd = m.burn ? full * this.cfg.burn.damageFrac * m.burn.damage : 0;
     const bi = m.burn ? this.cfg.burn.interval / m.burn.rate : 0;
     const st = bd > 0 && m.frost && m.steam ? m.steam.damage : 0;
@@ -187,7 +188,7 @@ export class AutoAttack {
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
       const fx = (i & 1) === 0; // половина несёт эффекты
       P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range * this.rangeMul, dmg,
-        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0, pc);
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0, pc, (i & 3) === 0 ? ph : 0, 0);
     }
     hero.facing = base;
     this.bus.emit('projectile:fired', { projectile: null, target, count: n });
@@ -230,23 +231,29 @@ export class AutoAttack {
     if (!list.length) list.push({ e: target, d: Math.hypot(target.x - hero.x, target.y - hero.y) });
     const burnDmg = b ? dmg * countPenalty(this.cfg, count) * this.cfg.burn.damageFrac * b.damage : 0;
     let fired = 0;
-    for (let i = 0; i < count; i++) {
+    // Дробь на Лазере: каждый луч делится на split тонких, они берут врагов по одному на тройку.
+    const split = m.shot ? Math.max(1, L.splitCount | 0) : 1;
+    const sdm = m.shot && m.shot.damage ? m.shot.damage : 1; // Мощь на Дроби
+    const total = count * split;
+    for (let i = 0; i < total; i++) {
       if (this.lasers.length >= L.max) break;
-      const t = list[i % list.length].e;
+      const t = list[Math.floor(i / split) % list.length].e;
       const dx = t.x - hero.x;
       const dy = t.y - hero.y;
       const len = Math.hypot(dx, dy) || 1;
       this.lasers.push({
         x: hero.x, y: hero.y, dx: dx / len, dy: dy / len, len: Math.min(L.length * this.rangeMul, len),
         target: t, pierce: 0, // конец луча следует за целью и упирается в первого врага на пути
-        width: ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0, tick: ls.tick, big: ls.big,
+        off: split > 1 ? (i % split) - (split - 1) / 2 : 0, // тонкие лучи расходятся у героя и сходятся на цели
+        width: split > 1 ? ls.width * L.splitWidth : ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0,
+        tick: split > 1 ? ls.tick * sdm / split : ls.tick, big: ls.big,
         burnDmg,
         burnInt: b ? this.cfg.burn.interval / b.rate : 0,
         frost: !!m.frost,
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
         pulse: 0,
         zap: !!m.lightning, // лазер-разряд
-        gen: 0, phDmg: m.phantom ? m.phantom.damage || 1 : 1, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0, // фантом: шанс на каждый тик
+        gen: 0, phDmg: m.phantom ? m.phantom.damage || 1 : 1, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) / split : 0, // фантом: шанс на каждый тик
       });
       fired++;
     }
