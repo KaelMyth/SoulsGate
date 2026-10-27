@@ -41,7 +41,6 @@ import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
 import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
-import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
 
 export class Game {
@@ -129,7 +128,7 @@ export class Game {
         if (!e.active) return;
         if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
         if (fr) this.chill(e, bd > 0 ? st : 0, bd, bi);
-        if (zp) this.zap(e, bd, bi, fr, st);
+        if (zp) this.zap(e, bd, bi, fr, st, zp);
         if (pp > 0 && e.active) this.tryPhantomPellets(e, dmg, bd, bi, fr, st, zp, pp, pg);
       },
     });
@@ -142,7 +141,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
-    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st); } });
+    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
     this.defense.lightning = this.lightdash;
     this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
     this.blades = new Blades({
@@ -152,7 +151,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
-      zap: (e, bd, bi, fr, st) => this.zap(e, bd, bi, fr, st),
+      zap: (e, bd, bi, fr, st, cm) => this.zap(e, bd, bi, fr, st, cm),
     });
 
     this.aura = new Aura({
@@ -160,7 +159,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
-      zap: (e, bd, bi, fr, st) => this.zap(e, bd, bi, fr, st),
+      zap: (e, bd, bi, fr, st, cm) => this.zap(e, bd, bi, fr, st, cm),
       rnd: this.rnd,
     });
 
@@ -212,6 +211,7 @@ export class Game {
     this.levelUpOffers = [];
     this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward(), (offer) => this.previewReward(offer));
     this.build = new BuildGrid(config.build.size);
+    this.build.lightningBonus = config.shock.attackBonus;
     this.inventory = new Storage(config.build.storageSlots);
     this.layoutBuild();
     this.pauseUI = new PauseUI(o.uiRoot, {
@@ -220,13 +220,6 @@ export class Game {
       onRestart: () => this.restart(),
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
-
-    this.slotPresses = 0;
-    this.slot = new SlotUI(o.uiRoot, (n, i) => {
-      this.slotPresses = n;
-      this.hud.slotFlash = i + 1;
-      this.bus.emit('slot:pressed', { count: n, slot: i });
-    });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
@@ -278,7 +271,7 @@ export class Game {
         cap: this.hud.cap,
         checks: this.swarm.pairChecks,
         crash: this.crashResult ? this.crashText() : '',
-        defense: 'состояние ' + this.defense.state + ' · блоков ' + this.blocks + ' · парирований ' + this.parries + ' · слот нажат ' + this.slotPresses,
+        defense: 'состояние ' + this.defense.state + ' · блоков ' + this.blocks + ' · парирований ' + this.parries + '',
         stick: this.stick.active
           ? 'x ' + this.stick.x.toFixed(2) + ' y ' + this.stick.y.toFixed(2)
           : 'не нажат',
@@ -555,7 +548,7 @@ export class Game {
    * Электризация: +1 заряд; на последнем враг разряжается (см. discharge).
    * bd, bi, fr, st: стихии источника (горение: урон и интервал, мороз, пар): их разряд разносит цепью.
    */
-  zap(e, bd = 0, bi = 0, fr = 0, st = 0) {
+  zap(e, bd = 0, bi = 0, fr = 0, st = 0, cm = 1) {
     if (!e || !e.active) return;
     const S = this.config.shock;
     e.shockStacks++;
@@ -563,15 +556,20 @@ export class Game {
     if (e.shockStacks >= S.maxStacks) {
       e.shockStacks = 0;
       e.shockT = 0;
-      this.discharge(e, bd, bi, fr, st);
+      this.discharge(e, bd, bi, fr, st, cm);
     }
+  }
+
+  /** Плоская прибавка к урону атак от Молнии (по числу модов Молнии в ветке). */
+  shockBonus(m) {
+    return m && m.lightning ? this.config.shock.attackBonus * m.lightning.count : 0;
   }
 
   /**
    * Разряд: удар по врагу и цепная молния на 2–3 ближайших. С Горением молния оранжевая и поджигает, с Морозом синяя и морозит,
    * со всеми тремя белая: электризует, поджигает, морозит и поднимает паровые взрывы. Цепь заряды электризации не копит.
    */
-  discharge(e, bd = 0, bi = 0, fr = 0, st = 0) {
+  discharge(e, bd = 0, bi = 0, fr = 0, st = 0, cm = 1) {
     const S = this.config.shock;
     const kind = (bd > 0 ? 1 : 0) | (fr ? 2 : 0);
     const col = S.colors[kind];
@@ -579,8 +577,9 @@ export class Game {
     const en = this.enemies.items;
     this.combat.damageEnemy(e, S.damage, this.shockSource, null);
     this.burst(e.x, e.y, 0.3, e.radius, e.radius * 2.4, col);
-    const want = S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1));
-    const n = grid.query(e.x, e.y, S.chainRange);
+    const want = Math.round((S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1))) * Math.max(1, cm)); // Х2/Х3 на Молнии множат число молний
+    const range = S.chainRange * (this.autoattack.rangeMul || 1); // «Дальность атаки» растит и дальность цепи
+    const n = grid.query(e.x, e.y, range);
     const buf = grid.buf;
     const bestE = this._zapE || (this._zapE = []);
     const bestD = this._zapD || (this._zapD = []);
@@ -590,7 +589,7 @@ export class Game {
       if (!o || !o.active || o === e) continue;
       const dx = o.x - e.x, dy = o.y - e.y;
       const d = dx * dx + dy * dy;
-      if (d > S.chainRange * S.chainRange) continue;
+      if (d > range * range) continue;
       let j = bestE.length;
       if (j >= want && d >= bestD[j - 1]) continue;
       if (j < want) { bestE.push(o); bestD.push(d); } else j--;
@@ -794,7 +793,7 @@ export class Game {
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
       if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
-      if (l.zap) this.zap(e, l.burnDmg, l.burnInt, l.frost ? 1 : 0, l.steam);
+      if (l.zap) this.zap(e, l.burnDmg, l.burnInt, l.frost ? 1 : 0, l.steam, l.zap);
     }
     if (l.phantom > 0) { // фантом: каждый тик лазера может породить луч из точки рядом с первой целью
       for (const e of hit) if (e.active) { this.tryPhantomLaser(l, e); break; }
@@ -828,12 +827,13 @@ export class Game {
   kineticEl() {
     const m = this.kineticMods;
     const K = this.config.kinetic;
-    const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0 });
+    const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0, cm: 1 });
     el.bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
     el.bi = m && m.burn ? this.config.burn.interval / m.burn.rate : 0;
     el.fr = m && m.frost ? 1 : 0;
     el.st = el.bd > 0 && m && m.frost && m.steam ? m.steam.damage : 0;
     el.kind = (el.bd > 0 ? 1 : 0) | (el.fr ? 2 : 0);
+    el.cm = m && m.lightning ? m.lightning.mult : 1; // Х2/Х3 на Молнии: больше молний в цепи
     return el;
   }
 
@@ -874,7 +874,7 @@ export class Game {
       this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
-      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st);
+      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
     }
   }
 
@@ -908,7 +908,7 @@ export class Game {
         const sp = S.speed * 0.8 * (0.8 + this.rnd() * 0.4);
         const fx = ((i >> 1) & 1) === 0; // половина несёт эффекты
         P.add(px, py, Math.cos(a) * sp, Math.sin(a) * sp, S.range * 0.6, dmg,
-          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? 1 : 0, 0);
+          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? el.cm : 0, 0);
       }
     }
     last.x += (dx / d) * K.shotStep * steps;
@@ -956,7 +956,7 @@ export class Game {
     const n = grid.query(b.x1, b.y1, K.laserZone + 40);
     const buf = grid.buf;
     const pcd = m && m.damage ? 1 + m.damage.percent / 100 : 1;
-    const dmg = K.laserDamage * pcd * (m && m.laser ? m.laser.damage || 1 : 1);
+    const dmg = K.laserDamage * pcd * (m && m.laser ? m.laser.damage || 1 : 1) + this.shockBonus(m);
     const hit = this._zoneHit || (this._zoneHit = []);
     hit.length = 0;
     for (let k = 0; k < n; k++) {
@@ -978,7 +978,7 @@ export class Game {
       if (!e.active) continue;
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
-      if (b.zap) this.zap(e, el.bd, el.bi, el.fr, el.st);
+      if (b.zap) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
     }
   }
 
@@ -1076,7 +1076,7 @@ export class Game {
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
     if (p.frost && e.active) this.chill(e, p.burnDmg > 0 ? p.steam : 0, p.burnDmg, p.burnInt);
-    if (p.zap && e.active) this.zap(e, p.burnDmg, p.burnInt, p.frost ? 1 : 0, p.steam);
+    if (p.zap && e.active) this.zap(e, p.burnDmg, p.burnInt, p.frost ? 1 : 0, p.steam, p.zap);
     if (p.phantom > 0) this.tryPhantom(p, e);
     if (p.pierce > 0) {
       p.pierce--;
@@ -1246,6 +1246,7 @@ export class Game {
         this.defense.dashCdMul = 1 / (1 + pc('rate'));
         this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
         this.lightdash.damageMul = 1 + pc('damage');
+        this.lightdash.bonus = this.shockBonus(km0);
       }
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);

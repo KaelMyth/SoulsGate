@@ -7,7 +7,7 @@ import { applyMod, countPenalty, laserStats, projectileCount } from './build_cor
 function setBurn(p, cfg, m) {
   if (m && m.pierce) p.pierce = m.pierce.count; // пробитие: сколько врагов пройти насквозь
   if (m && m.frost) p.frost = true; // мороз (заряды замедления) у снаряда
-  if (m && m.lightning) p.zap = true; // шар молний: электризует при попадании
+  if (m && m.lightning) p.zap = m.lightning.mult; // шар молний: электризует при попадании
   if (m && m.phantom) { p.phantom = Math.min(1, cfg.phantom.chance * m.phantom.mult); p.phDmg = m.phantom.damage || 1; } // фантомный выстрел: шанс при попадании
   if (!m || !m.burn) return;
   p.burnDmg = p.damage * cfg.burn.damageFrac * m.burn.damage;
@@ -188,7 +188,7 @@ export class AutoAttack {
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
       const fx = (i & 1) === 0; // половина несёт эффекты
       P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range * this.rangeMul, dmg,
-        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0, pc, (i & 3) === 0 ? ph : 0, 0);
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0, pc, (i & 3) === 0 ? ph : 0, 0);
     }
     hero.facing = base;
     this.bus.emit('projectile:fired', { projectile: null, target, count: n });
@@ -252,7 +252,7 @@ export class AutoAttack {
         frost: !!m.frost,
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
         pulse: 0,
-        zap: !!m.lightning, // лазер-разряд
+        zap: m.lightning ? m.lightning.mult : 0, // лазер-разряд
         gen: 0, phDmg: m.phantom ? m.phantom.damage || 1 : 1, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) / split : 0, // фантом: шанс на каждый тик
       });
       fired++;

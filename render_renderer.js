@@ -4362,10 +4362,8 @@ export class Renderer {
     ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), bx, h - ins.bottom - 22);
     ctx.globalAlpha = 1;
 
-    // Три слота умений по центру: снежинка, вихрь, пламя. Умения будут разные; пока это заглушки.
-    this.drawAbility(cx - 64, rowY, 1, '#6fb6ff', '#d6efff', 0, U.slots[0] > 0.01, false, U.slots[0]);
-    this.drawAbility(cx, rowY, 1, '#a98bff', '#e4d8ff', 1, U.slots[1] > 0.01, true, U.slots[1]);
-    this.drawAbility(cx + 64, rowY, 1, '#ffb14a', '#ffe2b0', 2, U.slots[2] > 0.01, false, U.slots[2]);
+    // Три пустых ячейки умений по центру: нажимать нечего, умений пока нет.
+    for (let i = -1; i <= 1; i++) this.drawAbility(cx + i * 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
 
     // Повышение уровня: надпись плавно гаснет.
     if (hud.levelFlash > 0) {
@@ -4414,7 +4412,7 @@ export class Renderer {
    * Ромб умения. frac: готовность 0..1 (заливка поднимается снизу), hot: умение сейчас действует, flash: вспышка нажатия.
    * kind: 0 блок (сфера), 1 рывок (шевроны), 2 умение (кристалл). glow: false или имя спрайта свечения.
    */
-  drawAbility(cx, cy, frac, col, light, kind, hot, glow, flash) {
+  drawAbility(cx, cy, frac, col, light, kind, hot, glow, flash, empty) {
     const ctx = this.ctx;
     const R = 30;
     const ready = frac >= 0.999;
@@ -4452,6 +4450,7 @@ export class Renderer {
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(190,215,250,0.2)';
     ctx.stroke();
+    if (empty) return; // пустая ячейка: только ромб
     // Значок. Пока умение перезаряжается, он тусклый.
     ctx.globalAlpha = ready || hot ? 1 : 0.5;
     ctx.strokeStyle = hot ? light : ready ? col : '#9fb3cc';

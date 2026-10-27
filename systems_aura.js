@@ -41,7 +41,7 @@ export class Aura {
     this.active = true;
     this.kind = m.frost && m.burn ? 3 : m.burn ? 2 : m.frost ? 1 : 0; // стихия для отрисовки: 0 нет, 1 лёд, 2 огонь, 3 пар
     this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)); // Х2/Х3 на ауре: шире
-    const dmg = A.damage * (a.damage || 1);                            // Мощь
+    const dmg = A.damage * (a.damage || 1) + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                            // Мощь
     const interval = 1 / (A.ticks * (a.rate || 1));                    // Ускорение: больше тиков в секунду
     this.timer += dt;
     for (let guard = 0; this.timer >= interval && guard < 8; guard++) {
@@ -75,7 +75,7 @@ export class Aura {
     for (const e of hit) { // бьём после поиска: убийство меняет пул врагов
       if (!e.active) continue;
       this.combat.damageEnemy(e, dmg, this.source, null);
-      if (e.active && m.lightning && this.zap && this.rnd() < this.cfg.aura.shockChance) this.zap(e, bd, bi, fx && m.frost ? 1 : 0, st); // Молния: шанс 1/5 на каждом тике
+      if (e.active && m.lightning && this.zap && this.rnd() < this.cfg.aura.shockChance) this.zap(e, bd, bi, fx && m.frost ? 1 : 0, st, m.lightning.mult); // Молния: шанс 1/5 на каждом тике
       if (!e.active || !fx) continue;
       if (bd > 0) this.ignite(e, bd, bi);
       if (m.frost) this.chill(e, st, bd, bi);
