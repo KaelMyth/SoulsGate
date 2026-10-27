@@ -5016,6 +5016,31 @@ export class Renderer {
         ctx.fill();
       }
     }
+    // Молния: по полю то тут, то там проскакивают тонкие разряды от центра к краю, цвет по стихии. Видны на миг.
+    if (au.lightning) {
+      const zk = [0, 2, 1, 3][kd];
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const PER = 0.6;
+      for (let i = 0; i < 5; i++) {
+        const q = t / PER + i * 0.2;
+        const cyc = Math.floor(q);
+        const u = q - cyc;
+        if (u > 0.42) continue;
+        const fade = 1 - u / 0.42;
+        const h = (k) => { const v = Math.sin((cyc * 7.13 + i * 3.7 + k * 19.19) * 43758.5453) * 43758.5453; return v - Math.floor(v); };
+        const a0 = h(1) * TAU;
+        const da = (h(2) - 0.5) * 0.9;
+        const r0 = R * (0.12 + 0.25 * h(3));
+        const r1 = R * (0.7 + 0.28 * h(4));
+        this.drawZapArc(ctx, Math.cos(a0) * r0, Math.sin(a0) * r0, Math.cos(a0 + da) * r1, Math.sin(a0 + da) * r1, 2, 1.1 * fade, cyc * 4 + i, ZAP_RGB[zk], ZAP_CORE[zk]);
+        ctx.globalAlpha = 0.9 * fade; // искра на конце разряда
+        ctx.fillStyle = 'rgb(' + ZAP_CORE[zk] + ')';
+        ctx.beginPath(); ctx.arc(Math.cos(a0 + da) * r1, Math.sin(a0 + da) * r1, 2.6, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
     ctx.globalAlpha = 1;
   }
