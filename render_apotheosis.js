@@ -293,7 +293,7 @@ export class ApotheosisArt {
     ctx.beginPath(); ctx.ellipse(-0.06, 0.4, 0.035, 0.022, 0, 0, TAU); ctx.ellipse(0.08, 0.4, 0.035, 0.022, 0, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
     this.eyes(ctx, st, p, ex, t, o);
-    this.mouth(ctx, st, p, ex, t);
+    this.mouth(ctx, st, p, ex, t, o);
     // Трещины по лицу: растут вместе с жутью.
     if (ex > 0.35) {
       ctx.strokeStyle = p.deep;
@@ -358,9 +358,44 @@ export class ApotheosisArt {
     }
   }
 
-  mouth(ctx, st, p, ex, t) {
+  mouth(ctx, st, p, ex, t, o) {
     const my = 0.6;
     const mode = st.mouth;
+    const sc = o && o.scream > 0.02 ? o.scream : 0;
+    if (sc) { // крик: рот раскрыт до подбородка, внутри тьма и тлеющий свет, два ряда клыков
+      const w = lerp(0.3, 0.52, sc);
+      const h = lerp(0.05, 0.4, sc);
+      const top = my - 0.04;
+      ctx.fillStyle = p.deep;
+      ctx.beginPath();
+      ctx.moveTo(-w, top);
+      ctx.quadraticCurveTo(0, top - 0.12 * sc, w, top);
+      ctx.quadraticCurveTo(w * 0.9, top + h * 1.1, 0, top + h * 1.25);
+      ctx.quadraticCurveTo(-w * 0.9, top + h * 1.1, -w, top);
+      ctx.closePath();
+      ctx.fill();
+      ctx.save();
+      ctx.clip();
+      const gg = ctx.createRadialGradient(0, top + h * 0.7, 0, 0, top + h * 0.7, w);
+      gg.addColorStop(0, 'rgba(255,90,70,' + (0.55 * sc).toFixed(3) + ')');
+      gg.addColorStop(1, 'rgba(255,60,40,0)');
+      ctx.fillStyle = gg;
+      ctx.fillRect(-w, top - 0.1, w * 2, h * 1.6);
+      ctx.restore();
+      ctx.fillStyle = mix(p.light, '#ffffff', 0.5);
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        const u0 = (i + 0.08) / n;
+        const u1 = (i + 0.92) / n;
+        const x0 = lerp(-w, w, u0);
+        const x1 = lerp(-w, w, u1);
+        const yy = top - 0.1 * sc * (1 - Math.pow(2 * ((u0 + u1) / 4 + 0.25) - 1, 2)) * 0 ;
+        ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.lineTo((x0 + x1) / 2, yy + 0.07 + 0.1 * sc); ctx.closePath(); ctx.fill();
+        const by = top + h * 1.1 * (1 - Math.pow((u0 + u1) - 1, 2) * 0.45);
+        ctx.beginPath(); ctx.moveTo(x0 * 0.82, by); ctx.lineTo(x1 * 0.82, by); ctx.lineTo(((x0 + x1) / 2) * 0.82, by - 0.05 - 0.07 * sc); ctx.closePath(); ctx.fill();
+      }
+      return;
+    }
     if (mode === 'smile') { // лёгкая улыбка
       ctx.strokeStyle = p.deep;
       ctx.lineWidth = 0.05;
@@ -779,6 +814,9 @@ export class ApotheosisArt {
     const dk = this.dk;
     const dead = clamp01(dk);
     let pal = hit ? HITP : palMix(GOLD, BONE, dead);
+    const fin = a ? a.fin : null;
+    const fglow = fin ? fin.glow : 0; // эпилог: маска раскаляется до белого золота
+    if (fglow > 0 && !hit) pal = palMix(pal, { light: '#ffffff', mid: '#fff0b0', dark: '#e8c060', deep: '#7a4a10', glow: undefined, eye: '#ffffff' }, fglow);
     if (stunned && !hit) pal = palMix(pal, { light: '#f2f8ff', mid: '#a8c8ff', dark: '#4a5c8a', deep: '#10182c', glow: 'blue', eye: '#9fd0ff' }, 0.6);
     // Вздрагивание лица в жути: короткие рывки головы.
     const tw = ex > 0.5 ? (Math.sin(t * 31) * Math.sin(t * 2.3) > 0.82 ? 0.05 * ex : 0) : 0;
@@ -810,7 +848,8 @@ export class ApotheosisArt {
     // Голова: лучи, лицо, огни. Лицо поворачивается вместе с головой (проворот = применённые умения).
     this.mask(ctx, x + tw * hr, hy, hr, {
       angle: e.headAngle, expr: ex, pal, st: SUN, t, look: { x: lx, y: ly }, hit,
-      glowA: 0.28 + 0.3 * (1 - dead) + 0.1 * ex,
+      scream: r.apoFin ? r.apoFin.mouthOpen() : 0,
+      glowA: 0.28 + 0.3 * (1 - dead) + 0.1 * ex + 0.5 * fglow,
     });
     // Зарядка вспышки: голова раскаляется.
     if (a && st === 'flash-charge' && !hit) {
@@ -849,6 +888,9 @@ export class ApotheosisArt {
     } else if (st === 'flash-burst') { T.arms = 1; T.spread = 1; T.glow = 1; T.shake = 0.6; T.open = 1; T.fast = true; T.gv = undefined; }
     else if (st === 'rise') { T.arms = 0.9; T.spread = 0.25; T.glow = 0.7; T.motes = 0.7; T.open = 1; T.gv = 'blue'; }
     else if (st === 'omni-charge' || st === 'omni-run') { T.arms = 0.65; T.spread = 0.8; T.glow = 0.8; T.motes = 0.7; T.open = 1; T.orbs = ['gold', 'red', 'blue', true]; T.gv = 'blue'; }
+    else if (st === 'scream') { const gk = a.screamGlow || 0; T.arms = 0.55 + 0.35 * gk; T.spread = 1; T.glow = 0.3 * gk; T.shake = 0.9 * gk; T.open = 1; T.fast = true; T.gv = 'red'; }
+    else if (st === 'path') { T.arms = 0.15; T.spread = 0.8; T.aim = { x: 0, y: 1 }; T.aimW = 0.6; T.glow = 0.7; T.shake = 0.6; T.open = 1; T.gv = 'blue'; }
+    else if (st === 'ending') { const fg = a.fin ? a.fin.glow : 0; T.arms = 0.04 + 0.9 * fg; T.spread = fg; T.glow = fg; T.motes = 0.6 * fg; T.open = 1; T.limp = 0.5 * (1 - fg); T.gv = fg > 0.1 ? undefined : 'blue'; }
     else if (st === 'tf-shrink') { T.arms = 0.3; T.shake = 0.3; }
     else if (st === 'tf-grab') { T.arms = 0.95; T.spread = 0; T.shake = 0.8; T.open = 1; }
     else if (st === 'tf-turn') { T.arms = 0.7; T.spread = 0.2; T.shake = 1; T.open = 1; }
