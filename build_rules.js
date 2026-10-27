@@ -46,12 +46,21 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
 }
 
 /** Можно ли поставить мод modDef в клетку (x, y). { ok, reason, core } */
+/** Вторичное ядро (Кинетический рывок) стоит отдельно: ни одна грань клетки не должна касаться ядра или мода любой ветки. */
+function secondaryFree(grid, x, y) {
+  const owner = grid.tree().owner;
+  return !grid.neighbors(x, y).some((n) => owner.has(n.y * grid.size + n.x));
+}
+
 export function canPlace(grid, modDef, x, y) {
   if (modDef.effect && modDef.effect.kind === 'passive') return { ok: false, reason: 'passive' }; // пассивы ставятся только в угловые ячейки
   const c = grid.cell(x, y);
   if (!c) return { ok: false, reason: 'out' };
   if (c.core || c.mod) return { ok: false, reason: 'busy' };
-  if (modDef.effect && modDef.effect.secondary) return { ok: true, reason: '', core: null }; // вторичное ядро: в любую пустую клетку
+  if (modDef.effect && modDef.effect.secondary) { // вторичное ядро: в пустую клетку, но не вплотную к ядрам и их веткам
+    const ok = secondaryFree(grid, x, y);
+    return { ok, reason: ok ? '' : 'touch-other', core: null };
+  }
   const t = grid.tree();
   const nodes = grid.neighbors(x, y).filter((n) => t.owner.has(n.y * grid.size + n.x));
   if (nodes.length === 0) return { ok: false, reason: 'no-anchor' };
@@ -93,7 +102,7 @@ export function highlight(grid, modDef) {
 }
 
 function highlightMain(grid, modDef) {
-  if (modDef.effect && modDef.effect.secondary) return { faces: [], targets: grid.cells.filter((c) => !c.core && !c.mod) }; // любая пустая клетка
+  if (modDef.effect && modDef.effect.secondary) return { faces: [], targets: grid.cells.filter((c) => !c.core && !c.mod && secondaryFree(grid, c.x, c.y)) }; // пустая клетка вдали от ядер и веток
   const owner = grid.branches();
   const faces = [];
   const targets = new Map();
