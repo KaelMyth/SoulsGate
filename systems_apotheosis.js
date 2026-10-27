@@ -43,29 +43,11 @@
 //          'apotheosis:transform' { stage: 'grab' | 'turn' | 'tear' | 'form' }.
 //          Графика: ЗАГЛУШКА (renderer.drawHands / drawBeams / drawCrumble / drawFlash / drawGrip / drawFog / drawNegative).
 import { pointInPoly } from './world_arena.js';
+import { Finale, rayDist } from './systems_apotheosis_finale.js';
 
 const TAU = Math.PI * 2;
-const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform', 'negApostles', 'rise', 'omni'];
+const ABILITY_IDS = ['apostles', 'hands', 'beams', 'crumble', 'flash', 'transform', 'negApostles', 'rise', 'omni', 'scream', 'pathbreak', 'ending'];
 const ease = (k) => k * k * (3 - 2 * k);
-
-/** Расстояние от (cx, cy) до границы многоугольника по лучу с углом ang. */
-function rayDist(poly, cx, cy, ang) {
-  const dx = Math.cos(ang);
-  const dy = Math.sin(ang);
-  let best = Infinity;
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i];
-    const b = poly[(i + 1) % poly.length];
-    const ex = b.x - a.x;
-    const ey = b.y - a.y;
-    const den = dx * ey - dy * ex;
-    if (Math.abs(den) < 1e-9) continue;
-    const t = ((a.x - cx) * ey - (a.y - cy) * ex) / den;
-    const u = ((a.x - cx) * dy - (a.y - cy) * dx) / den;
-    if (t > 0 && u >= -1e-9 && u <= 1 + 1e-9 && t < best) best = t;
-  }
-  return best;
-}
 
 export class ApotheosisAI {
   /** o: { config, hero, arena, apostles, combat, defense, bus, rnd } */
@@ -108,14 +90,21 @@ export class ApotheosisAI {
     this.madTurn = false;  // идёт последний, медленный проворот головы
     this.fog = 0;          // 0..1 туман на платформе (для отрисовки)
     this.negative = 0;     // 0..1 негатив картинки (для отрисовки)
-    this.p2seq = ['negApostles', 'rise', 'omni']; // умения второй фазы по порядку (enemies.apotheosis.abilities.p2)
+    this.p2seq = ['negApostles', 'rise', 'omni', 'scream', 'pathbreak', 'ending']; // умения второй фазы по порядку (enemies.apotheosis.abilities.p2)
     this.p2i = 0;
+    this.rings = [];       // «Крик»: кольца-волны { r, gap, gapW, solid, hit, src }
+    this.screamT = 0;
+    this.screamGlow = 0;   // 0..1 рот светится перед криком (для отрисовки)
+    this.screamN = 0;      // сколько колец уже выпущено
+    this.fin = new Finale(this);
     this.bus.on('boss:spawned', ({ enemy }) => this.attach(enemy));
     this.bus.on('apostles:defeated', () => this.onApostlesDefeated());
     this.bus.on('apostles:risen-defeated', () => { if (this.boss && this.ability === 'rise') this.finishP2Ability(); });
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.boss) this.reset(); });
     this.bus.on('enemy:hit-incoming', (inc) => { // оглушённый босс получает больше урона
       if (this.stunT > 0 && inc.enemy === this.boss) inc.amount *= this.boss.def.flash.stunDamageMult;
+      // Во второй фазе босс ударами не умирает: здоровье не опускается ниже 1, конец игры только по эпилогу.
+      if (this.phase2 && inc.enemy === this.boss && inc.amount >= this.boss.hp) inc.amount = Math.max(0, this.boss.hp - 1);
     });
   }
 
@@ -170,6 +159,10 @@ export class ApotheosisAI {
     this.fog = 0;
     this.negative = 0;
     this.p2i = 0;
+    this.rings.length = 0;
+    this.screamN = 0;
+    this.screamGlow = 0;
+    this.fin.reset();
   }
 
   get H() { return this.boss ? this.boss.def.hands : null; }
@@ -262,6 +255,9 @@ export class ApotheosisAI {
       case 'transform': this.startTransform(); break;
       case 'negApostles': this.state = 'apostles'; this.apostles.requestSummon(0, true); break;
       case 'rise': this.state = 'rise'; this.apostles.startRise(); break;
+      case 'scream': this.startScream(); break;
+      case 'pathbreak': this.fin.startPath(); break;
+      case 'ending': this.fin.startEnding(); break;
       case 'omni': this.state = 'omni-charge'; this.t = 0; this.bus.emit('apotheosis:omni', { stage: 'charge' }); break;
       default: this.enterGap(0);
     }
@@ -270,7 +266,7 @@ export class ApotheosisAI {
   /** Отладка: немедленно начать умение id (то, что шло, обрывается; счётчик проворотов не меняется). */
   force(id) {
     if (!this.boss || ABILITY_IDS.indexOf(id) < 0) return false;
-    const p2id = id === 'negApostles' || id === 'rise' || id === 'omni'; // умения второй фазы
+    const p2id = ['negApostles', 'rise', 'omni', 'scream', 'pathbreak', 'ending'].indexOf(id) >= 0; // умения второй фазы
     if (this.phase2 !== p2id && (this.phase2 || !this.enterPhase2Debug())) return false; // первой фазы после второй нет; второй без неё: сперва платформа
     this.apostles.requestSummon(Infinity, this.phase2);
     this.apostles.dismiss();
@@ -278,6 +274,10 @@ export class ApotheosisAI {
     this.apostles.pull = null;
     this.apostles.rainCount = 0;
     this.apostles.rise.state = 'off';
+    this.rings.length = 0;
+    this.screamN = 0;
+    this.screamGlow = 0;
+    this.fin.reset();
     if (id !== 'rise') this.apostles.husks.length = 0;
     this.hands.length = 0;
     this.emerge = 0;
@@ -296,7 +296,15 @@ export class ApotheosisAI {
   update(dt) {
     const boss = this.boss;
     if (!boss) return;
-    if (!boss.active) { this.reset(); return; }
+    if (!boss.active) {
+      if (this.fin.alive()) { // босс рассыпался в эпилоге: портал и осколки досчитываются
+        if (this.fin.stage === 'portal') this.fin.update(dt); else this.fin.tickAfter(dt);
+        return;
+      }
+      this.reset();
+      return;
+    }
+    if (this.state === 'path' || this.state === 'ending') boss.touchTimer = 1e9; // в конце боя босс героя не бьёт
     // Голова плавно доворачивается до нужного деления (плюс качание умения «Лучи»).
     const D = boss.def.head;
     const target = this.turns * (TAU / D.rays) + this.spin;
@@ -334,6 +342,15 @@ export class ApotheosisAI {
           this.t = 0;
           this.bus.emit('apotheosis:omni', { stage: 'cast' });
         }
+        break;
+      case 'scream':
+        this.updateScream(dt);
+        break;
+      case 'path':
+        this.fin.updatePath(dt);
+        break;
+      case 'ending':
+        this.fin.update(dt);
         break;
       case 'omni-run':
         if (this.t > 0.1 && !this.apostles.anyBusy()) { this.apostles.loveT = 0; this.finishP2Ability(); }
@@ -588,6 +605,76 @@ export class ApotheosisAI {
     if (parried) {
       this.stunT = F.stunTime;
       this.bus.emit('apotheosis:stun', {});
+    }
+  }
+
+  // ---------- Крик ----------
+
+  startScream() {
+    this.state = 'scream';
+    this.t = 0;
+    this.rings.length = 0;
+    this.screamN = 0;
+    this.screamGlow = 0;
+  }
+
+  /** Рот светится screamTelegraph с, потом кольца-волны расходятся от головы с интервалом interval; в каждом проём (кроме «сплошных»). */
+  updateScream(dt) {
+    const S = this.boss.def.scream;
+    const o = this.headPos();
+    const hero = this.hero;
+    this.screamGlow = Math.min(1, this.t / Math.max(0.01, S.telegraph));
+    while (this.screamN < S.rings && this.t >= S.telegraph + this.screamN * S.interval) {
+      const solid = S.solidEvery > 0 && (this.screamN + 1) % S.solidEvery === 0; // сплошное кольцо: только рывок или парирование
+      const toHero = Math.atan2(hero.y - o.y, hero.x - o.x);
+      // Проём смещён от героя на gapOffsetDeg (случайная сторона): стоять на месте нельзя, надо перейти в проём. Сторону выбираем так,
+      // чтобы проём вёл на платформу (на расстоянии героя точка внутри острова).
+      const offA = (S.gapOffsetDeg[0] + this.rnd() * (S.gapOffsetDeg[1] - S.gapOffsetDeg[0])) * Math.PI / 180;
+      const sg = this.rnd() < 0.5 ? -1 : 1;
+      const dh = Math.hypot(hero.x - o.x, hero.y - o.y);
+      const zp = this.arena.zone && this.arena.zone.poly;
+      let jit = sg * offA;
+      if (zp && !pointInPoly(zp, o.x + Math.cos(toHero + jit) * dh, o.y + Math.sin(toHero + jit) * dh)) jit = -jit;
+      let ring = this.rings[this.screamN];
+      if (!ring) { ring = { r: 0, gap: 0, gapW: 0, solid: false, hit: false, src: { x: 0, y: 0, active: true, parryable: true, enemy: null } }; this.rings[this.screamN] = ring; }
+      ring.r = S.startR;
+      ring.gap = toHero + jit;
+      ring.gapW = S.gapDeg * Math.PI / 180;
+      ring.solid = solid;
+      ring.hit = false;
+      ring.src.active = true;
+      ring.src.parryable = !!S.parryable;
+      ring.live = true;
+      this.screamN++;
+      this.bus.emit('apotheosis:scream', { x: o.x, y: o.y, solid });
+    }
+    let live = 0;
+    for (let i = 0; i < this.screamN; i++) {
+      const g = this.rings[i];
+      if (!g.live) continue;
+      g.r += S.speed * dt;
+      if (g.r > S.maxR) { g.live = false; continue; }
+      live++;
+      if (g.hit || !hero.active) continue;
+      const dx = hero.x - o.x;
+      const dy = hero.y - o.y;
+      const d = Math.hypot(dx, dy);
+      if (Math.abs(d - g.r) > S.width / 2 + hero.radius * 0.6) continue;
+      if (!g.solid) { // проём: угол героя близко к центру проёма
+        let da = Math.atan2(dy, dx) - g.gap;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        if (Math.abs(da) <= g.gapW / 2) continue;
+      }
+      g.hit = true;
+      g.src.x = hero.x;
+      g.src.y = hero.y;
+      g.src.active = true;
+      this.combat.damageHero(S.damage, g.src); // рывок проходит сквозь (неуязвимость), блок гасит часть, парирование всё
+    }
+    if (this.screamN >= S.rings && live === 0) {
+      this.screamGlow = 0;
+      this.rings.length = 0;
+      this.finishP2Ability();
     }
   }
 

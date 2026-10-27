@@ -65,6 +65,7 @@ export class Game {
     this.state = 'playing'; // 'playing' | 'paused' | 'dead' | 'menu' | 'cutscene' (вступление босса: мир замер, камера на боссе)
     this.cine = null;       // состояние вступления босса: { t, fromX, fromY, boss }
     this.deadTimer = 0;
+    this.ending = null;   // конец игры без смерти { title } (победа над Апофеозом)
     this.kills = 0;
     this.runTime = 0;
     this.hud = {
@@ -172,7 +173,7 @@ export class Game {
       midges: this.rockBeetles.midges,
       apostles: this.apostles,
       apotheosis: this.apotheosis,
-      getPortal: () => this.spawner.portal,
+      getPortal: () => this.spawner.portal || this.apotheosis.fin.exit, // портал перед боссом или портал конца игры
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -255,6 +256,9 @@ export class Game {
         { label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
         { label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
         { label: 'Апофеоз: Фаза 2, четыре умения сразу', run: () => this.apotheosis.force('omni') },
+        { label: 'Апофеоз: Фаза 2, Крик', run: () => this.apotheosis.force('scream') },
+        { label: 'Апофеоз: Фаза 2, разлом платформы', run: () => this.apotheosis.force('pathbreak') },
+        { label: 'Апофеоз: Фаза 2, финал', run: () => this.apotheosis.force('ending') },
       ],
       build: o.build,
       getStats: () => ({
@@ -362,6 +366,10 @@ export class Game {
     });
     this.bus.on('hero:levelup', () => { if (this.mode === 'game' || config.rewards.inTest) this.pendingLevels++; });
     this.bus.on('hero:levelup', () => this.burst(this.hero.x, this.hero.y, 0.6, this.hero.radius, this.hero.radius * 5, '#7dffb0'));
+    this.bus.on('apotheosis:victory', () => this.endRun('Победа?'));
+    this.bus.on('apotheosis:crack', ({ x, y }) => { this.burst(x, y, 0.5, 14, 80, '#8a8aa8'); this.sparks(x, y, 4, '#c8c8e0'); });
+    this.bus.on('apotheosis:dissolve', () => { const b = this.apotheosis.boss; if (b) this.burst(b.x, b.y, 0.9, 40, 240, '#fff6c8'); });
+    this.bus.on('apotheosis:scream', ({ x, y, solid }) => this.burst(x, y, 0.4, 20, 120, solid ? '#ffffff' : '#fff0b0'));
     this.bus.on('hero:died', () => {
       this.state = 'dead';
       this.deadTimer = 0;
@@ -1255,7 +1263,7 @@ export class Game {
         const sec = Math.floor(this.runTime);
         const mm = Math.floor(sec / 60);
         const ss = String(sec % 60).padStart(2, '0');
-        this.deathScreen.show('Убито: ' + this.kills + '\nУровень: ' + this.xp.level + '\nПродержался: ' + mm + ':' + ss);
+        this.deathScreen.show('Убито: ' + this.kills + '\nУровень: ' + this.xp.level + '\nПродержался: ' + mm + ':' + ss, this.ending ? this.ending.title : undefined);
       }
     }
 
@@ -1556,6 +1564,14 @@ export class Game {
     else this.pause();
   }
 
+  /** Конец игры без смерти (победа над Апофеозом): мир замирает, экран с заголовком title и кнопкой «Заново». */
+  endRun(title) {
+    if (this.state !== 'playing') return;
+    this.ending = { title };
+    this.state = 'dead';
+    this.deadTimer = 0;
+  }
+
   /** Новый забег (после смерти или с экрана паузы). Конфиг и подобранные ползунки не трогаем. */
   restart() {
     if (this.state !== 'dead' && this.state !== 'paused' && this.state !== 'menu') return;
@@ -1606,6 +1622,7 @@ export class Game {
     this.hud.kills = 0;
     this.runTime = 0;
     this.deadTimer = 0;
+    this.ending = null;
     this.state = 'playing';
     this.deathScreen.hide();
     this.syncWaveHud(); // HUD сразу показывает новый забег, не дожидаясь шага
