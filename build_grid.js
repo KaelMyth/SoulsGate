@@ -8,6 +8,7 @@ import { parentAccepts } from './build_rules.js';
 
 export class BuildGrid {
   constructor(size) {
+    this.lightningBonus = 0; // плоская прибавка урона от каждой Молнии (задаёт игра из config.shock.attackBonus)
     this.resize(size);
   }
 
@@ -227,7 +228,7 @@ export class BuildGrid {
       const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
       const e = c.mod.def.effect;
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
-      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'dbl' ? 'dbl' : pc);
+      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'lightning' || pc === 'dbl' ? 'dbl' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
       else if (e.kind === 'shot') carry.set(ci, 'shot'); // «Дробь»: ничего не вешается, число дробинок множит Х2/Х3 на ядре
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
@@ -363,12 +364,21 @@ export class BuildGrid {
     }
     if (pierce) res.pierce = { count: pierce };
     // Молния: просто наличие (число для статистики).
+    // Молния: число модов (каждый даёт плоскую прибавку к урону) и множитель цепи (Х2/Х3 на Молнии, как на Пробитии).
     let zaps = 0;
+    let zapMul = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
-      if (c.mod && c.mod.def.effect.kind === 'lightning' && owner.get(i) === coreId) zaps++;
+      if (!c.mod || c.mod.def.effect.kind !== 'lightning' || owner.get(i) !== coreId) continue;
+      let f = 1;
+      for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
+      zaps++;
+      zapMul += f;
     }
-    if (zaps) res.lightning = { count: zaps };
+    if (zaps) {
+      res.lightning = { count: zaps, mult: zapMul };
+      if (this.lightningBonus) (res.damage || (res.damage = { percent: 0, flat: 0 })).flat += this.lightningBonus * zaps;
+    }
     // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
     let ph = 0;
     let phMul = 0;
