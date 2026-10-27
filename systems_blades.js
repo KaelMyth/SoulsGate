@@ -131,7 +131,7 @@ export class Blades {
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
     const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
     const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
-    const dmg = B.damage * bm.damage;                          // Мощь на клинках
+    const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                          // Мощь на клинках
 
     // Копим клинки, пока их на орбите меньше максимума. Когда их много, залп начинается не дожидаясь полного набора:
     // первые уже летят, пока последние ещё появляются (launchAt).
@@ -213,7 +213,7 @@ export class Blades {
           this.source.dy = Math.sin(b.a);
           this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
           if (t.active) this.applyEffects(t, m, bd);
-          if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0);
+          if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0, m.lightning.mult);
           if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
           if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
           if (b.pc === undefined) b.pc = m.pierce ? m.pierce.count : 0;
@@ -263,7 +263,7 @@ export class Blades {
       width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick, big: big.big,
       burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
-      zap: !!m.lightning,
+      zap: m.lightning ? m.lightning.mult : 0,
       gen: 0, phDmg: m.phantom ? m.phantom.damage || 1 : 1, phantom: m.phantom ? Math.min(1, this.cfg.phantom.chance * m.phantom.mult) : 0,
     });
     return true;
@@ -291,7 +291,7 @@ export class Blades {
       const fx = (k & 1) === 0;
       const off = t.radius + S.radius + 2;
       P.add(t.x + Math.cos(a) * off, t.y + Math.sin(a) * off, Math.cos(a) * S.speed * f, Math.sin(a) * S.speed * f, S.range * f, pd,
-        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? 1 : 0);
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0);
     }
   }
 

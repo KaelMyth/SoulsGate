@@ -33,6 +33,7 @@ import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
+import { SlotUI } from './ui_slot.js';
 import { ModeScreen } from './ui_mode-screen.js';
 import { SettingsScreen } from './ui_settings.js';
 import { getPath, setPath } from './debug_tunables.js';
@@ -41,7 +42,6 @@ import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
 import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
-import { SlotUI } from './ui_slot.js';
 import { readSafeInsets } from './platform_viewport.js';
 
 export class Game {
@@ -66,6 +66,7 @@ export class Game {
     this.state = 'playing'; // 'playing' | 'paused' | 'dead' | 'menu' | 'cutscene' (вступление босса: мир замер, камера на боссе)
     this.cine = null;       // состояние вступления босса: { t, fromX, fromY, boss }
     this.deadTimer = 0;
+    this.ending = null;   // конец игры без смерти { title } (победа над Апофеозом)
     this.kills = 0;
     this.runTime = 0;
     this.hud = {
@@ -73,6 +74,7 @@ export class Game {
       wave: 1, intermission: 0, intermissionTotal: 1, crash: false, alive: 0, cap: 0, crashResult: '',
       bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
+    this.skillCd = [0, 0, 0]; // перезарядки умений (с)
     this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
@@ -128,7 +130,7 @@ export class Game {
         if (!e.active) return;
         if (bd > 0) this.ignite(e, bd, bi);   // поджигает и морозит только половина дробинок (см. fireShot)
         if (fr) this.chill(e, bd > 0 ? st : 0, bd, bi);
-        if (zp) this.zap(e, bd, bi, fr, st);
+        if (zp) this.zap(e, bd, bi, fr, st, zp);
         if (pp > 0 && e.active) this.tryPhantomPellets(e, dmg, bd, bi, fr, st, zp, pp, pg);
       },
     });
@@ -141,7 +143,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
-    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st); } });
+    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
     this.defense.lightning = this.lightdash;
     this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
     this.blades = new Blades({
@@ -151,7 +153,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
-      zap: (e, bd, bi, fr, st) => this.zap(e, bd, bi, fr, st),
+      zap: (e, bd, bi, fr, st, cm) => this.zap(e, bd, bi, fr, st, cm),
     });
 
     this.aura = new Aura({
@@ -159,7 +161,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
-      zap: (e, bd, bi, fr, st) => this.zap(e, bd, bi, fr, st),
+      zap: (e, bd, bi, fr, st, cm) => this.zap(e, bd, bi, fr, st, cm),
       rnd: this.rnd,
     });
 
@@ -174,7 +176,7 @@ export class Game {
       midges: this.rockBeetles.midges,
       apostles: this.apostles,
       apotheosis: this.apotheosis,
-      getPortal: () => this.spawner.portal,
+      getPortal: () => this.spawner.portal || this.apotheosis.fin.exit, // портал перед боссом или портал конца игры
       effects: this.effects,
       gems: this.gems,
       autoattack: this.autoattack,
@@ -211,6 +213,7 @@ export class Game {
     this.levelUpOffers = [];
     this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward(), (offer) => this.previewReward(offer));
     this.build = new BuildGrid(config.build.size);
+    this.build.lightningBonus = config.shock.attackBonus;
     this.inventory = new Storage(config.build.storageSlots);
     this.layoutBuild();
     this.pauseUI = new PauseUI(o.uiRoot, {
@@ -220,12 +223,7 @@ export class Game {
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
-    this.slotPresses = 0;
-    this.slot = new SlotUI(o.uiRoot, (n, i) => {
-      this.slotPresses = n;
-      this.hud.slotFlash = i + 1;
-      this.bus.emit('slot:pressed', { count: n, slot: i });
-    });
+    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
@@ -258,6 +256,9 @@ export class Game {
         { label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
         { label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
         { label: 'Апофеоз: Фаза 2, четыре умения сразу', run: () => this.apotheosis.force('omni') },
+        { label: 'Апофеоз: Фаза 2, Крик', run: () => this.apotheosis.force('scream') },
+        { label: 'Апофеоз: Фаза 2, разлом платформы', run: () => this.apotheosis.force('pathbreak') },
+        { label: 'Апофеоз: Фаза 2, финал', run: () => this.apotheosis.force('ending') },
       ],
       build: o.build,
       getStats: () => ({
@@ -274,7 +275,7 @@ export class Game {
         cap: this.hud.cap,
         checks: this.swarm.pairChecks,
         crash: this.crashResult ? this.crashText() : '',
-        defense: 'состояние ' + this.defense.state + ' · блоков ' + this.blocks + ' · парирований ' + this.parries + ' · слот нажат ' + this.slotPresses,
+        defense: 'состояние ' + this.defense.state + ' · блоков ' + this.blocks + ' · парирований ' + this.parries + '',
         stick: this.stick.active
           ? 'x ' + this.stick.x.toFixed(2) + ' y ' + this.stick.y.toFixed(2)
           : 'не нажат',
@@ -290,6 +291,9 @@ export class Game {
 
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
+    this.bus.on('enemy:hit-incoming', (inc) => { // уязвимость от дождя: входящий урон больше
+      if (inc.enemy.vuln) inc.amount *= 1 + this.config.skills.rain.vulnerability;
+    });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
       const vamp = this.build.passives().vamp; // пассив «Вампиризм»
       if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
@@ -365,6 +369,10 @@ export class Game {
     });
     this.bus.on('hero:levelup', () => { if (this.mode === 'game' || config.rewards.inTest) this.pendingLevels++; });
     this.bus.on('hero:levelup', () => this.burst(this.hero.x, this.hero.y, 0.6, this.hero.radius, this.hero.radius * 5, '#7dffb0'));
+    this.bus.on('apotheosis:victory', () => this.endRun('Победа?'));
+    this.bus.on('apotheosis:crack', ({ x, y }) => { this.burst(x, y, 0.5, 14, 80, '#8a8aa8'); this.sparks(x, y, 4, '#c8c8e0'); });
+    this.bus.on('apotheosis:dissolve', () => { const b = this.apotheosis.boss; if (b) this.burst(b.x, b.y, 0.9, 40, 240, '#fff6c8'); });
+    this.bus.on('apotheosis:scream', ({ x, y, solid }) => this.burst(x, y, 0.4, 20, 120, solid ? '#ffffff' : '#fff0b0'));
     this.bus.on('hero:died', () => {
       this.state = 'dead';
       this.deadTimer = 0;
@@ -547,7 +555,7 @@ export class Game {
    * Электризация: +1 заряд; на последнем враг разряжается (см. discharge).
    * bd, bi, fr, st: стихии источника (горение: урон и интервал, мороз, пар): их разряд разносит цепью.
    */
-  zap(e, bd = 0, bi = 0, fr = 0, st = 0) {
+  zap(e, bd = 0, bi = 0, fr = 0, st = 0, cm = 1) {
     if (!e || !e.active) return;
     const S = this.config.shock;
     e.shockStacks++;
@@ -555,15 +563,20 @@ export class Game {
     if (e.shockStacks >= S.maxStacks) {
       e.shockStacks = 0;
       e.shockT = 0;
-      this.discharge(e, bd, bi, fr, st);
+      this.discharge(e, bd, bi, fr, st, cm);
     }
+  }
+
+  /** Плоская прибавка к урону атак от Молнии (по числу модов Молнии в ветке). */
+  shockBonus(m) {
+    return m && m.lightning ? this.config.shock.attackBonus * m.lightning.count : 0;
   }
 
   /**
    * Разряд: удар по врагу и цепная молния на 2–3 ближайших. С Горением молния оранжевая и поджигает, с Морозом синяя и морозит,
    * со всеми тремя белая: электризует, поджигает, морозит и поднимает паровые взрывы. Цепь заряды электризации не копит.
    */
-  discharge(e, bd = 0, bi = 0, fr = 0, st = 0) {
+  discharge(e, bd = 0, bi = 0, fr = 0, st = 0, cm = 1) {
     const S = this.config.shock;
     const kind = (bd > 0 ? 1 : 0) | (fr ? 2 : 0);
     const col = S.colors[kind];
@@ -571,8 +584,9 @@ export class Game {
     const en = this.enemies.items;
     this.combat.damageEnemy(e, S.damage, this.shockSource, null);
     this.burst(e.x, e.y, 0.3, e.radius, e.radius * 2.4, col);
-    const want = S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1));
-    const n = grid.query(e.x, e.y, S.chainRange);
+    const want = Math.round((S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1))) * Math.max(1, cm)); // Х2/Х3 на Молнии множат число молний
+    const range = S.chainRange * (this.autoattack.rangeMul || 1); // «Дальность атаки» растит и дальность цепи
+    const n = grid.query(e.x, e.y, range);
     const buf = grid.buf;
     const bestE = this._zapE || (this._zapE = []);
     const bestD = this._zapD || (this._zapD = []);
@@ -582,7 +596,7 @@ export class Game {
       if (!o || !o.active || o === e) continue;
       const dx = o.x - e.x, dy = o.y - e.y;
       const d = dx * dx + dy * dy;
-      if (d > S.chainRange * S.chainRange) continue;
+      if (d > range * range) continue;
       let j = bestE.length;
       if (j >= want && d >= bestD[j - 1]) continue;
       if (j < want) { bestE.push(o); bestD.push(d); } else j--;
@@ -598,6 +612,24 @@ export class Game {
       if (bd > 0) this.ignite(o, bd, bi);
       if (fr) this.chill(o, st, bd, bi);
     }
+  }
+
+  /** Магический дождь: на всю карту, все враги получают уязвимость до смерти. Перезарядка 15 с. */
+  castRain() {
+    const R = this.config.skills.rain;
+    if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0) return false;
+    this.skillCd[0] = R.cooldown;
+    this.hud.rainT = R.duration;
+    for (const e of this.enemies.items) if (e.active) e.vuln = true;
+    return true;
+  }
+
+  /** Перезарядки умений и время дождя на экране. */
+  updateSkills(dt) {
+    const sc = this.skillCd;
+    for (let i = 0; i < 3; i++) if (sc[i] > 0) sc[i] = Math.max(0, sc[i] - dt);
+    if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
+    this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
   }
 
   /** Заряды электризации тают, если давно не подновлялись; молнии разряда гаснут. */
@@ -786,7 +818,7 @@ export class Game {
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
       if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
-      if (l.zap) this.zap(e, l.burnDmg, l.burnInt, l.frost ? 1 : 0, l.steam);
+      if (l.zap) this.zap(e, l.burnDmg, l.burnInt, l.frost ? 1 : 0, l.steam, l.zap);
     }
     if (l.phantom > 0) { // фантом: каждый тик лазера может породить луч из точки рядом с первой целью
       for (const e of hit) if (e.active) { this.tryPhantomLaser(l, e); break; }
@@ -820,12 +852,13 @@ export class Game {
   kineticEl() {
     const m = this.kineticMods;
     const K = this.config.kinetic;
-    const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0 });
+    const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0, cm: 1 });
     el.bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
     el.bi = m && m.burn ? this.config.burn.interval / m.burn.rate : 0;
     el.fr = m && m.frost ? 1 : 0;
     el.st = el.bd > 0 && m && m.frost && m.steam ? m.steam.damage : 0;
     el.kind = (el.bd > 0 ? 1 : 0) | (el.fr ? 2 : 0);
+    el.cm = m && m.lightning ? m.lightning.mult : 1; // Х2/Х3 на Молнии: больше молний в цепи
     return el;
   }
 
@@ -866,7 +899,7 @@ export class Game {
       this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
-      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st);
+      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
     }
   }
 
@@ -900,7 +933,7 @@ export class Game {
         const sp = S.speed * 0.8 * (0.8 + this.rnd() * 0.4);
         const fx = ((i >> 1) & 1) === 0; // половина несёт эффекты
         P.add(px, py, Math.cos(a) * sp, Math.sin(a) * sp, S.range * 0.6, dmg,
-          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? 1 : 0, 0);
+          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? el.cm : 0, 0);
       }
     }
     last.x += (dx / d) * K.shotStep * steps;
@@ -948,7 +981,7 @@ export class Game {
     const n = grid.query(b.x1, b.y1, K.laserZone + 40);
     const buf = grid.buf;
     const pcd = m && m.damage ? 1 + m.damage.percent / 100 : 1;
-    const dmg = K.laserDamage * pcd * (m && m.laser ? m.laser.damage || 1 : 1);
+    const dmg = K.laserDamage * pcd * (m && m.laser ? m.laser.damage || 1 : 1) + this.shockBonus(m);
     const hit = this._zoneHit || (this._zoneHit = []);
     hit.length = 0;
     for (let k = 0; k < n; k++) {
@@ -970,7 +1003,7 @@ export class Game {
       if (!e.active) continue;
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
-      if (b.zap) this.zap(e, el.bd, el.bi, el.fr, el.st);
+      if (b.zap) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
     }
   }
 
@@ -1068,7 +1101,7 @@ export class Game {
     this.combat.damageEnemy(e, p.damage, p, { knockback: p.knockback, dirX: p.vx / speed, dirY: p.vy / speed });
     if (p.burnDmg > 0 && e.active) this.ignite(e, p.burnDmg, p.burnInt);
     if (p.frost && e.active) this.chill(e, p.burnDmg > 0 ? p.steam : 0, p.burnDmg, p.burnInt);
-    if (p.zap && e.active) this.zap(e, p.burnDmg, p.burnInt, p.frost ? 1 : 0, p.steam);
+    if (p.zap && e.active) this.zap(e, p.burnDmg, p.burnInt, p.frost ? 1 : 0, p.steam, p.zap);
     if (p.phantom > 0) this.tryPhantom(p, e);
     if (p.pierce > 0) {
       p.pierce--;
@@ -1238,6 +1271,7 @@ export class Game {
         this.defense.dashCdMul = 1 / (1 + pc('rate'));
         this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
         this.lightdash.damageMul = 1 + pc('damage');
+        this.lightdash.bonus = this.shockBonus(km0);
       }
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
@@ -1271,6 +1305,7 @@ export class Game {
       this.updateBurning(dt);
       this.updateFrost(dt);
       this.updateShock(dt);
+      this.updateSkills(dt);
       this.updateSteam(dt);
       this.updateLasers(dt);
       this.blades.update(dt);
@@ -1286,7 +1321,7 @@ export class Game {
         const sec = Math.floor(this.runTime);
         const mm = Math.floor(sec / 60);
         const ss = String(sec % 60).padStart(2, '0');
-        this.deathScreen.show('Убито: ' + this.kills + '\nУровень: ' + this.xp.level + '\nПродержался: ' + mm + ':' + ss);
+        this.deathScreen.show('Убито: ' + this.kills + '\nУровень: ' + this.xp.level + '\nПродержался: ' + mm + ':' + ss, this.ending ? this.ending.title : undefined);
       }
     }
 
@@ -1587,6 +1622,14 @@ export class Game {
     else this.pause();
   }
 
+  /** Конец игры без смерти (победа над Апофеозом): мир замирает, экран с заголовком title и кнопкой «Заново». */
+  endRun(title) {
+    if (this.state !== 'playing') return;
+    this.ending = { title };
+    this.state = 'dead';
+    this.deadTimer = 0;
+  }
+
   /** Новый забег (после смерти или с экрана паузы). Конфиг и подобранные ползунки не трогаем. */
   restart() {
     if (this.state !== 'dead' && this.state !== 'paused' && this.state !== 'menu') return;
@@ -1608,6 +1651,8 @@ export class Game {
     this.lightdash.reset();
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
+    this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
+    this.hud.rainT = 0;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();
@@ -1637,6 +1682,7 @@ export class Game {
     this.hud.kills = 0;
     this.runTime = 0;
     this.deadTimer = 0;
+    this.ending = null;
     this.state = 'playing';
     this.deathScreen.hide();
     this.syncWaveHud(); // HUD сразу показывает новый забег, не дожидаясь шага

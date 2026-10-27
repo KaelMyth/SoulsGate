@@ -1,5 +1,4 @@
-// Три кнопки-заглушки «слот умения» внизу по центру. Умений в них пока нет: они нужны, чтобы проверить главный
-// сценарий управления одним пальцем: убрать палец со стика, нажать кнопку и вернуться на стик.
+// Три слота умений внизу по центру. Пока работает только первый (Магический дождь), два других пустые.
 // Сам ромб рисует canvas (render_renderer.js, drawHud), кнопка даёт только зону нажатия.
 import { h } from './ui_dom.js';
 
@@ -8,9 +7,10 @@ export class SlotUI {
   constructor(root, onPress) {
     this.presses = 0;
     this.buttons = [0, 1, 2].map((i) => h('button', {
-      class: 'slot-btn', type: 'button', 'aria-label': 'Слот умения ' + (i + 1),
+      class: i === 0 ? 'slot-btn' : 'slot-btn off', type: 'button', 'aria-label': 'Слот умения ' + (i + 1),
       onpointerdown: (e) => {
         if (e.cancelable) e.preventDefault();
+        if (i !== 0) return;
         this.presses++;
         onPress(this.presses, i);
       },

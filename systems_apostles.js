@@ -84,9 +84,9 @@ export class Apostles {
     this.bus.on('enemy:killed', ({ enemy }) => this.onKilled(enemy));
   }
 
-  get A() { return this.boss ? this.boss.def.apostles : null; }
+  get A() { return this.boss && this.boss.def ? this.boss.def.apostles : null; } // def пуст, если босса убрали из пула (рассыпался в эпилоге)
 
-  get N() { return this.boss ? this.boss.def.apostles.negative : null; }
+  get N() { return this.boss && this.boss.def ? this.boss.def.apostles.negative : null; }
 
   attach(boss) {
     this.reset();

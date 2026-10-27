@@ -288,9 +288,6 @@ body {
 .core-info .stat { display: flex; justify-content: space-between; font-size: 13px; line-height: 1.35; color: #9fb3cc; }
 .core-info .stat b { color: var(--ink); font-weight: 600; }
 
-/* В меню билда кнопка умения не нужна. */
-#pause-screen:not([hidden]) ~ #slot-row { display: none; }
-
 /* Моды: ряд хранилища, мод на поле, подсветка граней (зелёная: можно прикрепить, красная: ядру не подходит). */
 
 .board .cell { --st: inset 0 0 0 0 transparent; --sr: inset 0 0 0 0 transparent; --sb: inset 0 0 0 0 transparent; --sl: inset 0 0 0 0 transparent; }
@@ -415,6 +412,10 @@ body { font-family: var(--serif); }
   font-size: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 
+/* В меню билда кнопка умения не нужна. */
+#pause-screen:not([hidden]) ~ #slot-row { display: none; }
+.slot-btn.off { pointer-events: none; }
+
 /* ---------- Экран смерти ---------- */
 #death-screen {
   position: fixed; z-index: 25; top: 0; left: 0; right: 0; bottom: 0;
@@ -431,6 +432,9 @@ body { font-family: var(--serif); }
   content: ''; display: block; width: 62%; height: 9px; margin: 12px auto 0;
   background: linear-gradient(90deg, transparent, rgba(229, 83, 75, 0.7) 40%, transparent 40%, transparent 60%, rgba(229, 83, 75, 0.7) 60%, transparent) center / 100% 1px no-repeat;
 }
+#death-screen.ending { background: radial-gradient(ellipse at 50% 45%, rgba(230, 226, 205, 0.18), rgba(4, 7, 14, 0.92) 70%); }
+#death-screen.ending h2 { color: #f6f0d8; text-shadow: 0 0 26px rgba(255, 240, 180, 0.6); }
+#death-screen.ending .card > h2::after { background: linear-gradient(90deg, transparent, rgba(255, 240, 180, 0.7) 40%, transparent 40%, transparent 60%, rgba(255, 240, 180, 0.7) 60%, transparent) center / 100% 1px no-repeat; }
 #death-stats { margin: 14px 0 20px; font: italic 17px/1.7 var(--serif); color: var(--ice); white-space: pre-line; }
 @keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
 
