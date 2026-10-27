@@ -5151,10 +5151,11 @@ export class Renderer {
     }
     // Проход 2: обычные дробинки: тонкие светящиеся чёрточки по ходу полёта, одним путём.
     ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1; // после клубов тут оставалась их прозрачность: чёрточки выходили тусклыми
     ctx.lineCap = 'round';
     ctx.beginPath();
     for (let i = 0; i < P.n; i++) {
-      if (P.bd[i] > 0 || P.fr[i] === 1) continue;
+      if (P.bd[i] > 0 || P.fr[i] === 1 || P.zp[i] === 1) continue;
       const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
       const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
       if (x < viewL - 12 || x > viewR + 12 || y < viewT - 12 || y > viewB + 12) continue;
@@ -5168,6 +5169,38 @@ export class Renderer {
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = 'rgba(225,242,255,0.95)';
     ctx.stroke();
+    // Проход 3: дробь с Молнией: короткая ломаная молния вместо чёрточки (дрожит 40 раз в секунду); цвет по стихии на дробинке.
+    const fl = Math.floor(t * 40);
+    for (let k = 0; k < 4; k++) {
+      let any = false;
+      ctx.beginPath();
+      for (let i = 0; i < P.n; i++) {
+        if (P.zp[i] !== 1) continue;
+        if (((P.bd[i] > 0 ? 1 : 0) | (P.fr[i] === 1 ? 2 : 0)) !== k) continue;
+        const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+        const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+        if (x < viewL - 12 || x > viewR + 12 || y < viewT - 12 || y > viewB + 12) continue;
+        any = true;
+        const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
+        const bx = -P.vx[i] / sp;
+        const by = -P.vy[i] / sp;
+        const nx = -by;
+        const ny = bx;
+        ctx.moveTo(x, y);
+        for (let j = 1; j <= 3; j++) {
+          const h = Math.sin((P.sd[i] * 91.7 + fl * 3.1 + j * 17.3) * 43758.5453) * 43758.5453;
+          const jit = (h - Math.floor(h) - 0.5) * 7;
+          ctx.lineTo(x + bx * j * 4.5 + nx * jit, y + by * j * 4.5 + ny * jit);
+        }
+      }
+      if (!any) continue;
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(' + ZAP_RGB[k] + ',0.55)';
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(' + ZAP_CORE[k] + ',1)';
+      ctx.stroke();
+    }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.lineCap = 'butt';
