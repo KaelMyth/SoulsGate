@@ -2220,6 +2220,7 @@ export class Renderer {
       }
     }
 
+    if (e.vuln) this.drawVulnFx(e, x, y, r);
     this.drawStatusFx(e, x, y, r);
     if (e.shockStacks > 0) this.drawShockFx(e, x, y, r);
 
@@ -2248,6 +2249,19 @@ export class Renderer {
    * холодная дымка. Заморожен: враг в огранённой ледяной глыбе с бликами, трещинами и искрами. Горит: языки пламени из
    * огранённых лепестков поднимаются над ним, снизу тёплый свет, вверх летят угольки.
    */
+  /** Уязвимость от Магического дождя: слабое синее свечение вокруг врага. */
+  drawVulnFx(e, x, y, r) {
+    const ctx = this.ctx;
+    const p = 0.75 + 0.25 * Math.sin(this.clock * 3 + e.x * 0.05);
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4, 0, TAU);
+    ctx.fillStyle = 'rgba(90,160,255,' + (0.14 * p).toFixed(3) + ')';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(130,190,255,' + (0.4 * p).toFixed(3) + ')';
+    ctx.stroke();
+  }
+
   /** Электризация: жёлтые искры вокруг врага по числу зарядов. */
   drawShockFx(e, x, y, r) {
     const ctx = this.ctx;
@@ -4362,8 +4376,12 @@ export class Renderer {
     ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), bx, h - ins.bottom - 22);
     ctx.globalAlpha = 1;
 
-    // Три пустых ячейки умений по центру: нажимать нечего, умений пока нет.
-    for (let i = -1; i <= 1; i++) this.drawAbility(cx + i * 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
+    // Слоты умений: первый Магический дождь, два других пока пустые.
+    this.drawRain(hud);
+    const f0 = hud.skillFrac0 === undefined ? 1 : hud.skillFrac0;
+    this.drawAbility(cx - 64, rowY, f0, '#6fb6ff', '#d6efff', 3, U.slots[0] > 0.01, f0 >= 0.999 ? 'blue' : undefined, U.slots[0]);
+    this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
+    this.drawAbility(cx + 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
 
     // Повышение уровня: надпись плавно гаснет.
     if (hud.levelFlash > 0) {
@@ -4408,9 +4426,38 @@ export class Renderer {
     this.rhomb(x + w + 8, y + hh / 2, 3, null);
   }
 
+  /** Магический дождь на весь экран: тонкие синие струи и слабая синева, плавно приходят и уходят. */
+  drawRain(hud) {
+    const t = hud.rainT || 0;
+    if (t <= 0) return;
+    const D = this.cfg.skills.rain.duration;
+    const a = Math.min(1, t / 0.4, (D - t) / 0.25 + 0.0001, 1);
+    const ctx = this.ctx;
+    const w = this.w;
+    const h = this.h;
+    ctx.save();
+    ctx.globalAlpha = 0.12 * a;
+    ctx.fillStyle = '#4a86ff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = 0.5 * a;
+    ctx.strokeStyle = '#9cc8ff';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    const n = 90;
+    for (let i = 0; i < n; i++) {
+      const sx = (((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1) * (w + 60) - 30;
+      const sp = 700 + ((i * 37) % 300);
+      const y = (((this.clock * sp + i * 131) % (h + 60)) + h + 60) % (h + 60) - 30;
+      ctx.moveTo(sx, y);
+      ctx.lineTo(sx - 5, y + 18);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /**
    * Ромб умения. frac: готовность 0..1 (заливка поднимается снизу), hot: умение сейчас действует, flash: вспышка нажатия.
-   * kind: 0 блок (сфера), 1 рывок (шевроны), 2 умение (кристалл). glow: false или имя спрайта свечения.
+   * kind: 0 блок (сфера), 1 рывок (шевроны), 2 умение (кристалл), 3 дождь. glow: false или имя спрайта свечения.
    */
   drawAbility(cx, cy, frac, col, light, kind, hot, glow, flash, empty) {
     const ctx = this.ctx;
@@ -4470,6 +4517,19 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(cx, cy, 10, 0.4, TAU - 0.5);
       ctx.arc(cx, cy, 5.5, TAU - 0.5, 0.9, true);
+      ctx.stroke();
+    } else if (kind === 3) { // дождь: облако и капли
+      ctx.beginPath();
+      ctx.arc(cx - 5, cy - 3, 5, Math.PI * 0.9, Math.PI * 1.9);
+      ctx.arc(cx + 3, cy - 6, 6, Math.PI * 1.1, Math.PI * 2.05);
+      ctx.arc(cx + 9, cy - 1, 4, Math.PI * 1.5, Math.PI * 0.5);
+      ctx.lineTo(cx - 8, cy + 3);
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        ctx.moveTo(cx - 6 + i * 6, cy + 7);
+        ctx.lineTo(cx - 8 + i * 6, cy + 12);
+      }
       ctx.stroke();
     } else { // пламя
       ctx.beginPath();
