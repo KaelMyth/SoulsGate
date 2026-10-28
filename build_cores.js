@@ -127,6 +127,7 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Поглощение: целей одновременно', text: String(Math.min(a.maxTargets, mods.absorption.targets || mods.absorption.count)), bonus: 'Х2/Х3 перемножаются' });
     rows.push({ label: 'Поглощение: каждые', text: Math.round(a.interval / rate * 100) / 100 + ' с', bonus: rate !== 1 ? '+' + Math.round((rate - 1) * 100) + '% скорости' : '' });
     rows.push({ label: 'Поглощение: время каста', text: Math.round(a.telegraph / rate * 100) / 100 + ' с', bonus: '' });
+    if (mods.absorption.blades) rows.push({ label: 'Поглощение + Клинки', text: a.bladeHits + ' попадания → удар через ' + a.bladeDelay + ' с', bonus: 'все стихии Поглощения' });
     if (mods.absorption.vampirism) rows.push({ label: 'Поглощение + Вампиризм', text: Math.round(a.lifesteal * 100) + '% урона → здоровье', bonus: 'красный круг' });
     if (mods.absorption.burn) rows.push({ label: 'Поглощение + Горение', text: config.burn.maxStacks + ' заряда сразу', bonus: 'огонь' });
     if (mods.absorption.frost) rows.push({ label: 'Поглощение + Мороз', text: config.frost.maxStacks + ' зарядов сразу', bonus: 'заморозка / пар' });
