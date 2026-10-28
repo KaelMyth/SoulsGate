@@ -111,7 +111,9 @@ export function coreStats(core, config, mods) {
     // dmgRow.value уже со штрафом за число снарядов: возвращаем его, чтобы не считать штраф дважды
     const base = dmgRow ? dmgRow.value / countPenalty(config, cnt) : 0;
     const ls = laserStats(config, mods.laser, base, cnt);
-    rows.push({ label: 'Лазер: урон тика', text: String(Math.round(ls.tick * 100) / 100), bonus: '' });
+    const grav = mods.gravity ? 1 + config.gravity.damageBonus * mods.gravity.count : 1;
+    rows.push({ label: 'Лазер: урон тика', text: String(Math.round(ls.tick * grav * 100) / 100), bonus: grav !== 1 ? '+' + Math.round((grav - 1) * 100) + '% Гравитации' : '' });
+    if (grav !== 1) rows.push({ label: 'Лазер: зарядка Гравитации', text: config.gravity.laserCharge + ' с', bonus: 'растущий круг перед лучом' });
     rows.push({ label: 'Лазер: тиков за ' + ls.life + ' с', text: String(ls.ticks), bonus: ls.big ? 'большой' : '' });
     rows.push({ label: 'Лазер: одновременно', text: String(cnt), bonus: '' });
   }

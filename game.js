@@ -786,6 +786,23 @@ export class Game {
           if (bd > 1e-3) { l.dx = bx / bd; l.dy = by / bd; }
         }
       }
+      if (l.gravityLaser) {
+        // Перед лучом круг накапливает энергию впереди посоха. Он остаётся источником
+        // и после освобождения; обычные лазеры и сферы клинков не меняются.
+        if (!l.fixed) {
+          l.x += l.dx * l.gravityOrigin;
+          l.y += l.dy * l.gravityOrigin;
+          if (tg) {
+            const gx = tg.x - l.x, gy = tg.y - l.y;
+            const gd = Math.hypot(gx, gy);
+            if (gd > 1e-3) { l.dx = gx / gd; l.dy = gy / gd; }
+          }
+        }
+        if (l.gravityChargeAge < l.gravityChargeTime) {
+          l.gravityChargeAge = Math.min(l.gravityChargeTime, l.gravityChargeAge + dt);
+          if (l.gravityChargeAge < l.gravityChargeTime) continue; // во время заряда урона нет
+        }
+      }
       this.scanLaser(l);
       l.age += dt;
       while (l.done < l.ticks && l.age >= l.done * l.interval) {
@@ -886,6 +903,8 @@ export class Game {
       width: l.width, age: 0, life: l.life, interval: l.interval, ticks: l.ticks, done: 0, tick: l.tick * F.damageFrac * (l.phDmg || 1), phDmg: l.phDmg, big: l.big,
       burnDmg: l.burnDmg, burnInt: l.burnInt, frost: l.frost, steam: l.steam, pulse: 0,
       zap: l.zap,
+      gravityLaser: !!l.gravityLaser, gravityChargeTime: l.gravityChargeTime || 0,
+      gravityChargeAge: 0, gravityOrigin: 0, // фантом заряжает круг на своей точке появления
       gen: (l.gen | 0) + 1, phantom: l.phantom,
     });
     this.burst(s.x, s.y, 0.3, 4, 16, F.color);
