@@ -150,13 +150,18 @@ export class Absorption {
         const bi = burn ? this.cfg.burn.interval / (mods.burn ? mods.burn.rate : 1) : 0;
         const steam = burn && frost ? (mods.steam ? mods.steam.damage : 1) : 0;
         if (burn && this.ignite) {
-          for (let k = 0; k < this.cfg.burn.maxStacks && e.active; k++) this.ignite(e, bd, bi);
+          const remaining = Math.max(0, this.cfg.burn.maxStacks - (e.burnT > 0 ? e.burnStacks || 0 : 0));
+          for (let k = 0; k < remaining && e.active; k++) this.ignite(e, bd, bi);
+          // При максимальных стаках обновляем длительность обычным поджогом.
+          if (!remaining && e.active) this.ignite(e, bd, bi);
         }
         if (frost && this.chill) {
-          for (let k = 0; k < this.cfg.frost.maxStacks && e.active; k++) this.chill(e, steam, bd, bi);
+          const remaining = Math.max(0, this.cfg.frost.maxStacks - (e.frostStacks || 0));
+          for (let k = 0; k < remaining && e.active; k++) this.chill(e, steam, bd, bi);
         }
         if (lightning && this.zap) {
-          for (let k = 0; k < this.cfg.shock.maxStacks && e.active; k++) this.zap(e, bd, bi, frost ? 1 : 0, steam);
+          const remaining = Math.max(0, this.cfg.shock.maxStacks - (e.shockStacks || 0));
+          for (let k = 0; k < remaining && e.active; k++) this.zap(e, bd, bi, frost ? 1 : 0, steam);
         }
       }
       if (dealt && this.vampiric && this.hero.active) {
