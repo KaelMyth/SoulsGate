@@ -17,7 +17,7 @@ function setup() {
   const heroShots = { items: shots,
     get count() { return shots.filter(p => p.active).length; },
     spawn() { const p = createProjectile(); p.active = true; shots.push(p); return p; } };
-  const cfg = { gravity: { ...CONFIG.gravity }, limits: { maxShots: 200 }, enemies: CONFIG.enemies };
+  const cfg = { gravity: { ...CONFIG.gravity }, burn: CONFIG.burn, limits: { maxShots: 200 }, enemies: CONFIG.enemies };
   const arena = { left: -1000, right: 1000, top: -1000, bottom: 1000,
     resolveCircle() {}, circleHitsRock() { return false; } };
   const shield = new GravityShield({ config: cfg, hero, defense, arena, enemies, enemyShots, heroShots });

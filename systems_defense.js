@@ -51,6 +51,7 @@ export class HeroDefense {
     this.gravityTime = 0;  // отдельный таймер горизонта событий: не прерывается движением
     this.gravityDurationMax = 0;
     this.gravityCooldownRate = 1;
+    this.gravityAuraRadius = 0; // радиус Ауры с Х2/Х3: общая область ослабленной Гравитации
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -74,9 +75,13 @@ export class HeroDefense {
     return this.state === 'block';
   }
 
-  /** Поле Гравитации остаётся активным при движении, независимо от обычного блока. */
+  /** Аура + Гравитация постоянно активны; без Ауры используется прежний таймер. */
+  get gravityAuraMode() {
+    return this.hero.active && this.gravityOn && this.auraOn;
+  }
+
   get gravityActive() {
-    return this.hero.active && this.gravityOn && this.gravityTime > 0;
+    return this.hero.active && this.gravityOn && (this.auraOn || this.gravityTime > 0);
   }
 
   /** Окно парирования: первые parryWindow секунд блока. */
@@ -117,7 +122,7 @@ export class HeroDefense {
 
   /** Отдельная перезарядка Гравитации начинается только после исчезновения поля. */
   startBlockCooldown(cancelled) {
-    if (this.gravityOn && this.gravityDurationMax > 0) {
+    if (this.gravityOn && !this.auraOn && this.gravityDurationMax > 0) {
       const cooldown = this.cfg.gravity.shieldCooldown / Math.max(1, this.gravityCooldownRate);
       this.startCooldown(this.gravityTime + cooldown);
       this.blockCdMax = Math.max(0.001, cooldown);
@@ -197,6 +202,13 @@ export class HeroDefense {
     this.gravityOn = !!(am && am.gravity);
     this.gravityElements = this.gravityOn ? am.gravity.elements || null : null;
     this.gravityCooldownRate = this.gravityOn ? am.gravity.cooldownRate || 1 : 1;
+    this.gravityAuraRadius = this.gravityOn && this.auraOn
+      ? this.cfg.aura.radius * (1 + this.cfg.aura.radiusStep * ((am.aura.mult || 1) - 1))
+      : 0;
+    if (this.auraOn) {
+      this.gravityTime = 0;
+      this.gravityDurationMax = 0;
+    }
     if (this.gravityTime > 0) this.gravityTime = Math.max(0, this.gravityTime - dt);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;
@@ -226,7 +238,7 @@ export class HeroDefense {
       if (stickUp && this.armed && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
         this.armed = false; // один блок за остановку
         this.blockTime = 0;
-        if (this.gravityOn) {
+        if (this.gravityOn && !this.auraOn) {
           const mul = Math.max(1, am.gravity.durationMult || 1);
           this.gravityDurationMax = Math.max(0.05, this.cfg.gravity.shieldDuration * mul);
           this.gravityTime = this.gravityDurationMax;

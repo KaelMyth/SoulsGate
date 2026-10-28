@@ -32,9 +32,9 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
   if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult' || (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower'); // Клинки под Поглощением: три попадания вызывают отдельный удар
-  if (e.kind === 'gravity') return carry === 'laser' || (carry === 'blades' && ownerCore?.def.multStat === 'blockPower'); // растущий круг и усиленный луч, совместимо со стихиями
+  if (e.kind === 'gravity') return carry === 'laser' || ((carry === 'blades' || carry === 'aura') && ownerCore?.def.multStat === 'blockPower'); // растущий круг и усиленный луч, совместимо со стихиями
   if (e.kind === 'absorption') return carry === 'aura'; // Поглощение на Ауре: случайный удар внутри поля раз в 2 с
-  if (e.kind === 'aura') return false; // Аура крепится только к ядру
+  if (e.kind === 'aura') return carry === 'gravity' && ownerCore?.def.multStat === 'blockPower'; // Аура на Гравитации: постоянное ослабленное поле
   if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
   if (carry === 'absorption' || carry === 'absorption:mult')
     return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp')

@@ -713,7 +713,7 @@ export class Renderer {
     this.drawAbsorptionFlash(ctx); // заглушка: короткая вспышка в момент удара
 
     if (hero.active) {
-      this.drawAura(ctx, hx, hy);
+      if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.dashfx.frame(ctx, this.dt, hx, hy);
       if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния: герой превращается в молнию
       else this.drawHero(hx, hy, C);
@@ -4938,6 +4938,10 @@ export class Renderer {
 
   /** Стихийный горизонт: пламенная корона, ледяные кристаллы, разряды и паровой диск. */
   drawGravityShield(hx, hy, k, pk, C) {
+    if (this.defense.gravityAuraMode) {
+      this.drawGravityAura(hx, hy, k, pk, C);
+      return;
+    }
     const ctx = this.ctx, t = this.clock;
     const R = this.cfg.gravity.shieldRadius * (0.73 + 0.27 * k);
     const mask = this.defense.gravityElements?.mask || 0;
@@ -5006,6 +5010,56 @@ export class Renderer {
     ctx.lineWidth = steam ? 5 : 3.2; ctx.strokeStyle = edge;
     ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * (steam ? 0.49 : 0.37), 0, 0, TAU); ctx.stroke();
     ctx.restore(); ctx.restore();
+  }
+
+  /** Гравитация + Аура: широкое полупрозрачное поле с пульсирующими разорванными венцами и дымными лепестками. */
+  drawGravityAura(hx, hy, k, pk, C) {
+    const ctx = this.ctx, t = this.clock;
+    const R = (this.defense.gravityAuraRadius || this.cfg.aura.radius) * (0.84 + 0.16 * k);
+    const mask = this.defense.gravityElements?.mask || 0;
+    const tint = (mask & 3) === 3 ? C.gravitySteam
+      : (mask & 1) ? C.gravityFire : (mask & 2) ? C.gravityFrost
+      : (mask & 4) ? C.gravityLightning : C.gravityAuraEdge;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.globalAlpha = k * 0.75;
+    ctx.fillStyle = C.gravityAuraFill;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+    // Тонкая двойная кромка, в отличие от яркого плотного горизонта обычной Гравитации.
+    ctx.strokeStyle = C.gravityAuraWisp;
+    ctx.lineWidth = 11;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.97, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = pk > 0.25 ? C.gravityParry : tint;
+    ctx.lineWidth = 1.8;
+    ctx.globalAlpha = k * 0.84;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = C.gravityAuraInner;
+    ctx.lineWidth = 1.1;
+    ctx.globalAlpha = k * 0.5;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.79, 0, TAU); ctx.stroke();
+    // Разрывы и лепестки по окружности: форма «дышащей» ауры, не аккреционного диска.
+    for (let i = 0; i < 12; i++) {
+      const a = i * TAU / 12 + t * 0.2;
+      const pulse = 1 + 0.045 * Math.sin(t * 2.3 + i * 1.9);
+      const outer = R * (1.07 + 0.065 * Math.sin(t * 1.7 + i));
+      ctx.globalAlpha = k * (0.32 + 0.16 * Math.sin(t * 2 + i));
+      ctx.strokeStyle = (i & 1) ? tint : C.gravityAuraWisp;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.19) * R * pulse, Math.sin(a - 0.19) * R * pulse);
+      ctx.quadraticCurveTo(Math.cos(a) * outer, Math.sin(a) * outer,
+        Math.cos(a + 0.19) * R * pulse, Math.sin(a + 0.19) * R * pulse);
+      ctx.stroke();
+    }
+    // Медленные дуги внутри напоминают гравитационные волны.
+    ctx.globalAlpha = k * 0.28;
+    ctx.strokeStyle = tint;
+    ctx.lineWidth = 1.6;
+    for (let j = 0; j < 3; j++) {
+      const a = -t * 0.35 + j * TAU / 3;
+      ctx.beginPath(); ctx.arc(0, 0, R * (0.52 + 0.12 * j), a, a + 1.5); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** Разряд шокера: зубчатая дуга между точками, дрожит по кадрам; два слоя (широкое свечение и белая жила). */

@@ -40,6 +40,13 @@ export class GravityShield {
     return this.defense.gravityActive;
   }
 
+  /** Ослабленное поле Ауры живёт в её радиусе с учётом Х2/Х3. */
+  get radius() {
+    return this.defense.gravityAuraMode
+      ? (this.defense.gravityAuraRadius || this.cfg.aura.radius)
+      : this.cfg.gravity.shieldRadius;
+  }
+
   /** Все враги внутри поля получают стихийные стаки на первом касании и затем периодически. */
   applyElements(dt) {
     const mask = this.active && this.defense.gravityElements ? this.defense.gravityElements.mask || 0 : 0;
@@ -49,7 +56,8 @@ export class GravityShield {
       return;
     }
     const G = this.cfg.gravity;
-    const interval = Math.max(0.1, G.shieldElementInterval);
+    const hybrid = this.defense.gravityAuraMode;
+    const interval = Math.max(0.1, G.shieldElementInterval * (hybrid ? G.auraElementIntervalMul : 1));
     if (!this.wasActive) this.elementTimer = interval;
     this.wasActive = true;
     this.elementTimer += dt;
@@ -57,8 +65,8 @@ export class GravityShield {
     this.elementTimer %= interval;
     const h = this.hero;
     const en = this.enemies.items;
-    const radius = G.shieldRadius;
-    const burnDamage = G.shieldBurnDamage;
+    const radius = this.radius;
+    const burnDamage = G.shieldBurnDamage * (hybrid ? G.auraBurnDamageMul : 1);
     const burnInterval = this.cfg.burn.interval;
     const steam = (mask & 3) === 3 ? 1 : 0;
     for (let i = 0; i < en.length; i++) {
@@ -89,14 +97,14 @@ export class GravityShield {
   slowEnemies() {
     if (!this.active) return;
     const list = this.enemies.items, h = this.hero, G = this.cfg.gravity;
-    const slow = Math.max(0.05, Math.min(1, G.shieldEnemySpeed));
+    const slow = Math.max(0.05, Math.min(1, this.defense.gravityAuraMode ? G.auraEnemySpeed : G.shieldEnemySpeed));
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       if (!e.active) continue;
       const x0 = e.gravityPrevX, y0 = e.gravityPrevY;
       const x1 = e.x, y1 = e.y;
       if (!Number.isFinite(x0) || !Number.isFinite(y0)) continue;
-      const fraction = gravitySegmentFraction(x0, y0, x1, y1, h.x, h.y, G.shieldRadius + e.radius);
+      const fraction = gravitySegmentFraction(x0, y0, x1, y1, h.x, h.y, this.radius + e.radius);
       if (fraction <= 0) continue;
       const factor = 1 - (1 - slow) * fraction;
       e.x = x0 + (x1 - x0) * factor;
@@ -112,13 +120,14 @@ export class GravityShield {
     if (!this.active) return dt;
     const G = this.cfg.gravity, h = this.hero;
     const fraction = gravitySegmentFraction(p.x, p.y, p.x + p.vx * dt, p.y + p.vy * dt,
-      h.x, h.y, G.shieldRadius + p.radius);
+      h.x, h.y, this.radius + p.radius);
     if (fraction <= 0) return dt;
     p.gravityTouched = true;
     // Снаряды, лишь скользящие вдоль горизонта, могут получить обратную траекторию.
     // Летящие прямо в героя остаются опасными — универсального отражения нет.
     // При развороте запоминаем стихии на снаряде: они сохраняются и после исчезновения поля.
     // При прямом попадании изгиб отсутствует. Косые снаряды отклоняются по касательной.
+    const hybrid = this.defense.gravityAuraMode;
     const rx = p.x - h.x, ry = p.y - h.y;
     const speed = Math.hypot(p.vx, p.vy), radius = Math.hypot(rx, ry);
     if (speed > 1e-5 && radius > 1e-5 && G.shieldBend > 0) {
@@ -126,24 +135,26 @@ export class GravityShield {
       const inward = (rx * p.vx + ry * p.vy) / (radius * speed);
       if (!p.gravityReturned && inward < -0.05 && Math.abs(tangent) >= G.shieldReturnTangent) {
         p.gravityReturnAge += dt * fraction;
-        if (p.gravityReturnAge >= G.shieldReturnDelay) {
+        if (p.gravityReturnAge >= G.shieldReturnDelay * (hybrid ? G.auraReturnDelayMul : 1)) {
           // Вылет обратно наружу с сохранением вращения — рикошет только у скользящих пуль.
           const spin = tangent > 0 ? 1 : -1;
           p.vx = (rx / radius * 0.8 - ry / radius * spin * 0.6) * speed;
           p.vy = (ry / radius * 0.8 + rx / radius * spin * 0.6) * speed;
           p.gravityReturned = true;
           p.gravityElementMask = this.defense.gravityElements?.mask || 0;
-          return dt * (1 - (1 - Math.max(0.05, Math.min(1, G.shieldProjectileSpeed))) * fraction);
+          p.gravityAuraWeak = hybrid;
+          const speedKeep = hybrid ? G.auraProjectileSpeed : G.shieldProjectileSpeed;
+          return dt * (1 - (1 - Math.max(0.05, Math.min(1, speedKeep))) * fraction);
         }
       }
-      const angle = -tangent * G.shieldBend * dt * fraction;
+      const angle = -tangent * G.shieldBend * (hybrid ? G.auraBendMul : 1) * dt * fraction;
       if (Math.abs(angle) > 1e-7) {
         const c = Math.cos(angle), s = Math.sin(angle), vx = p.vx, vy = p.vy;
         p.vx = vx * c - vy * s;
         p.vy = vx * s + vy * c;
       }
     }
-    const slow = Math.max(0.05, Math.min(1, G.shieldProjectileSpeed));
+    const slow = Math.max(0.05, Math.min(1, hybrid ? G.auraProjectileSpeed : G.shieldProjectileSpeed));
     return dt * (1 - (1 - slow) * fraction);
   }
 
@@ -166,10 +177,10 @@ export class GravityShield {
         const r = p.radius + e.radius;
         if (dx * dx + dy * dy > r * r) continue;
         p.active = false;
-        const hit = this.combat.damageEnemy(e, p.damage, p);
+        const hit = this.combat.damageEnemy(e, p.damage * (p.gravityAuraWeak ? this.cfg.gravity.auraProjectileDamageMul : 1), p);
         if (hit && e.active && p.gravityReturned) {
           const mask = p.gravityElementMask;
-          const bd = this.cfg.gravity.shieldBurnDamage;
+          const bd = this.cfg.gravity.shieldBurnDamage * (p.gravityAuraWeak ? this.cfg.gravity.auraBurnDamageMul : 1);
           const bi = this.cfg.burn.interval;
           const steam = (mask & 3) === 3 ? 1 : 0;
           if ((mask & 1) && this.ignite) this.ignite(e, bd, bi);
