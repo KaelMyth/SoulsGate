@@ -561,14 +561,19 @@ export class Game {
     }
   }
 
-  /** Поджечь врага: горит burn.duration секунд; повторное попадание обновляет время, берётся более сильный огонь. */
+  /** Горение: до трёх зарядов; каждый дополнительный +50% к БАЗОВОМУ тику.
+   * Повторное попадание обновляет время; более сильный огонь заменяет базовый урон,
+   * но бонус стаков не накапливается множителями. */
   ignite(e, dmg, interval) {
+    if (!e || !e.active || !(dmg > 0)) return;
     const b = this.config.burn;
-    if (e.burnT <= 0 || dmg >= e.burnDmg) {
+    const fresh = e.burnT <= 0;
+    if (fresh || dmg >= e.burnDmg) {
       e.burnDmg = dmg;
-      e.burnInt = Math.max(0.05, interval);
+      e.burnInt = Math.max(0.05, Number.isFinite(interval) ? interval : b.interval);
     }
-    if (e.burnT <= 0) e.burnTick = e.burnInt;
+    if (fresh) e.burnTick = e.burnInt;
+    e.burnStacks = Math.min(Math.max(1, b.maxStacks), (fresh ? 0 : e.burnStacks || 0) + 1);
     e.burnT = b.duration;
   }
 
@@ -1114,7 +1119,9 @@ export class Game {
       e.burnT -= dt;
       e.burnTick -= dt;
       while (e.burnTick <= 0 && e.active) {
-        this.combat.damageEnemy(e, e.burnDmg, this.burnSource, null);
+        const stacks = Math.min(Math.max(1, this.config.burn.maxStacks), Math.max(1, e.burnStacks || 1));
+        const damage = e.burnDmg * (1 + (stacks - 1) * this.config.burn.stackBonus);
+        this.combat.damageEnemy(e, damage, this.burnSource, null);
         e.burnTick += e.burnInt;
       }
       if (e.burnT <= 0) e.burnT = 0;
