@@ -4376,10 +4376,11 @@ export class Renderer {
     ctx.fillText(hud.xpMax ? 'макс.' : 'ур. ' + (hud.level || 1), bx, h - ins.bottom - 22);
     ctx.globalAlpha = 1;
 
-    // Слоты умений: первый Магический дождь, два других пока пустые.
+    // Слоты умений: первый Магический дождь (если ядро стоит в билде), остальные пустые.
     this.drawRain(hud);
     const f0 = hud.skillFrac0 === undefined ? 1 : hud.skillFrac0;
-    this.drawAbility(cx - 64, rowY, f0, '#6fb6ff', '#d6efff', 3, U.slots[0] > 0.01, f0 >= 0.999 ? 'blue' : undefined, U.slots[0]);
+    if (hud.rainOn) this.drawAbility(cx - 64, rowY, f0, '#6fb6ff', '#d6efff', 3, U.slots[0] > 0.01, f0 >= 0.999 ? 'blue' : undefined, U.slots[0]);
+    else this.drawAbility(cx - 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
     this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
     this.drawAbility(cx + 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
 

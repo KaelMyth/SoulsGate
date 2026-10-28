@@ -85,6 +85,11 @@ const ICONS = {
     ['path', S({ d: 'M22 9C25 12 25 18 22 21M26 5C31 10 31 20 26 25', 'stroke-width': 2, opacity: 0.8 })],
     ['path', S({ d: 'M3 15.5H9M6 10.5H10', 'stroke-width': 1.8, opacity: 0.6 })],
   ],
+  // Магический дождь: облако и капли.
+  rain: [
+    ['path', S({ d: 'M9 17C5 17 3 14 3 11.5C3 8.5 5.5 6.5 8.5 7C9.5 3.5 13 2 16 2.5C19.5 3 21.5 5.5 22 8C25 8 28 10 28 13C28 15.5 26 17 23 17Z', 'stroke-width': 2.2 })],
+    ['path', S({ d: 'M9 22L7 28M16 22L14 28M23 22L21 28', 'stroke-width': 2.4, opacity: 0.85 })],
+  ],
   // Молния: зигзаг и искры.
   lightning: [
     ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
