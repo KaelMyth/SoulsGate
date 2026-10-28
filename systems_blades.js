@@ -44,7 +44,8 @@ export class Blades {
     this.timer = 0;
     this.spin = 0;
     this.source = { blade: true, active: true };
-    this.cand = [];   // враги в зоне запуска, ближние первыми
+    this.cand = [];
+    this.candidateIndices = [];   // враги в зоне запуска, ближние первыми
     this.counts = new Map();
   }
 
@@ -69,8 +70,8 @@ export class Blades {
   gather(range) {
     const en = this.enemies.items;
     const h = this.hero;
-    const n = this.grid.query(h.x, h.y, range);
-    const buf = this.grid.buf;
+    const buf = this.candidateIndices;
+    const n = this.grid.query(h.x, h.y, range, buf);
     const out = this.cand;
     out.length = 0;
     for (let k = 0; k < n; k++) {
@@ -307,8 +308,8 @@ export class Blades {
   /** Ближайший враг, кроме skip (для клинка с Пробитием). */
   nearestOther(x, y, range, skip) {
     const en = this.enemies.items;
-    const n = this.grid.query(x, y, range);
-    const buf = this.grid.buf;
+    const buf = this.candidateIndices;
+    const n = this.grid.query(x, y, range, buf);
     let best = null;
     let bd = range * range;
     for (let k = 0; k < n; k++) {
