@@ -324,8 +324,24 @@ export class BuildGrid {
       return total;
     };
     const res = {};
-    const gravityCount = this.cells.filter((c, idx) => c.mod && c.mod.def.effect.kind === 'gravity' && owner.get(idx) === coreId).length;
-    if (gravityCount) res.gravity = { count: gravityCount };
+    const gravityNodes = [];
+    for (let i = 0; i < this.cells.length; i++)
+      if (this.cells[i].mod && this.cells[i].mod.def.effect.kind === 'gravity' && owner.get(i) === coreId) gravityNodes.push(i);
+    if (gravityNodes.length) {
+      res.gravity = { count: gravityNodes.length };
+      // Только щит: Х2/Х3 на Гравитации продлевают горизонт; Х2/Х3 на ядре тоже действуют.
+      // Отдельные ветки складывают прибавки, цепочки множителей перемножаются, как и в остальном билде.
+      if (this.coreById(coreId)?.def?.multStat === 'blockPower') {
+        const doubles = (nodes) => {
+          let factor = 1;
+          for (const i of nodes) if (this.cells[i].mod.def.effect.kind === 'double') factor += mult(i) - 1;
+          return factor;
+        };
+        let gravityFactor = 1;
+        for (const i of gravityNodes) gravityFactor += doubles(kids.get(i) || []) - 1;
+        res.gravity.durationMult = doubles(kids.get(-1) || []) * gravityFactor;
+      }
+    }
     let extraCount = 0;
     // Горение: у каждого мода «Горение» своя ветка. Мощь в ней усиливает урон тика, Ускорение учащает тики.
     // Несколько «Горений» складывают урон тика и усредняют частоту.
