@@ -52,11 +52,22 @@ export class DebugPanel {
   buildActions() {
     const acts = this.o.actions || [];
     if (!acts.length) return h('div', {});
+    const mk = (a) => h('button', { type: 'button', onclick: () => { a.run(); this.toggle(); } }, a.label);
+    const wrap = h('div', {});
     const row = h('div', { class: 'dbg-btns' });
+    wrap.append(row);
+    const groups = new Map(); // кнопки с полем group лежат во вкладке-разделе (раскрывается нажатием на заголовок)
     for (const a of acts) {
-      row.append(h('button', { type: 'button', onclick: () => { a.run(); this.toggle(); } }, a.label));
+      if (!a.group) { row.append(mk(a)); continue; }
+      let g = groups.get(a.group);
+      if (!g) {
+        g = h('div', { class: 'dbg-btns dbg-body' });
+        groups.set(a.group, g);
+        wrap.append(h('details', { class: 'dbg-sect' }, h('summary', { class: 'dbg-group' }, a.group), g));
+      }
+      g.append(mk(a));
     }
-    return row;
+    return wrap;
   }
 
   buildSliders() {
