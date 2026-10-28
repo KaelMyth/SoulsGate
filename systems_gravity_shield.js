@@ -13,7 +13,7 @@ export class GravityShield {
   }
 
   get active() {
-    return this.hero.active && this.defense.blocking && this.defense.gravityOn;
+    return this.defense.gravityActive;
   }
 
   /** Граница поля отталкивает обычных врагов, даже если толпа давит со спины. */

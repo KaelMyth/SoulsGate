@@ -47,6 +47,8 @@ export class HeroDefense {
     this.dashElapsed = 0;  // сколько идёт рывок
     this.dashV0 = 0;       // начальная скорость рывка
     this.blockTime = 0;    // сколько идёт блок
+    this.gravityTime = 0;  // отдельный таймер горизонта событий: не прерывается движением
+    this.gravityDurationMax = 0;
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -68,6 +70,11 @@ export class HeroDefense {
 
   get blocking() {
     return this.state === 'block';
+  }
+
+  /** Поле Гравитации остаётся активным при движении, независимо от обычного блока. */
+  get gravityActive() {
+    return this.hero.active && this.gravityOn && this.gravityTime > 0;
   }
 
   /** Окно парирования: первые parryWindow секунд блока. */
@@ -106,9 +113,19 @@ export class HeroDefense {
     return Math.min(this.cfg.block.maxReduction, Math.max(0, r));
   }
 
+  /** Отдельная перезарядка Гравитации начинается только после исчезновения поля. */
+  startBlockCooldown(cancelled) {
+    if (this.gravityOn && this.gravityDurationMax > 0) {
+      this.startCooldown(this.gravityTime + this.cfg.gravity.shieldCooldown);
+      this.blockCdMax = Math.max(0.001, this.cfg.gravity.shieldCooldown);
+    } else {
+      this.startCooldown(cancelled ? this.cfg.block.cancelCooldown : this.cfg.block.cooldown);
+    }
+  }
+
   endBlock(cancelled) {
     if (!this.go('unblock')) return;
-    this.startCooldown(cancelled ? this.cfg.block.cancelCooldown : this.cfg.block.cooldown);
+    this.startBlockCooldown(cancelled);
     this.bus.emit('block:ended', { cancelled });
   }
 
@@ -121,7 +138,7 @@ export class HeroDefense {
     const wasBlocking = this.state === 'block';
     if (!this.go('dash')) return false;
     if (wasBlocking) {
-      this.startCooldown(this.cfg.block.cancelCooldown);
+      this.startBlockCooldown(true);
       this.bus.emit('block:ended', { cancelled: true });
     }
     const dist = d.distance * (this.kinetic ? this.cfg.kinetic.distanceScale : 1); // кинетический рывок длиннее
@@ -175,6 +192,7 @@ export class HeroDefense {
     const am = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     this.auraOn = !!(am && am.aura);
     this.gravityOn = !!(am && am.gravity);
+    if (this.gravityTime > 0) this.gravityTime = Math.max(0, this.gravityTime - dt);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;
     const stickUp = !this.stick.active;
@@ -203,17 +221,25 @@ export class HeroDefense {
       if (stickUp && this.armed && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
         this.armed = false; // один блок за остановку
         this.blockTime = 0;
+        if (this.gravityOn) {
+          const mul = Math.max(1, am.gravity.durationMult || 1);
+          this.gravityDurationMax = Math.max(0.05, this.cfg.gravity.shieldDuration * mul);
+          this.gravityTime = this.gravityDurationMax;
+        } else {
+          this.gravityTime = 0;
+          this.gravityDurationMax = 0;
+        }
         this.bus.emit('block:started', {});
       }
     } else if (this.state === 'block') {
       this.blockTime += dt;
       if (!stickUp) this.endBlock(true); // взялся за стик: блок снят
-      else if (this.blockTime >= this.blockDuration) this.endBlock(false);
+      else if (this.blockTime >= this.blockDuration || (this.gravityOn && this.gravityTime <= 0)) this.endBlock(false);
     }
   }
 
   onHit(inc) {
-    if (this.state !== 'block' || inc.cancelled) return;
+    if ((!this.blocking && !this.gravityActive) || inc.cancelled) return;
     if (inc.parryable && this.parrying) {
       inc.cancelled = true; // удар полностью проигнорирован
       const src = inc.source;

@@ -4244,7 +4244,7 @@ export class Renderer {
       ctx.lineCap = 'butt';
     };
     if (d) {
-      if (!d.blocking && d.blockCd > 0) arc(r, Math.PI - half, Math.PI + half, 1 - d.blockCd / d.blockCdMax, '#8cc8ff', 3);
+      if (!d.blocking && !d.gravityActive && d.blockCd > 0) arc(r, Math.PI - half, Math.PI + half, 1 - d.blockCd / d.blockCdMax, '#8cc8ff', 3);
       if (d.dashCd > 0) arc(r, -half, half, 1 - d.dashCd / d.dashCdMax, '#b79cff', 3);
     }
     // Здоровье: плавно проявляется, когда оно не полное, и исчезает при полном.
@@ -4776,7 +4776,8 @@ export class Renderer {
     const t = this.clock;
     const blocking = d.blocking;
     const parrying = blocking && d.parrying;
-    S.k += ((blocking ? 1 : 0) - S.k) * (1 - Math.exp(-dt / (blocking ? 0.05 : 0.09)));
+    const shieldVisible = blocking || d.gravityActive;
+    S.k += ((shieldVisible ? 1 : 0) - S.k) * (1 - Math.exp(-dt / (shieldVisible ? 0.05 : 0.09)));
     S.pk += ((parrying ? 1 : 0) - S.pk) * (1 - Math.exp(-dt / (parrying ? 0.03 : 0.14)));
     S.flash = Math.max(0, S.flash - dt / 0.32);
     for (let i = 0; i < S.rip.length; i++) {
@@ -4787,7 +4788,7 @@ export class Renderer {
       }
     }
     if (S.k < 0.02) { S.wasGravity = false; return; }
-    if (blocking && d.gravityOn) S.wasGravity = true;
+    if (d.gravityActive || (blocking && d.gravityOn)) S.wasGravity = true;
     if (S.wasGravity) { this.drawGravityShield(hx, hy, S.k, S.pk, C); return; }
     const ctx = this.ctx;
     const k = S.k;
