@@ -34,7 +34,8 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
   if (carry === 'absorption' || carry === 'absorption:mult')
     return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp')
-      || (e.kind === 'stat' && (e.stat === 'damage' || e.stat === 'rate')); // Мощь, Ускорение, множители целей и Вампиризм
+      || (e.kind === 'stat' && (e.stat === 'damage' || e.stat === 'rate'))
+      || e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning'; // стихии накладывают максимум стаков
   if (carry === 'absorption:damage' || carry === 'absorption:rate')
     return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре

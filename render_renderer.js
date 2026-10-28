@@ -780,15 +780,11 @@ export class Renderer {
     if (!a || !a.active || !a.aiming || !a.targets.length) return;
     const A = this.cfg.absorption;
     const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.02, a.castTime || A.telegraph)));
-    const c = Math.round(125 + 130 * p);
+    const color = a.color || '215,230,255';
     ctx.save();
     ctx.lineWidth = 2.5;
-    ctx.fillStyle = a.vampiric
-      ? 'rgba(255,55,75,' + (0.04 + 0.2 * p) + ')'
-      : 'rgba(215,230,255,' + (0.04 + 0.2 * p) + ')';
-    ctx.strokeStyle = a.vampiric
-      ? 'rgba(' + Math.round(145 + 110 * p) + ',' + Math.round(25 + 65 * p) + ',' + Math.round(35 + 75 * p) + ',' + (0.4 + 0.6 * p) + ')'
-      : 'rgba(' + c + ',' + c + ',' + c + ',' + (0.4 + 0.6 * p) + ')';
+    ctx.fillStyle = 'rgba(' + color + ',' + (0.04 + 0.2 * p) + ')';
+    ctx.strokeStyle = 'rgba(' + color + ',' + (0.4 + 0.6 * p) + ')';
     for (let i = 0; i < a.targets.length; i++) {
       const target = a.targets[i];
       if (!target || !target.active) continue;
@@ -813,13 +809,10 @@ export class Renderer {
       const radius = f.r + (1 - left) * 24;
       ctx.beginPath();
       ctx.arc(f.x, f.y, radius, 0, TAU);
-      ctx.fillStyle = f.vampiric
-        ? 'rgba(255,40,65,' + (0.55 * left) + ')'
-        : 'rgba(255,255,255,' + (0.55 * left) + ')';
+      const color = f.color || (f.vampiric ? '255,50,75' : '255,255,255');
+      ctx.fillStyle = 'rgba(' + color + ',' + (0.55 * left) + ')';
       ctx.fill();
-      ctx.strokeStyle = f.vampiric
-        ? 'rgba(255,110,125,' + left + ')'
-        : 'rgba(255,255,255,' + left + ')';
+      ctx.strokeStyle = 'rgba(' + color + ',' + left + ')';
       ctx.stroke();
     }
     ctx.restore();

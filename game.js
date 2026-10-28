@@ -177,6 +177,9 @@ export class Game {
     this.absorption = new Absorption({
       config, hero: this.hero, enemies: this.enemies, camera: this.camera, combat: this.combat,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+      ignite: (e, d, i) => this.ignite(e, d, i),
+      chill: (e, st, d, i) => this.chill(e, st, d, i),
+      zap: (e, d, i, fr, st, cm) => this.zap(e, d, i, fr, st, cm),
     });
 
     this.renderer = new Renderer(o.canvas, config, {
@@ -324,7 +327,7 @@ export class Game {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
         else if (e.source && e.source.shock) this.burst(e.target.x, e.target.y, 0.2, 3, 14, config.shock.color);
-        else if (e.source && e.source.absorption && e.source.vampiric) this.burst(e.target.x, e.target.y, 0.2, 3, 14, '#ff536b');
+        else if (e.source && e.source.absorption) this.burst(e.target.x, e.target.y, 0.2, 3, 14, 'rgb(' + this.absorption.color + ')');
         else if (!this.hitFxFor(e)) this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
