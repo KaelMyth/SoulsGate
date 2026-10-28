@@ -188,3 +188,63 @@ test('Отменённый удар и мгновенное убийство н�
   s.advance(3.05);
   assert.equal(s.calls.burn + s.calls.frost + s.calls.lightning, 0);
 });
+
+test('Горение → Мороз внутри ветки Поглощения тоже вызывает Пар', () => {
+  const s = setup(['burn']);
+  assert.equal(canPlace(s.build, CONFIG.mods.frost, 1, 4).ok, true);
+  s.build.placeMod({ key: 'frost', def: CONFIG.mods.frost }, 1, 4);
+  assert.deepEqual(s.build.orphans(), []);
+  const m = s.build.modifiersFor('shield');
+  assert.equal(m.absorption.burn, true);
+  assert.equal(m.absorption.frost, true);
+  assert.ok(m.steam);
+  s.advance(3.05);
+  assert.equal(s.clouds.length, 1);
+});
+
+test('Мороз → Горение внутри ветки Поглощения тоже вызывает Пар', () => {
+  const s = setup(['frost']);
+  assert.equal(canPlace(s.build, CONFIG.mods.burn, 5, 4).ok, true);
+  s.build.placeMod({ key: 'burn', def: CONFIG.mods.burn }, 5, 4);
+  assert.deepEqual(s.build.orphans(), []);
+  const m = s.build.modifiersFor('shield');
+  assert.equal(m.absorption.burn, true);
+  assert.equal(m.absorption.frost, true);
+  assert.ok(m.steam);
+  s.advance(3.05);
+  assert.equal(s.clouds.length, 1);
+});
+
+test('Горение с 2 стаками добирает только последний, а не накладывается трижды', () => {
+  const s = setup(['burn']);
+  const e = s.enemies[0];
+  e.burnT = 2; e.burnStacks = 2; e.burnDmg = 5; e.burnTick = 0.5;
+  s.advance(3.05);
+  assert.equal(s.calls.burn, 1);
+  assert.equal(e.burnStacks, 3);
+  assert.ok(e.burnDmg > 5);
+});
+
+test('Цвет Молнии с Огнём — оранжевый, с Морозом — ледяной', () => {
+  const fire = setup(['burn', 'lightning']);
+  const ice = setup(['frost', 'lightning']);
+  fire.advance(3.05); ice.advance(3.05);
+  assert.equal(fire.absorption.color, '255,172,80');
+  assert.equal(ice.absorption.color, '123,215,255');
+  assert.equal(fire.discharges.length, 1);
+  assert.equal(ice.discharges.length, 1);
+});
+
+test('Ускорение и Мощь на Поглощении сохраняются вместе со стихией и не усиливают её ветки повторно', () => {
+  const s = setup(['burn']);
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 3, 5);
+  s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 1, 4);
+  // Ускорение на самом Горении усиливает его тики, но не скорость каста Поглощения.
+  assert.deepEqual(s.build.orphans(), []);
+  const m = s.build.modifiersFor('shield');
+  assert.ok(Math.abs(m.absorption.damage - 1.1) < 1e-8);
+  assert.equal(m.absorption.rate, 1);
+  assert.ok(m.burn.rate > 1);
+  s.advance(3.05);
+  assert.ok(Math.abs(s.hits[0].dmg - CONFIG.absorption.damage * 1.1) < 1e-8);
+});
