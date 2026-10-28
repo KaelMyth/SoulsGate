@@ -31,8 +31,8 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
-  if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult'; // Клинки под Поглощением: три попадания вызывают отдельный удар
-  if (e.kind === 'gravity') return carry === 'laser'; // растущий круг и усиленный луч, совместимо со стихиями
+  if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult' || (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower'); // Клинки под Поглощением: три попадания вызывают отдельный удар
+  if (e.kind === 'gravity') return carry === 'laser' || (carry === 'blades' && ownerCore?.def.multStat === 'blockPower'); // растущий круг и усиленный луч, совместимо со стихиями
   if (e.kind === 'absorption') return carry === 'aura'; // Поглощение на Ауре: случайный удар внутри поля раз в 2 с
   if (e.kind === 'aura') return false; // Аура крепится только к ядру
   if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
@@ -42,6 +42,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
       || e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning'; // стихии накладывают максимум стаков
   if (carry === 'absorption:damage' || carry === 'absorption:rate')
     return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
+  if (e.kind === 'stat' && e.stat === 'rate' && carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') return true;
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
   if (e.kind === 'lightning') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // Горение/Мороз → Молния: один стак соответствующей стихии по цепи

@@ -306,3 +306,38 @@ test('При повторном использовании вражеский с
   assert.equal(p.gravityReturnAge, 0);
   assert.equal(p.gravityElementMask, 0);
 });
+
+
+test('Ускорение на Гравитации сильнее сокращает откат, но не меняет обычный Щит', () => {
+  const plain = buildShield([['gravity', 3, 4]]);
+  const fast = buildShield([['gravity', 3, 4], ['haste', 3, 5]]);
+  const faster = buildShield([['gravity', 3, 4], ['haste', 3, 5], ['haste', 3, 6]]);
+  assert.equal(plain.gravity.cooldownRate, 1);
+  assert.ok(Math.abs(fast.gravity.cooldownRate - 1.3) < 1e-9);
+  assert.ok(Math.abs(faster.gravity.cooldownRate - 1.63) < 1e-9);
+  assert.equal(plain.rate, undefined);
+  assert.equal(fast.rate, undefined);
+  const { defense, stick } = defenseHarness(fast);
+  stick.active = true;
+  defense.update(0.1);
+  const expected = CONFIG.gravity.shieldCooldown / 1.3;
+  assert.ok(Math.abs(defense.blockCdMax - expected) < 1e-9);
+  assert.ok(Math.abs(defense.blockCd - defense.gravityTime - expected) < 1e-9);
+  const regular = defenseHarness({});
+  regular.stick.active = true;
+  regular.defense.update(0.1);
+  assert.equal(regular.defense.blockCd, CONFIG.block.cancelCooldown);
+});
+
+test('Ускорение на Клинках не ускоряет перезарядку Гравитационного щита', () => {
+  const m = buildShield([['gravity', 3, 4], ['blades', 2, 3], ['haste', 1, 3]]);
+  assert.equal(m.gravity.cooldownRate, 1);
+  assert.ok(m.blades.rate > 1);
+});
+
+test('Клинки и Гравитация крепятся друг к другу обеими последовательностями', () => {
+  const a = buildShield([['blades', 3, 4], ['gravity', 3, 5]]);
+  const b = buildShield([['gravity', 3, 4], ['blades', 3, 5]]);
+  assert.ok(a.blades && a.gravity);
+  assert.ok(b.blades && b.gravity);
+});

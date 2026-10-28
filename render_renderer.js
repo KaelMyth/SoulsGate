@@ -5735,7 +5735,7 @@ export class Renderer {
     const core = CORE[kd];
     const step = Math.floor(t * 18);
     const rnd = (n) => { const h = Math.sin((step * 7 + i * 13 + n) * 12.9898) * 43758.5453; return h - Math.floor(h); };
-    const fly = b.state === 'fly';
+    const fly = b.state === 'fly' || b.state === 'return';
     const len = fly ? 3.4 : 2.7; // в полёте длиннее
     const N = 6;
     const pts = [];
@@ -5798,7 +5798,7 @@ export class Renderer {
     for (let i = 0; i < bl.length; i++) {
       const b = bl[i];
       const kd = b.kind | 0;
-      const fly = b.state === 'fly';
+      const fly = b.state === 'fly' || b.state === 'return';
       const gl = b.zap ? zapGlow[kd] : b.gen ? glows[4] : glows[kd];
       const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
       if (fly && !b.sphere && !b.zap) {

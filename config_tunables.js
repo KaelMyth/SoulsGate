@@ -126,6 +126,8 @@ export const TUNABLES = [
   { group: 'Гравитация', path: 'gravity.laserRadius', label: 'Лазер: радиус круга', min: 6, max: 35, step: 1 },
   { group: 'Гравитация — Щит', path: 'gravity.shieldDuration', label: 'Время действия поля, с (до Х2/Х3)', min: 1.5, max: 15, step: 0.5 },
   { group: 'Гравитация — Щит', path: 'gravity.shieldCooldown', label: 'Перезарядка ПОСЛЕ поля, с', min: 2, max: 18, step: 0.5 },
+  { group: 'Гравитация — Клинки', path: 'gravity.bladeReturnSpeed', label: 'Множитель скорости возврата', min: 0.5, max: 3, step: 0.05 },
+  { group: 'Гравитация — Клинки', path: 'gravity.bladeOrbitSpeed', label: 'Скорость полного облёта, рад/с', min: 1, max: 18, step: 0.5 },
   { group: 'Гравитация — Щит', path: 'gravity.shieldRadius', label: 'Радиус горизонта событий', min: 24, max: 150, step: 2 },
   { group: 'Гравитация — Щит', path: 'gravity.shieldEnemySpeed', label: 'Остаточная скорость врагов (доля)', min: 0.05, max: 1, step: 0.05 },
   { group: 'Гравитация — Щит', path: 'gravity.shieldProjectileSpeed', label: 'Остаточная скорость снарядов (доля)', min: 0.05, max: 1, step: 0.05 },

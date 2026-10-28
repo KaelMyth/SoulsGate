@@ -50,6 +50,7 @@ export class HeroDefense {
     this.blockTime = 0;    // сколько идёт блок
     this.gravityTime = 0;  // отдельный таймер горизонта событий: не прерывается движением
     this.gravityDurationMax = 0;
+    this.gravityCooldownRate = 1;
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -117,8 +118,9 @@ export class HeroDefense {
   /** Отдельная перезарядка Гравитации начинается только после исчезновения поля. */
   startBlockCooldown(cancelled) {
     if (this.gravityOn && this.gravityDurationMax > 0) {
-      this.startCooldown(this.gravityTime + this.cfg.gravity.shieldCooldown);
-      this.blockCdMax = Math.max(0.001, this.cfg.gravity.shieldCooldown);
+      const cooldown = this.cfg.gravity.shieldCooldown / Math.max(1, this.gravityCooldownRate);
+      this.startCooldown(this.gravityTime + cooldown);
+      this.blockCdMax = Math.max(0.001, cooldown);
     } else {
       this.startCooldown(cancelled ? this.cfg.block.cancelCooldown : this.cfg.block.cooldown);
     }
@@ -194,6 +196,7 @@ export class HeroDefense {
     this.auraOn = !!(am && am.aura);
     this.gravityOn = !!(am && am.gravity);
     this.gravityElements = this.gravityOn ? am.gravity.elements || null : null;
+    this.gravityCooldownRate = this.gravityOn ? am.gravity.cooldownRate || 1 : 1;
     if (this.gravityTime > 0) this.gravityTime = Math.max(0, this.gravityTime - dt);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;
