@@ -121,6 +121,8 @@ export class Game {
     this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
+    this.gravityShield.grid = this.swarm.grid;
+    this.gravityShield.combat = this.combat;
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
     this.laserSource = { laser: true, active: true };
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
@@ -1365,6 +1367,7 @@ export class Game {
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
+      this.gravityShield.beginEnemyStep();
       this.guards.update(dt, en);  // охрана: куда идёт кольцо вокруг стрелка
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
@@ -1374,16 +1377,16 @@ export class Game {
       this.shooters.update(dt, en);
       this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
-      this.gravityShield.blockEnemies();
+      this.gravityShield.slowEnemies();
       this.swarm.rebuild(en); // попадания используют актуальные позиции после движения и расталкивания
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
-      this.gravityShield.updateOrbits(dt);
-      this.gravityShield.captureShots();
+      // Вражеские снаряды только замедляются в moveShots, автоматического перехвата больше нет.
       this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
 
       this.xp.update(dt);
       this.collisions.detect();
+      this.gravityShield.hitEnemies();
       this.hitEnemiesWithShots();
       this.pellets.update(dt);
       this.updateBurning(dt);
@@ -1565,13 +1568,14 @@ export class Game {
       const p = list[i];
       if (!p.active) continue;
       if (p.gravityOrbit) continue;
-      if (updateProjectile(p, dt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
+      const flightDt = list === this.enemyShots.items ? this.gravityShield.enemyShotDt(p, dt) : dt;
+      if (updateProjectile(p, flightDt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
     }
   }
 
   /** Пока включён блок, снаряды врагов встречают сферу, а не тело героя: парируем у самой сферы. */
   hitShotsOnBlock() {
-    if (!this.defense.blocking || !this.hero.active) return;
+    if (!this.defense.blocking || !this.hero.active || this.defense.gravityActive) return;
     const R = this.defense.blockRadius;
     const list = this.enemyShots.items;
     for (let i = 0; i < list.length; i++) {

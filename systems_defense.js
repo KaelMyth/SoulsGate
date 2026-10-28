@@ -239,7 +239,8 @@ export class HeroDefense {
   }
 
   onHit(inc) {
-    if ((!this.blocking && !this.gravityActive) || inc.cancelled) return;
+    // После движения гравитационное поле лишь замедляет противников, не даёт дополнительную защиту от урона.
+    if (!this.blocking || inc.cancelled) return;
     if (inc.parryable && this.parrying) {
       inc.cancelled = true; // удар полностью проигнорирован
       const src = inc.source;
