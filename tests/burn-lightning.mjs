@@ -88,7 +88,6 @@ test('Повторные разряды добавляют по одному с�
   }
   g.updateBurning(0.5);
   const dmg = 10 * (1 + (CONFIG.burn.maxStacks - 1) * CONFIG.burn.stackBonus);
-  const fireHits = [];
   // Урон Горения на 3 стаках = ×2 от базового; первый тик уже обработан в combat.
   assert.equal(dmg, 20);
   assert.equal(enemies[1].burnStacks, 3);
@@ -154,4 +153,29 @@ test('Старые связки Горение+Мороз и Молния на �
   assert.equal(canPlace(build, CONFIG.mods.frost, 3, 5).ok, true);
   assert.equal(canPlace(build, CONFIG.mods.lightning, 3, 5).ok, true);
   assert.equal(canPlace(build, CONFIG.mods.x2, 3, 5).ok, false);
+});
+
+test('Поглощение → Горение → Молния: основной враг получает 3 стака, два соседа по одному', () => {
+  const build = new BuildGrid(7);
+  build.placeCore('shield', CONFIG.cores.shield, 3, 3);
+  build.placeMod({ key: 'absorption', def: CONFIG.mods.absorption }, 3, 4);
+  build.placeMod({ key: 'burn', def: CONFIG.mods.burn }, 2, 4);
+  build.placeMod({ key: 'lightning', def: CONFIG.mods.lightning }, 1, 4);
+  const { g, enemies } = setupCombat();
+  const hero = { x: 0, y: 0, hp: 100, maxHp: 100, active: true };
+  const absorption = new Absorption({
+    config: CONFIG, hero, enemies: { items: enemies },
+    // Узкий обзор: выбирается только враг-источник x=0, остальные за пределами экрана.
+    camera: { x: 0, y: 0, viewW: 50, viewH: 200 },
+    combat: g.combat, modifiers: () => build.modifiersFor('shield'),
+    ignite: (e, dmg, interval) => g.ignite(e, dmg, interval),
+    zap: (e, dmg, interval, frost, steam, mult) => g.zap(e, dmg, interval, frost, steam, mult),
+  });
+  for (let i = 0; i < Math.ceil(3.05 * 60); i++) absorption.update(1 / 60);
+  assert.equal(enemies[0].burnStacks, 3);
+  assert.deepEqual(enemies.slice(1, 3).map(e => e.burnStacks), [1, 1]);
+  assert.equal(enemies[3].burnStacks, 0);
+  assert.equal(g.zapBolts.length, 2);
+  assert.equal(absorption.color, '255,172,80');
+  assert.equal(absorption.flashes.length, 1);
 });
