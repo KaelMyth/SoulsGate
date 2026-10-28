@@ -521,6 +521,7 @@ export class Renderer {
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
     this.aura = deps.aura || null;
+    this.absorption = deps.absorption || null;
     this.lightdash = deps.lightdash || null;
     this.zapBolts = deps.zapBolts || [];
     this.dashBeams = deps.dashBeams || [];
@@ -685,6 +686,7 @@ export class Renderer {
     this.drawCrumble();
     this.drawGrip(viewL, viewR, viewT, viewB);
     this.drawFog();
+    this.drawAbsorptionMarker(ctx); // заглушка: круг под отмеченным врагом
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -708,6 +710,7 @@ export class Renderer {
     this.drawBeams();
 
     this.drawTargetGlow(alpha, true);
+    this.drawAbsorptionFlash(ctx); // заглушка: короткая вспышка в момент удара
 
     if (hero.active) {
       this.drawAura(ctx, hx, hy);
@@ -769,6 +772,43 @@ export class Renderer {
     this.drawStick(C);
     this.drawHud(C);
     this.drawPortalArrow();
+  }
+
+  /** Заглушка «Поглощения»: холодный круг постепенно становится белым во время прицеливания. */
+  drawAbsorptionMarker(ctx) {
+    const a = this.absorption;
+    if (!a || !a.active || !a.target || !a.target.active) return;
+    const A = this.cfg.absorption;
+    const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.05, A.telegraph)));
+    const r = a.target.radius + A.ringPadding;
+    const c = Math.round(125 + 130 * p);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(a.target.x, a.target.y, r, 0, TAU);
+    ctx.fillStyle = 'rgba(215,230,255,' + (0.04 + 0.2 * p) + ')';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(' + c + ',' + c + ',' + c + ',' + (0.4 + 0.6 * p) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Заглушка: белая вспышка расширяется и исчезает после урона. */
+  drawAbsorptionFlash(ctx) {
+    const a = this.absorption;
+    if (!a || a.flash <= 0) return;
+    const A = this.cfg.absorption;
+    const left = Math.min(1, a.flash / Math.max(0.01, A.flashTime));
+    const radius = a.flashR + (1 - left) * 24;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(a.flashX, a.flashY, radius, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * left) + ')';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + left + ')';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** Камни опыта: маленькие ромбики; красный крупнее. Вне экрана не рисуем. */
