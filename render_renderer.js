@@ -544,7 +544,7 @@ export class Renderer {
     this.ui = { hp: 1, hpTrail: 1, hpShow: 0, xp: 0, boss: 1, bossTrail: 1, bossK: 0, slots: [0, 0, 0] }; // сглаженные значения интерфейса
     this.tglow = { cur: null, curK: 0, prev: null, prevK: 0 }; // подсветка цели автоатаки: текущая и затухающая прежняя
     this.shield = {               // вид щита: появление, цвет золото-синий, вспышка парирования и отклики на удары
-      k: 0, pk: 0, flash: 0,
+      k: 0, pk: 0, flash: 0, wasGravity: false,
       rip: [{ on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false },
         { on: false, a: 0, t: 0, parry: false }, { on: false, a: 0, t: 0, parry: false }],
     };
@@ -4005,7 +4005,7 @@ export class Renderer {
       if (px < viewL - 60 || px > viewR + 60 || py < viewT - 60 || py > viewB + 60) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.zap ? (p.frost && p.burnDmg > 0 ? 3 : p.frost ? 1 : p.burnDmg > 0 ? 2 : 5) : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
+      const kd = p.gravityReflected ? 4 : p.zap ? (p.frost && p.burnDmg > 0 ? 3 : p.frost ? 1 : p.burnDmg > 0 ? 2 : 5) : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0; // 4 фантомный фиолетовый; 0 синий, 1 ледяной (Мороз), 2 огненный (Горение), 3 пар (оба)
       const fl = 0.9 + 0.1 * Math.sin(t * 40 + i * 1.7);
       const ang = Math.atan2(p.vy, p.vx);
       const sc = (r * 1.25 / 14) * (1 + 0.2 * gl) * fl;
@@ -4036,7 +4036,7 @@ export class Renderer {
       if (px < viewL - 20 || px > viewR + 20 || py < viewT - 20 || py > viewB + 20) continue;
       const r = p.radius;
       const gl = p.glow || 0;
-      const kd = p.zap ? (p.frost && p.burnDmg > 0 ? 3 : p.frost ? 1 : p.burnDmg > 0 ? 2 : 5) : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
+      const kd = p.gravityReflected ? 4 : p.zap ? (p.frost && p.burnDmg > 0 ? 3 : p.frost ? 1 : p.burnDmg > 0 ? 2 : 5) : p.gen > 0 ? 4 : p.steam > 0 ? 3 : p.burnDmg > 0 ? 2 : p.frost ? 1 : 0;
       ctx.globalAlpha = 1;
       ctx.fillStyle = kd === 5 ? '#ffd21e' : kd === 4 ? '#8a5cff' : kd === 3 ? '#ffa24a' : kd === 2 ? '#ff8a2a' : kd === 1 ? '#9fe6ff' : '#3f86ff';
       ctx.beginPath();
@@ -4786,7 +4786,9 @@ export class Renderer {
         if (q.t >= 0.45) q.on = false;
       }
     }
-    if (S.k < 0.02) return;
+    if (S.k < 0.02) { S.wasGravity = false; return; }
+    if (blocking && d.gravityOn) S.wasGravity = true;
+    if (S.wasGravity) { this.drawGravityShield(hx, hy, S.k, S.pk, C); return; }
     const ctx = this.ctx;
     const k = S.k;
     const pk = S.pk;
@@ -4908,6 +4910,32 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** Горизонт событий: тёмное ядро, линзированная кромка, вращающийся аккреционный диск. */
+  drawGravityShield(hx, hy, k, pk, C) {
+    const ctx = this.ctx, t = this.clock;
+    const R = this.cfg.gravity.shieldRadius * (0.73 + 0.27 * k);
+    ctx.save(); ctx.translate(hx, hy); ctx.globalAlpha = k;
+    ctx.fillStyle = C.gravityVoid;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.93, 0, TAU); ctx.fill();
+    ctx.strokeStyle = C.gravityHalo; ctx.lineWidth = 13;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = pk > 0.25 ? C.gravityParry : C.gravityEdge;
+    ctx.lineWidth = 2.5 + pk * 2;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const a = t * (i % 2 ? -0.95 : 0.8) + i * 2.094;
+      ctx.globalAlpha = k * (0.52 + 0.18 * Math.sin(t * 4 + i));
+      ctx.lineWidth = i === 0 ? 4.5 : 2.5;
+      ctx.strokeStyle = i === 1 ? C.gravityParry : C.gravityEdge;
+      ctx.beginPath(); ctx.arc(0, 0, R * (0.95 + i * 0.045), a, a + 1.15); ctx.stroke();
+    }
+    ctx.globalAlpha = k * 0.72;
+    ctx.save(); ctx.rotate(t * 0.45 - 0.4);
+    ctx.lineWidth = 3.2; ctx.strokeStyle = C.gravityEdge;
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * 0.37, 0, 0, TAU); ctx.stroke();
+    ctx.restore(); ctx.restore();
   }
 
   /** Разряд шокера: зубчатая дуга между точками, дрожит по кадрам; два слоя (широкое свечение и белая жила). */
