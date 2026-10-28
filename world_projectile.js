@@ -79,9 +79,12 @@ export function updateProjectile(p, dt, arena) {
     const curve = t * t * (3 - 2 * t); // медленный старт, резкое ускорение, ровный финиш
     speedFactor = p.gravityStart + (p.gravityEnd - p.gravityStart) * curve;
   }
-  p.x += p.vx * dt * speedFactor;
-  p.y += p.vy * dt * speedFactor;
-  p.travelled += p.speed * dt * speedFactor; // дальность по РЕАЛЬНО пройденному пути
+  let step = p.speed * dt * speedFactor;
+  if (p.gravity) step = Math.min(step, Math.max(0, p.range - p.travelled));
+  const moveDt = p.speed > 0 ? step / p.speed : 0;
+  p.x += p.vx * moveDt;
+  p.y += p.vy * moveDt;
+  p.travelled += step; // гравитационный снаряд останавливается точно на предельной дальности
   if (p.x < arena.left || p.x > arena.right || p.y < arena.top || p.y > arena.bottom) {
     p.active = false;
     return 'edge';
