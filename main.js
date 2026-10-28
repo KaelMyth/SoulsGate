@@ -1,8 +1,13 @@
 import { CONFIG, BUILD } from './config_game.js';
+import { RELEASE } from './release_notes.js';
 import { TUNABLES } from './config_tunables.js';
 import { loadOverrides, safeStorage } from './debug_tunables.js';
 import { lockBrowserGestures } from './platform_viewport.js';
 import { Game } from './game.js';
+
+// Лог сборки при КАЖДОЙ загрузке страницы — номер и состав изменений.
+console.info('[SoulsGate] Обновление №' + RELEASE.number + ' — ' + RELEASE.title);
+window.__SOULSGATE_RELEASE__ = RELEASE;
 
 const storage = safeStorage();
 const storageKey = 'proto.tunables.v' + CONFIG.version;
