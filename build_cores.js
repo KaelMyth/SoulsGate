@@ -67,6 +67,7 @@ export function burnStats(config, burn, dmg) {
   const interval = b.interval / burn.rate;
   return {
     tick,
+    maxTick: tick * (1 + (b.maxStacks - 1) * b.stackBonus),
     interval,
     ticks: Math.floor(b.duration / interval + 1e-9),
   };
@@ -95,7 +96,8 @@ export function coreStats(core, config, mods) {
     const dmgRow = rows.find((r) => r.key === 'damage');
     const base = dmgRow ? dmgRow.value : 0;
     const bs = burnStats(config, mods.burn, base);
-    rows.push({ label: 'Горение: урон тика', text: String(Math.round(bs.tick * 100) / 100), bonus: '' });
+    rows.push({ label: 'Горение: урон тика (1 заряд)', text: String(Math.round(bs.tick * 100) / 100), bonus: '' });
+    rows.push({ label: 'Горение: урон тика (' + config.burn.maxStacks + ' заряда)', text: String(Math.round(bs.maxTick * 100) / 100), bonus: '+' + Math.round((config.burn.maxStacks - 1) * config.burn.stackBonus * 100) + '% к базе' });
     rows.push({ label: 'Горение: тиков за ' + config.burn.duration + ' с', text: String(bs.ticks), bonus: '' });
   }
   if (core.def.canLaser && mods && mods.laser) {
