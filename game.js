@@ -10,7 +10,7 @@ import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
 import { EntityPool } from './core_entity-pool.js';
 import { CollisionWorld, Layer } from './core_collision.js';
 import { Stick } from './input_stick.js';
-import { Arena } from './world_arena.js';
+import { Arena, pointInPoly } from './world_arena.js';
 import { Hero } from './world_hero.js';
 import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
@@ -970,7 +970,8 @@ export class Game {
       if (x < ar.left + hero.radius || x > ar.right - hero.radius ||
           y < ar.top + hero.radius || y > ar.bottom - hero.radius ||
           (zone && (x < zone.left + hero.radius || x > zone.right - hero.radius ||
-                    y < zone.top + hero.radius || y > zone.bottom - hero.radius)) ||
+                    y < zone.top + hero.radius || y > zone.bottom - hero.radius ||
+                    (zone.poly && !pointInPoly(zone.poly, x, y)))) ||
           ar.circleHitsRock(x, y, hero.radius)) break;
       ex = x; ey = y;
     }
@@ -989,6 +990,7 @@ export class Game {
     this.hero.place(this.hero.x, this.hero.y); // без интерполяции после разрешения коллизий
     this.hero.vx = this.hero.vy = 0;
     this.hero.glideTime = 0;
+    this.hero.invuln = Math.max(this.hero.invuln || 0, 0.14); // враги не успевают ударить в кадр возникновения волны
     g.charging = false; g.t = 0;
     this.kineticLanding(true);
   }
