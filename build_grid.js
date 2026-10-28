@@ -448,6 +448,7 @@ export class BuildGrid {
     let absorptionCount = 0;
     let absorptionTargets = 0;
     let absorptionVamp = false;
+    let absorptionBlades = false;
     let absorptionBurn = false;
     let absorptionFrost = false;
     let absorptionLightning = false;
@@ -457,7 +458,10 @@ export class BuildGrid {
       let factor = 1;
       for (const k of kids.get(i) || []) {
         const e = this.cells[k].mod.def.effect;
-        if (e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning') {
+        if (e.kind === 'blades') {
+          absorptionBlades = true;
+          absorptionBranch(k, true); // усиления самих Клинков не усиливают Поглощение
+        } else if (e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning') {
           if (e.kind === 'burn') absorptionBurn = true;
           if (e.kind === 'frost') absorptionFrost = true;
           if (e.kind === 'lightning') absorptionLightning = true;
@@ -481,11 +485,13 @@ export class BuildGrid {
     }
     if (absorptionCount) res.absorption = {
       count: absorptionCount, targets: absorptionTargets, vampirism: absorptionVamp,
+      blades: absorptionBlades,
       burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
     };
     // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
     let blades = 0;
+    let absorptionLinkedBlades = 0;
     let kMax = 0;
     let kDam = 0;
     let kRate = 0;
@@ -501,11 +507,17 @@ export class BuildGrid {
         else if (carry.get(k) === 'blades:rate') r += walk(k, 0);
       }
       blades++;
+      let anc = parent.get(i);
+      while (anc >= 0) {
+        const mod = this.cells[anc].mod;
+        if (mod && mod.def.effect.kind === 'absorption') { absorptionLinkedBlades++; break; }
+        anc = parent.get(anc);
+      }
       kMax += f;
       kDam += 1 + d;
       kRate += 1 + r;
     }
-    if (blades) res.blades = { count: blades, max: kMax / blades, damage: kDam / blades, rate: kRate / blades };
+    if (blades) res.blades = { count: blades, linkedAbsorption: absorptionLinkedBlades, max: kMax / blades, damage: kDam / blades, rate: kRate / blades };
     // Х2/Х3 поверх «Лазера» и «Дроби» (на ядре снаряда) увеличивают число снарядов так же, как Х2 на самом ядре.
     let extra = 0;
     for (let i = 0; i < this.cells.length; i++) {
