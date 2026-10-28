@@ -282,3 +282,84 @@ test('Число целей ограничено maxTargets при больши�
     CONFIG.absorption.maxTargets = old;
   }
 });
+
+test('Мощь увеличивает урон каждой цели на 10%', () => {
+  const s = setup(); s.equip();
+  assert.equal(canPlace(s.build, CONFIG.mods.power, 3, 5).ok, true);
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 3, 5);
+  assert.deepEqual(s.build.orphans(), []);
+  assert.ok(Math.abs(s.build.modifiersFor('shield').absorption.damage - 1.1) < 1e-9);
+  s.enemies.push(enemy(210, 0)); s.advance(3.05);
+  assert.ok(Math.abs(s.hits[0].dmg - 99) < 1e-8);
+});
+
+test('Мощь→Мощь: последовательные бонусы ×1.1 ×1.1 = 1.21', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 3, 5);
+  assert.equal(canPlace(s.build, CONFIG.mods.power, 3, 6).ok, true);
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 3, 6);
+  assert.ok(Math.abs(s.build.modifiersFor('shield').absorption.damage - 1.21) < 1e-9);
+  s.enemies.push(enemy(210, 0)); s.advance(3.05);
+  assert.ok(Math.abs(s.hits[0].dmg - 108.9) < 1e-8);
+});
+
+test('Мощь в двух независимых ветках даёт суммарно +20%', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 2, 4);
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 4, 4);
+  assert.deepEqual(s.build.orphans(), []);
+  assert.ok(Math.abs(s.build.modifiersFor('shield').absorption.damage - 1.2) < 1e-9);
+});
+
+test('Ускорение сокращает цикл и длительность каста', () => {
+  const s = setup(); s.equip();
+  assert.equal(canPlace(s.build, CONFIG.mods.haste, 3, 5).ok, true);
+  s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 3, 5);
+  assert.ok(Math.abs(s.build.modifiersFor('shield').absorption.rate - 1.1) < 1e-9);
+  s.enemies.push(enemy(210, 0));
+  s.advance(2.1);
+  assert.equal(s.hits.length, 0);
+  assert.equal(s.absorption.aiming, true);
+  assert.ok(Math.abs(s.absorption.castTime - CONFIG.absorption.telegraph / 1.1) < 1e-9);
+  s.advance(0.65);
+  assert.equal(s.hits.length, 1);
+  s.advance(2.75);
+  assert.equal(s.hits.length, 2);
+});
+
+test('Ускорение→Ускорение: время сокращается по множителю 1.21', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 3, 5);
+  s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 3, 6);
+  assert.ok(Math.abs(s.build.modifiersFor('shield').absorption.rate - 1.21) < 1e-9);
+  s.enemies.push(enemy(210, 0));
+  s.advance(2.5);
+  assert.equal(s.hits.length, 1);
+});
+
+test('Х2→Х3 + Мощь + Ускорение одновременно и Вампиризм', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'x2', def: CONFIG.mods.x2 }, 3, 5);
+  s.build.placeMod({ key: 'x3', def: CONFIG.mods.x3 }, 3, 6);
+  s.build.placeMod({ key: 'power', def: CONFIG.mods.power }, 2, 4);
+  s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 4, 4);
+  const v = s.build.modifiersFor('shield').absorption;
+  assert.equal(v.targets, 6);
+  assert.ok(Math.abs(v.damage - 1.1) < 1e-9);
+  assert.ok(Math.abs(v.rate - 1.1) < 1e-9);
+  s.enemies.push(enemy(200, 0), enemy(180, 30), enemy(160, 0));
+  s.advance(2.75);
+  assert.equal(s.hits.length, 3);
+  assert.ok(s.hits.every(h => Math.abs(h.dmg - 99) < 1e-8));
+});
+
+test('Изменение скорости во время каста сохраняет цель и прогресс', () => {
+  const s = setup(); s.equip();
+  const e = enemy(210, 0); s.enemies.push(e);
+  s.advance(2.2);
+  assert.equal(s.absorption.target, e);
+  s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 3, 5);
+  s.advance(0.65);
+  assert.equal(s.hits.length, 1);
+  assert.equal(s.hits[0].e, e);
+});
