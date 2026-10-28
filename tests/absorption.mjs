@@ -60,33 +60,40 @@ test('Поглощение выбирает самого дальнего вид
   assert.equal(s.hits.length, 2);
 });
 
-test('Если враг близко, Поглощение не бьёт; появившаяся цель получает предупреждение', () => {
+test('Нет минимальной дальности: Поглощение поражает и ближайшего врага', () => {
   const s = setup(); s.equip();
-  const e = enemy(50, 30); s.enemies.push(e);
-  s.advance(5);
-  assert.equal(s.hits.length, 0);
-  e.x = 210;
-  s.advance(0.1);
+  const e = enemy(1, 1); s.enemies.push(e);
+  s.advance(2.2);
   assert.equal(s.absorption.target, e);
   assert.equal(s.hits.length, 0);
-  s.advance(0.91);
+  s.advance(0.9);
   assert.equal(s.hits.length, 1);
+  assert.equal(s.hits[0].e, e);
 });
 
-test('Смерть цели, выход из кадра и снятие мода отменяют удар', () => {
+test('Погибшая цель не заменяется новым врагом до следующего цикла', () => {
   const s = setup(); s.equip();
   const e = enemy(205, 0); s.enemies.push(e);
   s.advance(2.2);
-  e.active = false; s.advance(1);
+  const newEnemy = enemy(220, 0); s.enemies.push(newEnemy);
+  e.active = false;
+  s.advance(0.92);
   assert.equal(s.hits.length, 0);
-  e.active = true; s.advance(0.1);
-  e.x = 900; s.advance(1);
-  assert.equal(s.hits.length, 0);
-  e.x = 205; s.advance(0.1);
+  assert.equal(s.absorption.target, null);
+  s.advance(3.05);
+  assert.equal(s.hits.length, 1);
+  assert.equal(s.hits[0].e, newEnemy);
+});
+
+test('Снятие Поглощения отменяет все метки', () => {
+  const s = setup(); s.equip();
+  s.enemies.push(enemy(205, 0));
+  s.advance(2.2);
   s.build.takeMod(3, 4);
   s.advance(1);
   assert.equal(s.hits.length, 0);
   assert.equal(s.absorption.active, false);
+  assert.equal(s.absorption.targets.length, 0);
   assert.equal(s.absorption.target, null);
 });
 
@@ -177,4 +184,101 @@ test('Удаление Поглощения оставляет дочерний 
   assert.equal(s.absorption.active, false);
   assert.equal(s.absorption.target, null);
   assert.equal(s.hits.length, 0);
+});
+
+test('Выбранная цель зафиксирована: новые более дальние враги её не перехватывают', () => {
+  const s = setup(); s.equip();
+  const first = enemy(90, 0);
+  s.enemies.push(first);
+  s.advance(2.2);
+  assert.equal(s.absorption.target, first);
+  const newcomer = enemy(215, 340);
+  s.enemies.push(newcomer);
+  s.advance(0.9);
+  assert.equal(s.hits.length, 1);
+  assert.equal(s.hits[0].e, first);
+  assert.equal(newcomer.hp, 1000);
+});
+
+test('Фиксация сохраняется даже если отмеченный враг переместился за кадр', () => {
+  const s = setup(); s.equip();
+  const e = enemy(120, 0); s.enemies.push(e);
+  s.advance(2.2);
+  e.x = 600;
+  s.advance(0.9);
+  assert.equal(s.hits.length, 1);
+  assert.equal(s.hits[0].e, e);
+});
+
+test('Х2 даёт две разные одновременные цели, Х3 — три', () => {
+  for (const [key, count] of [['x2', 2], ['x3', 3]]) {
+    const s = setup(); s.equip();
+    s.build.placeMod({ key, def: CONFIG.mods[key] }, 3, 5);
+    assert.equal(s.build.orphans().length, 0);
+    assert.equal(s.build.modifiersFor('shield').absorption.targets, count);
+    for (let i = 0; i < 5; i++) s.enemies.push(enemy(60 + 20 * i, 0));
+    s.advance(2.2);
+    assert.equal(s.absorption.targets.length, count);
+    s.advance(0.9);
+    assert.equal(s.hits.length, count);
+    assert.equal(new Set(s.hits.map(h => h.e)).size, count);
+    assert.ok(s.hits.every(h => h.dmg === CONFIG.absorption.damage));
+    assert.equal(s.absorption.flashes.length, count);
+  }
+});
+
+test('Х2→Х3 в одной цепочке = 6 целей, не 5 и не 2+3', () => {
+  const s = setup(); s.equip();
+  assert.equal(canPlace(s.build, CONFIG.mods.x2, 3, 5).ok, true);
+  s.build.placeMod({ key: 'x2', def: CONFIG.mods.x2 }, 3, 5);
+  assert.equal(canPlace(s.build, CONFIG.mods.x3, 3, 6).ok, true);
+  s.build.placeMod({ key: 'x3', def: CONFIG.mods.x3 }, 3, 6);
+  assert.equal(s.build.modifiersFor('shield').absorption.targets, 6);
+  assert.deepEqual(s.build.orphans(), []);
+  for (let i = 0; i < 7; i++) s.enemies.push(enemy(20 + i * 25, 0));
+  s.advance(3.08);
+  assert.equal(s.hits.length, 6);
+});
+
+test('Х2 и Х3 на разных гранях Поглощения также перемножаются: 6 целей', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'x2', def: CONFIG.mods.x2 }, 2, 4);
+  s.build.placeMod({ key: 'x3', def: CONFIG.mods.x3 }, 4, 4);
+  assert.deepEqual(s.build.orphans(), []);
+  assert.equal(s.build.modifiersFor('shield').absorption.targets, 6);
+  for (let i = 0; i < 8; i++) s.enemies.push(enemy(10 + i * 20, 0));
+  s.advance(3.08);
+  assert.equal(s.hits.length, 6);
+});
+
+test('Вампиризм после Х2 лечит от всех поражённых целей, не удваивая урон', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'x2', def: CONFIG.mods.x2 }, 3, 5);
+  assert.equal(canPlace(s.build, CONFIG.mods.vamp, 3, 6).ok, true);
+  s.build.placeMod({ key: 'vamp', def: CONFIG.mods.vamp }, 3, 6);
+  assert.equal(s.build.modifiersFor('shield').absorption.vampirism, true);
+  const a = enemy(200, 0), b = enemy(180, 20);
+  a.hp = 30; b.hp = 40;
+  s.enemies.push(a,b);s.hero.hp=50;
+  s.advance(3.08);
+  assert.equal(s.hits.length, 2);
+  assert.equal(s.hero.hp, 57);
+  assert.equal(s.absorption.flashes.length, 2);
+  assert.ok(s.absorption.flashes.every(f => f.vampiric));
+});
+
+test('Число целей ограничено maxTargets при больших цепочках множителей', () => {
+  const s = setup(); s.equip();
+  s.build.placeMod({ key: 'x3', def: CONFIG.mods.x3 }, 3, 5);
+  s.build.placeMod({ key: 'x3', def: CONFIG.mods.x3 }, 3, 6);
+  assert.equal(s.build.modifiersFor('shield').absorption.targets, 9);
+  const old = CONFIG.absorption.maxTargets;
+  CONFIG.absorption.maxTargets = 4;
+  try {
+    for (let i = 0; i < 12; i++) s.enemies.push(enemy(15 + 12 * i, 0));
+    s.advance(3.08);
+    assert.equal(s.hits.length, 4);
+  } finally {
+    CONFIG.absorption.maxTargets = old;
+  }
 });

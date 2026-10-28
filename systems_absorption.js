@@ -1,7 +1,6 @@
-// Поглощение: отдельный мод на ядро щита.
-// Раз в interval секунд выбирает самого дальнего видимого врага за minDistance,
-// отмечает его кругом на telegraph секунд и наносит единичный сильный удар.
-// Заглушка графики живёт отдельно в render_renderer.js.
+// Поглощение: раз в interval секунд фиксирует до N видимых целей (N усиливают Х2/Х3).
+// После постановки кругов новые враги не перехватывают цель; урон и вспышки происходят одновременно.
+// Вампиризм на Поглощении лечит за реально снятое здоровье каждой поражённой цели.
 export class Absorption {
   /** o: { config, hero, enemies, camera, combat, modifiers } */
   constructor(o) {
@@ -12,48 +11,55 @@ export class Absorption {
     this.combat = o.combat;
     this.modifiers = o.modifiers;
     this.source = { absorption: true, active: true };
+    this.targets = []; // зафиксированные цели текущего удара
+    this.candidates = []; // временный буфер для выбора наиболее дальних врагов
+    this.flashes = []; // отдельная заглушка вспышки для каждой поражённой цели
     this.reset();
   }
 
   reset() {
     this.active = false;
+    this.aiming = false;
     this.vampiric = false;
     this.flashVampiric = false;
     this.source.vampiric = false;
     this.timer = 0;
-    this.target = null;
+    this.target = null; // совместимость со старой системой и тестами
+    this.targets.length = 0;
+    this.candidates.length = 0;
+    this.flashes.length = 0;
     this.flash = 0;
     this.flashX = 0;
     this.flashY = 0;
     this.flashR = 0;
   }
 
-  /** Дальше minDistance от героя, центр врага внутри камеры (с отступом от края). */
+  /** Новая цель должна быть видимой; после фиксации она остаётся целью даже при движении. */
   eligible(e) {
     if (!e || !e.active || !this.hero.active) return false;
-    const A = this.cfg.absorption;
-    const dx = e.x - this.hero.x;
-    const dy = e.y - this.hero.y;
-    if (dx * dx + dy * dy < A.minDistance * A.minDistance) return false;
-    const margin = Math.max(0, A.viewMargin);
+    const margin = Math.max(0, this.cfg.absorption.viewMargin);
     return Math.abs(e.x - this.camera.x) <= this.camera.viewW * 0.5 - margin
       && Math.abs(e.y - this.camera.y) <= this.camera.viewH * 0.5 - margin;
   }
 
-  /** Если есть несколько целей, выбираем самую дальнюю от героя. */
-  selectTarget() {
+  /** Выбирает уникальных видимых врагов по убыванию расстояния; вызывается лишь один раз за заряд. */
+  selectTargets(limit) {
+    const list = this.candidates;
+    list.length = 0;
     const en = this.enemies.items;
-    let farthest = null;
-    let bestD = -1;
-    for (let i = 0; i < en.length; i++) {
-      const e = en[i];
-      if (!this.eligible(e)) continue;
-      const dx = e.x - this.hero.x;
-      const dy = e.y - this.hero.y;
-      const d = dx * dx + dy * dy;
-      if (d > bestD) { bestD = d; farthest = e; }
-    }
-    return farthest;
+    for (let i = 0; i < en.length; i++) if (this.eligible(en[i])) list.push(en[i]);
+
+    const hx = this.hero.x;
+    const hy = this.hero.y;
+    list.sort((a, b) => {
+      const ax = a.x - hx, ay = a.y - hy;
+      const bx = b.x - hx, by = b.y - hy;
+      return bx * bx + by * by - ax * ax - ay * ay;
+    });
+    const targets = this.targets;
+    targets.length = 0;
+    for (let i = 0, n = Math.min(list.length, limit); i < n; i++) targets.push(list[i]);
+    this.target = targets[0] || null;
   }
 
   update(dt) {
@@ -64,39 +70,48 @@ export class Absorption {
     const interval = Math.max(0.1, A.interval);
     const telegraph = Math.min(interval, Math.max(0.05, A.telegraph));
     if (!this.active) { this.active = true; this.timer = interval; }
-    this.flash = Math.max(0, this.flash - dt);
 
-    // Цель умерла, приблизилась или вышла из кадра — отменяем метку и ищем другую.
-    if (this.target && !this.eligible(this.target)) {
-      this.target = null;
-      this.timer = telegraph;
+    this.flash = Math.max(0, this.flash - dt);
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      const f = this.flashes[i];
+      f.time -= dt;
+      if (f.time <= 0) this.flashes.splice(i, 1);
     }
 
     this.timer -= dt;
-    if (!this.target && this.timer <= telegraph) {
-      this.target = this.selectTarget();
-      // Если подходящих врагов нет, ждём появления; без скрытого удара по невидимым целям.
+    if (!this.aiming && this.timer <= telegraph) {
+      const max = Math.max(1, Math.floor(A.maxTargets || 64));
+      const count = Math.min(max, Math.max(1, Math.floor(mods.absorption.targets || mods.absorption.count || 1)));
+      this.selectTargets(count);
+      // Нет видимых врагов — ждём. Следующая найденная цель получит полное предупреждение.
       this.timer = telegraph;
+      if (this.targets.length === 0) return;
+      this.aiming = true;
     }
-    if (!this.target || this.timer > 0) return;
+    if (!this.aiming || this.timer > 0) return;
 
-    const e = this.target;
-    this.target = null;
+    // Список фиксирован: погибшие цели пропускаем, новых в середине заряда не добавляем.
+    // Для разных целей урон не умножается: каждую из N поражаем базовым уроном.
+    this.aiming = false;
     this.timer = interval;
-    if (!this.eligible(e)) return;
-    this.flash = Math.max(0, A.flashTime);
-    this.flashVampiric = this.vampiric;
-    this.flashX = e.x;
-    this.flashY = e.y;
-    this.flashR = e.radius + A.ringPadding;
-    const hpBefore = Math.max(0, e.hp);
-    this.source.vampiric = this.vampiric; // признак нужен визуальному эффекту попадания
-    const dealt = this.combat.damageEnemy(e, A.damage * mods.absorption.count, this.source, null);
-    if (dealt && this.vampiric && this.hero.active) {
-      // Нельзя лечиться от лишнего урона: если у врага 5 HP, удар на 90 даёт лечение от 5.
-      // Читаем HP после Combat, поэтому учитываются также снижение урона и его отмена.
-      const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
-      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
+    this.target = null;
+    this.source.vampiric = this.vampiric;
+    for (let i = 0; i < this.targets.length; i++) {
+      const e = this.targets[i];
+      if (!e || !e.active) continue;
+      this.flash = Math.max(0, A.flashTime);
+      this.flashVampiric = this.vampiric;
+      this.flashX = e.x;
+      this.flashY = e.y;
+      this.flashR = e.radius + A.ringPadding;
+      this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric });
+      const hpBefore = Math.max(0, e.hp);
+      const dealt = this.combat.damageEnemy(e, A.damage, this.source, null);
+      if (dealt && this.vampiric && this.hero.active) {
+        const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
+        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
+      }
     }
+    this.targets.length = 0;
   }
 }
