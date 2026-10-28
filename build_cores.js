@@ -95,13 +95,20 @@ export function coreStats(core, config, mods) {
   if (core.def.canGravity && mods && mods.gravity) {
     const G = config.gravity;
     if (core.def.multStat === 'blockPower') {
-      rows.push({ label: 'Гравитация: горизонт', text: G.shieldRadius + '', bonus: 'замедляет, но пропускает' });
-      rows.push({ label: 'Гравитация: скорость врагов', text: Math.round(G.shieldEnemySpeed * 100) + '%', bonus: 'сохраняется внутри поля' });
-      rows.push({ label: 'Гравитация: скорость снарядов', text: Math.round(G.shieldProjectileSpeed * 100) + '%', bonus: 'сохраняется внутри поля' });
-      rows.push({ label: 'Гравитация: длительность', text: Math.round(G.shieldDuration * (mods.gravity.durationMult || 1) * 100) / 100 + ' с', bonus: '×' + (mods.gravity.durationMult || 1) + ', действует при движении' });
-      rows.push({ label: 'Гравитация: перезарядка', text: Math.round(G.shieldCooldown / (mods.gravity.cooldownRate || 1) * 100) / 100 + ' с', bonus: 'после поля, Ускорение ×' + Math.round((mods.gravity.cooldownRate || 1) * 100) / 100 });
+      const hybrid = !!mods.aura;
+      const auraR = hybrid ? config.aura.radius * (1 + config.aura.radiusStep * ((mods.aura.mult || 1) - 1)) : G.shieldRadius;
+      rows.push({ label: 'Гравитация: горизонт', text: Math.round(auraR * 10) / 10 + '', bonus: hybrid ? 'постоянно, радиус Ауры' : 'замедляет, но пропускает' });
+      rows.push({ label: 'Гравитация: скорость врагов', text: Math.round((hybrid ? G.auraEnemySpeed : G.shieldEnemySpeed) * 100) + '%', bonus: 'остаточная скорость в зоне' });
+      rows.push({ label: 'Гравитация: скорость снарядов', text: Math.round((hybrid ? G.auraProjectileSpeed : G.shieldProjectileSpeed) * 100) + '%', bonus: 'остаточная скорость в зоне' });
+      if (hybrid) {
+        rows.push({ label: 'Гравитация + Аура', text: 'постоянно', bonus: 'без перезарядки Гравитации' });
+        rows.push({ label: 'Гравитация + Аура: тики', text: Math.round(config.aura.ticks * (mods.aura.rate || 1) * G.auraTickRateMul * 100) / 100 + '/с', bonus: 'урон ×' + G.auraDamageMul });
+      } else {
+        rows.push({ label: 'Гравитация: длительность', text: Math.round(G.shieldDuration * (mods.gravity.durationMult || 1) * 100) / 100 + ' с', bonus: '×' + (mods.gravity.durationMult || 1) + ', действует при движении' });
+        rows.push({ label: 'Гравитация: перезарядка', text: Math.round(G.shieldCooldown / (mods.gravity.cooldownRate || 1) * 100) / 100 + ' с', bonus: 'после поля, Ускорение ×' + Math.round((mods.gravity.cooldownRate || 1) * 100) / 100 });
+      }
       rows.push({ label: 'Гравитация: искривление', text: G.shieldBend + ' рад/с', bonus: 'скользящие снаряды возвращаются' });
-      if (mods.gravity.elements?.mask) rows.push({ label: 'Гравитация: стихии', text: [(mods.gravity.elements.mask & 1) ? 'Огонь' : '', (mods.gravity.elements.mask & 2) ? 'Мороз' : '', (mods.gravity.elements.mask & 4) ? 'Молния' : ''].filter(Boolean).join(' + '), bonus: 'стаки каждые ' + G.shieldElementInterval + ' с' });
+      if (mods.gravity.elements?.mask) rows.push({ label: 'Гравитация: стихии', text: [(mods.gravity.elements.mask & 1) ? 'Огонь' : '', (mods.gravity.elements.mask & 2) ? 'Мороз' : '', (mods.gravity.elements.mask & 4) ? 'Молния' : ''].filter(Boolean).join(' + '), bonus: 'стаки каждые ' + G.shieldElementInterval * (hybrid ? G.auraElementIntervalMul : 1) + ' с' });
     } else {
       rows.push({ label: 'Гравитация: урон', text: '+' + Math.round(G.damageBonus * 100 * mods.gravity.count) + '%', bonus: 'отдельно от Мощи' });
       rows.push({ label: 'Гравитация: скорость', text: Math.round(G.startSpeed * 100) + '% → ' + Math.round(G.maxSpeed * 100) + '%', bonus: 'удержание ' + (Math.round(G.rampTime * G.holdFraction * 100) / 100) + ' с, затем рывок' });

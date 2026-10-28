@@ -43,8 +43,11 @@ export class Aura {
     this.kind = m.frost && m.burn ? 3 : m.burn ? 2 : m.frost ? 1 : 0; // стихия для отрисовки: 0 нет, 1 лёд, 2 огонь, 3 пар
     this.lightning = !!m.lightning; // Молния на ауре: поле потрескивает разрядами (только вид)
     this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)); // Х2/Х3 на ауре: шире
-    const dmg = A.damage * (a.damage || 1) + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                            // Мощь
-    const interval = 1 / (A.ticks * (a.rate || 1));                    // Ускорение: больше тиков в секунду
+    const hybrid = !!m.gravity; // С Гравитацией Аура постоянна, но слабее и тикает реже
+    const power = hybrid ? this.cfg.gravity.auraDamageMul : 1;
+    const rate = hybrid ? this.cfg.gravity.auraTickRateMul : 1;
+    const dmg = (A.damage * (a.damage || 1) + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0)) * power;
+    const interval = 1 / (A.ticks * (a.rate || 1) * rate);                    // Ускорение: больше тиков в секунду
     this.timer += dt;
     for (let guard = 0; this.timer >= interval && guard < 8; guard++) {
       this.timer -= interval;
