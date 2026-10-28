@@ -215,3 +215,40 @@ test('Обычный трёхсекундный цикл Поглощения н
   s.frame(2.05); // обычный
   assert.equal(s.hits.filter(h => h.absorption).length, 2);
 });
+
+test('У разных врагов могут одновременно висеть независимые метки', () => {
+  const s = setup(); s.equip('blades', 3, 5);
+  const second = enemy(135, 0); s.en.push(second);
+  for (let i = 0; i < 3; i++) {
+    s.bladeHit(s.en[0]);
+    s.bladeHit(second);
+  }
+  assert.equal(s.absorption.bladeMarks.length, 2);
+  s.frame(1.05);
+  const damage = s.hits.filter(h => h.absorption);
+  assert.equal(damage.length, 2);
+  assert.equal(new Set(damage.map(h => h.e)).size, 2);
+});
+
+test('Снятие и повторная установка Клинков сбрасывает также незавершённые 2/3', () => {
+  const s = setup(); s.equip('blades', 3, 5);
+  s.bladeHit(s.en[0]); s.bladeHit(s.en[0]);
+  s.build.takeMod(3, 5);
+  s.frame(0.1); // промежуточный кадр без связки
+  s.equip('blades', 3, 5);
+  s.bladeHit(s.en[0]);
+  assert.equal(s.absorption.bladeMarks.length, 0);
+  s.bladeHit(s.en[0]); s.bladeHit(s.en[0]);
+  assert.equal(s.absorption.bladeMarks.length, 1);
+});
+
+test('Вампиризм считает только реальный урон бонусного удара по почти мёртвому врагу', () => {
+  const s = setup(); s.equip('blades', 3, 5); s.equip('vamp', 2, 4);
+  // Урон клинков в этом тесте 12; оставим цели 38 HP перед финальным попаданием.
+  s.en[0].hp = 75;
+  for (let i = 0; i < 3; i++) s.bladeHit(s.en[0]);
+  assert.equal(s.en[0].hp, 39);
+  s.frame(1.05);
+  assert.equal(s.en[0].active, false);
+  assert.ok(Math.abs(s.hero.hp - 23.9) < 1e-8);
+});
