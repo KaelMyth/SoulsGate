@@ -119,9 +119,12 @@ export function coreStats(core, config, mods) {
   }
   if (core.def.canAbsorption && mods && mods.absorption) {
     const a = config.absorption;
-    rows.push({ label: 'Поглощение: урон каждой цели', text: String(Math.round(a.damage * 100) / 100), bonus: '' });
+    const dmg = mods.absorption.damage || 1;
+    const rate = Math.max(0.01, mods.absorption.rate || 1);
+    rows.push({ label: 'Поглощение: урон каждой цели', text: String(Math.round(a.damage * dmg * 100) / 100), bonus: dmg !== 1 ? '+' + Math.round((dmg - 1) * 100) + '%' : '' });
     rows.push({ label: 'Поглощение: целей одновременно', text: String(Math.min(a.maxTargets, mods.absorption.targets || mods.absorption.count)), bonus: 'Х2/Х3 перемножаются' });
-    rows.push({ label: 'Поглощение: каждые', text: a.interval + ' с', bonus: '' });
+    rows.push({ label: 'Поглощение: каждые', text: Math.round(a.interval / rate * 100) / 100 + ' с', bonus: rate !== 1 ? '+' + Math.round((rate - 1) * 100) + '% скорости' : '' });
+    rows.push({ label: 'Поглощение: время каста', text: Math.round(a.telegraph / rate * 100) / 100 + ' с', bonus: '' });
     if (mods.absorption.vampirism) rows.push({ label: 'Поглощение + Вампиризм', text: Math.round(a.lifesteal * 100) + '% урона → здоровье', bonus: 'красный круг' });
     rows.push({ label: 'Поглощение: выбор целей', text: 'самые дальние', bonus: 'в пределах экрана' });
   }
