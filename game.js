@@ -179,7 +179,7 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, st, d, i) => this.chill(e, st, d, i),
-      zap: (e, d, i, fr, st) => this.zap(e, d, i, fr, st),
+      zap: (e, d, i, fr, st, cm) => this.zap(e, d, i, fr, st, cm),
     });
 
     this.renderer = new Renderer(o.canvas, config, {
