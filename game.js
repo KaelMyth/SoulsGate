@@ -10,7 +10,7 @@ import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
 import { EntityPool } from './core_entity-pool.js';
 import { CollisionWorld, Layer } from './core_collision.js';
 import { Stick } from './input_stick.js';
-import { Arena } from './world_arena.js';
+import { Arena, pointInPoly } from './world_arena.js';
 import { Hero } from './world_hero.js';
 import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
@@ -81,6 +81,7 @@ export class Game {
     };
     this.skillCd = [0, 0, 0]; // перезарядки умений (с)
     this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
+    this.gravityDash = { active: false, charging: false, x: 0, y: 0, ox: 0, oy: 0, t: 0, life: 0.45, charge: 0.28 };
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
     this.fires = [];       // костры огненного рывка: { x, y, age, tick }
@@ -216,6 +217,7 @@ export class Game {
       lightdash: this.lightdash,
       zapBolts: this.zapBolts,
       dashBeams: this.dashBeams,
+      gravityDash: this.gravityDash,
       fires: this.fires,
       pellets: this.pellets,
       lasers: this.lasers,
@@ -332,6 +334,9 @@ export class Game {
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
       this.deathFx(enemy, source);
     });
+    this.bus.on('dash:gravity-started', (event) => this.startGravityDash(event));
+    this.bus.on('dash:gravity-arrived', (event) => this.finishGravityDash(event));
+    this.bus.on('dash:landed', () => this.kineticLanding(false));
     this.bus.on('dash:started', () => this.startDashBeam());
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
@@ -939,13 +944,86 @@ export class Game {
   updateKinetic(dt) {
     const h = this.hero;
     this.updateBeams(dt);
+    if (this.gravityDash.active) {
+      this.gravityDash.t += dt;
+      if (!this.gravityDash.charging && this.gravityDash.t >= this.gravityDash.life) this.gravityDash.active = false;
+    }
     if (!this.defense.kinetic) { this.shotLast = null; if (this.renderer) this.renderer.dashKinetic = false; return; }
     this.lightdash.kind = this.kineticEl().kind;
     if (this.renderer) { this.renderer.dashKind = this.lightdash.kind; this.renderer.dashKinetic = true; }
     const moving = h.dashing || h.glideTime > 0;
     if (moving && h.invuln < 0.1) h.invuln = 0.1; // таран: пока герой в рывке и скольжении, урон от врагов не проходит
-    if (h.dashing && !this.lightdash.active) this.kineticRam();
-    this.kineticShots();
+    if (h.dashing && !this.lightdash.active && !this.defense.gravityDashCharging) this.kineticRam();
+    if (!this.defense.gravityDashCharging) this.kineticShots();
+  }
+
+  /** Безопасная точка пространственной аномалии: нельзя попасть внутрь стены или выйти из арены. */
+  startGravityDash({ dirX, dirY, distance, seq }) {
+    const hero = this.hero, ar = this.arena, K = this.config.kinetic;
+    const step = Math.max(2, K.gravityTravelStep);
+    const zone = ar.zone;
+    let ex = hero.x, ey = hero.y;
+    const steps = Math.ceil(distance / step);
+    for (let i = 1; i <= steps; i++) {
+      const dist = Math.min(distance, i * step);
+      const x = hero.x + dirX * dist, y = hero.y + dirY * dist;
+      if (x < ar.left + hero.radius || x > ar.right - hero.radius ||
+          y < ar.top + hero.radius || y > ar.bottom - hero.radius ||
+          (zone && (x < zone.left + hero.radius || x > zone.right - hero.radius ||
+                    y < zone.top + hero.radius || y > zone.bottom - hero.radius ||
+                    (zone.poly && !pointInPoly(zone.poly, x, y)))) ||
+          ar.circleHitsRock(x, y, hero.radius)) break;
+      ex = x; ey = y;
+    }
+    const g = this.gravityDash;
+    g.active = true; g.charging = true;
+    g.x = ex; g.y = ey; g.ox = hero.x; g.oy = hero.y;
+    g.seq = seq; g.t = 0; g.charge = Math.max(0.05, K.gravityCharge);
+  }
+
+  /** Телепортация без интерполяции: прямо перед ударной волной в безопасную точку. */
+  finishGravityDash({ seq }) {
+    const g = this.gravityDash;
+    if (!g.active || !g.charging || g.seq !== seq) return;
+    this.hero.place(g.x, g.y);
+    this.arena.resolveCircle(this.hero); // остров и скалы остаются твёрдыми
+    this.hero.place(this.hero.x, this.hero.y); // без интерполяции после разрешения коллизий
+    this.hero.vx = this.hero.vy = 0;
+    this.hero.glideTime = 0;
+    this.hero.invuln = Math.max(this.hero.invuln || 0, 0.14); // враги не успевают ударить в кадр возникновения волны
+    g.charging = false; g.t = 0;
+    this.kineticLanding(true);
+  }
+
+  /** Удар в точке прибытия: отталкивает всех в области, даже не задетых по пути. */
+  kineticLanding(gravity = false) {
+    if (!this.defense.kinetic || !this.hero.active) return;
+    const h = this.hero, K = this.config.kinetic, mods = this.kineticMods, el = this.kineticEl();
+    const wide = 1 + (mods && mods.bounces ? mods.bounces.percent / 200 : 0);
+    const radius = (gravity ? K.gravityPushRadius : K.pushRadius) * wide;
+    const knock = K.pushDistance * wide * (gravity ? K.gravityPushMul : 1);
+    const id = this.defense.dashSeq;
+    const en = this.enemies.items;
+    for (let i = 0; i < en.length; i++) {
+      const e = en[i];
+      if (!e.active || e.kineticLandId === id) continue;
+      const dx = e.x - h.x, dy = e.y - h.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > radius + e.radius) continue;
+      const nx = dist > 1e-5 ? dx / dist : this.defense.dashX || 1;
+      const ny = dist > 1e-5 ? dy / dist : this.defense.dashY || 0;
+      e.kineticLandId = id;
+      applyKnockback(e, nx, ny, knock, K.pushTime);
+      if (gravity) {
+        e.gravityDashSlowT = Math.max(e.gravityDashSlowT || 0, K.gravitySlowTime);
+        e.gravityDashSlowMul = Math.min(e.gravityDashSlowMul || 1, K.gravitySlowMul);
+      }
+      if (el.bd > 0) this.ignite(e, el.bd, el.bi);
+      if (el.fr) this.chill(e, el.st, el.bd, el.bi);
+      if (mods && mods.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
+    }
+    if (this.renderer?.dashfx) this.renderer.dashfx.land(h.x, h.y, this.renderer.dashKind || 0, radius);
+    if (gravity) this.burst(h.x, h.y, 0.4, 14, radius, K.gravityEdgeColor);
   }
 
   /** Кинетический рывок: каждый враг, которого герой задел в рывке, отлетает сразу в момент касания (один раз за рывок). */
@@ -1032,6 +1110,7 @@ export class Game {
       if (x < ar.left + 12 || x > ar.right - 12 || y < ar.top + 12 || y > ar.bottom - 12 || ar.circleHitsRock(x, y, h.radius)) break;
       ex = x; ey = y;
     }
+    if (this.defense.gravityDashCharging && this.gravityDash.active) { ex = this.gravityDash.x; ey = this.gravityDash.y; }
     this.dashBeams.push({ x0: h.x, y0: h.y, x1: ex, y1: ey, age: 0, done: false, zap: !!m.lightning, kind: this.kineticEl().kind });
   }
 
@@ -1349,6 +1428,7 @@ export class Game {
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам
+      this.defense.gravityDashEnabled = !!(this.kineticMods && this.kineticMods.gravity);
       { // моды рывка: Х2/Х3 (рикошеты, толчок), Мощь (урон), Ускорение (перезарядка)
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
@@ -1747,6 +1827,8 @@ export class Game {
     this.lightdash.reset();
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
+    this.gravityDash.active = false;
+    this.gravityDash.charging = false;
     this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
     this.hud.rainT = 0;
     this.rewards.reset();

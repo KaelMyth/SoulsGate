@@ -51,7 +51,11 @@ export class HeroDefense {
     this.gravityTime = 0;  // отдельный таймер горизонта событий: не прерывается движением
     this.gravityDurationMax = 0;
     this.gravityCooldownRate = 1;
+    this.gravityDashCharging = false;
+    this.gravityDashEnabled = false;
     this.gravityAuraRadius = 0; // радиус Ауры с Х2/Х3: общая область ослабленной Гравитации
+    this.gravityDashEnabled = false;
+    this.gravityDashCharging = false;
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -142,7 +146,7 @@ export class HeroDefense {
     const d = this.cfg.dash;
     const len = Math.hypot(dirX, dirY);
     if (!this.hero.active || this.dashCd > 0 || len < 1e-6) return false;
-    const light = this.kinetic && this.lightDash && this.lightning && !this.hero.dashing && this.lightning.plan(); // есть кого бить
+    const light = this.kinetic && !this.gravityDashEnabled && this.lightDash && this.lightning && !this.hero.dashing && this.lightning.plan(); // Гравитация имеет приоритет над цепным рывком
     const wasBlocking = this.state === 'block';
     if (!this.go('dash')) return false;
     if (wasBlocking) {
@@ -152,6 +156,23 @@ export class HeroDefense {
     const dist = d.distance * (this.kinetic ? this.cfg.kinetic.distanceScale : 1); // кинетический рывок длиннее
     this.dashX = dirX / len;
     this.dashY = dirY / len;
+    if (this.kinetic && this.gravityDashEnabled) { // аномалия собирается до телепорта: нет движения через врагов или скалы
+      const K = this.cfg.kinetic;
+      this.gravityDashCharging = true;
+      this.dashT = Math.max(0.05, K.gravityCharge);
+      this.dashTime = this.dashT;
+      this.dashElapsed = 0;
+      this.dashV0 = 0;
+      this.dashCd = d.cooldown * this.dashCdMul;
+      this.dashCdMax = Math.max(0.001, this.dashCd);
+      this.hero.dashing = true;
+      this.hero.dashVx = this.hero.dashVy = 0;
+      this.hero.facing = Math.atan2(this.dashY, this.dashX);
+      this.dashSeq++;
+      this.bus.emit('dash:gravity-started', { dirX: this.dashX, dirY: this.dashY, distance: dist * K.gravityDistanceMul, seq: this.dashSeq });
+      this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY }); // Дробь/Лазер сохраняют работу с Кинетическим рывком
+      return true;
+    }
     if (light) { // героя двигает цепочка рикошетов, обычной скорости нет
       this.dashTime = this.lightning.duration;
       this.dashT = Math.max(0.02, this.lightning.duration);
@@ -163,6 +184,7 @@ export class HeroDefense {
       this.hero.dashVx = 0;
       this.hero.dashVy = 0;
       this.lightning.begin();
+      this.dashSeq++;
       this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
       return true;
     }
@@ -217,6 +239,19 @@ export class HeroDefense {
     if (!stickUp) this.armed = true;
 
     if (this.state === 'dash') {
+      if (this.gravityDashCharging) {
+        this.dashElapsed += dt;
+        if (this.dashElapsed >= this.dashT) {
+          this.gravityDashCharging = false;
+          this.go('end');
+          this.hero.dashing = false;
+          this.hero.dashVx = this.hero.dashVy = 0;
+          this.hero.vx = this.hero.vy = 0;
+          this.hero.glideTime = 0;
+          this.bus.emit('dash:gravity-arrived', { seq: this.dashSeq });
+        }
+        return;
+      }
       if (this.dashElapsed >= this.dashT) {
         // Рывок закончился: остаток скорости остаётся у героя и гаснет плавно, а не обрывается.
         this.go('end');
@@ -226,6 +261,7 @@ export class HeroDefense {
         this.hero.vy = this.dashY * this.dashV0 * k;
         this.hero.glideTime = this.cfg.dash.glide * 2.5;
         this.hero.glideAccel = this.cfg.dash.glide;
+        if (this.kinetic) this.bus.emit('dash:landed', { seq: this.dashSeq });
       } else {
         // Скорость на этот шаг: среднее экспоненты за шаг (так сумма шагов равна интегралу, дальность точная).
         const k = this.avgDecay(this.dashElapsed, dt);
