@@ -121,6 +121,7 @@ export function coreStats(core, config, mods) {
     const a = config.absorption;
     rows.push({ label: 'Поглощение: урон', text: String(Math.round(a.damage * mods.absorption.count * 100) / 100), bonus: '' });
     rows.push({ label: 'Поглощение: каждые', text: a.interval + ' с', bonus: '' });
+    if (mods.absorption.vampirism) rows.push({ label: 'Поглощение + Вампиризм', text: Math.round(a.lifesteal * 100) + '% урона → здоровье', bonus: 'красный круг' });
     rows.push({ label: 'Поглощение: дальняя цель', text: 'от ' + a.minDistance, bonus: 'в пределах экрана' });
   }
   if (core.def.canBlades && mods && mods.blades) {

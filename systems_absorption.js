@@ -17,6 +17,9 @@ export class Absorption {
 
   reset() {
     this.active = false;
+    this.vampiric = false;
+    this.flashVampiric = false;
+    this.source.vampiric = false;
     this.timer = 0;
     this.target = null;
     this.flash = 0;
@@ -57,6 +60,7 @@ export class Absorption {
     const mods = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     if (!mods || !mods.absorption || !this.hero.active) { this.reset(); return; }
     const A = this.cfg.absorption;
+    this.vampiric = !!mods.absorption.vampirism;
     const interval = Math.max(0.1, A.interval);
     const telegraph = Math.min(interval, Math.max(0.05, A.telegraph));
     if (!this.active) { this.active = true; this.timer = interval; }
@@ -81,9 +85,18 @@ export class Absorption {
     this.timer = interval;
     if (!this.eligible(e)) return;
     this.flash = Math.max(0, A.flashTime);
+    this.flashVampiric = this.vampiric;
     this.flashX = e.x;
     this.flashY = e.y;
     this.flashR = e.radius + A.ringPadding;
-    this.combat.damageEnemy(e, A.damage * mods.absorption.count, this.source, null);
+    const hpBefore = Math.max(0, e.hp);
+    this.source.vampiric = this.vampiric; // признак нужен визуальному эффекту попадания
+    const dealt = this.combat.damageEnemy(e, A.damage * mods.absorption.count, this.source, null);
+    if (dealt && this.vampiric && this.hero.active) {
+      // Нельзя лечиться от лишнего урона: если у врага 5 HP, удар на 90 даёт лечение от 5.
+      // Читаем HP после Combat, поэтому учитываются также снижение урона и его отмена.
+      const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
+    }
   }
 }

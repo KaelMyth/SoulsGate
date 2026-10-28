@@ -785,9 +785,13 @@ export class Renderer {
     ctx.save();
     ctx.beginPath();
     ctx.arc(a.target.x, a.target.y, r, 0, TAU);
-    ctx.fillStyle = 'rgba(215,230,255,' + (0.04 + 0.2 * p) + ')';
+    ctx.fillStyle = a.vampiric
+      ? 'rgba(255,55,75,' + (0.04 + 0.2 * p) + ')'
+      : 'rgba(215,230,255,' + (0.04 + 0.2 * p) + ')';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(' + c + ',' + c + ',' + c + ',' + (0.4 + 0.6 * p) + ')';
+    ctx.strokeStyle = a.vampiric
+      ? 'rgba(' + Math.round(145 + 110 * p) + ',' + Math.round(25 + 65 * p) + ',' + Math.round(35 + 75 * p) + ',' + (0.4 + 0.6 * p) + ')'
+      : 'rgba(' + c + ',' + c + ',' + c + ',' + (0.4 + 0.6 * p) + ')';
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.restore();
@@ -803,9 +807,13 @@ export class Renderer {
     ctx.save();
     ctx.beginPath();
     ctx.arc(a.flashX, a.flashY, radius, 0, TAU);
-    ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * left) + ')';
+    ctx.fillStyle = a.flashVampiric
+      ? 'rgba(255,40,65,' + (0.55 * left) + ')'
+      : 'rgba(255,255,255,' + (0.55 * left) + ')';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,' + left + ')';
+    ctx.strokeStyle = a.flashVampiric
+      ? 'rgba(255,110,125,' + left + ')'
+      : 'rgba(255,255,255,' + left + ')';
     ctx.lineWidth = 4;
     ctx.stroke();
     ctx.restore();
