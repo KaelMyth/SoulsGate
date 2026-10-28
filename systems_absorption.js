@@ -1,6 +1,11 @@
 // Поглощение: раз в interval секунд фиксирует до N видимых целей (N усиливают Х2/Х3).
 // После постановки кругов новые враги не перехватывают цель; урон и вспышки происходят одновременно.
 // Вампиризм на Поглощении лечит за реально снятое здоровье каждой поражённой цели.
+// Цвета: нейтральный, огонь, лёд, пар, молния, молния+огонь, молния+лёд, все три.
+// Вампиризм приоритетно делает кольцо и вспышку красными (как в существующей связке).
+const COLORS = ['215,230,255', '255,138,61', '143,216,255', '217,230,242',
+  '255,228,90', '255,172,80', '123,215,255', '255,255,255'];
+
 export class Absorption {
   /** o: { config, hero, enemies, camera, combat, modifiers } */
   constructor(o) {
@@ -10,6 +15,9 @@ export class Absorption {
     this.camera = o.camera;
     this.combat = o.combat;
     this.modifiers = o.modifiers;
+    this.ignite = o.ignite || null;
+    this.chill = o.chill || null;
+    this.zap = o.zap || null;
     this.source = { absorption: true, active: true };
     this.targets = []; // зафиксированные цели текущего удара
     this.candidates = []; // временный буфер для выбора наиболее дальних врагов
@@ -23,6 +31,8 @@ export class Absorption {
     this.vampiric = false;
     this.flashVampiric = false;
     this.source.vampiric = false;
+    this.element = 0;
+    this.color = COLORS[0];
     this.timer = 0;
     this.rate = 1; // прежняя скорость для сохранения прогресса каста при смене билда
     this.castTime = this.cfg.absorption.telegraph;
@@ -69,6 +79,11 @@ export class Absorption {
     if (!mods || !mods.absorption || !this.hero.active) { this.reset(); return; }
     const A = this.cfg.absorption;
     this.vampiric = !!mods.absorption.vampirism;
+    const element = (mods.absorption.burn ? 1 : 0)
+      | (mods.absorption.frost ? 2 : 0)
+      | (mods.absorption.lightning ? 4 : 0);
+    this.element = element;
+    this.color = this.vampiric ? '255,50,75' : COLORS[element];
     const rate = Math.max(0.01, mods.absorption.rate || 1);
     const interval = Math.max(0.05, A.interval / rate);
     const telegraph = Math.min(interval, Math.max(0.02, A.telegraph / rate));
@@ -117,9 +132,33 @@ export class Absorption {
       this.flashX = e.x;
       this.flashY = e.y;
       this.flashR = e.radius + A.ringPadding;
-      this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric });
+      this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric, color: this.color });
       const hpBefore = Math.max(0, e.hp);
-      const dealt = this.combat.damageEnemy(e, A.damage * (mods.absorption.damage || 1), this.source, null);
+      const baseDamage = A.damage * (mods.absorption.damage || 1);
+      // Молния даёт стандартный бонус +5 к прямому удару за каждый мод Молнии.
+      const damage = baseDamage + (mods.absorption.lightning
+        ? this.cfg.shock.attackBonus * (mods.lightning ? mods.lightning.count : 1) : 0);
+      const dealt = this.combat.damageEnemy(e, damage, this.source, null);
+      if (dealt && e.active) {
+        // Максимум стаков на КАЖДУЮ цель одним срабатыванием Поглощения.
+        // Через общие API сохраняются иммунитеты, обычный огонь, заморозка,
+        // паровые взрывы и цепной разряд Молнии.
+        const burn = mods.absorption.burn;
+        const frost = mods.absorption.frost;
+        const lightning = mods.absorption.lightning;
+        const bd = burn ? baseDamage * this.cfg.burn.damageFrac * (mods.burn ? mods.burn.damage : 1) : 0;
+        const bi = burn ? this.cfg.burn.interval / (mods.burn ? mods.burn.rate : 1) : 0;
+        const steam = burn && frost ? (mods.steam ? mods.steam.damage : 1) : 0;
+        if (burn && this.ignite) {
+          for (let k = 0; k < this.cfg.burn.maxStacks && e.active; k++) this.ignite(e, bd, bi);
+        }
+        if (frost && this.chill) {
+          for (let k = 0; k < this.cfg.frost.maxStacks && e.active; k++) this.chill(e, steam, bd, bi);
+        }
+        if (lightning && this.zap) {
+          for (let k = 0; k < this.cfg.shock.maxStacks && e.active; k++) this.zap(e, bd, bi, frost ? 1 : 0, steam);
+        }
+      }
       if (dealt && this.vampiric && this.hero.active) {
         const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
         this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
