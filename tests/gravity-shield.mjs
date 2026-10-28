@@ -202,12 +202,16 @@ test('Огонь, Мороз и Молния крепятся к Гравита�
 test('Гравитация берёт стихии только из своей ветки, а не из соседних Клинков', () => {
   const m = buildShield([['gravity', 3, 4], ['burn', 3, 5], ['blades', 2, 3], ['frost', 1, 3]]);
   assert.equal(m.gravity.elements.mask, 1); // только Огонь
+  assert.equal(m.burn, undefined, 'Горение Гравитации не переходит на Клинки');
   assert.ok(m.frost);
 });
 
 test('Ветка Горение + Мороз + Молния на Гравитации даёт все три стихии', () => {
   const m = buildShield([['gravity', 3, 4], ['burn', 3, 5], ['frost', 3, 6], ['lightning', 2, 6]]);
   assert.equal(m.gravity.elements.mask, 7);
+  assert.equal(m.burn, undefined);
+  assert.equal(m.frost, undefined);
+  assert.equal(m.lightning, undefined);
 });
 
 test('Огонь периодически обновляет стаки на врагах в поле, а вне поля не действует', () => {
