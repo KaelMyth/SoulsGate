@@ -2969,6 +2969,29 @@ export class Renderer {
       ctx.save();
       ctx.translate(px, py);
       ctx.rotate(Math.atan2(p.vy, p.vx));
+      const element = p.gravityReturned ? p.gravityElementMask : 0;
+      if (element) {
+        // Обратный снаряд уже не слизь: раскалённый осколок, ледяной кристалл или электрическая искра.
+        const fire = !!(element & 1), ice = !!(element & 2), lightning = !!(element & 4);
+        ctx.fillStyle = fire && ice ? C.gravitySteam : fire ? C.gravityFire : ice ? C.gravityFrost : C.gravityLightning;
+        ctx.beginPath();
+        ctx.moveTo(r * 1.45, 0);
+        ctx.lineTo(-r * 0.5, -r * (ice ? 1.25 : 0.8));
+        ctx.lineTo(-r * (lightning ? 2.25 : 1.75), 0);
+        ctx.lineTo(-r * 0.5, r * (ice ? 1.25 : 0.8));
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lightning ? C.gravityLightningCore : ice ? C.gravityFrostCore : C.gravityFireCore;
+        ctx.beginPath(); ctx.arc(r * 0.12, 0, r * 0.5, 0, TAU); ctx.fill();
+        if (lightning) {
+          ctx.strokeStyle = C.gravityLightning; ctx.lineWidth = Math.max(1, r * 0.25);
+          ctx.beginPath(); ctx.moveTo(-r * 1.5, -r * 1.25);
+          ctx.lineTo(-r * 0.75, -r * 0.3);
+          ctx.lineTo(-r * 1.35, r * 0.4);
+          ctx.lineTo(-r * 0.4, r * 1.2); ctx.stroke();
+        }
+        ctx.restore();
+        continue;
+      }
       ctx.fillStyle = C.snot;
       // Липкий хвост, тянущийся за каплей.
       ctx.beginPath();
@@ -4913,29 +4936,75 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Горизонт событий: тёмное ядро, линзированная кромка, вращающийся аккреционный диск. */
+  /** Стихийный горизонт: пламенная корона, ледяные кристаллы, разряды и паровой диск. */
   drawGravityShield(hx, hy, k, pk, C) {
     const ctx = this.ctx, t = this.clock;
     const R = this.cfg.gravity.shieldRadius * (0.73 + 0.27 * k);
+    const mask = this.defense.gravityElements?.mask || 0;
+    const fire = !!(mask & 1), frost = !!(mask & 2), lightning = !!(mask & 4);
+    const steam = fire && frost;
+    const edge = steam ? C.gravitySteam : fire ? C.gravityFire : frost ? C.gravityFrost : lightning ? C.gravityLightning : C.gravityEdge;
     ctx.save(); ctx.translate(hx, hy); ctx.globalAlpha = k;
     ctx.fillStyle = C.gravityVoid;
     ctx.beginPath(); ctx.arc(0, 0, R * 0.93, 0, TAU); ctx.fill();
-    ctx.strokeStyle = C.gravityHalo; ctx.lineWidth = 13;
+    ctx.strokeStyle = fire ? C.gravityFire : frost ? C.gravityFrost : lightning ? C.gravityLightning : C.gravityHalo;
+    ctx.lineWidth = 13;
     ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = pk > 0.25 ? C.gravityParry : C.gravityEdge;
+    ctx.strokeStyle = pk > 0.25 ? C.gravityParry : edge;
     ctx.lineWidth = 2.5 + pk * 2;
     ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
     for (let i = 0; i < 3; i++) {
       const a = t * (i % 2 ? -0.95 : 0.8) + i * 2.094;
       ctx.globalAlpha = k * (0.52 + 0.18 * Math.sin(t * 4 + i));
       ctx.lineWidth = i === 0 ? 4.5 : 2.5;
-      ctx.strokeStyle = i === 1 ? C.gravityParry : C.gravityEdge;
+      ctx.strokeStyle = i === 1 && lightning ? C.gravityLightning : edge;
       ctx.beginPath(); ctx.arc(0, 0, R * (0.95 + i * 0.045), a, a + 1.15); ctx.stroke();
     }
-    ctx.globalAlpha = k * 0.72;
-    ctx.save(); ctx.rotate(t * 0.45 - 0.4);
-    ctx.lineWidth = 3.2; ctx.strokeStyle = C.gravityEdge;
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * 0.37, 0, 0, TAU); ctx.stroke();
+    if (fire) {
+      // Двенадцать пламенных выступов на кольце — форма отличается от обычного щита.
+      ctx.globalAlpha = k * 0.85; ctx.strokeStyle = C.gravityFire; ctx.lineWidth = 2.3;
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const a = i * TAU / 12 + t * 0.32;
+        const outer = R * (1.13 + 0.07 * Math.sin(t * 9 + i * 2.1));
+        ctx.moveTo(Math.cos(a - 0.1) * R, Math.sin(a - 0.1) * R);
+        ctx.quadraticCurveTo(Math.cos(a) * outer, Math.sin(a) * outer,
+          Math.cos(a + 0.1) * R, Math.sin(a + 0.1) * R);
+      }
+      ctx.stroke();
+    }
+    if (frost) {
+      ctx.globalAlpha = k * 0.85; ctx.strokeStyle = C.gravityFrost; ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const a = i * TAU / 16 - t * 0.12;
+        const x = Math.cos(a), y = Math.sin(a);
+        const tx = -y, ty = x;
+        const inner = R * 0.93, outer = R * 1.09;
+        ctx.moveTo(x * inner, y * inner);
+        ctx.lineTo(x * outer, y * outer);
+        ctx.lineTo(x * R + tx * 4, y * R + ty * 4);
+        ctx.moveTo(x * outer, y * outer);
+        ctx.lineTo(x * R - tx * 4, y * R - ty * 4);
+      }
+      ctx.stroke();
+    }
+    if (lightning) {
+      ctx.globalAlpha = k * (0.55 + 0.2 * Math.sin(t * 21));
+      ctx.lineWidth = 2; ctx.strokeStyle = C.gravityLightning;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = i * TAU / 8 + Math.floor(t * 16) * 0.12;
+        ctx.moveTo(Math.cos(a) * R * 0.91, Math.sin(a) * R * 0.91);
+        ctx.lineTo(Math.cos(a + 0.08) * R * 1.03, Math.sin(a + 0.08) * R * 1.03);
+        ctx.lineTo(Math.cos(a - 0.05) * R * 1.17, Math.sin(a - 0.05) * R * 1.17);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = k * (steam ? 0.85 : 0.72);
+    ctx.save(); ctx.rotate(t * (steam ? -0.65 : 0.45) - 0.4);
+    ctx.lineWidth = steam ? 5 : 3.2; ctx.strokeStyle = edge;
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.12, R * (steam ? 0.49 : 0.37), 0, 0, TAU); ctx.stroke();
     ctx.restore(); ctx.restore();
   }
 

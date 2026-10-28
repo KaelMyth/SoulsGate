@@ -100,7 +100,8 @@ export function coreStats(core, config, mods) {
       rows.push({ label: 'Гравитация: скорость снарядов', text: Math.round(G.shieldProjectileSpeed * 100) + '%', bonus: 'сохраняется внутри поля' });
       rows.push({ label: 'Гравитация: длительность', text: Math.round(G.shieldDuration * (mods.gravity.durationMult || 1) * 100) / 100 + ' с', bonus: '×' + (mods.gravity.durationMult || 1) + ', действует при движении' });
       rows.push({ label: 'Гравитация: перезарядка', text: G.shieldCooldown + ' с', bonus: 'после окончания поля' });
-      rows.push({ label: 'Гравитация: искривление', text: G.shieldBend + ' рад/с', bonus: 'прямые снаряды могут попасть в героя' });
+      rows.push({ label: 'Гравитация: искривление', text: G.shieldBend + ' рад/с', bonus: 'скользящие снаряды возвращаются' });
+      if (mods.gravity.elements?.mask) rows.push({ label: 'Гравитация: стихии', text: [(mods.gravity.elements.mask & 1) ? 'Огонь' : '', (mods.gravity.elements.mask & 2) ? 'Мороз' : '', (mods.gravity.elements.mask & 4) ? 'Молния' : ''].filter(Boolean).join(' + '), bonus: 'стаки каждые ' + G.shieldElementInterval + ' с' });
     } else {
       rows.push({ label: 'Гравитация: урон', text: '+' + Math.round(G.damageBonus * 100 * mods.gravity.count) + '%', bonus: 'отдельно от Мощи' });
       rows.push({ label: 'Гравитация: скорость', text: Math.round(G.startSpeed * 100) + '% → ' + Math.round(G.maxSpeed * 100) + '%', bonus: 'удержание ' + (Math.round(G.rampTime * G.holdFraction * 100) / 100) + ' с, затем рывок' });

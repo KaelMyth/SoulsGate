@@ -27,12 +27,50 @@ export class GravityShield {
     this.grid = null;      // привязывается после создания Swarm
     this.combat = null;    // штатная система урона по врагам
     this.candidates = []; // переиспользуемый буфер запросов сетки
+    this.ignite = null; // штатные обработчики статусов из Game
+    this.chill = null;
+    this.zap = null;
+    this.elementTimer = 0;
+    this.wasActive = false;
     this.enemyReach = 24;
     for (const key in config.enemies || {}) this.enemyReach = Math.max(this.enemyReach, config.enemies[key].radius || 0);
   }
 
   get active() {
     return this.defense.gravityActive;
+  }
+
+  /** Все враги внутри поля получают стихийные стаки на первом касании и затем периодически. */
+  applyElements(dt) {
+    const mask = this.active && this.defense.gravityElements ? this.defense.gravityElements.mask || 0 : 0;
+    if (!this.active || !mask) {
+      this.elementTimer = 0;
+      this.wasActive = false;
+      return;
+    }
+    const G = this.cfg.gravity;
+    const interval = Math.max(0.1, G.shieldElementInterval);
+    if (!this.wasActive) this.elementTimer = interval;
+    this.wasActive = true;
+    this.elementTimer += dt;
+    if (this.elementTimer < interval) return;
+    this.elementTimer %= interval;
+    const h = this.hero;
+    const en = this.enemies.items;
+    const radius = G.shieldRadius;
+    const burnDamage = G.shieldBurnDamage;
+    const burnInterval = this.cfg.burn.interval;
+    const steam = (mask & 3) === 3 ? 1 : 0;
+    for (let i = 0; i < en.length; i++) {
+      const e = en[i];
+      if (!e.active) continue;
+      const dx = e.x - h.x, dy = e.y - h.y;
+      const reach = radius + e.radius;
+      if (dx * dx + dy * dy > reach * reach) continue;
+      if ((mask & 1) && this.ignite) this.ignite(e, burnDamage, burnInterval);
+      if ((mask & 2) && this.chill && e.active) this.chill(e, steam, mask & 1 ? burnDamage : 0, burnInterval);
+      if ((mask & 4) && this.zap && e.active) this.zap(e, mask & 1 ? burnDamage : 0, burnInterval, mask & 2 ? 1 : 0, steam);
+    }
   }
 
   /** Запоминаем позиции до движения, чтобы тормозить также рывки врагов. */
@@ -77,11 +115,27 @@ export class GravityShield {
       h.x, h.y, G.shieldRadius + p.radius);
     if (fraction <= 0) return dt;
     p.gravityTouched = true;
+    // Снаряды, лишь скользящие вдоль горизонта, могут получить обратную траекторию.
+    // Летящие прямо в героя остаются опасными — универсального отражения нет.
+    // При развороте запоминаем стихии на снаряде: они сохраняются и после исчезновения поля.
     // При прямом попадании изгиб отсутствует. Косые снаряды отклоняются по касательной.
     const rx = p.x - h.x, ry = p.y - h.y;
     const speed = Math.hypot(p.vx, p.vy), radius = Math.hypot(rx, ry);
     if (speed > 1e-5 && radius > 1e-5 && G.shieldBend > 0) {
       const tangent = Math.max(-1, Math.min(1, (rx * p.vy - ry * p.vx) / (radius * speed)));
+      const inward = (rx * p.vx + ry * p.vy) / (radius * speed);
+      if (!p.gravityReturned && inward < -0.05 && Math.abs(tangent) >= G.shieldReturnTangent) {
+        p.gravityReturnAge += dt * fraction;
+        if (p.gravityReturnAge >= G.shieldReturnDelay) {
+          // Вылет обратно наружу с сохранением вращения — рикошет только у скользящих пуль.
+          const spin = tangent > 0 ? 1 : -1;
+          p.vx = (rx / radius * 0.8 - ry / radius * spin * 0.6) * speed;
+          p.vy = (ry / radius * 0.8 + rx / radius * spin * 0.6) * speed;
+          p.gravityReturned = true;
+          p.gravityElementMask = this.defense.gravityElements?.mask || 0;
+          return dt * (1 - (1 - Math.max(0.05, Math.min(1, G.shieldProjectileSpeed))) * fraction);
+        }
+      }
       const angle = -tangent * G.shieldBend * dt * fraction;
       if (Math.abs(angle) > 1e-7) {
         const c = Math.cos(angle), s = Math.sin(angle), vx = p.vx, vy = p.vy;
@@ -105,14 +159,23 @@ export class GravityShield {
         this.enemyReach + p.radius + Math.sqrt(step2) * 0.5, buf);
       for (let j = 0; j < n; j++) {
         const e = enemies[buf[j]];
-        if (!e || !e.active || e === p.owner) continue;
+        if (!e || !e.active || (e === p.owner && !p.gravityReturned)) continue;
         const t = step2 > 1e-10 ? Math.max(0, Math.min(1,
           ((e.x - p.prevX) * sx + (e.y - p.prevY) * sy) / step2)) : 0;
         const dx = p.prevX + sx * t - e.x, dy = p.prevY + sy * t - e.y;
         const r = p.radius + e.radius;
         if (dx * dx + dy * dy > r * r) continue;
         p.active = false;
-        this.combat.damageEnemy(e, p.damage, p);
+        const hit = this.combat.damageEnemy(e, p.damage, p);
+        if (hit && e.active && p.gravityReturned) {
+          const mask = p.gravityElementMask;
+          const bd = this.cfg.gravity.shieldBurnDamage;
+          const bi = this.cfg.burn.interval;
+          const steam = (mask & 3) === 3 ? 1 : 0;
+          if ((mask & 1) && this.ignite) this.ignite(e, bd, bi);
+          if ((mask & 2) && this.chill && e.active) this.chill(e, steam, mask & 1 ? bd : 0, bi);
+          if ((mask & 4) && this.zap && e.active) this.zap(e, mask & 1 ? bd : 0, bi, mask & 2 ? 1 : 0, steam);
+        }
         break;
       }
     }

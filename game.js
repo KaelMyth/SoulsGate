@@ -123,6 +123,9 @@ export class Game {
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.gravityShield.grid = this.swarm.grid;
     this.gravityShield.combat = this.combat;
+    this.gravityShield.ignite = (e, dmg, interval) => this.ignite(e, dmg, interval);
+    this.gravityShield.chill = (e, steam, dmg, interval) => this.chill(e, steam, dmg, interval);
+    this.gravityShield.zap = (e, dmg, interval, frost, steam) => this.zap(e, dmg, interval, frost, steam);
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
     this.laserSource = { laser: true, active: true };
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
@@ -1387,6 +1390,7 @@ export class Game {
       this.xp.update(dt);
       this.collisions.detect();
       this.gravityShield.hitEnemies();
+      this.gravityShield.applyElements(dt);
       this.hitEnemiesWithShots();
       this.pellets.update(dt);
       this.updateBurning(dt);

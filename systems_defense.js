@@ -34,6 +34,7 @@ export class HeroDefense {
     this.kinetic = false; // стоит «Кинетический рывок»: рывок длиннее
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
     this.gravityOn = false;
+    this.gravityElements = null; // битовая маска стихий ветки Гравитации: 1 Огонь, 2 Мороз, 4 Молния
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
     // Блок ставится один раз за остановку: новый блок только после нового касания стика.
@@ -192,6 +193,7 @@ export class HeroDefense {
     const am = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     this.auraOn = !!(am && am.aura);
     this.gravityOn = !!(am && am.gravity);
+    this.gravityElements = this.gravityOn ? am.gravity.elements || null : null;
     if (this.gravityTime > 0) this.gravityTime = Math.max(0, this.gravityTime - dt);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;

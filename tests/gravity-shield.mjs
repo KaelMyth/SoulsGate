@@ -188,3 +188,121 @@ test('после движения поле замедляет, но не гас�
   assert.equal(inc.amount, 10);
   assert.equal(defense.parrying, false);
 });
+
+
+test('Огонь, Мороз и Молния крепятся к Гравитации на Щите', () => {
+  for (const key of ['burn', 'frost', 'lightning']) {
+    const build = new BuildGrid(7);
+    build.placeCore('shield', CONFIG.cores.shield, 3, 3);
+    build.placeMod({ key: 'gravity', def: CONFIG.mods.gravity }, 3, 4);
+    assert.equal(canPlace(build, CONFIG.mods[key], 3, 5).ok, true, key);
+  }
+});
+
+test('Гравитация берёт стихии только из своей ветки, а не из соседних Клинков', () => {
+  const m = buildShield([['gravity', 3, 4], ['burn', 3, 5], ['blades', 2, 3], ['frost', 1, 3]]);
+  assert.equal(m.gravity.elements.mask, 1); // только Огонь
+  assert.equal(m.burn, undefined, 'Горение Гравитации не переходит на Клинки');
+  assert.ok(m.frost);
+});
+
+test('Ветка Горение + Мороз + Молния на Гравитации даёт все три стихии', () => {
+  const m = buildShield([['gravity', 3, 4], ['burn', 3, 5], ['frost', 3, 6], ['lightning', 2, 6]]);
+  assert.equal(m.gravity.elements.mask, 7);
+  assert.equal(m.burn, undefined);
+  assert.equal(m.frost, undefined);
+  assert.equal(m.lightning, undefined);
+});
+
+test('Огонь периодически обновляет стаки на врагах в поле, а вне поля не действует', () => {
+  const s = setup();
+  s.defense.gravityElements = { mask: 1 };
+  s.enemy.x = 30; s.enemy.y = 0;
+  let applied = 0;
+  s.shield.ignite = (e, damage, interval) => {
+    assert.equal(e, s.enemy);
+    assert.equal(damage, s.cfg.gravity.shieldBurnDamage);
+    assert.equal(interval, CONFIG.burn.interval);
+    applied++;
+  };
+  s.shield.applyElements(0.016);
+  assert.equal(applied, 1);
+  s.shield.applyElements(s.cfg.gravity.shieldElementInterval / 2);
+  assert.equal(applied, 1);
+  s.shield.applyElements(s.cfg.gravity.shieldElementInterval / 2);
+  assert.equal(applied, 2);
+  s.enemy.x = 500;
+  s.shield.applyElements(s.cfg.gravity.shieldElementInterval);
+  assert.equal(applied, 2);
+  s.defense.gravityActive = false;
+  s.shield.applyElements(1);
+  assert.equal(applied, 2);
+});
+
+test('Мороз и Молния через поле вызывают штатные системы статусов', () => {
+  const s = setup(); s.enemy.x = 30; s.defense.gravityElements = { mask: 7 };
+  let burn = 0, frost = 0, lightning = 0;
+  s.shield.ignite = () => { burn++; };
+  s.shield.chill = (enemy, steam, damage, interval) => {
+    assert.equal(steam, 1);
+    assert.equal(damage, s.cfg.gravity.shieldBurnDamage);
+    frost++;
+  };
+  s.shield.zap = (enemy, damage, interval, hasFrost, steam) => {
+    assert.equal(hasFrost, 1);
+    assert.equal(steam, 1);
+    lightning++;
+  };
+  s.shield.applyElements(0.016);
+  assert.equal(burn, 1);
+  assert.equal(frost, 1);
+  assert.equal(lightning, 1);
+});
+
+test('Обратный снаряд получает стихии после касательного разворота, но прямой — нет', () => {
+  const s = setup();
+  s.defense.gravityElements = { mask: 5 };
+  s.enemy.x = 150;
+  const p = createProjectile();
+  initProjectile(p, { ...CONFIG.projectiles.bolt, speed: 180 }, 50, 55, -1, 0, s.enemy);
+  p.active = true;
+  s.shield.enemyShotDt(p, 0.35);
+  assert.equal(p.gravityReturned, true);
+  assert.equal(p.gravityElementMask, 5);
+  assert.ok(p.vx * p.x + p.vy * p.y > 0, 'летит от центра наружу');
+  const q = createProjectile();
+  initProjectile(q, { ...CONFIG.projectiles.bolt, speed: 180 }, 50, 0, -1, 0, s.enemy);
+  q.active = true;
+  for (let i = 0; i < 20; i++) s.shield.enemyShotDt(q, 0.05);
+  assert.equal(q.gravityReturned, false);
+  assert.equal(q.gravityElementMask, 0);
+});
+
+test('Возвращённый снаряд поджигает первоначального стрелка и даёт стак Молнии', () => {
+  const s = setup(); s.enemy.x = 35;
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 25, 0, 1, 0, s.enemy);
+  p.active = true;
+  p.gravityTouched = true; p.gravityReturned = true; p.gravityElementMask = 5;
+  p.prevX = 25; p.x = 45; s.enemyShots.items.push(p);
+  s.shield.grid = { query(x, y, r, buf) { buf[0] = 0; return 1; } };
+  let hits = 0, burns = 0, shocks = 0;
+  s.shield.combat = { damageEnemy() { hits++; return true; } };
+  s.shield.ignite = () => { burns++; };
+  s.shield.zap = () => { shocks++; };
+  s.shield.hitEnemies();
+  assert.equal(hits, 1);
+  assert.equal(burns, 1);
+  assert.equal(shocks, 1);
+});
+
+test('При повторном использовании вражеский снаряд не наследует стихийный возврат', () => {
+  const p = createProjectile();
+  p.gravityReturned = true; p.gravityReturnAge = 0.3; p.gravityElementMask = 7;
+  resetProjectile(p);
+  assert.equal(p.gravityReturned, false);
+  assert.equal(p.gravityElementMask, 0);
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  assert.equal(p.gravityReturnAge, 0);
+  assert.equal(p.gravityElementMask, 0);
+});

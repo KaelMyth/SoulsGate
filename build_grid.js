@@ -325,6 +325,7 @@ export class BuildGrid {
     };
     const res = {};
     const gravityNodes = [];
+    const gravityElementNodes = new Set(); // стихии ветки Гравитации не усиливают соседние Клинки и Ауру
     for (let i = 0; i < this.cells.length; i++)
       if (this.cells[i].mod && this.cells[i].mod.def.effect.kind === 'gravity' && owner.get(i) === coreId) gravityNodes.push(i);
     if (gravityNodes.length) {
@@ -340,6 +341,20 @@ export class BuildGrid {
         let gravityFactor = 1;
         for (const i of gravityNodes) gravityFactor += doubles(kids.get(i) || []) - 1;
         res.gravity.durationMult = doubles(kids.get(-1) || []) * gravityFactor;
+        // Стихии берём только из ветвей самой Гравитации, а не с Клинков и Ауры того же щита.
+        let mask = 0;
+        for (let i = 0; i < this.cells.length; i++) {
+          const node = this.cells[i].mod;
+          if (!node || owner.get(i) !== coreId) continue;
+          const bit = node.def.effect.kind === 'burn' ? 1 : node.def.effect.kind === 'frost' ? 2 : node.def.effect.kind === 'lightning' ? 4 : 0;
+          if (!bit) continue;
+          let p = parent.get(i);
+          while (p >= 0) {
+            if (gravityNodes.includes(p)) { mask |= bit; gravityElementNodes.add(i); break; }
+            p = parent.get(p);
+          }
+        }
+        res.gravity.elements = { mask };
       }
     }
     let extraCount = 0;
@@ -352,6 +367,7 @@ export class BuildGrid {
     let steams = 0;
     let sDmg = 0;
     for (const [i, kind] of this.cells.map((c, idx) => [idx, c.mod && owner.get(idx) === coreId ? c.mod.def.effect.kind : null])) {
+      if (gravityElementNodes.has(i)) continue;
       if (kind === 'burn') {
         let d = 0;
         let r = 0;
@@ -391,7 +407,7 @@ export class BuildGrid {
     let zapMul = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
-      if (!c.mod || c.mod.def.effect.kind !== 'lightning' || owner.get(i) !== coreId) continue;
+      if (!c.mod || c.mod.def.effect.kind !== 'lightning' || owner.get(i) !== coreId || gravityElementNodes.has(i)) continue;
       let f = 1;
       for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
       zaps++;
