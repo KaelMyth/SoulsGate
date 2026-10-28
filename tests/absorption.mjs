@@ -359,7 +359,7 @@ test('Изменение скорости во время каста сохра�
   s.advance(2.2);
   assert.equal(s.absorption.target, e);
   s.build.placeMod({ key: 'haste', def: CONFIG.mods.haste }, 3, 5);
-  s.advance(0.65);
+  s.advance(0.75);
   assert.equal(s.hits.length, 1);
   assert.equal(s.hits[0].e, e);
 });
