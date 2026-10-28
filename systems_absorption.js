@@ -161,7 +161,7 @@ export class Absorption {
         }
         if (lightning && this.zap) {
           const remaining = Math.max(0, this.cfg.shock.maxStacks - (e.shockStacks || 0));
-          for (let k = 0; k < remaining && e.active; k++) this.zap(e, bd, bi, frost ? 1 : 0, steam);
+          for (let k = 0; k < remaining && e.active; k++) this.zap(e, bd, bi, frost ? 1 : 0, steam, mods.lightning ? mods.lightning.mult : 1);
         }
       }
       if (dealt && this.vampiric && this.hero.active) {
