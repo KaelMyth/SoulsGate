@@ -85,6 +85,8 @@ test('Радиус Гравитации наследует увеличенны�
 test('Замедление в комбинированном поле слабее обычной Гравитации, хотя радиус больше', () => {
   const hybrid = setup(build([['gravity', 3, 4], ['aura', 3, 5]]));
   const plain = setup(build([['gravity', 3, 4]]));
+  plain.stick.active = false;
+  plain.defense.update(CONFIG.block.startDelay + 0.05);
   for (const s of [hybrid, plain]) {
     s.enemy.x = 50;
     s.gravity.beginEnemyStep();
@@ -100,6 +102,8 @@ test('Замедление в комбинированном поле слабе
 test('Вражеские снаряды в Ауре замедляются слабее и не становятся неуязвимыми', () => {
   const hybrid = setup(build([['gravity', 3, 4], ['aura', 3, 5]]));
   const plain = setup(build([['gravity', 3, 4]]));
+  plain.stick.active = false;
+  plain.defense.update(CONFIG.block.startDelay + 0.05);
   const def = { ...CONFIG.projectiles.bolt, speed: 100, range: 1000 };
   const p1 = createProjectile(), p2 = createProjectile();
   initProjectile(p1, def, 50, 0, -1, 0, hybrid.enemy);
