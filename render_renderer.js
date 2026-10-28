@@ -5360,6 +5360,100 @@ export class Renderer {
    * огненная стрела; Мороз и Горение вместе: кристальная стрела. В полёте за клинком тянется хвост, фантомные фиолетовые.
    * С Лазером клинки это светящиеся сферы. Остриё смотрит по ходу полёта (на орбите наружу).
    */
+  /**
+   * Сфера клинка с Лазером. Вид по комбинации: 0 энергетический шар с гранёной звездой, 1 ледяной кристалл-снежинка,
+   * 2 пылающий шар с языками, 3 пар (ледяное ядро в огненном вихре с облачками), молния добавляет дуги, фантом фиолетовый с дымкой.
+   */
+  drawOrb(ctx, b, rr, kd, i, t) {
+    const gen = !!b.gen;
+    const zap = !!b.zap;
+    const fire = b.state === 'fire';
+    const ph = t * 3 + i * 1.7;
+    const pul = 1 + 0.07 * Math.sin(t * 9 + i) + (fire ? 0.12 : 0);
+    const R = rr * pul;
+    const pal = gen
+      ? { a: '167,119,255', b: '240,228,255', c: '110,70,210' }
+      : kd === 1 ? { a: '127,216,255', b: '242,252,255', c: '60,150,230' }
+      : kd === 2 ? { a: '255,138,42', b: '255,240,200', c: '210,50,20' }
+      : kd === 3 ? { a: '255,170,90', b: '235,248,255', c: '90,170,240' }
+      : { a: '63,134,255', b: '214,236,255', c: '30,70,190' };
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    // мягкое тело: радиальный градиент без жёсткого края
+    let g = ctx.createRadialGradient(-R * 0.2, -R * 0.25, 0, 0, 0, R * 1.25);
+    g.addColorStop(0, 'rgba(' + pal.b + ',1)');
+    g.addColorStop(0.35, 'rgba(' + pal.a + ',0.95)');
+    g.addColorStop(0.8, 'rgba(' + pal.c + ',0.55)');
+    g.addColorStop(1, 'rgba(' + pal.c + ',0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.25, 0, TAU); ctx.fill();
+    if (gen) { // фантом: дымные языки по кругу
+      ctx.fillStyle = 'rgba(' + pal.a + ',0.35)';
+      for (let k = 0; k < 4; k++) {
+        const an = ph * 0.6 + k * 1.57;
+        ctx.beginPath(); ctx.ellipse(Math.cos(an) * R * 0.7, Math.sin(an) * R * 0.7, R * 0.55, R * 0.22, an + 1.57, 0, TAU); ctx.fill();
+      }
+    } else if (kd === 0) { // гранёная звезда внутри
+      ctx.save(); ctx.rotate(ph * 0.5);
+      ctx.fillStyle = 'rgba(' + pal.b + ',0.9)';
+      ctx.beginPath();
+      for (let k = 0; k < 8; k++) { const rr2 = k % 2 ? R * 0.28 : R * 0.8; const an = k * Math.PI / 4; ctx.lineTo(Math.cos(an) * rr2, Math.sin(an) * rr2); }
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    } else if (kd === 1) { // ледяная снежинка: шесть острых лучей-кристаллов
+      ctx.save(); ctx.rotate(ph * 0.25);
+      for (let k = 0; k < 6; k++) {
+        ctx.rotate(Math.PI / 3);
+        ctx.fillStyle = 'rgba(' + pal.b + ',0.92)';
+        ctx.beginPath(); ctx.moveTo(R * 1.05, 0); ctx.lineTo(R * 0.3, -R * 0.2); ctx.lineTo(R * 0.12, 0); ctx.lineTo(R * 0.3, R * 0.2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(' + pal.c + ',0.5)';
+        ctx.beginPath(); ctx.moveTo(R * 1.05, 0); ctx.lineTo(R * 0.3, R * 0.2); ctx.lineTo(R * 0.12, 0); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    } else if (kd === 2) { // языки пламени вокруг
+      for (let k = 0; k < 5; k++) {
+        const an = ph * 0.9 + k * (TAU / 5);
+        const ln = R * (1.15 + 0.3 * Math.sin(t * 11 + k * 2 + i));
+        ctx.save(); ctx.rotate(an);
+        ctx.fillStyle = 'rgba(' + (k % 2 ? pal.c : pal.a) + ',0.8)';
+        ctx.beginPath(); ctx.moveTo(R * 0.35, -R * 0.28); ctx.quadraticCurveTo(ln * 0.85, -R * 0.2, ln, 0); ctx.quadraticCurveTo(ln * 0.85, R * 0.2, R * 0.35, R * 0.28); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = 'rgba(255,245,210,0.9)';
+      ctx.beginPath(); ctx.arc(-R * 0.1, -R * 0.1, R * 0.38, 0, TAU); ctx.fill();
+    } else { // пар: холодное ядро, тёплая спираль и облачка по орбите
+      ctx.strokeStyle = 'rgba(255,170,90,0.85)';
+      ctx.lineWidth = Math.max(1.4, R * 0.18);
+      ctx.beginPath();
+      for (let k = 0; k <= 12; k++) { const u = k / 12; const an = ph + u * 4.2; const rad = R * (0.25 + 0.75 * u); const x = Math.cos(an) * rad; const y = Math.sin(an) * rad; if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(' + pal.b + ',0.95)';
+      ctx.save(); ctx.rotate(-ph * 0.6);
+      ctx.beginPath(); for (let k = 0; k < 6; k++) { const an = k * Math.PI / 3; ctx.lineTo(Math.cos(an) * R * 0.42, Math.sin(an) * R * 0.42); } ctx.closePath(); ctx.fill();
+      ctx.restore();
+      for (let k = 0; k < 3; k++) {
+        const an = -ph * 0.8 + k * 2.09;
+        const cg = ctx.createRadialGradient(Math.cos(an) * R * 1.0, Math.sin(an) * R * 1.0, 0, Math.cos(an) * R * 1.0, Math.sin(an) * R * 1.0, R * 0.5);
+        cg.addColorStop(0, 'rgba(235,245,255,0.55)'); cg.addColorStop(1, 'rgba(235,245,255,0)');
+        ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(Math.cos(an) * R * 1.0, Math.sin(an) * R * 1.0, R * 0.5, 0, TAU); ctx.fill();
+      }
+    }
+    if (zap) { // молния: короткие дуги наружу, цвет по стихии
+      const zk = kd === 1 ? 2 : kd === 2 ? 1 : kd === 3 ? 3 : 0;
+      const step = Math.floor(t * 14);
+      for (let k = 0; k < 3; k++) {
+        const an = (((Math.sin((step + k * 5 + i * 3) * 12.9898) * 43758.5453) % 1) + 1) % 1 * TAU;
+        this.drawZapArc(ctx, Math.cos(an) * R * 0.5, Math.sin(an) * R * 0.5, Math.cos(an) * R * 1.8, Math.sin(an) * R * 1.8, 0.6, 0.9, i * 7 + k + step, ZAP_RGB[zk], ZAP_CORE[zk]);
+      }
+    }
+    // световая точка сверху слева: свет сверху
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath(); ctx.ellipse(-R * 0.3, -R * 0.35, R * 0.16, R * 0.1, -0.6, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
   drawBlades(ctx) {
     const bl = this.blades;
     if (!bl || !bl.length) return;
@@ -5419,16 +5513,8 @@ export class Renderer {
         ctx.restore();
         continue;
       }
-      if (b.sphere) { // с Лазером клинки это светящиеся сферы
-        const rr = k * (b.state === 'fire' ? 0.78 : 0.62);
-        ctx.fillStyle = mc;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, rr, 0, TAU);
-        ctx.fill();
-        ctx.fillStyle = lc;
-        ctx.beginPath();
-        ctx.arc(b.x - rr * 0.15, b.y - rr * 0.2, rr * 0.55, 0, TAU);
-        ctx.fill();
+      if (b.sphere) { // с Лазером клинки это сферы: вид и форма по стихии (render: drawOrb)
+        this.drawOrb(ctx, b, k * (b.state === 'fire' ? 0.82 : 0.66), kd, i, t);
         continue;
       }
       ctx.save();
