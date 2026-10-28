@@ -60,8 +60,8 @@ test('Урон обычного снаряда повышается ровно �
 
 test('При старте снаряд идёт медленно, затем ускоряется выше базовой скорости', () => {
   const def = CONFIG.projectiles[CONFIG.attack.projectile];
-  const p = createProjectile(); initProjectile(p, def, 0, 0, 1, 0, {});
-  p.active = true;
+  const p = createProjectile(); initProjectile(p, { ...def, range: 1500 }, 0, 0, 1, 0, {});
+  p.active = true; // увеличенная дистанция только в тесте, чтобы успеть измерить 220%
   p.gravity = true;
   p.gravityStart = CONFIG.gravity.startSpeed;
   p.gravityEnd = CONFIG.gravity.maxSpeed;
