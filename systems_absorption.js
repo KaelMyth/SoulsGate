@@ -47,6 +47,7 @@ export class Absorption {
     this.bladeMarks.length = 0;
     this.bladeCounters = new WeakMap(); // учитываем поколение сущности при повторном использовании пула
     this.bladesConnected = false;
+    this.auraCandidates.length = 0;
     this.auraTimer = 0;
     this.auraPeriod = 0;
     this.auraConnected = false;
