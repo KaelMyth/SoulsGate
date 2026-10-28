@@ -228,7 +228,7 @@ export class BuildGrid {
       const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
       const e = c.mod.def.effect;
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
-      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'lightning' || pc === 'dbl' ? 'dbl' : pc);
+      if (e.kind === 'double') carry.set(ci, pc === 'absorption' || pc === 'absorption:mult' ? 'absorption:mult' : pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'lightning' || pc === 'dbl' ? 'dbl' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
       else if (e.kind === 'shot') carry.set(ci, 'shot'); // «Дробь»: ничего не вешается, число дробинок множит Х2/Х3 на ядре
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
@@ -441,20 +441,28 @@ export class BuildGrid {
       aRate += 1 + r;
     }
     if (auras) res.aura = { count: auras, mult: aMul / auras, damage: aDam / auras, rate: aRate / auras };
-    // Поглощение: Вампиризм считается только если физически прикреплён к этому моду,
-    // а не установлен пассивом в углу поля.
+    // Поглощение: число целей умножается всеми Х2/Х3 в каждой ветке.
+    // Вложенные Х2→Х3 перемножаются, разные ветви от одного Поглощения — тоже.
+    // Несколько отдельных модов Поглощения суммируют получившиеся количества целей.
     let absorptionCount = 0;
+    let absorptionTargets = 0;
     let absorptionVamp = false;
+    const absorptionBranch = (i) => {
+      let factor = 1;
+      for (const k of kids.get(i) || []) {
+        const e = this.cells[k].mod.def.effect;
+        if (e.kind === 'double') factor *= e.value * absorptionBranch(k);
+        else if (e.kind === 'passive' && e.passive === 'vamp') absorptionVamp = true;
+      }
+      return factor;
+    };
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
       if (!c.mod || c.mod.def.effect.kind !== 'absorption' || owner.get(i) !== coreId) continue;
       absorptionCount++;
-      for (const k of kids.get(i) || []) {
-        const e = this.cells[k].mod.def.effect;
-        if (e.kind === 'passive' && e.passive === 'vamp') absorptionVamp = true;
-      }
+      absorptionTargets += absorptionBranch(i);
     }
-    if (absorptionCount) res.absorption = { count: absorptionCount, vampirism: absorptionVamp };
+    if (absorptionCount) res.absorption = { count: absorptionCount, targets: absorptionTargets, vampirism: absorptionVamp };
     // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
     let blades = 0;
     let kMax = 0;
@@ -514,7 +522,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'lightning') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'absorption:mult' || stat === 'lightning') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }
