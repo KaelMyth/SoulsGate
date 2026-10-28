@@ -21,7 +21,7 @@ export function createProjectile() {
     travelled: 0,
     color: '#fff',
     glow: 0,      // 0..1: сила свечения огненного шара (растёт с числом снарядов), только для отрисовки
-    gravity: false, gravityAge: 0, gravityStart: 1, gravityEnd: 1, gravityRamp: 0,
+    gravity: false, gravityAge: 0, gravityStart: 1, gravityEnd: 1, gravityRamp: 0, gravityHold: 0.72,
     owner: null,
   };
 }
@@ -62,6 +62,7 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.gravityAge = 0;
   p.gravityStart = p.gravityEnd = 1;
   p.gravityRamp = 0;
+  p.gravityHold = 0.72;
   p.owner = owner;
 }
 
@@ -76,7 +77,16 @@ export function updateProjectile(p, dt, arena) {
   if (p.gravity) {
     p.gravityAge += dt;
     const t = Math.min(1, p.gravityAge / Math.max(0.001, p.gravityRamp));
-    const curve = t * t * (3 - 2 * t); // медленный старт, резкое ускорение, ровный финиш
+    const hold = Math.min(0.95, Math.max(0, p.gravityHold ?? 0.72));
+    let curve;
+    if (t < hold) {
+      const strain = t / Math.max(0.001, hold);
+      curve = 0.02 * strain * strain; // почти не двигается, словно не может вырваться из поля героя
+    } else {
+      const burst = (t - hold) / Math.max(0.001, 1 - hold);
+      const inv = 1 - burst;
+      curve = 0.02 + 0.98 * (1 - inv * inv * inv * inv); // после освобождения — мощный рывок
+    }
     speedFactor = p.gravityStart + (p.gravityEnd - p.gravityStart) * curve;
   }
   let step = p.speed * dt * speedFactor;
