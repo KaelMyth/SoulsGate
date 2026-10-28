@@ -78,7 +78,7 @@ test('Более сильный источник заменяет базовый
   s.ignite(15);
   assert.equal(s.e.burnDmg, 20);
   assert.equal(s.e.burnInt, 0.25);
-  s.advance(0.25);
+  s.advance(0.5);
   assert.equal(s.hits.at(-1).amount, 40);
 });
 
