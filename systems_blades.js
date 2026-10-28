@@ -160,6 +160,7 @@ export class Blades {
     for (const b of this.items) {
       b.sphere = sphere;
       b.kind = kind;
+      if (sphere) b.zap = m.lightning ? m.lightning.mult : 0; // сфера с Молнией: дуги вокруг (только вид, урон не меняется)
       if (b.state === 'fire') { // луч светит из сферы: она продолжает кружить
         b.a += B.spin * dt;
         b.x = hero.x + Math.cos(b.a) * B.orbit;
