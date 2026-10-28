@@ -774,48 +774,54 @@ export class Renderer {
     this.drawPortalArrow();
   }
 
-  /** Заглушка «Поглощения»: холодный круг постепенно становится белым во время прицеливания. */
+  /** Заглушка Поглощения: все зафиксированные цели светлеют одновременно. */
   drawAbsorptionMarker(ctx) {
     const a = this.absorption;
-    if (!a || !a.active || !a.target || !a.target.active) return;
+    if (!a || !a.active || !a.aiming || !a.targets.length) return;
     const A = this.cfg.absorption;
     const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.05, A.telegraph)));
-    const r = a.target.radius + A.ringPadding;
     const c = Math.round(125 + 130 * p);
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(a.target.x, a.target.y, r, 0, TAU);
+    ctx.lineWidth = 2.5;
     ctx.fillStyle = a.vampiric
       ? 'rgba(255,55,75,' + (0.04 + 0.2 * p) + ')'
       : 'rgba(215,230,255,' + (0.04 + 0.2 * p) + ')';
-    ctx.fill();
     ctx.strokeStyle = a.vampiric
       ? 'rgba(' + Math.round(145 + 110 * p) + ',' + Math.round(25 + 65 * p) + ',' + Math.round(35 + 75 * p) + ',' + (0.4 + 0.6 * p) + ')'
       : 'rgba(' + c + ',' + c + ',' + c + ',' + (0.4 + 0.6 * p) + ')';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+    for (let i = 0; i < a.targets.length; i++) {
+      const target = a.targets[i];
+      if (!target || !target.active) continue;
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, target.radius + A.ringPadding, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
-  /** Заглушка: белая вспышка расширяется и исчезает после урона. */
+  /** Заглушка: одновременные белые/красные вспышки на поражённых врагах. */
   drawAbsorptionFlash(ctx) {
     const a = this.absorption;
-    if (!a || a.flash <= 0) return;
+    if (!a || !a.flashes.length) return;
     const A = this.cfg.absorption;
-    const left = Math.min(1, a.flash / Math.max(0.01, A.flashTime));
-    const radius = a.flashR + (1 - left) * 24;
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(a.flashX, a.flashY, radius, 0, TAU);
-    ctx.fillStyle = a.flashVampiric
-      ? 'rgba(255,40,65,' + (0.55 * left) + ')'
-      : 'rgba(255,255,255,' + (0.55 * left) + ')';
-    ctx.fill();
-    ctx.strokeStyle = a.flashVampiric
-      ? 'rgba(255,110,125,' + left + ')'
-      : 'rgba(255,255,255,' + left + ')';
     ctx.lineWidth = 4;
-    ctx.stroke();
+    for (let i = 0; i < a.flashes.length; i++) {
+      const f = a.flashes[i];
+      const left = Math.max(0, Math.min(1, f.time / Math.max(0.01, A.flashTime)));
+      const radius = f.r + (1 - left) * 24;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, radius, 0, TAU);
+      ctx.fillStyle = f.vampiric
+        ? 'rgba(255,40,65,' + (0.55 * left) + ')'
+        : 'rgba(255,255,255,' + (0.55 * left) + ')';
+      ctx.fill();
+      ctx.strokeStyle = f.vampiric
+        ? 'rgba(255,110,125,' + left + ')'
+        : 'rgba(255,255,255,' + left + ')';
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
