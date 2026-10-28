@@ -719,6 +719,8 @@ export class ApotheosisAI {
       if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > bt) bt = y;
     }
     this.arena.setZone({ left: l, right: r, top: t, bottom: bt, poly });
+    // Геометрия скал могла измениться после сжатия острова.
+    // Навигация обновляется через Game после изменения зоны.
   }
 
   updateTransform(dt) {
