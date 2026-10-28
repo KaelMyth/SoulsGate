@@ -242,6 +242,21 @@ export class HitFx {
         else if (el === 4) { this.add(T_RIPPLE, 4, x, y, 0, 0, 0.32, 17 * lg); if (heavy) this.add(T_PUFF, 4, x + dx * 5, y + dy * 5, dx * 30, dy * 30, 0.6, 11, { drag: 2 }); }
         break;
       }
+      case 'vapor': { // взрыв пара: вспышка, шипящее кольцо, клубы вверх, брызги кипятка
+        const sc = Math.max(0.8, (d.r || 70) / 70);
+        this.add(T_FLASH, 3, x, y, 0, 0, 0.22, 26 * sc);
+        this.add(T_RIPPLE, 3, x, y, 0, 0, 0.45, 46 * sc);
+        for (let i = 0; i < 9; i++) {
+          const a = (i / 9) * TAU + R() * 0.5;
+          const sp = 40 + R() * 50;
+          this.add(T_PUFF, 3, x + Math.cos(a) * 6, y + Math.sin(a) * 4, Math.cos(a) * sp, Math.sin(a) * sp * 0.6 - 28, 0.8 + R() * 0.4, (13 + R() * 9) * sc, { drag: 2.2 });
+        }
+        for (let i = 0; i < 7; i++) {
+          const a = R() * TAU;
+          this.add(T_SPARK, 3, x, y, Math.cos(a) * (90 + R() * 80), Math.sin(a) * (60 + R() * 60) - 40, 0.4 + R() * 0.3, 3.5, { drag: 3 });
+        }
+        break;
+      }
       case 'death': { // смерть врага: рецепт по тому, чем добили (src), и по стихии (el); замороженный разлетается льдом
         const sc = Math.max(0.7, Math.min(2.2, d.r / 14));
         const nn = (n) => Math.max(2, Math.round(n * sc));
