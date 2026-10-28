@@ -27,11 +27,12 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (!carry) return false;
   if (carry === 'xroot') return parentAccepts(modDef, ownerCore || null, null); // Х2/Х3 на ядре: ветка, на неё вешают всё, что берёт ядро
   if (carry === 'dbl') return e.kind === 'double'; // Х2/Х3 на «Лазере»/«Дроби»: дальше только ещё множители
-  if (e.kind === 'laser') return carry === 'blades'; // «Лазер» к ядру снаряда или на «Клинки» (клинки становятся сферами с лучами)
+  if (e.kind === 'laser') return carry === 'blades' || carry === 'gravity'; // Лазер после Гравитации тоже получает накопление
   if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
   if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult'; // Клинки под Поглощением: три попадания вызывают отдельный удар
+  if (e.kind === 'gravity') return carry === 'laser'; // растущий круг и усиленный луч, совместимо со стихиями
   if (e.kind === 'absorption') return carry === 'aura'; // Поглощение на Ауре: случайный удар внутри поля раз в 2 с
   if (e.kind === 'aura') return false; // Аура крепится только к ядру
   if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
