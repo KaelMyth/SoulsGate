@@ -2184,6 +2184,23 @@ export class Renderer {
 
     if (e.vuln) this.drawVulnFx(e, x, y, r);
     this.drawStatusFx(e, x, y, r);
+    if (e.gravityDashSlowT > 0) {
+      // Замедление от пространственного импульса: три прерывистые фиолетовые орбиты.
+      const ctx = this.ctx;
+      const K = this.cfg.kinetic;
+      const t = this.clock * 0.8;
+      ctx.save();
+      ctx.strokeStyle = K.gravityEdgeColor;
+      ctx.lineWidth = 1.4;
+      ctx.globalAlpha = Math.min(0.75, e.gravityDashSlowT * 0.45);
+      for (let j = 0; j < 3; j++) {
+        const a = t + j * TAU / 3;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 5, a, a + 1.12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     if (e.shockStacks > 0) this.drawShockFx(e, x, y, r);
 
     // Стрелок целится: расширяющееся кольцо, сигнал «сейчас выстрелит, можно парировать».
