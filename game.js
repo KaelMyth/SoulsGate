@@ -1209,6 +1209,11 @@ export class Game {
       q.glow = p.glow;
       q.phantom = p.phantom;
       q.zap = p.zap;
+      q.gravity = !!p.gravity;
+      q.gravityAge = 0; // фантом начинает собственный медленный старт
+      q.gravityStart = p.gravityStart;
+      q.gravityEnd = p.gravityEnd;
+      q.gravityRamp = p.gravityRamp;
       this.burst(x, y, 0.3, 4, 16, F.color);
       return;
     }
