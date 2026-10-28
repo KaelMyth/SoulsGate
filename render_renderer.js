@@ -5253,10 +5253,33 @@ export class Renderer {
     ctx.globalCompositeOperation = 'lighter';
     for (let li = 0; li < ls.length; li++) {
       const l = ls[li];
+      if (l.gravityLaser && l.gravityChargeAge < l.gravityChargeTime) {
+        // Растущий круг: весь заряд виден до первого тика лазера.
+        const p = Math.max(0, Math.min(1, l.gravityChargeAge / Math.max(0.05, l.gravityChargeTime)));
+        const r = this.cfg.gravity.laserRadius * (0.2 + 0.8 * p);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(179,132,255,' + (0.4 + 0.6 * p) + ')';
+        ctx.lineWidth = 1.5 + 2 * p;
+        ctx.beginPath();
+        ctx.arc(l.x, l.y, r, 0, TAU);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(118,70,255,' + (0.05 + 0.25 * p) + ')';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(228,208,255,' + (0.15 + 0.55 * p) + ')';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.arc(l.x, l.y, r * 0.58, t * 4 + li, t * 4 + li + Math.PI * 1.5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(l.x, l.y, 2 + 3 * p, 0, TAU);
+        ctx.fillStyle = 'rgba(247,232,255,' + (0.25 + 0.65 * p) + ')';
+        ctx.fill();
+        continue;
+      }
       const fade = Math.min(1, (l.life - l.age) / 0.25) * Math.min(1, l.age / 0.04 + 0.35);
       l.pulse = Math.max(0, l.pulse - 0.06);
-      const x0 = l.x + l.dx * 10;
-      const y0 = l.y + l.dy * 10;
+      const x0 = l.x + l.dx * (l.gravityLaser ? 0 : 10);
+      const y0 = l.y + l.dy * (l.gravityLaser ? 0 : 10);
       const x1 = l.x + l.dx * l.len;
       const y1 = l.y + l.dy * l.len;
       const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
@@ -5283,6 +5306,16 @@ export class Renderer {
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       }
       if (!zp && el !== 0 && el !== 4) this.laserElement(ctx, el, x0, y0, x1, y1, w, fade, li, t, puffSp);
+      if (l.gravityLaser) {
+        // Фиолетовая оболочка усиленного луча и остаточное кольцо в источнике.
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(165,108,255,' + (0.35 * fade) + ')';
+        ctx.lineWidth = w * 4.2;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = 'rgba(230,206,255,' + (0.8 * fade) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x0, y0, this.cfg.gravity.laserRadius, 0, TAU); ctx.stroke();
+      }
       // Вспышка у посоха и точка попадания.
       const g0 = w * 5;
       ctx.globalAlpha = 0.7 * fade;
