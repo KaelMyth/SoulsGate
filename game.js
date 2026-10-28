@@ -550,13 +550,26 @@ export class Game {
       const p = shots[i];
       if (!p.active) continue;
       const candidates = this.shotCandidates;
-      const n = grid.query(p.x, p.y, p.radius + reach, candidates);
+      // Гравитация разгоняет снаряд выше обычной скорости: проверяем весь отрезок кадра,
+      // иначе быстрые снаряды иногда пролетят сквозь маленького врага.
+      const sx = p.gravity ? p.x - p.prevX : 0;
+      const sy = p.gravity ? p.y - p.prevY : 0;
+      const stepSq = sx * sx + sy * sy;
+      const segment = p.gravity ? Math.sqrt(stepSq) : 0;
+      const qx = p.x - sx * 0.5;
+      const qy = p.y - sy * 0.5;
+      const n = grid.query(qx, qy, p.radius + reach + segment * 0.5, candidates);
       for (let k = 0; k < n; k++) {
         const e = en[candidates[k]];
         if (!e.active) continue;
         this.collisions.checks++;
-        const dx = p.x - e.x;
-        const dy = p.y - e.y;
+        let dx = p.x - e.x;
+        let dy = p.y - e.y;
+        if (p.gravity && stepSq > 0) {
+          const t = Math.max(0, Math.min(1, ((e.x - p.prevX) * sx + (e.y - p.prevY) * sy) / stepSq));
+          dx = p.prevX + t * sx - e.x;
+          dy = p.prevY + t * sy - e.y;
+        }
         const r = p.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
           this.onShotHitEnemy(p, e);
