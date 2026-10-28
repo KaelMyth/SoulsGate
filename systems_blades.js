@@ -48,6 +48,7 @@ export class Blades {
     this.cand = [];
     this.candidateIndices = [];   // враги в зоне запуска, ближние первыми
     this.counts = new Map();
+    this.reset(); // счётчик слотов нужен уже при первом update, даже до начала забега
   }
 
   reset() {
