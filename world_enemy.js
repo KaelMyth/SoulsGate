@@ -108,7 +108,10 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   e.prevY = e.y;
   if (e.touchTimer > 0) e.touchTimer -= dt;
   if (e.flash > 0) e.flash -= dt;
-  if (e.gravityDashSlowT > 0) e.gravityDashSlowT = Math.max(0, e.gravityDashSlowT - dt);
+  if (e.gravityDashSlowT > 0) {
+    e.gravityDashSlowT = Math.max(0, e.gravityDashSlowT - dt);
+    if (e.gravityDashSlowT === 0) e.gravityDashSlowMul = 1;
+  }
   if (e.freezeT > 0) { // заморожен: стоит как вкопанный, ни ходьбы, ни откидывания
     e.hx = e.hy = 0;
     e.kbVx = e.kbVy = 0;
