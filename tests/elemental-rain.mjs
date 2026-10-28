@@ -106,7 +106,7 @@ test('Молния: ровно два стака с обычным порого�
   enemies[0].shockStacks = CONFIG.shock.maxStacks - 2;
   fake.skillCd[0] = 0;
   Game.prototype.castRain.call(fake);
-  assert.equal(casts.discharge, 1);
+  assert.equal(casts.discharge, 2, 'оба врага с накопленными стаками разрядились');
 });
 
 test('Горение + Мороз: два стака каждой стихии и обычная паровая реакция', () => {
