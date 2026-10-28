@@ -448,6 +448,9 @@ export class BuildGrid {
     let absorptionCount = 0;
     let absorptionTargets = 0;
     let absorptionVamp = false;
+    let absorptionBurn = false;
+    let absorptionFrost = false;
+    let absorptionLightning = false;
     let absorptionDamageBonus = 0;
     let absorptionRateBonus = 0;
     const absorptionBranch = (i) => {
@@ -456,6 +459,9 @@ export class BuildGrid {
         const e = this.cells[k].mod.def.effect;
         if (e.kind === 'double') factor *= e.value * absorptionBranch(k);
         else if (e.kind === 'passive' && e.passive === 'vamp') absorptionVamp = true;
+        else if (e.kind === 'burn') { absorptionBurn = true; absorptionBranch(k); }
+        else if (e.kind === 'frost') { absorptionFrost = true; absorptionBranch(k); }
+        else if (e.kind === 'lightning') { absorptionLightning = true; absorptionBranch(k); }
         else if (e.kind === 'stat' && e.stat === 'damage') absorptionDamageBonus += walk(k, 0);
         else if (e.kind === 'stat' && e.stat === 'rate') absorptionRateBonus += walk(k, 0);
       }
@@ -469,6 +475,7 @@ export class BuildGrid {
     }
     if (absorptionCount) res.absorption = {
       count: absorptionCount, targets: absorptionTargets, vampirism: absorptionVamp,
+      burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
     };
     // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
