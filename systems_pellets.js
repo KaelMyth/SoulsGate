@@ -32,6 +32,8 @@ export class Pellets {
     this.pg = new Uint8Array(N);     // поколение фантома (для затухания шанса)
     this.pc = new Uint8Array(N);     // сколько врагов ещё можно пройти насквозь (мод «Пробитие»)
     this.lh = new Array(N).fill(null); // последний пробитый враг: его второй раз не бьём     // 1 = дробинка вешает заряд Мороза
+    this.hitHistory = new Array(N).fill(null); // история пробитых целей, переиспользуется при удалении дробинки
+    this.candidates = [];
     this.reach = 0;
   }
 
@@ -63,11 +65,15 @@ export class Pellets {
     this.pp[i] = pp;
     this.pg[i] = pg;
     this.lh[i] = null;
+    if (this.hitHistory[i]) this.hitHistory[i].length = 0;
   }
 
   remove(i) {
     const last = --this.n;
     if (i === last) return;
+    const recycled = this.hitHistory[i];
+    this.hitHistory[i] = this.hitHistory[last];
+    this.hitHistory[last] = recycled;
     this.x[i] = this.x[last]; this.y[i] = this.y[last];
     this.px[i] = this.px[last]; this.py[i] = this.py[last];
     this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last];
@@ -100,18 +106,22 @@ export class Pellets {
         this.remove(i);
         continue;
       }
-      const cnt = grid.query(x, y, q);
-      const buf = grid.buf;
+      const candidates = this.candidates;
+      const cnt = grid.query(x, y, q, candidates);
       let hit = false;
       for (let k = 0; k < cnt; k++) {
-        const e = en[buf[k]];
-        if (!e || !e.active || e === this.lh[i]) continue;
+        const e = en[candidates[k]];
+        if (!e || !e.active || (this.hitHistory[i] && this.hitHistory[i].includes(e))) continue;
         const dx = x - e.x;
         const dy = y - e.y;
         const r = S.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
           this.onHit(e, this.dmg[i], vx, vy, this.bd[i], this.bi[i], this.fr[i], this.st[i], this.zp[i], this.pc[i], this.pp[i], this.pg[i]);
-          if (this.pc[i] > 0) { this.pc[i]--; this.lh[i] = e; break; } // пробила: летит дальше
+          if (this.pc[i] > 0) {
+            this.pc[i]--;
+            (this.hitHistory[i] || (this.hitHistory[i] = [])).push(e);
+            break;
+          } // пробила: летит дальше
           hit = true;
           break;
         }
