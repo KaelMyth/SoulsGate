@@ -33,6 +33,7 @@ export class HeroDefense {
     this.lightning = null;  // система рывка-молнии (задаёт игра)
     this.kinetic = false; // стоит «Кинетический рывок»: рывок длиннее
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
+    this.gravityOn = false;
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
     // Блок ставится один раз за остановку: новый блок только после нового касания стика.
@@ -173,6 +174,7 @@ export class HeroDefense {
     if (this.blockCd > 0) this.blockCd -= dt;
     const am = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     this.auraOn = !!(am && am.aura);
+    this.gravityOn = !!(am && am.gravity);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;
     const stickUp = !this.stick.active;

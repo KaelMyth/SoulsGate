@@ -22,6 +22,7 @@ import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
+import { GravityShield } from './systems_gravity_shield.js';
 import { RockBeetles } from './systems_rockbeetle.js';
 import { Apostles } from './systems_apostles.js';
 import { ApotheosisAI } from './systems_apotheosis.js';
@@ -106,6 +107,8 @@ export class Game {
       config, hero: this.hero, stick: this.stick, bus: this.bus,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
+    this.gravityShield = new GravityShield({ config, hero: this.hero, defense: this.defense, arena: this.arena,
+      enemies: this.enemies, enemyShots: this.enemyShots, heroShots: this.heroShots });
     this.swipe = new SwipeDetector(this.bus, config.dash, (dx, dy) => {
       if (this.state === 'playing') this.defense.tryDash(dx, dy);
     });
@@ -1371,9 +1374,12 @@ export class Game {
       this.shooters.update(dt, en);
       this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
+      this.gravityShield.blockEnemies();
       this.swarm.rebuild(en); // попадания используют актуальные позиции после движения и расталкивания
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
+      this.gravityShield.updateOrbits(dt);
+      this.gravityShield.captureShots();
       this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
 
       this.xp.update(dt);
@@ -1558,6 +1564,7 @@ export class Game {
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (!p.active) continue;
+      if (p.gravityOrbit) continue;
       if (updateProjectile(p, dt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
     }
   }
