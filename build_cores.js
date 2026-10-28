@@ -117,6 +117,12 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Аура: обычный блок', text: 'снят', bonus: 'парирование остаётся' });
     if (mods.burn || mods.frost) rows.push({ label: 'Аура: огонь и мороз', text: 'каждый ' + A.effectEvery + '-й тик', bonus: '' });
   }
+  if (core.def.canAbsorption && mods && mods.absorption) {
+    const a = config.absorption;
+    rows.push({ label: 'Поглощение: урон', text: String(Math.round(a.damage * mods.absorption.count * 100) / 100), bonus: '' });
+    rows.push({ label: 'Поглощение: каждые', text: a.interval + ' с', bonus: '' });
+    rows.push({ label: 'Поглощение: дальняя цель', text: 'от ' + a.minDistance, bonus: 'в пределах экрана' });
+  }
   if (core.def.canBlades && mods && mods.blades) {
     const bm = mods.blades;
     const bdmg = config.blades.damage * bm.damage;
