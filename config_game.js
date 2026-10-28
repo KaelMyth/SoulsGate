@@ -1018,6 +1018,19 @@ export const CONFIG = {
       { count: 86, interval: 0.26, maxAlive: 56 },
       { count: 90, interval: 0.25, maxAlive: 58 },
     ],
+    // Рисунки появления волн: как враги выходят (без записи волна идёт по таблице: по одному, случайно с краёв).
+    // groupSize: сколько выходят разом; mix: веса типов { ключ из enemies: вес }; sides: 'random' | 'varied' (каждая
+    // группа с новой стороны) | 'one' (вся волна с одной стороны) | 'ring' (группа по всему кольцу, со всех сторон);
+    // spread: разброс группы, единиц (кучка); count, interval (между группами), maxAlive переопределяют таблицу.
+    patterns: {
+      2: { mix: { beetle: 1 }, groupSize: 3, sides: 'varied', spread: 28, count: 12, interval: 3.2, maxAlive: 12 },  // жуки по 3 с разных сторон
+      3: { mix: { beetle: 1 }, sides: 'random', count: 30, interval: 0.35, maxAlive: 26 },                            // много ближников
+      4: { mix: { beetle: 10, shooter: 3, bull: 3 }, groupSize: 16, sides: 'one', spread: 70, count: 16, interval: 1, maxAlive: 20 }, // все жуки кучей с одной стороны
+      5: { mix: { beetle: 6, shooter: 1 }, sides: 'random', count: 14, interval: 0.8, maxAlive: 12 },                // здесь просыпается жук-скала (rockWake)
+      6: { mix: { hunter: 5, beetle: 1 }, sides: 'random', count: 20, interval: 0.55, maxAlive: 16 },                // охотники
+      7: { mix: { bull: 1 }, groupSize: 3, sides: 'varied', spread: 40, count: 12, interval: 5, maxAlive: 12 },      // группы быков
+      8: { mix: { hunter: 1 }, groupSize: 10, sides: 'ring', count: 30, interval: 4, maxAlive: 30 },                // толпа охотников со всех сторон
+    },
     total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).
     // Игра замирает, камера плавно уходит на босса, появляется его имя, имя гаснет, камера возвращается на героя.

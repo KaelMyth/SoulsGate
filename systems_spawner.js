@@ -80,6 +80,8 @@ export class Spawner {
     this.spawned = 0;
     this.crashTime = 0;
     this.spawnTimer = 0;
+    this.patAngle = null; // сторона рисунка «с одной стороны» (выбирается при первом выходе)
+    this.lastAngle = null; // сторона предыдущей группы (для «с разных сторон»)
   }
 
   /** Идёт ли краш-тест: он выключен по умолчанию (waves.crash.enabled), а когда включён, начинается с startWave. */
@@ -94,25 +96,37 @@ export class Spawner {
     return t[Math.min(wave, t.length) - 1];
   }
 
+  /** Рисунок появления волны (config.waves.patterns[n]) или null: тогда враги выходят по одному, как раньше. */
+  pattern() {
+    const P = this.cfg.waves.patterns;
+    return (P && P[this.wave]) || null;
+  }
+
+  /** Число из строки таблицы; рисунок волны может переопределить count, interval, maxAlive. */
+  val(key) {
+    const p = this.pattern();
+    return p && p[key] !== undefined ? p[key] : this.row(this.wave)[key];
+  }
+
   /** Сколько врагов в волне (с множителем численности). В краш-тесте не ограничено. */
   waveCount() {
-    return this.crash ? Infinity : Math.ceil(this.row(this.wave).count * this.cfg.spawn.countMult);
+    return this.crash ? Infinity : Math.ceil(this.val('count') * this.cfg.spawn.countMult);
   }
 
   /** Потолок живых врагов сейчас: по таблице, в краш-тесте растёт со временем, всегда под жёстким потолком. */
   cap() {
-    const base = Math.ceil(this.row(this.wave).maxAlive * this.cfg.spawn.countMult);
+    const base = Math.ceil(this.val('maxAlive') * this.cfg.spawn.countMult);
     const grow = this.crash ? Math.floor(this.crashTime * this.cfg.waves.crash.capGrowth) : 0;
     return Math.min(base + grow, this.cfg.limits.maxEnemies);
   }
 
   /** Интервал между появлениями сейчас. В краш-тесте плавно падает до minInterval за rampTime. */
   interval() {
-    const row = this.row(this.wave);
-    if (!this.crash) return row.interval;
+    const base = this.val('interval');
+    if (!this.crash) return base;
     const c = this.cfg.waves.crash;
     const k = Math.min(1, this.crashTime / Math.max(0.001, c.rampTime));
-    return row.interval + (c.minInterval - row.interval) * k;
+    return base + (c.minInterval - base) * k;
   }
 
   countAlive() {
@@ -130,6 +144,8 @@ export class Spawner {
         this.spawned = 0;
         this.crashTime = 0;
         this.spawnTimer = 0;
+        this.patAngle = null;
+        this.lastAngle = null;
         if (this.bus) this.bus.emit('wave:started', { wave: this.wave, crash: this.crash });
       }
       return;
@@ -166,11 +182,16 @@ export class Spawner {
     const total = this.waveCount();
     this.spawnTimer -= dt;
     let made = 0;
-    while (this.spawnTimer <= 0 && this.spawned < total && this.alive < this.cap() && made < MAX_SPAWNS_PER_STEP) {
-      if (!this.spawnOne()) break;
-      this.spawned++;
-      this.alive++;
-      made++;
+    const pat = this.pattern();
+    while (this.spawnTimer <= 0 && this.spawned < total && made < MAX_SPAWNS_PER_STEP) {
+      // Группа выходит целиком (groupSize из рисунка волны), иначе по одному. Потолок живых считается на всю группу.
+      const size = Math.min(pat && pat.groupSize ? pat.groupSize : 1, total - this.spawned, Math.max(1, this.cap()));
+      if (this.alive + size > this.cap()) break;
+      const n = this.spawnGroup(size, pat);
+      if (n === 0) break;
+      this.spawned += n;
+      this.alive += n;
+      made += n;
       this.spawnTimer += this.interval();
     }
     // Упёрлись в потолок или в лимит за шаг: не копим «долг» по таймеру, иначе после гибели врагов хлынет залп.
@@ -295,10 +316,13 @@ export class Spawner {
     return last;
   }
 
-  spawnOne() {
-    if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return false;
-    const e = this.enemies.spawn();
+  /** Тип нового врага: по весам рисунка волны (pat.mix), иначе по долям из config.spawn. */
+  pickKind(pat) {
     const sp = this.cfg.spawn;
+    if (pat && pat.mix) {
+      const k = this.pickSkeleton(pat.mix);
+      if (k) return k;
+    }
     // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
@@ -308,11 +332,91 @@ export class Spawner {
     if (fz && this.wave >= fz.fromWave) kind = this.pickSkeleton(fz.weights) || kind; // после Тартаса только Замёрзшие
     const sk = sp.skeleton;
     if (sk && this.wave >= sk.fromWave && this.rnd() < sk.share) kind = this.pickSkeleton(sk.weights) || kind; // скелеты временами
-    initEnemy(e, this.cfg.enemies[kind], this.pt.x, this.pt.y);
+    return kind;
+  }
+
+  /**
+   * Точка на кольце вокруг камеры (за краем экрана) в направлении angle. Если там стена арены, ищет ближайшее
+   * подходящее направление. Пишет точку в out, возвращает использованный угол или null.
+   */
+  ringPoint(angle, out) {
+    const cam = this.camera;
+    const R = Math.hypot(cam.viewW, cam.viewH) / 2 + this.cfg.spawn.margin;
+    const ar = this.arena;
+    const edge = 20;
+    for (let i = 0; i < 24; i++) {
+      const off = Math.ceil(i / 2) * 0.2618 * (i % 2 ? 1 : -1); // 0, ±15°, ±30° ...
+      const a = angle + off;
+      const x = cam.x + Math.cos(a) * R;
+      const y = cam.y + Math.sin(a) * R;
+      if (x > ar.left + edge && x < ar.right - edge && y > ar.top + edge && y < ar.bottom - edge) {
+        out.x = x;
+        out.y = y;
+        return a;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Выпустить группу из size врагов по рисунку волны pat (или одного врага без рисунка). Возвращает, сколько вышло.
+   * pat.sides: 'random' (по умолчанию), 'varied' (каждая группа с другой стороны), 'one' (вся волна с одной стороны),
+   * 'ring' (группа растягивается по всему кольцу, со всех сторон). pat.spread: разброс членов группы, единиц («куча»).
+   */
+  spawnGroup(size, pat) {
+    const sides = pat && pat.sides ? pat.sides : 'random';
+    const spread = pat && pat.spread !== undefined ? pat.spread : 0;
+    let base;
+    if (sides === 'one') {
+      if (this.patAngle === null) this.patAngle = this.rnd() * TAU;
+      base = this.patAngle;
+    } else if (sides === 'varied' && this.lastAngle !== null) {
+      base = this.lastAngle + TAU * (0.3 + this.rnd() * 0.4); // от 108° до 252° от прошлой группы
+    } else {
+      base = this.rnd() * TAU;
+    }
+    const ring0 = this.rnd() * TAU;
+    let made = 0;
+    let anchorUsed = null;
+    for (let i = 0; i < size; i++) {
+      let ok;
+      if (sides === 'ring') {
+        ok = this.ringPoint(ring0 + (i / size) * TAU, this.pt) !== null;
+      } else {
+        // Член группы: общая точка за краем экрана плюс разброс кучи.
+        const used = this.ringPoint(anchorUsed !== null ? anchorUsed : base, this.pt);
+        ok = used !== null;
+        if (ok) {
+          if (anchorUsed === null) anchorUsed = used;
+          if (spread > 0 && size > 1) {
+            this.pt.x += (this.rnd() - 0.5) * 2 * spread;
+            this.pt.y += (this.rnd() - 0.5) * 2 * spread;
+          }
+        }
+      }
+      if (!ok && !pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) continue;
+      this.spawnAt(this.pickKind(pat), this.pt.x, this.pt.y);
+      made++;
+    }
+    if (anchorUsed !== null) {
+      this.lastAngle = anchorUsed;
+      if (sides === 'one') this.patAngle = anchorUsed;
+    }
+    return made;
+  }
+
+  spawnAt(kind, x, y) {
+    const e = this.enemies.spawn();
+    initEnemy(e, this.cfg.enemies[kind], x, y);
     e.hp = e.maxHp = this.hpFor(this.cfg.enemies[kind].hp);
     this.arena.resolveCircle(e); // не внутри скалы
     e.prevX = e.x;
     e.prevY = e.y;
-    return true;
+    return e;
+  }
+
+  /** Один враг (как раньше): без рисунка волны. */
+  spawnOne() {
+    return this.spawnGroup(1, null) === 1;
   }
 }
