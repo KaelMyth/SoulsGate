@@ -9,7 +9,7 @@ const SRC = { shot: 'снаряд', pellet: 'дробь', laser: 'лазер', b
 // Какие разделы конфига относятся к моду, помимо его собственного effect.
 const EXTRA = {
   burn: ['burn'], frost: ['frost'], laser: ['laser'], shot: ['shot'], blades: ['blades'], aura: ['aura'], phantom: ['phantom'],
-  lightning: ['shock'], kinetic: ['kinetic', 'lightdash'], rain: ['skills.rain'], absorption: ['absorption'],
+  lightning: ['shock'], kinetic: ['kinetic', 'lightdash'], rain: ['skills.rain'], absorption: ['absorption'], gravity: ['gravity'],
 };
 
 const ENEMY = {
