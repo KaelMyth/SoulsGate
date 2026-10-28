@@ -242,6 +242,38 @@ export class HitFx {
         else if (el === 4) { this.add(T_RIPPLE, 4, x, y, 0, 0, 0.32, 17 * lg); if (heavy) this.add(T_PUFF, 4, x + dx * 5, y + dy * 5, dx * 30, dy * 30, 0.6, 11, { drag: 2 }); }
         break;
       }
+      case 'zone': { // Лазер на рывке: луч упал в точку, вспыхнула зона по стихии (радиус d.r)
+        const rz = d.r || 60;
+        const sc = Math.max(0.8, rz / 60);
+        this.add(T_FLASH, el, x, y, 0, 0, 0.2, 22 * sc);
+        this.add(T_RIPPLE, el, x, y, 0, 0, 0.5, rz * 0.95);
+        this.add(T_RIPPLE, el, x, y, 0, 0, 0.35, rz * 0.55);
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * TAU + R() * 0.4;
+          const sp = rz * (1.2 + R() * 1.2);
+          if (el === 2) { this.add(T_EMBER, 2, x, y, Math.cos(a) * sp * 0.6, Math.sin(a) * sp * 0.4 - 30, 0.7 + R() * 0.4, 3 + R() * 2.5, { drag: 2.5 }); if (i % 3 === 0) this.add(T_LICK, 2, x + Math.cos(a) * rz * 0.5, y + Math.sin(a) * rz * 0.4, 0, -26, 0.4, 9 * sc, { drag: 1 }); }
+          else if (el === 1) { this.add(T_SHARD, 1, x, y, Math.cos(a) * sp, Math.sin(a) * sp, 0.55 + R() * 0.3, 5 + R() * 3, { drag: 3, rot: R() * TAU, spin: (R() - 0.5) * 10 }); if (i % 2) this.add(T_PUFF, 1, x + Math.cos(a) * rz * 0.4, y + Math.sin(a) * rz * 0.3, Math.cos(a) * 18, Math.sin(a) * 12 - 6, 0.6, 11 * sc, { drag: 2 }); }
+          else if (el === 3) this.add(T_PUFF, 3, x + Math.cos(a) * rz * 0.3, y + Math.sin(a) * rz * 0.3, Math.cos(a) * sp * 0.4, Math.sin(a) * sp * 0.25 - 26, 0.8 + R() * 0.3, (12 + R() * 8) * sc, { drag: 2 });
+          else this.add(T_SPARK, 0, x, y, Math.cos(a) * sp, Math.sin(a) * sp, 0.4 + R() * 0.2, 9, { drag: 5 });
+        }
+        break;
+      }
+      case 'spray': { // Дробь на рывке: короткий веер из точки следа в обе стороны по стихии (d.dx,d.dy нормаль)
+        const nx = dx;
+        const ny = dy;
+        this.add(T_FLASH, el, x, y, 0, 0, 0.12, 8);
+        for (let side = -1; side <= 1; side += 2) {
+          for (let i = 0; i < 3; i++) {
+            const a = Math.atan2(ny * side, nx * side) + (R() - 0.5) * 0.7;
+            const sp = 60 + R() * 70;
+            if (el === 2) this.add(T_EMBER, 2, x, y, Math.cos(a) * sp, Math.sin(a) * sp, 0.35 + R() * 0.2, 2.6, { drag: 4 });
+            else if (el === 1) this.add(T_SHARD, 1, x, y, Math.cos(a) * sp, Math.sin(a) * sp, 0.35 + R() * 0.2, 4, { drag: 4, rot: R() * TAU, spin: (R() - 0.5) * 12 });
+            else if (el === 3) this.add(T_PUFF, 3, x, y, Math.cos(a) * sp * 0.5, Math.sin(a) * sp * 0.5 - 8, 0.45, 8, { drag: 3 });
+            else this.add(T_SPARK, 0, x, y, Math.cos(a) * sp, Math.sin(a) * sp, 0.25 + R() * 0.15, 7, { drag: 5 });
+          }
+        }
+        break;
+      }
       case 'vapor': { // взрыв пара: вспышка, шипящее кольцо, клубы вверх, брызги кипятка
         const sc = Math.max(0.8, (d.r || 70) / 70);
         this.add(T_FLASH, 3, x, y, 0, 0, 0.22, 26 * sc);

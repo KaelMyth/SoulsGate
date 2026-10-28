@@ -936,6 +936,7 @@ export class Game {
     for (let s = 1; s <= steps; s++) {
       const px = last.x + (dx / d) * K.shotStep * s;
       const py = last.y + (dy / d) * K.shotStep * s;
+      if (this.renderer && this.renderer.hitfx) this.renderer.hitfx.spawn({ kind: 'spray', el: el.kind === 1 ? 2 : el.kind === 2 ? 1 : el.kind === 3 ? 3 : 0, x: px, y: py, dx: nx, dy: ny, power: 0 });
       for (let i = 0; i < per && P.free() > 0; i++) {
         const side = (i & 1) === 0 ? 1 : -1;
         const a = Math.atan2(ny * side, nx * side) + (this.rnd() - 0.5) * 0.7;
@@ -1001,7 +1002,8 @@ export class Game {
       const r = K.laserZone + e.radius;
       if (dx * dx + dy * dy <= r * r) hit.push(e);
     }
-    this.burst(b.x1, b.y1, 0.3, 8, K.laserZone, this.config.shock.colors[b.zap ? b.kind : 2]);
+    if (this.renderer && this.renderer.hitfx) this.renderer.hitfx.spawn({ kind: 'zone', el: el.kind === 1 ? 2 : el.kind === 2 ? 1 : el.kind === 3 ? 3 : 0, x: b.x1, y: b.y1, dx: 0, dy: -1, power: 0, r: K.laserZone });
+    else this.burst(b.x1, b.y1, 0.3, 8, K.laserZone, this.config.shock.colors[b.zap ? b.kind : 2]);
     for (const e of hit) {
       if (!e.active) continue;
       this.laserSource.el = 0;
