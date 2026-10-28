@@ -24,6 +24,7 @@ export class Aura {
     this.timer = 0;
     this.n = 0;           // номер тика: каждый effectEvery-й несёт огонь и мороз
     this.hit = [];
+    this.candidates = [];
     let big = 0;
     for (const k in this.cfg.enemies) big = Math.max(big, this.cfg.enemies[k].radius || 0);
     this.reach = big + 12;
@@ -56,8 +57,8 @@ export class Aura {
   tick(m, dmg) {
     const h = this.hero;
     const en = this.enemies.items;
-    const n = this.grid.query(h.x, h.y, this.radius + this.reach);
-    const buf = this.grid.buf;
+    const buf = this.candidates;
+    const n = this.grid.query(h.x, h.y, this.radius + this.reach, buf);
     const hit = this.hit;
     hit.length = 0;
     for (let k = 0; k < n; k++) {
