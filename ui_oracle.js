@@ -5,7 +5,7 @@ import { icon } from './ui_icons.js';
 import { numericLeaves } from './oracle.js';
 
 const RES = { win: 'победа', dead: 'смерть', abort: 'прерван' };
-const SRC = { shot: 'снаряд', pellet: 'дробь', laser: 'лазер', blades: 'клинки', aura: 'аура', shock: 'молния', lightdash: 'рывок', burn: 'горение', frost: 'мороз', other: 'прочее' };
+const SRC = { shot: 'снаряд', pellet: 'дробь', laser: 'лазер', blades: 'клинки', aura: 'аура', absorption: 'поглощение', shock: 'молния', lightdash: 'рывок', burn: 'горение', frost: 'мороз', other: 'прочее' };
 // Какие разделы конфига относятся к моду, помимо его собственного effect.
 const EXTRA = {
   burn: ['burn'], frost: ['frost'], laser: ['laser'], shot: ['shot'], blades: ['blades'], aura: ['aura'], phantom: ['phantom'],
