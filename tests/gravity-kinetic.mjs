@@ -7,6 +7,7 @@ import { canPlace } from '../build_rules.js';
 import { HeroDefense } from '../systems_defense.js';
 import { Game } from '../game.js';
 import { createEnemy, initEnemy, updateEnemy } from '../world_enemy.js';
+import { pointInPoly } from '../world_arena.js';
 
 function makeBuild() {
   const grid = new BuildGrid(7);
@@ -157,6 +158,57 @@ test('Гравитационное замедление накладываетс
   assert.equal(e.gravityDashSlowT, 0);
   assert.ok(e.x > 20, 'после окончания дополнительное замедление исчезает');
   initEnemy(e, { radius: 12, hp: 100, speed: 100 }, 0, 0);
+  assert.equal(e.gravityDashSlowT, 0);
+  assert.equal(e.gravityDashSlowMul, 1);
+});
+
+
+test('Молния вместе с Гравитацией не перехватывает телепорт цепным рывком', () => {
+  const s = defenseSetup(true);
+  let plans = 0;
+  s.defense.lightDash = true;
+  s.defense.lightning = { plan() { plans++; return true; } };
+  s.defense.tryDash(0, 1);
+  assert.equal(plans, 0);
+  assert.equal(s.defense.gravityDashCharging, true);
+  assert.ok(s.events.some(e => e.event === 'dash:started'), 'другие моды рывка получают событие запуска');
+});
+
+test('Лазер на гравитационном рывке направлен в предсказанную аномалию', () => {
+  const fake = {
+    config: CONFIG,
+    defense: { kinetic: true, gravityDashCharging: true, dashX: 1, dashY: 0 },
+    kineticMods: { laser: {} }, lightdash: { active: false },
+    hero: { x: 0, y: 0, radius: 12 },
+    arena: { left: -500, right: 500, top: -500, bottom: 500, circleHitsRock() { return false; } },
+    gravityDash: { active: true, x: 245, y: 10 },
+    dashBeams: [],
+    kineticEl() { return { kind: 0 }; },
+  };
+  Game.prototype.startDashBeam.call(fake);
+  assert.equal(fake.dashBeams.length, 1);
+  assert.equal(fake.dashBeams[0].x1, 245);
+  assert.equal(fake.dashBeams[0].y1, 10);
+});
+
+test('Границы полигона финального острова также ограничивают точку телепортации', () => {
+  const hero = { x: 0, y: 0, radius: 10 };
+  const zone = { left: -100, right: 100, top: -100, bottom: 100,
+    poly: [{ x: -80, y: -60 }, { x: 60, y: -60 }, { x: 0, y: 60 }] };
+  const fake = { hero, config: CONFIG, gravityDash: {},
+    arena: { left: -500, right: 500, top: -500, bottom: 500, zone,
+      circleHitsRock() { return false; } } };
+  Game.prototype.startGravityDash.call(fake, { dirX: 1, dirY: 0, distance: 500, seq: 4 });
+  assert.ok(fake.gravityDash.x < 45);
+  assert.ok(fake.gravityDash.x > 0);
+});
+
+test('После завершения эффекта гравитационный коэффициент сбрасывается', () => {
+  const e = enemy(0), hero = { x: 200, y: 0, radius: 10 };
+  const arena = { segmentBlocked() { return false; }, resolveCircle() {} };
+  e.gravityDashSlowT = 0.05;
+  e.gravityDashSlowMul = CONFIG.kinetic.gravitySlowMul;
+  updateEnemy(e, 0.1, hero, arena);
   assert.equal(e.gravityDashSlowT, 0);
   assert.equal(e.gravityDashSlowMul, 1);
 });
