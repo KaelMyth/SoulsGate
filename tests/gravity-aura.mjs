@@ -7,7 +7,7 @@ import { canPlace } from '../build_rules.js';
 import { HeroDefense } from '../systems_defense.js';
 import { GravityShield } from '../systems_gravity_shield.js';
 import { Aura } from '../systems_aura.js';
-import { createProjectile, initProjectile } from '../world_projectile.js';
+import { createProjectile, initProjectile, resetProjectile } from '../world_projectile.js';
 
 function build(entries) {
   const grid = new BuildGrid(7);
@@ -165,4 +165,31 @@ test('Обычная Гравитация по-прежнему заканчив
   const aura = setup(build([['aura', 3, 4]]));
   assert.equal(aura.defense.gravityActive, false);
   assert.equal(aura.defense.gravityAuraMode, false);
+});
+
+
+test('Ослабление урона возвращённого вражеского снаряда действует только в гибридном поле', () => {
+  const s = setup(build([['gravity', 3, 4], ['aura', 3, 5]]));
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 45, 0, 1, 0, { active: true });
+  p.active = true;
+  p.prevX = 35; p.x = 45; p.gravityTouched = true; p.gravityReturned = true; p.gravityAuraWeak = true;
+  s.enemy.x = 40;
+  s.gravity.enemyShots.items.push(p);
+  s.gravity.grid = { query(x, y, radius, buf) { buf[0] = 0; return 1; } };
+  let gotDamage = -1;
+  s.gravity.combat = { damageEnemy(e, damage) { gotDamage = damage; return true; } };
+  s.gravity.hitEnemies();
+  assert.ok(Math.abs(gotDamage - p.damage * CONFIG.gravity.auraProjectileDamageMul) < 1e-8);
+  assert.equal(p.active, false);
+});
+
+test('Ослабление снаряда не передаётся следующему снаряду из пула', () => {
+  const p = createProjectile();
+  p.gravityAuraWeak = true;
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  assert.equal(p.gravityAuraWeak, false);
+  p.gravityAuraWeak = true;
+  resetProjectile(p);
+  assert.equal(p.gravityAuraWeak, false);
 });
