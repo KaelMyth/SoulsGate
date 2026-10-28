@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 7 · сборка 53 (умение «Магический дождь»)';
+export const BUILD = 'этап 7 · сборка 54 (Магический дождь стал вторичным ядром)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -14,7 +14,7 @@ export const CONFIG = {
     size: 7,
     minCoreDistance: 5,
     storageSlots: 22,  // ячеек в ряду хранилища над полем
-    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'rain', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -164,6 +164,12 @@ export const CONFIG = {
         { label: 'Перезарядка рывка', key: 'rate', path: 'dash.cooldown', unit: 'с', decimals: 2, rate: 100 },
       ],
       effect: { kind: 'kinetic', secondary: true },
+    },
+    rain: {
+      name: 'Магический дождь',
+      icon: 'rain',
+      description: 'Отдельное ядро, ставится в любую клетку. Открывает умение в первом слоте: дождь на всю карту делает врагов уязвимыми, они получают на 20% больше урона, пока не умрут. Перезарядка 15 секунд',
+      effect: { kind: 'rain', secondary: true },
     },
     aura: {
       name: 'Смертельная аура',
@@ -942,7 +948,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, rain: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
 

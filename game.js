@@ -617,7 +617,7 @@ export class Game {
   /** Магический дождь: на всю карту, все враги получают уязвимость до смерти. Перезарядка 15 с. */
   castRain() {
     const R = this.config.skills.rain;
-    if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0) return false;
+    if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0 || !this.build.secondaryId('rain')) return false; // умение открывает мод-ядро «Магический дождь»
     this.skillCd[0] = R.cooldown;
     this.hud.rainT = R.duration;
     for (const e of this.enemies.items) if (e.active) e.vuln = true;
@@ -630,6 +630,7 @@ export class Game {
     for (let i = 0; i < 3; i++) if (sc[i] > 0) sc[i] = Math.max(0, sc[i] - dt);
     if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
     this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
+    this.hud.rainOn = !!this.build.secondaryId('rain'); // слот занят, только если дождь стоит на поле билда
   }
 
   /** Заряды электризации тают, если давно не подновлялись; молнии разряда гаснут. */
