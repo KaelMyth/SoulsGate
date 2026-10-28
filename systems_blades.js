@@ -152,7 +152,10 @@ export class Blades {
         for (const b of this.items) if (b.state === 'return' || b.state === 'gravityOrbit') b.state = 'orbit';
       }
     }
-    if (gravityReturn && this.items.length > max) this.items.length = max;
+    if (gravityReturn && this.items.length > max) {
+      this.items.length = max;
+      this.gravitySpawned = Math.min(this.gravitySpawned, max);
+    }
     const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
     const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                          // Мощь на клинках
 
