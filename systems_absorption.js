@@ -24,6 +24,8 @@ export class Absorption {
     this.flashVampiric = false;
     this.source.vampiric = false;
     this.timer = 0;
+    this.rate = 1; // прежняя скорость для сохранения прогресса каста при смене билда
+    this.castTime = this.cfg.absorption.telegraph;
     this.target = null; // совместимость со старой системой и тестами
     this.targets.length = 0;
     this.candidates.length = 0;
@@ -67,9 +69,20 @@ export class Absorption {
     if (!mods || !mods.absorption || !this.hero.active) { this.reset(); return; }
     const A = this.cfg.absorption;
     this.vampiric = !!mods.absorption.vampirism;
-    const interval = Math.max(0.1, A.interval);
-    const telegraph = Math.min(interval, Math.max(0.05, A.telegraph));
-    if (!this.active) { this.active = true; this.timer = interval; }
+    const rate = Math.max(0.01, mods.absorption.rate || 1);
+    const interval = Math.max(0.05, A.interval / rate);
+    const telegraph = Math.min(interval, Math.max(0.02, A.telegraph / rate));
+    if (!this.active) {
+      this.active = true;
+      this.timer = interval;
+    } else if (rate !== this.rate) {
+      // Изменение билда не сбивает ни прицеливание, ни текущий прогресс перезарядки.
+      const oldInterval = Math.max(0.05, A.interval / this.rate);
+      const oldTelegraph = Math.min(oldInterval, Math.max(0.02, A.telegraph / this.rate));
+      this.timer *= this.aiming ? telegraph / oldTelegraph : interval / oldInterval;
+    }
+    this.rate = rate;
+    this.castTime = telegraph;
 
     this.flash = Math.max(0, this.flash - dt);
     for (let i = this.flashes.length - 1; i >= 0; i--) {
@@ -91,7 +104,7 @@ export class Absorption {
     if (!this.aiming || this.timer > 0) return;
 
     // Список фиксирован: погибшие цели пропускаем, новых в середине заряда не добавляем.
-    // Для разных целей урон не умножается: каждую из N поражаем базовым уроном.
+    // Х2/Х3 увеличивают только число целей; Мощь усиливает урон каждой.
     this.aiming = false;
     this.timer = interval;
     this.target = null;
@@ -106,7 +119,7 @@ export class Absorption {
       this.flashR = e.radius + A.ringPadding;
       this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric });
       const hpBefore = Math.max(0, e.hp);
-      const dealt = this.combat.damageEnemy(e, A.damage, this.source, null);
+      const dealt = this.combat.damageEnemy(e, A.damage * (mods.absorption.damage || 1), this.source, null);
       if (dealt && this.vampiric && this.hero.active) {
         const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
         this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
