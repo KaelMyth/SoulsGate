@@ -8,7 +8,7 @@ import { MenuFx } from './ui_menu-fx.js';
 
 export class ModeScreen {
   /** onPick(mode): 'game' | 'test' */
-  constructor(root, onPick, onSettings) {
+  constructor(root, onPick, onSettings, onOracle) {
     const idle = (id, text) => h('button', { id, class: 'ui-btn idle', type: 'button' }, text);
     this.fxCanvas = h('canvas', { class: 'fx' });
     this.stage = h('div', { class: 'stage' },
@@ -18,7 +18,8 @@ export class ModeScreen {
         h('button', { id: 'menu-settings', class: 'ui-btn', type: 'button', onclick: () => onSettings && onSettings() }, 'Настройки'),
         idle('menu-shop', 'Магазин'),
         idle('menu-quit', 'Выход')),
-      h('button', { id: 'mode-test', class: 'test-link', type: 'button', onclick: () => onPick('test') }, 'Тестирование'));
+      h('button', { id: 'mode-test', class: 'test-link', type: 'button', onclick: () => onPick('test') }, 'Тестирование'),
+      h('button', { id: 'mode-oracle', class: 'oracle-link', type: 'button', onclick: () => onOracle && onOracle() }, 'Оракл'));
     this.el = h('div', { id: 'mode-screen', hidden: '' }, this.stage, this.fxCanvas);
     root.append(this.el);
     this.fx = new MenuFx(this.fxCanvas, this.stage);

@@ -34,6 +34,8 @@ import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
 import { PauseUI } from './ui_pause.js';
 import { SlotUI } from './ui_slot.js';
+import { Oracle } from './oracle.js';
+import { OracleScreen } from './ui_oracle.js';
 import { ModeScreen } from './ui_mode-screen.js';
 import { SettingsScreen } from './ui_settings.js';
 import { getPath, setPath } from './debug_tunables.js';
@@ -230,7 +232,9 @@ export class Game {
     this.mode = 'test';
     this.testValues = null;
     this.settings = new SettingsScreen(o.uiRoot, config); // временные настройки: число модов в пуле наград
-    this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m), () => this.settings.show());
+    this.oracle = new Oracle(this); // ОРАКЛ: временный сбор данных (удалить вместе с oracle.js)
+    this.oracleScreen = new OracleScreen(o.uiRoot, this.oracle, config);
+    this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m), () => this.settings.show(), () => this.oracleScreen.show());
 
     this.stepper = new FixedStepper(config.step);
     this.meter = new FpsMeter();
@@ -374,6 +378,7 @@ export class Game {
     this.bus.on('apotheosis:dissolve', () => { const b = this.apotheosis.boss; if (b) this.burst(b.x, b.y, 0.9, 40, 240, '#fff6c8'); });
     this.bus.on('apotheosis:scream', ({ x, y, solid }) => this.burst(x, y, 0.4, 20, 120, solid ? '#ffffff' : '#fff0b0'));
     this.bus.on('hero:died', () => {
+      this.bus.emit('run:ended', { result: 'dead' });
       this.state = 'dead';
       this.deadTimer = 0;
       this.burst(this.hero.x, this.hero.y, 0.7, this.hero.radius, this.hero.radius * 6, C.hero);
@@ -1628,6 +1633,7 @@ export class Game {
   endRun(title) {
     if (this.state !== 'playing') return;
     this.ending = { title };
+    this.bus.emit('run:ended', { result: 'win' });
     this.state = 'dead';
     this.deadTimer = 0;
   }
@@ -1635,6 +1641,7 @@ export class Game {
   /** Новый забег (после смерти или с экрана паузы). Конфиг и подобранные ползунки не трогаем. */
   restart() {
     if (this.state !== 'dead' && this.state !== 'paused' && this.state !== 'menu') return;
+    if (this.state === 'paused') this.bus.emit('run:ended', { result: 'abort' });
     this.stick.cancel();
     this.relayoutBuild(); // новый забег: ядра встают в новые места
     this.pauseUI.setPaused(false);
@@ -1750,6 +1757,7 @@ export class Game {
   /** Из паузы на экран выбора режима. */
   exitToMenu() {
     if (this.state !== 'paused') return;
+    this.bus.emit('run:ended', { result: 'abort' });
     this.stick.cancel();
     this.pauseUI.setPaused(false);
     this.state = 'menu';
