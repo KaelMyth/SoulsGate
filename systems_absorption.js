@@ -84,6 +84,7 @@ export class Absorption {
     if (!e || !e.active || !this.hero.active) return false;
     const m = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     if (!m || !m.absorption || !m.absorption.blades) return false;
+    this.bladesConnected = true; // отслеживаем связь даже если update ещё не запускался
     const gen = e.gen;
     if (this.bladeMarks.some(mark => mark.enemy === e && mark.gen === gen)) return false;
     let count = this.bladeCounters.get(e);
