@@ -14,7 +14,7 @@ export const CONFIG = {
     size: 7,
     minCoreDistance: 5,
     storageSlots: 22,  // ячеек в ряду хранилища над полем
-    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'rain', 'aura', 'absorption', 'gravity', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    startMods: [], // стартовый инвентарь пуст даже в «Тестировании»
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
