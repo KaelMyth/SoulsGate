@@ -449,6 +449,8 @@ export class BuildGrid {
     let absorptionStandaloneCount = 0;
     let absorptionAuraCount = 0;
     let absorptionTargets = 0;
+    let absorptionAuraTargets = 0;
+    let absorptionStandaloneTargets = 0;
     let absorptionVamp = false;
     let absorptionBlades = false;
     let absorptionBurn = false;
@@ -492,13 +494,15 @@ export class BuildGrid {
         if (prev && prev.def.effect.kind === 'aura') { onAura = true; break; }
         ancestor = parent.get(ancestor);
       }
-      if (onAura) absorptionAuraCount++;
-      else absorptionStandaloneCount++;
-      absorptionTargets += absorptionBranch(i);
+      const count = absorptionBranch(i);
+      if (onAura) { absorptionAuraCount++; absorptionAuraTargets += count; }
+      else { absorptionStandaloneCount++; absorptionStandaloneTargets += count; }
+      absorptionTargets += count;
     }
     if (absorptionCount) res.absorption = {
       count: absorptionCount, standaloneCount: absorptionStandaloneCount, auraCount: absorptionAuraCount,
-      targets: absorptionTargets, vampirism: absorptionVamp,
+      targets: absorptionTargets, standaloneTargets: absorptionStandaloneTargets, auraTargets: absorptionAuraTargets,
+      vampirism: absorptionVamp,
       blades: absorptionBlades,
       burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
