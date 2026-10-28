@@ -2049,6 +2049,8 @@ export class Renderer {
     if (e.def === this.cfg.enemies.beetle) {
       // Жук: пламенный жук с светящимися глазами (отдельная отрисовка).
       this.drawBeetle(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.hunter) {
+      this.drawHunter(e, x, y, hit); // ЗАГЛУШКА ГРАФИКИ: зелёный жук с острой головой
     } else if (e.def === this.cfg.enemies.shooter) {
       // Жук-стрелок: фиолетовый, с брюшком, которое растёт при заряде выстрела.
       this.drawShooter(e, x, y, hit);
@@ -2379,6 +2381,73 @@ export class Renderer {
    * два светящихся глаза и мягкий свет от них вперёд. Поворачивается по курсу движения;
    * когда стоит, смотрит на героя. Угол и фаза хранятся здесь, в игровую сущность ничего не пишем.
    */
+  // ЗАГЛУШКА ГРАФИКИ: Охотник. Зелёный вытянутый жук, острая голова-клин вперёд, узкие жёлтые «глаза охотника».
+  drawHunter(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU };
+      this.beetleState.set(e, st);
+    }
+    const moving = e.hx !== 0 || e.hy !== 0;
+    const target = moving ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    st.a += da * 0.35;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(st.a);
+    const k = hit ? 1.15 : 1;
+    ctx.scale(k, k);
+    // Ноги: быстрые, на бегу.
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const lx = (0.3 - i * 0.4) * r;
+      const sw = moving ? Math.sin(t * 30 + st.ph + i * 2.1) * 0.3 * r : 0;
+      ctx.moveTo(lx, -0.4 * r); ctx.lineTo(lx - 0.25 * r + sw, -1.0 * r);
+      ctx.moveTo(lx, 0.4 * r); ctx.lineTo(lx - 0.25 * r - sw, 1.0 * r);
+    }
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = '#1f5a2a';
+    ctx.stroke();
+    // Тело: узкий клин, острый нос вперёд (+x).
+    ctx.beginPath();
+    ctx.moveTo(1.5 * r, 0);
+    ctx.lineTo(0.5 * r, -0.5 * r);
+    ctx.lineTo(-0.7 * r, -0.62 * r);
+    ctx.lineTo(-1.1 * r, 0);
+    ctx.lineTo(-0.7 * r, 0.62 * r);
+    ctx.lineTo(0.5 * r, 0.5 * r);
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : '#2e8f3e';
+    ctx.fill();
+    ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    if (!hit) {
+      ctx.fillStyle = '#1d6b2c'; // тёмная полоса вдоль спины
+      ctx.beginPath();
+      ctx.moveTo(0.3 * r, 0); ctx.lineTo(-0.8 * r, -0.28 * r); ctx.lineTo(-0.8 * r, 0.28 * r);
+      ctx.closePath();
+      ctx.fill();
+      // Глаза охотника: два узких светящихся косых глаза у основания клина.
+      ctx.fillStyle = '#ffe94a';
+      ctx.shadowColor = '#ffe94a';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(0.95 * r, -0.12 * r); ctx.lineTo(0.35 * r, -0.42 * r); ctx.lineTo(0.5 * r, -0.12 * r);
+      ctx.closePath();
+      ctx.moveTo(0.95 * r, 0.12 * r); ctx.lineTo(0.35 * r, 0.42 * r); ctx.lineTo(0.5 * r, 0.12 * r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
+
   drawBeetle(e, x, y, hit) {
     const ctx = this.ctx;
     const r = e.radius;
