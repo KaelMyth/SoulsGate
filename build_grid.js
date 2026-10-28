@@ -341,6 +341,19 @@ export class BuildGrid {
         let gravityFactor = 1;
         for (const i of gravityNodes) gravityFactor += doubles(kids.get(i) || []) - 1;
         res.gravity.durationMult = doubles(kids.get(-1) || []) * gravityFactor;
+        // Ускорение только из ветки Гравитации — на обычный щит и Клинки не влияет.
+        const gravityHaste = (node) => {
+          let boost = 0;
+          for (const child of kids.get(node) || []) {
+            const e = this.cells[child].mod.def.effect;
+            if (e.kind === 'double') boost += gravityHaste(child);
+            else if (e.kind === 'stat' && e.stat === 'rate') boost += walk(child, 0);
+          }
+          return boost;
+        };
+        let haste = 0;
+        for (const i of gravityNodes) haste += gravityHaste(i);
+        res.gravity.cooldownRate = Math.max(1, 1 + haste * 3);
         // Стихии берём только из ветвей самой Гравитации, а не с Клинков и Ауры того же щита.
         let mask = 0;
         for (let i = 0; i < this.cells.length; i++) {
