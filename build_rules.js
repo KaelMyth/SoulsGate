@@ -21,6 +21,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     if (e.kind === 'lightning') return !!core.def.canLightning;
     if (e.kind === 'shot') return !!core.def.canShot;
     if (e.kind === 'phantom') return !!core.def.canPhantom;
+    if (e.kind === 'gravity') return !!core.def.canGravity;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
