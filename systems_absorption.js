@@ -22,6 +22,7 @@ export class Absorption {
     this.targets = []; // зафиксированные цели текущего удара
     this.candidates = []; // временный буфер для выбора наиболее дальних врагов
     this.flashes = []; // отдельная заглушка вспышки для каждой поражённой цели
+    this.bladeMarks = []; // зафиксированные цели: тройка клинков → отсчёт 1 с
     this.reset();
   }
 
@@ -40,6 +41,9 @@ export class Absorption {
     this.targets.length = 0;
     this.candidates.length = 0;
     this.flashes.length = 0;
+    this.bladeMarks.length = 0;
+    this.bladeCounters = new WeakMap(); // учитываем поколение сущности при повторном использовании пула
+    this.bladesConnected = false;
     this.flash = 0;
     this.flashX = 0;
     this.flashY = 0;
@@ -74,6 +78,76 @@ export class Absorption {
     this.target = targets[0] || null;
   }
 
+
+  /** Учитываем только попадания клинков, которые действительно находятся под Поглощением. */
+  recordBladeHit(e) {
+    if (!e || !e.active || !this.hero.active) return false;
+    const m = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
+    if (!m || !m.absorption || !m.absorption.blades) return false;
+    this.bladesConnected = true; // отслеживаем связь даже если update ещё не запускался
+    const gen = e.gen;
+    if (this.bladeMarks.some(mark => mark.enemy === e && mark.gen === gen)) return false;
+    let count = this.bladeCounters.get(e);
+    if (!count || count.gen !== gen) count = { gen, hits: 0 };
+    count.hits++;
+    if (count.hits < Math.max(1, this.cfg.absorption.bladeHits || 3)) {
+      this.bladeCounters.set(e, count);
+      return false;
+    }
+    this.bladeCounters.delete(e);
+    if (this.bladeMarks.length >= Math.max(1, this.cfg.absorption.maxTargets || 64)) return false;
+    this.bladeMarks.push({
+      enemy: e, gen, remaining: Math.max(0.05, this.cfg.absorption.bladeDelay || 1),
+      total: Math.max(0.05, this.cfg.absorption.bladeDelay || 1), fresh: true,
+    });
+    return true;
+  }
+
+  /** Все варианты Поглощения используют единый урон, Вампиризм и стихии. */
+  strike(e, mods) {
+    if (!e || !e.active || !this.hero.active) return false;
+    const A = this.cfg.absorption;
+    this.flash = Math.max(0, A.flashTime);
+    this.flashVampiric = this.vampiric;
+    this.flashX = e.x;
+    this.flashY = e.y;
+    this.flashR = e.radius + A.ringPadding;
+    this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric, color: this.color });
+    const hpBefore = Math.max(0, e.hp);
+    const baseDamage = A.damage * (mods.absorption.damage || 1);
+    const damage = baseDamage + (mods.absorption.lightning
+      ? this.cfg.shock.attackBonus * (mods.lightning ? mods.lightning.count : 1) : 0);
+    this.source.vampiric = this.vampiric;
+    const dealt = this.combat.damageEnemy(e, damage, this.source, null);
+    if (dealt && e.active) {
+      const burn = mods.absorption.burn;
+      const frost = mods.absorption.frost;
+      const lightning = mods.absorption.lightning;
+      const bd = burn ? baseDamage * this.cfg.burn.damageFrac * (mods.burn ? mods.burn.damage : 1) : 0;
+      const bi = burn ? this.cfg.burn.interval / (mods.burn ? mods.burn.rate : 1) : 0;
+      const steam = burn && frost ? (mods.steam ? mods.steam.damage : 1) : 0;
+      if (burn && this.ignite) {
+        const remaining = Math.max(0, this.cfg.burn.maxStacks - (e.burnT > 0 ? e.burnStacks || 0 : 0));
+        for (let k = 0; k < remaining && e.active; k++) this.ignite(e, bd, bi);
+        if (!remaining && e.active) this.ignite(e, bd, bi);
+      }
+      if (frost && this.chill) {
+        const remaining = Math.max(0, this.cfg.frost.maxStacks - (e.frostStacks || 0));
+        for (let k = 0; k < remaining && e.active; k++) this.chill(e, steam, bd, bi);
+      }
+      if (lightning && this.zap) {
+        const remaining = Math.max(0, this.cfg.shock.maxStacks - (e.shockStacks || 0));
+        for (let k = 0; k < remaining && e.active; k++)
+          this.zap(e, bd, bi, frost ? 1 : 0, steam, mods.lightning ? mods.lightning.mult : 1);
+      }
+    }
+    if (dealt && this.vampiric && this.hero.active) {
+      const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
+    }
+    return dealt;
+  }
+
   update(dt) {
     const mods = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     if (!mods || !mods.absorption || !this.hero.active) { this.reset(); return; }
@@ -106,6 +180,27 @@ export class Absorption {
       if (f.time <= 0) this.flashes.splice(i, 1);
     }
 
+    if (!mods.absorption.blades && this.bladesConnected) {
+      // При снятии клинков сбрасываются и готовые метки, и неполные серии 1/3, 2/3.
+      this.bladeMarks.length = 0;
+      this.bladeCounters = new WeakMap();
+    }
+    this.bladesConnected = !!mods.absorption.blades;
+    // Отдельный бонусный удар после трёх попаданий клинков, не сбивает основной цикл.
+    for (let i = this.bladeMarks.length - 1; i >= 0; i--) {
+      const mark = this.bladeMarks[i];
+      if (!mark.enemy.active || mark.enemy.gen !== mark.gen || !mods.absorption.blades) {
+        this.bladeMarks.splice(i, 1);
+        continue;
+      }
+      if (mark.fresh) { mark.fresh = false; continue; }
+      mark.remaining -= dt;
+      if (mark.remaining <= 0) {
+        this.bladeMarks.splice(i, 1);
+        this.strike(mark.enemy, mods);
+      }
+    }
+
     this.timer -= dt;
     if (!this.aiming && this.timer <= telegraph) {
       const max = Math.max(1, Math.floor(A.maxTargets || 64));
@@ -123,52 +218,7 @@ export class Absorption {
     this.aiming = false;
     this.timer = interval;
     this.target = null;
-    this.source.vampiric = this.vampiric;
-    for (let i = 0; i < this.targets.length; i++) {
-      const e = this.targets[i];
-      if (!e || !e.active) continue;
-      this.flash = Math.max(0, A.flashTime);
-      this.flashVampiric = this.vampiric;
-      this.flashX = e.x;
-      this.flashY = e.y;
-      this.flashR = e.radius + A.ringPadding;
-      this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric, color: this.color });
-      const hpBefore = Math.max(0, e.hp);
-      const baseDamage = A.damage * (mods.absorption.damage || 1);
-      // Молния даёт стандартный бонус +5 к прямому удару за каждый мод Молнии.
-      const damage = baseDamage + (mods.absorption.lightning
-        ? this.cfg.shock.attackBonus * (mods.lightning ? mods.lightning.count : 1) : 0);
-      const dealt = this.combat.damageEnemy(e, damage, this.source, null);
-      if (dealt && e.active) {
-        // Максимум стаков на КАЖДУЮ цель одним срабатыванием Поглощения.
-        // Через общие API сохраняются иммунитеты, обычный огонь, заморозка,
-        // паровые взрывы и цепной разряд Молнии.
-        const burn = mods.absorption.burn;
-        const frost = mods.absorption.frost;
-        const lightning = mods.absorption.lightning;
-        const bd = burn ? baseDamage * this.cfg.burn.damageFrac * (mods.burn ? mods.burn.damage : 1) : 0;
-        const bi = burn ? this.cfg.burn.interval / (mods.burn ? mods.burn.rate : 1) : 0;
-        const steam = burn && frost ? (mods.steam ? mods.steam.damage : 1) : 0;
-        if (burn && this.ignite) {
-          const remaining = Math.max(0, this.cfg.burn.maxStacks - (e.burnT > 0 ? e.burnStacks || 0 : 0));
-          for (let k = 0; k < remaining && e.active; k++) this.ignite(e, bd, bi);
-          // При максимальных стаках обновляем длительность обычным поджогом.
-          if (!remaining && e.active) this.ignite(e, bd, bi);
-        }
-        if (frost && this.chill) {
-          const remaining = Math.max(0, this.cfg.frost.maxStacks - (e.frostStacks || 0));
-          for (let k = 0; k < remaining && e.active; k++) this.chill(e, steam, bd, bi);
-        }
-        if (lightning && this.zap) {
-          const remaining = Math.max(0, this.cfg.shock.maxStacks - (e.shockStacks || 0));
-          for (let k = 0; k < remaining && e.active; k++) this.zap(e, bd, bi, frost ? 1 : 0, steam, mods.lightning ? mods.lightning.mult : 1);
-        }
-      }
-      if (dealt && this.vampiric && this.hero.active) {
-        const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
-        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
-      }
-    }
+    for (let i = 0; i < this.targets.length; i++) this.strike(this.targets[i], mods);
     this.targets.length = 0;
   }
 }

@@ -30,7 +30,8 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
-  if (e.kind === 'blades' || e.kind === 'aura' || e.kind === 'absorption') return false; // «Клинки» и «Аура» крепятся только к ядру
+  if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult'; // Клинки под Поглощением: три попадания вызывают отдельный удар
+  if (e.kind === 'aura' || e.kind === 'absorption') return false; // Аура и Поглощение только на ядре
   if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
   if (carry === 'absorption' || carry === 'absorption:mult')
     return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp')

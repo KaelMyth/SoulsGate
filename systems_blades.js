@@ -40,6 +40,7 @@ export class Blades {
     this.shotAngle = 0;               // куда направлен первый из четырёх разлётов; сдвигается с каждым попаданием // общий список лучей игры: сюда клинки-сферы выпускают лазеры
     this.ignite = o.ignite || null; // (враг, урон тика, интервал) от Горения на клинках
     this.chill = o.chill || null;   // (враг, пар, урон тика, интервал) от Мороза на клинках
+    this.onAbsorptionHit = o.onAbsorptionHit || null; // только клинки, установленные под Поглощением
     this.items = []; // { x, y, a (угол полёта или место на орбите), state: 'orbit' | 'fly', target, vx, vy, age }
     this.timer = 0;
     this.spin = 0;
@@ -47,6 +48,7 @@ export class Blades {
     this.cand = [];
     this.candidateIndices = [];   // враги в зоне запуска, ближние первыми
     this.counts = new Map();
+    this.reset(); // счётчик слотов нужен уже при первом update, даже до начала забега
   }
 
   reset() {
@@ -144,9 +146,14 @@ export class Blades {
       while (this.timer >= interval && orbit < max) {
         this.timer -= interval;
         // Следующий клинок появляется на противоположной стороне от предыдущего (доли круга 0, 1/2, 1/4, 3/4, 1/8 ...).
-        const off = vdc(this.slot++) * TAU;
+        const slot = this.slot++;
+        const off = vdc(slot) * TAU;
         const a = this.spin + off;
-        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
+        // Если несколько модов Клинков сидят на щите, только доля клинков из ветки
+        // Поглощения засчитывается в его тройку попаданий.
+        const linked = m.blades.linkedAbsorption || 0;
+        const isAbsorptionBlade = linked > 0 && slot % m.blades.count < linked;
+        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0, absorptionLinked: isAbsorptionBlade });
         orbit++;
       }
     } else this.timer = 0;
@@ -213,7 +220,8 @@ export class Blades {
           this.source.pierce = !m.laser && (b.pc === undefined ? (m.pierce ? m.pierce.count : 0) : b.pc) > 0; // клинок пройдёт дальше (только вид)
           this.source.dx = Math.cos(b.a);
           this.source.dy = Math.sin(b.a);
-          this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          const hit = this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          if (hit && t.active && b.absorptionLinked && this.onAbsorptionHit) this.onAbsorptionHit(t);
           if (t.active) this.applyEffects(t, m, bd);
           if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0, m.lightning.mult);
           if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
@@ -246,6 +254,7 @@ export class Blades {
     this.items.push({
       x: s.x, y: s.y, a: Math.atan2(t.y - s.y, t.x - s.x), off: 0, state: 'fly', target: t,
       vx: 0, vy: 0, age: 0, gen: (b.gen | 0) + 1, mul: F.damageFrac * (m.phantom.damage || 1), sphere: false,
+      absorptionLinked: !!b.absorptionLinked,
     });
   }
 

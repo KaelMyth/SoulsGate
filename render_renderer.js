@@ -777,7 +777,7 @@ export class Renderer {
   /** Заглушка Поглощения: все зафиксированные цели светлеют одновременно. */
   drawAbsorptionMarker(ctx) {
     const a = this.absorption;
-    if (!a || !a.active || !a.aiming || !a.targets.length) return;
+    if (!a || !a.active || (!a.aiming && !a.bladeMarks.length)) return;
     const A = this.cfg.absorption;
     const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.02, a.castTime || A.telegraph)));
     const color = a.color || '215,230,255';
@@ -791,6 +791,21 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(target.x, target.y, target.radius + A.ringPadding, 0, TAU);
       ctx.fill();
+      ctx.stroke();
+    }
+    // Дополнительная метка от трёх попаданий клинков: следует за конкретной целью 1 с.
+    // В отличие от обычного прицеливания не исчезает, если цель ушла за край камеры.
+    for (let i = 0; i < a.bladeMarks.length; i++) {
+      const mark = a.bladeMarks[i];
+      if (!mark.enemy.active || mark.enemy.gen !== mark.gen) continue;
+      const progress = Math.max(0, Math.min(1, 1 - mark.remaining / mark.total));
+      const radius = mark.enemy.radius + A.ringPadding + 5;
+      ctx.beginPath();
+      ctx.arc(mark.enemy.x, mark.enemy.y, radius, 0, TAU);
+      ctx.fillStyle = 'rgba(' + color + ',' + (0.05 + 0.22 * progress) + ')';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(' + color + ',' + (0.35 + 0.65 * progress) + ')';
       ctx.stroke();
     }
     ctx.restore();
