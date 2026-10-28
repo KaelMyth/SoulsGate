@@ -70,7 +70,7 @@ export class SpatialGrid {
    * Индексы тел из клеток, которых касается квадрат (x±r, y±r). Пишет в this.buf, возвращает число.
    * Буфер общий: результат надо обработать до следующего вызова query.
    */
-  query(x, y, r) {
+  query(x, y, r, out = null) {
     const x0 = this.cx(x - r);
     const x1 = this.cx(x + r);
     const y0 = this.cy(y - r);
@@ -83,6 +83,11 @@ export class SpatialGrid {
       const b = this.start[rowBase + x1 + 1];
       const len = b - a;
       if (len <= 0) continue;
+      // Отдельный буфер защищает внешний перебор от вложенных query() в обработчиках попаданий.
+      if (out) {
+        for (let j = a; j < b; j++) out[n++] = this.order[j];
+        continue;
+      }
       if (n + len > this.buf.length) {
         const nb = new Int32Array(Math.max(this.buf.length * 2, n + len));
         nb.set(this.buf.subarray(0, n));
@@ -91,6 +96,7 @@ export class SpatialGrid {
       this.buf.set(this.order.subarray(a, b), n);
       n += len;
     }
+    if (out) out.length = n;
     return n;
   }
 }

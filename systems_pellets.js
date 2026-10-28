@@ -19,6 +19,7 @@ export class Pellets {
     this.py = new Float32Array(N);
     this.vx = new Float32Array(N);
     this.vy = new Float32Array(N);
+    this.speed = new Float32Array(N);
     this.left = new Float32Array(N); // сколько ещё лететь
     this.sd = new Float32Array(N);   // случайное зерно дробинки: по нему отрисовка раскидывает клубы, не зависит от номера в массиве
     this.mx = new Float32Array(N);   // дальность при вылете: по ней отрисовка считает возраст частицы
@@ -32,6 +33,8 @@ export class Pellets {
     this.pg = new Uint8Array(N);     // поколение фантома (для затухания шанса)
     this.pc = new Uint8Array(N);     // сколько врагов ещё можно пройти насквозь (мод «Пробитие»)
     this.lh = new Array(N).fill(null); // последний пробитый враг: его второй раз не бьём     // 1 = дробинка вешает заряд Мороза
+    this.hitHistory = new Array(N).fill(null); // история пробитых целей, переиспользуется при удалении дробинки
+    this.candidates = [];
     this.reach = 0;
   }
 
@@ -51,6 +54,7 @@ export class Pellets {
     this.y[i] = this.py[i] = y;
     this.vx[i] = vx;
     this.vy[i] = vy;
+    this.speed[i] = Math.hypot(vx, vy);
     this.left[i] = this.mx[i] = range;
     this.sd[i] = Math.random();
     this.dmg[i] = dmg;
@@ -63,14 +67,18 @@ export class Pellets {
     this.pp[i] = pp;
     this.pg[i] = pg;
     this.lh[i] = null;
+    if (this.hitHistory[i]) this.hitHistory[i].length = 0;
   }
 
   remove(i) {
     const last = --this.n;
     if (i === last) return;
+    const recycled = this.hitHistory[i];
+    this.hitHistory[i] = this.hitHistory[last];
+    this.hitHistory[last] = recycled;
     this.x[i] = this.x[last]; this.y[i] = this.y[last];
     this.px[i] = this.px[last]; this.py[i] = this.py[last];
-    this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last];
+    this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last]; this.speed[i] = this.speed[last];
     this.left[i] = this.left[last]; this.mx[i] = this.mx[last]; this.sd[i] = this.sd[last]; this.dmg[i] = this.dmg[last];
     this.bd[i] = this.bd[last]; this.bi[i] = this.bi[last]; this.fr[i] = this.fr[last]; this.st[i] = this.st[last]; this.zp[i] = this.zp[last]; this.pc[i] = this.pc[last]; this.lh[i] = this.lh[last]; this.pp[i] = this.pp[last]; this.pg[i] = this.pg[last];
   }
@@ -94,24 +102,28 @@ export class Pellets {
       this.py[i] = this.y[i];
       const x = (this.x[i] += vx * dt);
       const y = (this.y[i] += vy * dt);
-      this.left[i] -= Math.hypot(vx, vy) * dt;
+      this.left[i] -= this.speed[i] * dt;
       if (this.left[i] <= 0 || x < arena.left || x > arena.right || y < arena.top || y > arena.bottom
         || arena.circleHitsRock(x, y, S.radius)) {
         this.remove(i);
         continue;
       }
-      const cnt = grid.query(x, y, q);
-      const buf = grid.buf;
+      const candidates = this.candidates;
+      const cnt = grid.query(x, y, q, candidates);
       let hit = false;
       for (let k = 0; k < cnt; k++) {
-        const e = en[buf[k]];
-        if (!e || !e.active || e === this.lh[i]) continue;
+        const e = en[candidates[k]];
+        if (!e || !e.active || (this.hitHistory[i] && this.hitHistory[i].includes(e))) continue;
         const dx = x - e.x;
         const dy = y - e.y;
         const r = S.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
           this.onHit(e, this.dmg[i], vx, vy, this.bd[i], this.bi[i], this.fr[i], this.st[i], this.zp[i], this.pc[i], this.pp[i], this.pg[i]);
-          if (this.pc[i] > 0) { this.pc[i]--; this.lh[i] = e; break; } // пробила: летит дальше
+          if (this.pc[i] > 0) {
+            this.pc[i]--;
+            (this.hitHistory[i] || (this.hitHistory[i] = [])).push(e);
+            break;
+          } // пробила: летит дальше
           hit = true;
           break;
         }

@@ -63,6 +63,7 @@ export class AutoAttack {
     this.timer = 0;
     this.acc = 1;       // поток (больше streamFrom снарядов): накопленные к выпуску снаряды
     this.target = null; // нужна отрисовке: метка на цели
+    this.candidates = [];
   }
 
   reset() {
@@ -145,6 +146,7 @@ export class AutoAttack {
       for (let j = 0; j < n; j++) {
         const side = (j - (n - 1) / 2) * gap;
         const back = -r * gap;
+        if (this.cfg.limits && this.shots.count >= this.cfg.limits.maxShots) break;
         const p = this.shots.spawn();
         if (!p) break; // потолок снарядов
         initProjectile(p, def, hero.x + nx * side + fx * back, hero.y + ny * side + fy * back, dx, dy, hero);
@@ -201,8 +203,9 @@ export class AutoAttack {
     const en = this.enemies.items;
     const out = this.cand || (this.cand = []);
     out.length = 0;
-    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius * this.rangeMul) : en.length;
-    const buf = this.grid ? this.grid.buf : null;
+    const indices = this.candidates;
+    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius * this.rangeMul, indices) : en.length;
+    const buf = this.grid ? indices : null;
     for (let k = 0; k < n; k++) {
       const e = en[buf ? buf[k] : k];
       if (!e || !e.active) continue;

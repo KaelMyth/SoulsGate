@@ -5552,12 +5552,16 @@ export class Renderer {
     const B = this.cfg.blades;
     const k = B.size * 0.8;
     const t = this.clock;
-    const glows = [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true), this.getGlow('gold')];
-    const tails = [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet'), this.getComet('Gold')];
-    const mainC = ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'];
-    const liteC = ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'];
-    const glowGold = this.getGlow('gold');
-    const zapGlow = [glowGold, this.getGlow('blue'), this.getGlow('red'), this.getGlow(true)]; // молнии: жёлтая, голубая (мороз), красная (огонь), белая с фиолетом (пар)
+    // Спрайты и палитры неизменны: не создаём массивы заново каждый кадр.
+    const cache = this.bladeDrawCache || (this.bladeDrawCache = {
+      glows: [this.getGlow('blue'), this.getGlow('blue'), this.getGlow(), this.getGlow('gold'), this.getGlow(true), this.getGlow('gold')],
+      tails: [this.getComet('Blue'), this.getComet('Ice'), this.getComet('Fire'), this.getComet('Steam'), this.getComet('Violet'), this.getComet('Gold')],
+      mainC: ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'],
+      liteC: ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'],
+      zapGlow: [this.getGlow('gold'), this.getGlow('blue'), this.getGlow('red'), this.getGlow(true)],
+      zapColors: ['#ffd21e', '#7fd8ff', '#ff9a3a', '#ffffff'],
+    });
+    const { glows, tails, mainC, liteC, zapGlow } = cache; // молнии: жёлтая, голубая (мороз), красная (огонь), белая с фиолетом (пар)
     // Проход 1: хвосты и свечение сложением цветов.
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < bl.length; i++) {
@@ -5586,7 +5590,7 @@ export class Renderer {
     for (let i = 0; i < bl.length; i++) {
       const b = bl[i];
       const kd = b.kind | 0;
-      const mc = b.zap ? ['#ffd21e', '#7fd8ff', '#ff9a3a', '#ffffff'][b.kind | 0] : b.gen ? '#a577ff' : mainC[kd];
+      const mc = b.zap ? cache.zapColors[b.kind | 0] : b.gen ? '#a577ff' : mainC[kd];
       const lc = b.zap ? '#fffbe0' : b.gen ? '#f0e4ff' : liteC[kd];
       ctx.globalAlpha = 1;
       if (b.zap && !b.sphere) { // клинок-молния Зевса: ломаный разряд с ответвлениями
