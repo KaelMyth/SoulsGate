@@ -14,7 +14,7 @@ export const CONFIG = {
     size: 7,
     minCoreDistance: 5,
     storageSlots: 22,  // ячеек в ряду хранилища над полем
-    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'rain', 'aura', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'rain', 'aura', 'absorption', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -47,6 +47,7 @@ export const CONFIG = {
       multStat: 'blockPower',
       canBlades: true,   // к ядру можно приложить мод «Спектральный клинок»
       canAura: true,     // и мод «Смертельная аура»
+      canAbsorption: true, // и мод «Поглощение»
       icon: 'shield',
       stats: [
         { label: 'Длительность блока', key: 'blockTime', path: 'block.duration', unit: 'с', decimals: 2 },
@@ -176,6 +177,13 @@ export const CONFIG = {
       icon: 'aura',
       description: 'Ставится на щит. Вместо блока вокруг героя появляется поле, постоянно наносящее урон врагам внутри. Парирование остаётся',
       effect: { kind: 'aura' },
+    },
+    absorption: {
+      name: 'Поглощение',
+      icon: 'absorption',
+      rarity: 'legendary',
+      description: 'Ставится на щит. Каждые 3 с отмечает самого дальнего врага в видимой части экрана (не ближе 180 единиц), круг светлеет 0,9 с, затем вспышка и 90 урона.',
+      effect: { kind: 'absorption' },
     },
     phantom: {
       name: 'Фантомный выстрел',
@@ -353,6 +361,16 @@ export const CONFIG = {
     effectEvery: 3,   // Горение и Мороз только на каждом таком тике
     shockChance: 0.2, // Молния на ауре: шанс электризовать врага на тике (1/5)
     color: '#ff5a6e',
+  },
+  // Поглощение: мод щита. Удар по самому дальнему видимому врагу вне ближней зоны.
+  absorption: {
+    interval: 3,      // секунд между ударами
+    telegraph: 0.9,   // с: как долго светлеет круг перед попаданием
+    damage: 90,      // сильный одиночный удар
+    minDistance: 180,// минимальная дистанция до цели в единицах мира
+    viewMargin: 12,  // центр цели не должен быть у самой кромки экрана
+    ringPadding: 14, // кольцо шире врага
+    flashTime: 0.25, // с: длительность вспышки-заглушки
   },
   // Фантомный выстрел: при попадании снаряда шанс появиться ещё одному выстрелу из точки рядом с врагом.
   phantom: {
@@ -948,7 +966,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, kinetic: 1, rain: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, kinetic: 1, rain: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
 

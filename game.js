@@ -3,6 +3,7 @@ import { LightDash } from './systems_lightdash.js';
 import { Rewards } from './systems_rewards.js';
 import { LevelUpScreen } from './ui_levelup.js';
 import { Aura } from './systems_aura.js';
+import { Absorption } from './systems_absorption.js';
 import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
 import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
@@ -173,6 +174,11 @@ export class Game {
       rnd: this.rnd,
     });
 
+    this.absorption = new Absorption({
+      config, hero: this.hero, enemies: this.enemies, camera: this.camera, combat: this.combat,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+    });
+
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -193,6 +199,7 @@ export class Game {
       clouds: this.steamClouds,
       blades: this.blades.items,
       aura: this.aura,
+      absorption: this.absorption,
       lightdash: this.lightdash,
       zapBolts: this.zapBolts,
       dashBeams: this.dashBeams,
@@ -1330,6 +1337,7 @@ export class Game {
       this.updateLasers(dt);
       this.blades.update(dt);
       this.aura.update(dt);
+      this.absorption.update(dt);
       this.hitShotsOnBlock();
       this.spawner.update(dt);
       this.syncWaveHud();
@@ -1685,6 +1693,7 @@ export class Game {
     this.hero.reset();
     this.defense.reset();
     this.blades.reset();
+    this.absorption.reset();
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();

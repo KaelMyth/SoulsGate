@@ -135,6 +135,13 @@ const ICONS = {
     ['circle', S({ cx: 16, cy: 16, r: 13, 'stroke-width': 1.6, 'stroke-dasharray': '2.5 3.2' })],
     ['path', Object.assign({ d: 'M16 1.5L18 4L16 6.5L14 4ZM30.5 16L28 18L25.5 16L28 14ZM16 30.5L14 28L16 25.5L18 28ZM1.5 16L4 14L6.5 16L4 18Z' }, HI)],
   ],
+  // Поглощение: временный значок прицела с нарастающим кругом.
+  absorption: [
+    ['circle', S({ cx: 16, cy: 16, r: 11.5, 'stroke-width': 2 })],
+    ['circle', S({ cx: 16, cy: 16, r: 6.5, 'stroke-width': 2, opacity: 0.7 })],
+    ['circle', { cx: 16, cy: 16, r: 2.5, fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M16 1V5M16 27V31M1 16H5M27 16H31', 'stroke-width': 2 }, HIS)],
+  ],
   // Фантомный выстрел: призрак и его бледная копия.
   phantom: [
     ['path', S({ d: 'M12 28V14.5A7.5 7.5 0 0 1 27 14.5V28L23.5 25L19.5 28L16 25Z', 'stroke-width': 1.6, 'stroke-dasharray': '2.4 2.4', opacity: 0.6 })],
