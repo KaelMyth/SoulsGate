@@ -99,7 +99,7 @@ export function coreStats(core, config, mods) {
       rows.push({ label: 'Гравитация: скорость врагов', text: Math.round(G.shieldEnemySpeed * 100) + '%', bonus: 'сохраняется внутри поля' });
       rows.push({ label: 'Гравитация: скорость снарядов', text: Math.round(G.shieldProjectileSpeed * 100) + '%', bonus: 'сохраняется внутри поля' });
       rows.push({ label: 'Гравитация: длительность', text: Math.round(G.shieldDuration * (mods.gravity.durationMult || 1) * 100) / 100 + ' с', bonus: '×' + (mods.gravity.durationMult || 1) + ', действует при движении' });
-      rows.push({ label: 'Гравитация: перезарядка', text: G.shieldCooldown + ' с', bonus: 'после окончания поля' });
+      rows.push({ label: 'Гравитация: перезарядка', text: Math.round(G.shieldCooldown / (mods.gravity.cooldownRate || 1) * 100) / 100 + ' с', bonus: 'после поля, Ускорение ×' + Math.round((mods.gravity.cooldownRate || 1) * 100) / 100 });
       rows.push({ label: 'Гравитация: искривление', text: G.shieldBend + ' рад/с', bonus: 'скользящие снаряды возвращаются' });
       if (mods.gravity.elements?.mask) rows.push({ label: 'Гравитация: стихии', text: [(mods.gravity.elements.mask & 1) ? 'Огонь' : '', (mods.gravity.elements.mask & 2) ? 'Мороз' : '', (mods.gravity.elements.mask & 4) ? 'Молния' : ''].filter(Boolean).join(' + '), bonus: 'стаки каждые ' + G.shieldElementInterval + ' с' });
     } else {
@@ -154,6 +154,7 @@ export function coreStats(core, config, mods) {
   }
   if (core.def.canBlades && mods && mods.blades) {
     const bm = mods.blades;
+    if (core.def.multStat === 'blockPower' && mods.gravity) rows.push({ label: 'Гравитация + Клинки', text: 'возвращаются', bonus: 'лимит сохраняется, полный облёт перед новой атакой' });
     const bdmg = config.blades.damage * bm.damage;
     rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
     rows.push({ label: 'Клинки: новый раз в', text: Math.round(bladeInterval(config, Math.round(config.blades.max * bm.max)) / bm.rate * 100) / 100 + ' с', bonus: '' });
