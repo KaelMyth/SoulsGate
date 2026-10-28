@@ -51,6 +51,8 @@ export class HeroDefense {
     this.gravityTime = 0;  // отдельный таймер горизонта событий: не прерывается движением
     this.gravityDurationMax = 0;
     this.gravityCooldownRate = 1;
+    this.gravityDashCharging = false;
+    this.gravityDashEnabled = false;
     this.gravityAuraRadius = 0; // радиус Ауры с Х2/Х3: общая область ослабленной Гравитации
     this.gravityDashEnabled = false;
     this.gravityDashCharging = false;

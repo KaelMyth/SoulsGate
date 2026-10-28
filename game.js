@@ -961,6 +961,7 @@ export class Game {
   startGravityDash({ dirX, dirY, distance, seq }) {
     const hero = this.hero, ar = this.arena, K = this.config.kinetic;
     const step = Math.max(2, K.gravityTravelStep);
+    const zone = ar.zone;
     let ex = hero.x, ey = hero.y;
     const steps = Math.ceil(distance / step);
     for (let i = 1; i <= steps; i++) {
@@ -968,6 +969,8 @@ export class Game {
       const x = hero.x + dirX * dist, y = hero.y + dirY * dist;
       if (x < ar.left + hero.radius || x > ar.right - hero.radius ||
           y < ar.top + hero.radius || y > ar.bottom - hero.radius ||
+          (zone && (x < zone.left + hero.radius || x > zone.right - hero.radius ||
+                    y < zone.top + hero.radius || y > zone.bottom - hero.radius)) ||
           ar.circleHitsRock(x, y, hero.radius)) break;
       ex = x; ey = y;
     }
@@ -982,6 +985,8 @@ export class Game {
     const g = this.gravityDash;
     if (!g.active || !g.charging || g.seq !== seq) return;
     this.hero.place(g.x, g.y);
+    this.arena.resolveCircle(this.hero); // остров и скалы остаются твёрдыми
+    this.hero.place(this.hero.x, this.hero.y); // без интерполяции после разрешения коллизий
     this.hero.vx = this.hero.vy = 0;
     this.hero.glideTime = 0;
     g.charging = false; g.t = 0;
@@ -1820,6 +1825,8 @@ export class Game {
     this.lightdash.reset();
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
+    this.gravityDash.active = false;
+    this.gravityDash.charging = false;
     this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
     this.hud.rainT = 0;
     this.rewards.reset();
