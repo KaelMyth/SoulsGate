@@ -952,6 +952,12 @@ export const CONFIG = {
     },
   },
 
+  // Охрана стрелка (волна 9, systems_guards.js): жуки кольцом вокруг стрелка, пока герой не подойдёт близко.
+  guards: {
+    ringDist: 46,   // радиус кольца вокруг стрелка, единиц
+    breakDist: 105, // герой ближе этого к охраннику или к стрелку: охрана бросается в бой
+  },
+
   // Стая жуков: числа правил из systems/swarm.js.
   swarm: {
     cell: 80,            // размер клетки сетки соседей (не меньше clusterRadius)
@@ -1030,6 +1036,10 @@ export const CONFIG = {
       6: { mix: { hunter: 5, beetle: 1 }, sides: 'random', count: 20, interval: 0.55, maxAlive: 16 },                // охотники
       7: { mix: { bull: 1 }, groupSize: 3, sides: 'varied', spread: 40, count: 12, interval: 5, maxAlive: 12 },      // группы быков
       8: { mix: { hunter: 1 }, groupSize: 10, sides: 'ring', count: 30, interval: 4, maxAlive: 30 },                // толпа охотников со всех сторон
+      // formation: группа — стрелок (leader) в кольце из guard (groupSize - 1 штук); extra: с шансом chance рядом выбегают
+      // 1..n одиночек по весам mix (Охотники и быки), со случайной стороны.
+      9: { formation: { leader: 'shooter', guard: 'beetle' }, groupSize: 6, sides: 'varied', count: 36, interval: 5, maxAlive: 40,
+        extra: { chance: 0.8, n: 2, mix: { hunter: 2, bull: 1 } } },
     },
     total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).

@@ -60,6 +60,7 @@ export class Spawner {
     this.rnd = o.rnd;
     this.bus = o.bus || null;
     this.hero = o.hero || null; // нужен, чтобы босс появился рядом с героем
+    this.guards = o.guards || null; // Guards: охрана стрелка (формации волны 9)
     this.pt = { x: 0, y: 0 };
     this.portal = null; // портал финального босса (openPortal)
     this.alive = 0;
@@ -375,6 +376,7 @@ export class Spawner {
     } else {
       base = this.rnd() * TAU;
     }
+    if (pat && pat.formation) return this.spawnFormation(size, pat, base);
     const ring0 = this.rnd() * TAU;
     let made = 0;
     let anchorUsed = null;
@@ -401,6 +403,42 @@ export class Spawner {
     if (anchorUsed !== null) {
       this.lastAngle = anchorUsed;
       if (sides === 'one') this.patAngle = anchorUsed;
+    }
+    return made;
+  }
+
+  /**
+   * Стрелок в кольце охраны (pat.formation { leader, guard }): size - 1 охранников вокруг стрелка (systems_guards.js).
+   * Потом (pat.extra) с шансом рядом выбегают одиночки по своим весам. Возвращает, сколько вышло всего.
+   */
+  spawnFormation(size, pat, base) {
+    const F = pat.formation;
+    const ringD = this.cfg.guards.ringDist;
+    const a = this.ringPoint(base, this.pt);
+    if (a === null && !pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) return 0;
+    if (a !== null) this.lastAngle = a;
+    const cx = this.pt.x;
+    const cy = this.pt.y;
+    const leader = this.spawnAt(F.leader, cx, cy);
+    const guards = [];
+    const n = Math.max(0, size - 1);
+    const a0 = this.rnd() * TAU;
+    for (let i = 0; i < n; i++) {
+      const ga = a0 + (i / Math.max(1, n)) * TAU;
+      guards.push(this.spawnAt(F.guard, cx + Math.cos(ga) * ringD, cy + Math.sin(ga) * ringD));
+    }
+    if (this.guards) this.guards.assign(leader, guards);
+    let made = 1 + n;
+    const X = pat.extra;
+    if (X && this.rnd() < X.chance) {
+      const m = 1 + Math.floor(this.rnd() * X.n);
+      for (let i = 0; i < m; i++) {
+        if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) break;
+        const k = this.pickSkeleton(X.mix);
+        if (!k) break;
+        this.spawnAt(k, this.pt.x, this.pt.y);
+        made++;
+      }
     }
     return made;
   }

@@ -25,6 +25,7 @@ import { RockBeetles } from './systems_rockbeetle.js';
 import { Apostles } from './systems_apostles.js';
 import { ApotheosisAI } from './systems_apotheosis.js';
 import { Shooters } from './systems_shooters.js';
+import { Guards } from './systems_guards.js';
 import { Attacks } from './systems_attacks.js';
 import { Boss } from './systems_boss.js';
 import { Xp, createGem, resetGem } from './systems_xp.js';
@@ -110,6 +111,7 @@ export class Game {
     this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
+    this.guards = new Guards({ config, hero: this.hero });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.apostles = new Apostles({ config, hero: this.hero, arena: this.arena, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
@@ -196,7 +198,7 @@ export class Game {
       hud: this.hud,
     });
     this.spawner = new Spawner({
-      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero,
+      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero, guards: this.guards,
     });
 
     // Слои столкновений: кто с кем взаимодействует, объявлено здесь, а не размазано по коду.
@@ -1296,6 +1298,7 @@ export class Game {
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
+      this.guards.update(dt, en);  // охрана: куда идёт кольцо вокруг стрелка
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
