@@ -340,6 +340,20 @@ export class BuildGrid {
         let gravityFactor = 1;
         for (const i of gravityNodes) gravityFactor += doubles(kids.get(i) || []) - 1;
         res.gravity.durationMult = doubles(kids.get(-1) || []) * gravityFactor;
+        // Стихии берём только из ветвей самой Гравитации, а не с Клинков и Ауры того же щита.
+        let mask = 0;
+        for (let i = 0; i < this.cells.length; i++) {
+          const node = this.cells[i].mod;
+          if (!node || owner.get(i) !== coreId) continue;
+          const bit = node.def.effect.kind === 'burn' ? 1 : node.def.effect.kind === 'frost' ? 2 : node.def.effect.kind === 'lightning' ? 4 : 0;
+          if (!bit) continue;
+          let p = parent.get(i);
+          while (p >= 0) {
+            if (gravityNodes.includes(p)) { mask |= bit; break; }
+            p = parent.get(p);
+          }
+        }
+        res.gravity.elements = { mask };
       }
     }
     let extraCount = 0;
