@@ -126,7 +126,7 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Поглощение: урон каждой цели', text: String(Math.round(a.damage * dmg * 100) / 100), bonus: dmg !== 1 ? '+' + Math.round((dmg - 1) * 100) + '%' : '' });
     rows.push({ label: 'Поглощение: целей одновременно', text: String(Math.min(a.maxTargets, mods.absorption.targets || mods.absorption.count)), bonus: 'Х2/Х3 перемножаются' });
     if (mods.absorption.standaloneCount) rows.push({ label: 'Поглощение: каждые', text: Math.round(a.interval / rate * 100) / 100 + ' с', bonus: rate !== 1 ? '+' + Math.round((rate - 1) * 100) + '% скорости' : '' });
-    if (mods.absorption.auraCount) rows.push({ label: 'Аура + Поглощение', text: a.auraInterval + ' с', bonus: 'случайные цели в поле, ×' + Math.min(a.maxTargets, mods.absorption.targets || 1) });
+    if (mods.absorption.auraCount) rows.push({ label: 'Аура + Поглощение', text: Math.round(a.auraInterval / rate * 100) / 100 + ' с', bonus: 'случайные цели в поле, ×' + Math.min(a.maxTargets, mods.absorption.auraTargets || 1) });
     if (mods.absorption.standaloneCount) rows.push({ label: 'Поглощение: время каста', text: Math.round(a.telegraph / rate * 100) / 100 + ' с', bonus: '' });
     if (mods.absorption.blades) rows.push({ label: 'Поглощение + Клинки', text: a.bladeHits + ' попадания → удар через ' + a.bladeDelay + ' с', bonus: 'все стихии Поглощения' });
     if (mods.absorption.vampirism) rows.push({ label: 'Поглощение + Вампиризм', text: Math.round(a.lifesteal * 100) + '% урона → здоровье', bonus: 'красный круг' });
