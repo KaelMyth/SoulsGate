@@ -692,7 +692,8 @@ export class Game {
     const c = { x, y, age: 0, tick: 0, hit: new Set(), dmg, int: interval, seed: this.rnd() * 100 };
     cl.push(c);
     this.applySteam(c);
-    this.burst(x, y, 0.3, st.radius * 0.3, st.radius, st.color); // вспышка на старте
+    if (this.renderer && this.renderer.hitfx) this.renderer.hitfx.spawn({ kind: 'vapor', el: 3, x, y, dx: 0, dy: -1, power: 0, r: st.radius });
+    else this.burst(x, y, 0.3, st.radius * 0.3, st.radius, st.color); // вспышка на старте
   }
 
   /** Облако действует на тех, кто внутри: горение обновляется, заряд Мороза вешается один раз на врага за облако. */

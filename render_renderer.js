@@ -2315,6 +2315,30 @@ export class Renderer {
         ctx.beginPath(); tracePoly(ctx, [-w * 0.5, 0, -w * 0.25, -h * 0.35, sway * 0.6, -h * 0.68, w * 0.25, -h * 0.38, w * 0.5, 0], 1); ctx.fill();
         ctx.restore();
       }
+      if (stacks > 0 || frozen) { // горит и в холоде: испарение. Бледные клубы пара вьются вверх, огонь шипит и тускнеет
+        const puff = this.getPuff();
+        ctx.globalCompositeOperation = 'source-over';
+        for (let k = 0; k < 6; k++) {
+          const ph = (t * 0.7 + k / 6 + rnd(k + 170) * 0.2) % 1;
+          const wob = Math.sin(t * 3.2 + k * 2.4 + sd) * r * 0.45 * ph;
+          const sz = r * (0.6 + 1.2 * ph);
+          const px = (rnd(k + 180) - 0.5) * r * 1.1 + wob;
+          const py = -r * 0.2 - ph * r * 2.6;
+          ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.9 * fade;
+          ctx.drawImage(puff, px - sz, py - sz, sz * 2, sz * 2);
+        }
+        ctx.strokeStyle = 'rgba(235,245,255,0.7)'; // тонкие завитки пара
+        ctx.lineWidth = 1;
+        for (let k = 0; k < 2; k++) {
+          const ph = (t * 0.9 + k * 0.5 + rnd(k + 190)) % 1;
+          const bx = (rnd(k + 200) - 0.5) * r * 0.9;
+          ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.6 * fade;
+          ctx.beginPath();
+          for (let q = 0; q <= 6; q++) { const u = q / 6; const x = bx + Math.sin(u * 5 + t * 4 + k) * r * 0.22 * u; const y = -r * 0.4 - ph * r * 2 - u * r * 0.9; if (q) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
       // Угольки поднимаются и гаснут.
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = '#ffb56a';
