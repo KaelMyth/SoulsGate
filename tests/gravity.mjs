@@ -175,3 +175,58 @@ test('Гравитация не влияет на запас дальности,
   assert.equal(s.shots.length, CONFIG.attack.count);
   assert.ok(s.shots.every(p => p.range === CONFIG.projectiles.bolt.range));
 });
+
+test('Гравитация увеличивает базу Горения на снаряде вместе с прямым уроном', () => {
+  const s = setup();
+  s.equip('gravity', 3, 4);
+  s.equip('burn', 2, 3);
+  s.attack.fire({ x: 180, y: 0 });
+  const p = s.shots[0];
+  const mods = s.build.modifiersFor('projectile');
+  assert.ok(mods.burn);
+  assert.ok(Math.abs(p.burnDmg - p.damage * CONFIG.burn.damageFrac * mods.burn.damage) < 1e-8);
+});
+
+test('Ускоренный снаряд проверяет всё расстояние за кадр и не пролетает сквозь врага', () => {
+  const e = { x: 42, y: 0, radius: 9, active: true };
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  p.active = true;
+  p.prevX = 0; p.prevY = 0;
+  p.x = 80; p.y = 0; p.gravity = true;
+  const hits = [];
+  const game = Object.create(Game.prototype);
+  game.heroShots = { items: [p] };
+  game.enemies = { items: [e] };
+  game.config = CONFIG;
+  game.shotCandidates = [];
+  game.swarm = { grid: { query(x, y, radius, out) {
+    const dx = x - e.x, dy = y - e.y;
+    const near = dx * dx + dy * dy <= radius * radius;
+    if (near) out[0] = 0;
+    return near ? 1 : 0;
+  } } };
+  game.collisions = { checks: 0 };
+  game.onShotHitEnemy = (shot, target) => hits.push({ shot, target });
+  game.hitEnemiesWithShots();
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].target, e);
+});
+
+test('Сегмент ускоренного снаряда не поражает врага в стороне от траектории', () => {
+  const e = { x: 42, y: 35, radius: 9, active: true };
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  p.active = true;
+  p.prevX = 0; p.prevY = 0;
+  p.x = 80; p.y = 0; p.gravity = true;
+  const hits = [];
+  const g = Object.create(Game.prototype);
+  g.heroShots = { items: [p] }; g.enemies = { items: [e] };
+  g.config = CONFIG; g.shotCandidates = [];
+  g.swarm = { grid: { query(x, y, radius, arr) { arr[0] = 0; return 1; } } };
+  g.collisions = { checks: 0 };
+  g.onShotHitEnemy = () => hits.push(true);
+  g.hitEnemiesWithShots();
+  assert.equal(hits.length, 0);
+});
