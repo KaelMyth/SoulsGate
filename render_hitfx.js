@@ -187,6 +187,34 @@ export class HitFx {
         spark(4, 190, 6, 3, 0.2);
         break;
       }
+      case 'ram': { // таран рывка: враг отброшен; удар от героя вперёд, вид по стихии рывка (el)
+        const sc = Math.max(0.8, Math.min(1.6, (d.r || 12) / 12));
+        this.add(T_FLASH, el, x, y, 0, 0, 0.18, 14 * sc);
+        this.add(T_RIPPLE, el, x, y, 0, 0, 0.3, 20 * sc);
+        this.add(T_STAR, el, x, y, 0, 0, 0.2, 9 * sc, { rot: ang });
+        for (let i = 0; i < 4; i++) { // пыль и снег из-под ног, по ходу толчка
+          const a = ang + (R() - 0.5) * 1.6;
+          this.add(T_PUFF, el === 2 ? 2 : el === 3 ? 3 : 0, x - dx * 4, y + 5, Math.cos(a) * (40 + R() * 40), Math.sin(a) * (20 + R() * 20), 0.4 + R() * 0.2, (6 + R() * 4) * sc, { drag: 3 });
+        }
+        for (let i = 0; i < 5; i++) { // искры вдоль толчка
+          const a = ang + (R() - 0.5) * 1.1;
+          const s2 = 150 + R() * 140;
+          this.add(T_SPARK, el, x, y, Math.cos(a) * s2, Math.sin(a) * s2, 0.2 + R() * 0.1, 9 + R() * 6, { drag: 5 });
+        }
+        if (el === 2) { // огонь: тело вспыхивает, угли и языки
+          for (let i = 0; i < 7; i++) { const a = R() * TAU; this.add(T_EMBER, 2, x, y, Math.cos(a) * 80 * R() + dx * 30, Math.sin(a) * 60 * R() - 25, 0.45 + R() * 0.35, 1.5 + R() * 1.3, { drag: 2.2 }); }
+          for (let i = 0; i < 3; i++) this.add(T_LICK, 2, x + (R() - 0.5) * 12, y + 2, (R() - 0.5) * 12, -28, 0.34 + R() * 0.12, 6 + R() * 4, { drag: 1 });
+        } else if (el === 1) { // мороз: ледяные осколки веером и иней
+          for (let i = 0; i < 6; i++) { const a = ang + (R() - 0.5) * 2.2; const s2 = 120 + R() * 110; this.add(T_SHARD, 1, x, y, Math.cos(a) * s2, Math.sin(a) * s2, 0.4 + R() * 0.25, 4 + R() * 2.5, { rot: R() * TAU, spin: (R() - 0.5) * 14, drag: 3.8 }); }
+          this.add(T_PUFF, 1, x, y, dx * 20, dy * 20, 0.5, 10 * sc, { drag: 2 });
+        } else if (el === 3) { // пар: горячее облако по ходу толчка
+          for (let i = 0; i < 3; i++) this.add(T_PUFF, 3, x + dx * 6, y - 2, dx * 50 + (R() - 0.5) * 30, dy * 50 - 18, 0.65, (10 + R() * 5) * sc, { drag: 2 });
+          for (let i = 0; i < 4; i++) { const a = R() * TAU; this.add(T_EMBER, 3, x, y, Math.cos(a) * 70 * R(), Math.sin(a) * 50 * R() - 20, 0.5, 1.6, { drag: 2.2 }); }
+        } else { // без стихии: холодные искры и острый блик удара
+          this.add(T_ARCW, 0, x, y, 0, 0, 0.26, 24 * sc, { rot: ang });
+        }
+        break;
+      }
       case 'through': { // снаряд прошил врага насквозь: канал через тело, вспышка-выброс на выходе, конус обломков
         const lg = d.src === 'laser' ? 0.5 : d.src === 'pellet' ? 0.65 : d.big ? 1.25 : 1; // лазер бьёт часто, дробь мелкая
         const heavy = lg >= 0.9;

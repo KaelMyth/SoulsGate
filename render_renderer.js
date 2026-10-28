@@ -5,6 +5,7 @@ import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
 import { DashFx } from './render_dashfx.js';
 import { ApotheosisArt } from './render_apotheosis.js';
+import { ApoFinaleFx } from './render_apofinale.js';
 
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
@@ -558,6 +559,7 @@ export class Renderer {
     this.dt = 0;                  // сколько секунд прошло с прошлого кадра: для пыли (только вид)
     this.puffs = [];              // облачка пыли при торможении быка; пул фиксированного размера
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
+    this.apoFin = new ApoFinaleFx(this); // Апофеоз: крик, обвал платформы, эпилог, портал (render_apofinale.js)
     this.apoArt = new ApotheosisArt(this); // Апофеоз и апостолы: маска-солнце и мантии (render_apotheosis.js)
     this.dashfx = new DashFx(this); // эффекты рывков, костров и героя-молнии (render_dashfx.js)
     this.dashKind = 0;     // стихия кинетического рывка (0 нет, 1 огонь, 2 мороз, 3 пар): выставляет игра
@@ -1160,129 +1162,23 @@ export class Renderer {
     ctx.restore();
   }
 
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: умение «Крик». Рот (центр головы) светится, из него расходятся кольца-волны: светлая дуга с чёрным краем,
-   * проём не нарисован; сплошное кольцо (его проходят рывком) белое и толще.
-   */
+  /** Апофеоз: волны «Крика» (render_apofinale.js). */
   drawScream() {
-    const a = this.apotheosis;
-    if (!a || !a.boss) return;
-    const o = a.headPos();
-    const ctx = this.ctx;
-    if (a.state === 'scream' && a.screamGlow > 0) { // рот светится, растёт
-      ctx.save();
-      ctx.globalAlpha = 0.35 + 0.5 * a.screamGlow;
-      ctx.fillStyle = '#fff0b0';
-      ctx.beginPath();
-      ctx.arc(o.x, o.y, a.boss.radius * (0.25 + 0.45 * a.screamGlow), 0, TAU);
-      ctx.fill();
-      ctx.restore();
-    }
-    if (!a.rings.length) return;
-    const S = a.boss.def.scream;
-    ctx.save();
-    ctx.lineCap = 'butt';
-    for (let i = 0; i < a.screamN; i++) {
-      const g = a.rings[i];
-      if (!g || !g.live) continue;
-      const fade = Math.min(1, (S.maxR - g.r) / 140);
-      ctx.globalAlpha = Math.max(0, fade) * (g.hit ? 0.4 : 1);
-      ctx.beginPath();
-      if (g.solid) ctx.arc(o.x, o.y, g.r, 0, TAU);
-      else ctx.arc(o.x, o.y, g.r, g.gap + g.gapW / 2, g.gap - g.gapW / 2 + TAU);
-      ctx.strokeStyle = '#05050a';
-      ctx.lineWidth = S.width + 6;
-      ctx.stroke();
-      ctx.strokeStyle = g.solid ? '#ffffff' : '#ffe98a';
-      ctx.lineWidth = g.solid ? S.width : S.width * 0.6;
-      ctx.stroke();
-    }
-    ctx.restore();
+    if (this.apotheosis && this.apoFin) this.apoFin.scream();
   }
 
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: эпилог Апофеоза. Реплика над боссом, свечение, осколки и портал конца игры (портал рисует drawPortal).
-   */
+  /** Апофеоз: обвал платформы, эпилог (свет, реплики, распад) (render_apofinale.js). */
   drawFinale() {
-    const a = this.apotheosis;
-    if (!a || !a.boss) return;
-    const f = a.fin;
-    const ctx = this.ctx;
-    const b = a.boss;
-    if (f.glow > 0 && b.active) { // босс всё сильнее светится и дрожит
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 3; i++) {
-        ctx.globalAlpha = Math.min(1, f.glow * (0.35 + 0.2 * i)) * (1 - f.dissolve);
-        ctx.fillStyle = i === 2 ? '#ffffff' : '#ffe9a0';
-        ctx.beginPath();
-        ctx.arc(b.x + Math.sin(this.clock * 60 + i) * 3 * f.glow, b.y - b.radius * 0.3, b.radius * (1.1 + 0.9 * f.glow - 0.3 * i), 0, TAU);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-    if (f.shards.length) {
-      ctx.save();
-      for (let i = 0; i < f.shards.length; i++) {
-        const s = f.shards[i];
-        if (s.age >= s.life) continue;
-        ctx.globalAlpha = Math.max(0, 1 - s.age / s.life);
-        ctx.fillStyle = '#fff3c0';
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y - s.r);
-        ctx.lineTo(s.x + s.r * 0.6, s.y);
-        ctx.lineTo(s.x, s.y + s.r);
-        ctx.lineTo(s.x - s.r * 0.6, s.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-    if (f.line && f.lineA > 0.01) { // реплика над боссом
-      const sc = this.camera ? this.camera.scale || 1 : 1;
-      ctx.save();
-      ctx.globalAlpha = f.lineA;
-      ctx.font = 'italic ' + Math.round(22 / sc) + 'px ' + SERIF;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const x = b.x;
-      const y = b.y - b.radius * 2.7;
-      ctx.lineWidth = 5 / sc;
-      ctx.strokeStyle = 'rgba(5,5,12,0.9)';
-      ctx.strokeText('— ' + f.line, x, y);
-      ctx.fillStyle = '#fff6d8';
-      ctx.fillText('— ' + f.line, x, y);
-      ctx.restore();
-    }
+    if (!this.apoFin) return;
+    this.apoFin.collapse();
+    this.apoFin.finale();
   }
 
-  /** ЗАГЛУШКА ГРАФИКИ: портал перед финальным боссом, пульсирующие кольца. alpha растёт при открытии и падает при гашении. */
+  /** Портал-воронка (перед финальным боссом и в конце игры); alpha растёт при открытии и падает при гашении. */
   drawPortal() {
     const p = this.getPortal ? this.getPortal() : null;
     if (!p || p.alpha <= 0) return;
-    const ctx = this.ctx;
-    const t = this.clock;
-    ctx.save();
-    ctx.globalAlpha = p.alpha;
-    ctx.strokeStyle = '#c7a8ff';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * (1 + 0.06 * Math.sin(t * 4)), 0, TAU);
-    ctx.stroke();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#ffffff';
-    ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = -t * 30;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * 0.7, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = p.alpha * 0.35;
-    ctx.fillStyle = '#7a4fd6';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * 0.55, 0, TAU);
-    ctx.fill();
-    ctx.restore();
+    this.apoFin.portal(p);
   }
 
   /** ЗАГЛУШКА ГРАФИКИ: стрелка на краю экрана в сторону портала, пока самого портала не видно. */
@@ -2153,6 +2049,8 @@ export class Renderer {
     if (e.def === this.cfg.enemies.beetle) {
       // Жук: пламенный жук с светящимися глазами (отдельная отрисовка).
       this.drawBeetle(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.hunter) {
+      this.drawHunter(e, x, y, hit); // ЗАГЛУШКА ГРАФИКИ: зелёный жук с острой головой
     } else if (e.def === this.cfg.enemies.shooter) {
       // Жук-стрелок: фиолетовый, с брюшком, которое растёт при заряде выстрела.
       this.drawShooter(e, x, y, hit);
@@ -2483,6 +2381,73 @@ export class Renderer {
    * два светящихся глаза и мягкий свет от них вперёд. Поворачивается по курсу движения;
    * когда стоит, смотрит на героя. Угол и фаза хранятся здесь, в игровую сущность ничего не пишем.
    */
+  // ЗАГЛУШКА ГРАФИКИ: Охотник. Зелёный вытянутый жук, острая голова-клин вперёд, узкие жёлтые «глаза охотника».
+  drawHunter(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU };
+      this.beetleState.set(e, st);
+    }
+    const moving = e.hx !== 0 || e.hy !== 0;
+    const target = moving ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    st.a += da * 0.35;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(st.a);
+    const k = hit ? 1.15 : 1;
+    ctx.scale(k, k);
+    // Ноги: быстрые, на бегу.
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const lx = (0.3 - i * 0.4) * r;
+      const sw = moving ? Math.sin(t * 30 + st.ph + i * 2.1) * 0.3 * r : 0;
+      ctx.moveTo(lx, -0.4 * r); ctx.lineTo(lx - 0.25 * r + sw, -1.0 * r);
+      ctx.moveTo(lx, 0.4 * r); ctx.lineTo(lx - 0.25 * r - sw, 1.0 * r);
+    }
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = '#1f5a2a';
+    ctx.stroke();
+    // Тело: узкий клин, острый нос вперёд (+x).
+    ctx.beginPath();
+    ctx.moveTo(1.5 * r, 0);
+    ctx.lineTo(0.5 * r, -0.5 * r);
+    ctx.lineTo(-0.7 * r, -0.62 * r);
+    ctx.lineTo(-1.1 * r, 0);
+    ctx.lineTo(-0.7 * r, 0.62 * r);
+    ctx.lineTo(0.5 * r, 0.5 * r);
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : '#2e8f3e';
+    ctx.fill();
+    ctx.strokeStyle = hit ? '#ffffff' : e.def.edge;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    if (!hit) {
+      ctx.fillStyle = '#1d6b2c'; // тёмная полоса вдоль спины
+      ctx.beginPath();
+      ctx.moveTo(0.3 * r, 0); ctx.lineTo(-0.8 * r, -0.28 * r); ctx.lineTo(-0.8 * r, 0.28 * r);
+      ctx.closePath();
+      ctx.fill();
+      // Глаза охотника: два узких светящихся косых глаза у основания клина.
+      ctx.fillStyle = '#ffe94a';
+      ctx.shadowColor = '#ffe94a';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(0.95 * r, -0.12 * r); ctx.lineTo(0.35 * r, -0.42 * r); ctx.lineTo(0.5 * r, -0.12 * r);
+      ctx.closePath();
+      ctx.moveTo(0.95 * r, 0.12 * r); ctx.lineTo(0.35 * r, 0.42 * r); ctx.lineTo(0.5 * r, 0.12 * r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
+
   drawBeetle(e, x, y, hit) {
     const ctx = this.ctx;
     const r = e.radius;
@@ -5017,6 +4982,31 @@ export class Renderer {
         ctx.fill();
       }
     }
+    // Молния: по полю то тут, то там проскакивают тонкие разряды от центра к краю, цвет по стихии. Видны на миг.
+    if (au.lightning) {
+      const zk = [0, 2, 1, 3][kd];
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const PER = 0.6;
+      for (let i = 0; i < 5; i++) {
+        const q = t / PER + i * 0.2;
+        const cyc = Math.floor(q);
+        const u = q - cyc;
+        if (u > 0.42) continue;
+        const fade = 1 - u / 0.42;
+        const h = (k) => { const v = Math.sin((cyc * 7.13 + i * 3.7 + k * 19.19) * 43758.5453) * 43758.5453; return v - Math.floor(v); };
+        const a0 = h(1) * TAU;
+        const da = (h(2) - 0.5) * 0.9;
+        const r0 = R * (0.12 + 0.25 * h(3));
+        const r1 = R * (0.7 + 0.28 * h(4));
+        this.drawZapArc(ctx, Math.cos(a0) * r0, Math.sin(a0) * r0, Math.cos(a0 + da) * r1, Math.sin(a0 + da) * r1, 2, 1.1 * fade, cyc * 4 + i, ZAP_RGB[zk], ZAP_CORE[zk]);
+        ctx.globalAlpha = 0.9 * fade; // искра на конце разряда
+        ctx.fillStyle = 'rgb(' + ZAP_CORE[zk] + ')';
+        ctx.beginPath(); ctx.arc(Math.cos(a0 + da) * r1, Math.sin(a0 + da) * r1, 2.6, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -5310,10 +5300,11 @@ export class Renderer {
     }
     // Проход 2: обычные дробинки: тонкие светящиеся чёрточки по ходу полёта, одним путём.
     ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1; // после клубов тут оставалась их прозрачность: чёрточки выходили тусклыми
     ctx.lineCap = 'round';
     ctx.beginPath();
     for (let i = 0; i < P.n; i++) {
-      if (P.bd[i] > 0 || P.fr[i] === 1) continue;
+      if (P.bd[i] > 0 || P.fr[i] === 1 || P.zp[i] === 1) continue;
       const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
       const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
       if (x < viewL - 12 || x > viewR + 12 || y < viewT - 12 || y > viewB + 12) continue;
@@ -5327,6 +5318,38 @@ export class Renderer {
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = 'rgba(225,242,255,0.95)';
     ctx.stroke();
+    // Проход 3: дробь с Молнией: короткая ломаная молния вместо чёрточки (дрожит 40 раз в секунду); цвет по стихии на дробинке.
+    const fl = Math.floor(t * 40);
+    for (let k = 0; k < 4; k++) {
+      let any = false;
+      ctx.beginPath();
+      for (let i = 0; i < P.n; i++) {
+        if (P.zp[i] !== 1) continue;
+        if (((P.bd[i] > 0 ? 1 : 0) | (P.fr[i] === 1 ? 2 : 0)) !== k) continue;
+        const x = P.px[i] + (P.x[i] - P.px[i]) * alpha;
+        const y = P.py[i] + (P.y[i] - P.py[i]) * alpha;
+        if (x < viewL - 12 || x > viewR + 12 || y < viewT - 12 || y > viewB + 12) continue;
+        any = true;
+        const sp = Math.hypot(P.vx[i], P.vy[i]) || 1;
+        const bx = -P.vx[i] / sp;
+        const by = -P.vy[i] / sp;
+        const nx = -by;
+        const ny = bx;
+        ctx.moveTo(x, y);
+        for (let j = 1; j <= 3; j++) {
+          const h = Math.sin((P.sd[i] * 91.7 + fl * 3.1 + j * 17.3) * 43758.5453) * 43758.5453;
+          const jit = (h - Math.floor(h) - 0.5) * 7;
+          ctx.lineTo(x + bx * j * 4.5 + nx * jit, y + by * j * 4.5 + ny * jit);
+        }
+      }
+      if (!any) continue;
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(' + ZAP_RGB[k] + ',0.55)';
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(' + ZAP_CORE[k] + ',1)';
+      ctx.stroke();
+    }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.lineCap = 'butt';

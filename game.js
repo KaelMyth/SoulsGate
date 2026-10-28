@@ -245,20 +245,20 @@ export class Game {
       storage: o.storage,
       storageKey: o.storageKey,
       actions: [
-        { label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
-        { label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },
-        { label: 'Апофеоз: Апостолы', run: () => this.apotheosis.force('apostles') },
-        { label: 'Апофеоз: Руки', run: () => this.apotheosis.force('hands') },
-        { label: 'Апофеоз: Лучи', run: () => this.apotheosis.force('beams') },
-        { label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
-        { label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
-        { label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
-        { label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
-        { label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
-        { label: 'Апофеоз: Фаза 2, четыре умения сразу', run: () => this.apotheosis.force('omni') },
-        { label: 'Апофеоз: Фаза 2, Крик', run: () => this.apotheosis.force('scream') },
-        { label: 'Апофеоз: Фаза 2, разлом платформы', run: () => this.apotheosis.force('pathbreak') },
-        { label: 'Апофеоз: Фаза 2, финал', run: () => this.apotheosis.force('ending') },
+        { group: 'Боссы', label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
+        { group: 'Боссы', label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },
+        { group: 'Боссы', label: 'Апофеоз: Апостолы', run: () => this.apotheosis.force('apostles') },
+        { group: 'Боссы', label: 'Апофеоз: Руки', run: () => this.apotheosis.force('hands') },
+        { group: 'Боссы', label: 'Апофеоз: Лучи', run: () => this.apotheosis.force('beams') },
+        { group: 'Боссы', label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
+        { group: 'Боссы', label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
+        { group: 'Боссы', label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
+        { group: 'Боссы', label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
+        { group: 'Боссы', label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
+        { group: 'Боссы', label: 'Апофеоз: Фаза 2, четыре умения сразу', run: () => this.apotheosis.force('omni') },
+        { group: 'Боссы', label: 'Апофеоз: Фаза 2, Крик', run: () => this.apotheosis.force('scream') },
+        { group: 'Боссы', label: 'Апофеоз: Фаза 2, разлом платформы', run: () => this.apotheosis.force('pathbreak') },
+        { group: 'Боссы', label: 'Апофеоз: Фаза 2, финал', run: () => this.apotheosis.force('ending') },
       ],
       build: o.build,
       getStats: () => ({
@@ -897,7 +897,8 @@ export class Game {
       if (d > reach + e.radius) continue;
       e.pushId = id;
       applyKnockback(e, dx / d, dy / d, K.pushDistance * wide, K.pushTime);
-      this.burst(e.x, e.y, 0.2, 3, 14, K.color);
+      if (this.renderer && this.renderer.hitfx) this.renderer.hitfx.spawn({ kind: 'ram', el: el.kind === 1 ? 2 : el.kind === 2 ? 1 : el.kind === 3 ? 3 : 0, x: e.x - (dx / d) * e.radius * 0.7, y: e.y - (dy / d) * e.radius * 0.7, dx: dx / d, dy: dy / d, power: 0, r: e.radius }); // вид удара по стихии рывка
+      else this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
       if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
