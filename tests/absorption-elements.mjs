@@ -39,7 +39,7 @@ function setup(keys = []) {
   game.config = CONFIG;
   game.burst = () => {};
   game.steamBurst = (x, y, dmg, interval) => clouds.push({ x, y, dmg, interval });
-  game.discharge = (e, bd, bi, fr, st) => discharges.push({ e, bd, bi, fr, st });
+  game.discharge = (e, bd, bi, fr, st, cm) => discharges.push({ e, bd, bi, fr, st, cm });
   const absorption = new Absorption({
     config: CONFIG, hero, enemies: { items: enemies },
     camera: { x: 0, y: 0, viewW: 480, viewH: 800 },
@@ -52,7 +52,7 @@ function setup(keys = []) {
     modifiers: () => build.modifiersFor('shield'),
     ignite: (e, d, i) => { calls.burn++; game.ignite(e, d, i); },
     chill: (e, st, d, i) => { calls.frost++; game.chill(e, st, d, i); },
-    zap: (e, d, i, fr, st) => { calls.lightning++; game.zap(e, d, i, fr, st); },
+    zap: (e, d, i, fr, st, cm) => { calls.lightning++; game.zap(e, d, i, fr, st, cm); },
   });
   const advance = (seconds) => {
     for (let i = 0; i < Math.ceil(seconds * 60); i++) absorption.update(1 / 60);
@@ -151,6 +151,8 @@ test('Х2 на Молнии усиливает её цепь, а не колич
   const mods = s.build.modifiersFor('shield');
   assert.equal(mods.absorption.targets, 1);
   assert.equal(mods.lightning.mult, 2);
+  s.advance(3.05);
+  assert.equal(s.discharges[0].cm, 2);
 });
 
 test('Мощь на Горении не должна увеличивать прямой урон Поглощения', () => {
