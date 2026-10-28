@@ -264,14 +264,17 @@ export class Blades {
     if (this.lasers.length >= L.max) return false;
     const one = laserStats(this.cfg, m.laser, dmg, 1);   // урон тика без штрафа за число
     const big = laserStats(this.cfg, m.laser, dmg, max); // длительность и яркость от числа сфер
-    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const grav = m.gravity ? 1 + this.cfg.gravity.damageBonus * m.gravity.count : 1;
+    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage * grav : 0;
     const dx = t.x - b.x;
     const dy = t.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     this.lasers.push({
       x: b.x, y: b.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
       target: t, pierce: 0, anchor: b,
-      width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick, big: big.big,
+      width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick * grav, big: big.big,
+      gravityLaser: !!m.gravity, gravityChargeTime: m.gravity ? Math.max(0.05, this.cfg.gravity.laserCharge) : 0,
+      gravityChargeAge: 0, gravityOrigin: 0, // центр накопления — сфера клинка
       burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
       zap: m.lightning ? m.lightning.mult : 0,
