@@ -234,8 +234,8 @@ export class BuildGrid {
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'lightning') carry.set(ci, 'lightning'); // «Молния»: ничего не вешается
-      else if (e.kind === 'aura') carry.set(ci, 'aura');
-      else if (e.kind === 'absorption') carry.set(ci, 'absorption'); // корень ветки ауры: Мощь, Ускорение, множители радиуса, Горение, Мороз
+      else if (e.kind === 'aura') carry.set(ci, 'aura'); // корень ветки ауры: усилители и стихии
+      else if (e.kind === 'absorption') carry.set(ci, 'absorption'); // отдельный мод щита, без дополнительных веток
       else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
