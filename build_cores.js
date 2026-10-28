@@ -92,6 +92,18 @@ export function coreStats(core, config, mods) {
     }
     return { label: s.label, key: s.key, value: v, text: formatStat(s, v), bonus };
   });
+  if (core.def.effect?.kind === 'rain') {
+    const rain = config.skills.rain;
+    rows.push({ label: 'Дождь: перезарядка', text: rain.cooldown + ' с', bonus: '1-й слот' });
+    rows.push({ label: 'Дождь: уязвимость', text: '+' + Math.round(rain.vulnerability * 100) + '%', bonus: 'до смерти врага' });
+    if (mods?.burn || mods?.frost || mods?.lightning) {
+      const elements = [mods.burn ? 'Горение' : '', mods.frost ? 'Мороз' : '', mods.lightning ? 'Молния' : ''].filter(Boolean);
+      rows.push({ label: 'Дождь: стихии', text: elements.join(' + '), bonus: '+' + rain.stacksPerElement + ' стака каждой' });
+      if (mods.burn) rows.push({ label: 'Дождь: базовый тик Горения', text: String(Math.round(rain.burnTickDamage * (mods.burn.damage || 1) * 100) / 100), bonus: 'до ' + config.burn.maxStacks + ' стаков' });
+      if (mods.burn && mods.frost) rows.push({ label: 'Дождь: Пар', text: 'активен', bonus: 'реакция на максимуме Мороза' });
+      if (mods.lightning) rows.push({ label: 'Дождь: цепная Молния', text: 'активна', bonus: 'разряд на ' + config.shock.maxStacks + '-м стаке' });
+    }
+  }
   if (core.def.canGravity && mods && mods.gravity) {
     const G = config.gravity;
     if (core.def.multStat === 'blockPower') {

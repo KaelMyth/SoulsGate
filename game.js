@@ -677,7 +677,24 @@ export class Game {
     if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0 || !this.build.secondaryId('rain')) return false; // умение открывает мод-ядро «Магический дождь»
     this.skillCd[0] = R.cooldown;
     this.hud.rainT = R.duration;
-    for (const e of this.enemies.items) if (e.active) e.vuln = true;
+    const mods = this.build.modifiersFor(this.build.secondaryId('rain'));
+    const mask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
+    this.hud.rainMask = mask; // фиксируем цвет на время дождя, даже если билд поменяли
+    const bd = mods.burn ? R.burnTickDamage * (mods.burn.damage || 1) : 0;
+    const bi = mods.burn ? this.config.burn.interval / Math.max(0.01, mods.burn.rate || 1) : 0;
+    const steam = mods.burn && mods.frost ? (mods.steam ? mods.steam.damage : 1) : 0;
+    const chain = mods.lightning ? Math.max(1, mods.lightning.mult || 1) : 1;
+    const stacks = Math.max(1, Math.round(R.stacksPerElement));
+    for (const e of this.enemies.items) {
+      if (!e.active) continue;
+      e.vuln = true; // обычная уязвимость остаётся постоянной до смерти
+      // Каждый стихией дождь попадает ровно два раза; реакции считают обычные системы статусов.
+      for (let i = 0; i < stacks && e.active; i++) {
+        if (mods.burn) this.ignite(e, bd, bi);
+        if (mods.frost && e.active) this.chill(e, steam, bd, bi);
+        if (mods.lightning && e.active) this.zap(e, bd, bi, mods.frost ? 1 : 0, steam, chain);
+      }
+    }
     return true;
   }
 
@@ -687,7 +704,12 @@ export class Game {
     for (let i = 0; i < 3; i++) if (sc[i] > 0) sc[i] = Math.max(0, sc[i] - dt);
     if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
     this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
-    this.hud.rainOn = !!this.build.secondaryId('rain'); // слот занят, только если дождь стоит на поле билда
+    const rainId = this.build.secondaryId('rain');
+    this.hud.rainOn = !!rainId; // слот занят, только если дождь стоит на поле билда
+    if (rainId) {
+      const m = this.build.modifiersFor(rainId);
+      this.hud.rainEquippedMask = (m.burn ? 1 : 0) | (m.frost ? 2 : 0) | (m.lightning ? 4 : 0);
+    } else this.hud.rainEquippedMask = 0;
   }
 
   /** Заряды электризации тают, если давно не подновлялись; молнии разряда гаснут. */
@@ -1831,6 +1853,8 @@ export class Game {
     this.gravityDash.charging = false;
     this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
     this.hud.rainT = 0;
+    this.hud.rainMask = 0;
+    this.hud.rainEquippedMask = 0;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();
