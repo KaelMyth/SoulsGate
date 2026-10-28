@@ -139,6 +139,7 @@ export const TUNABLES = [
   { group: 'Гравитация + Аура', path: 'gravity.auraEnemySpeed', label: 'Остаточная скорость врагов (доля)', min: 0.1, max: 1, step: 0.02 },
   { group: 'Гравитация + Аура', path: 'gravity.auraProjectileSpeed', label: 'Остаточная скорость снарядов (доля)', min: 0.1, max: 1, step: 0.02 },
   { group: 'Гравитация + Аура', path: 'gravity.auraBendMul', label: 'Сила искривления относительно щита', min: 0, max: 1, step: 0.05 },
+  { group: 'Гравитация + Аура', path: 'gravity.auraReturnDelayMul', label: 'Множитель задержки разворота снаряда', min: 1, max: 4, step: 0.1 },
   { group: 'Гравитация + Аура', path: 'gravity.auraDamageMul', label: 'Множитель урона Ауры', min: 0.1, max: 1, step: 0.05 },
   { group: 'Гравитация + Аура', path: 'gravity.auraTickRateMul', label: 'Частота тиков Ауры (доля)', min: 0.1, max: 1, step: 0.05 },
   { group: 'Гравитация + Аура', path: 'gravity.auraElementIntervalMul', label: 'Множитель интервала стаков', min: 1, max: 5, step: 0.25 },
