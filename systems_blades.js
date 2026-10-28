@@ -60,6 +60,8 @@ export class Blades {
     this.wave = false;  // идёт запуск пачки: новые не копятся, клинки уходят по одному
     this.gap = 0;       // таймер между запусками
     this.dtNow = 0;
+    this.gravityMode = false;
+    this.gravitySpawned = 0; // сколько постоянных клинков создано: никогда не больше обычного максимума
   }
 
   orbiting() {
@@ -126,6 +128,8 @@ export class Blades {
       for (const b of this.items) b.state = 'gone'; // мод сняли: клинки и их лучи пропали
       if (this.items.length) this.items.length = 0;
       this.timer = 0;
+      this.gravityMode = false;
+      this.gravitySpawned = 0;
       return;
     }
     const hero = this.hero;
@@ -133,6 +137,22 @@ export class Blades {
     this.spin += B.spin * dt;
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
     const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
+    // В связке Гравитация + Клинки существующие клинки возвращаются вместо удаления.
+    // При активном Лазере сохраняем прежнее поведение сфер-лучей.
+    const gravityReturn = !!m.gravity && !m.laser;
+    if (gravityReturn !== this.gravityMode) {
+      this.gravityMode = gravityReturn;
+      if (gravityReturn) {
+        if (this.items.length > max) this.items.length = max;
+        this.gravitySpawned = this.items.length;
+        this.wave = false;
+        this.gap = 0;
+      } else {
+        this.gravitySpawned = 0;
+        for (const b of this.items) if (b.state === 'return' || b.state === 'gravityOrbit') b.state = 'orbit';
+      }
+    }
+    if (gravityReturn && this.items.length > max) this.items.length = max;
     const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
     const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                          // Мощь на клинках
 
@@ -141,9 +161,9 @@ export class Blades {
     let orbit = this.orbiting();
     this.dtNow = dt;
     if (this.wave && orbit === 0) { this.wave = false; this.slot = 0; } // пачка ушла целиком: можно копить заново
-    if (orbit < max) {
+    if (gravityReturn ? this.gravitySpawned < max && this.items.length < max : orbit < max) {
       this.timer += dt;
-      while (this.timer >= interval && orbit < max) {
+      while (this.timer >= interval && (gravityReturn ? this.gravitySpawned < max && this.items.length < max : orbit < max)) {
         this.timer -= interval;
         // Следующий клинок появляется на противоположной стороне от предыдущего (доли круга 0, 1/2, 1/4, 3/4, 1/8 ...).
         const slot = this.slot++;
@@ -154,6 +174,7 @@ export class Blades {
         const linked = m.blades.linkedAbsorption || 0;
         const isAbsorptionBlade = linked > 0 && slot % m.blades.count < linked;
         this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0, absorptionLinked: isAbsorptionBlade });
+        if (gravityReturn) this.gravitySpawned++;
         orbit++;
       }
     } else this.timer = 0;
@@ -186,6 +207,50 @@ export class Blades {
       const ty = hero.y + Math.sin(b.a) * B.orbit;
       b.x += (tx - b.x) * k;
       b.y += (ty - b.y) * k;
+    }
+
+    // Гравитационный цикл: путь обратно → целый оборот вокруг героя → новая цель.
+    // Ни один из этих этапов не создаёт новый клинок.
+    if (gravityReturn) {
+      const G = this.cfg.gravity;
+      const returnSpeed = B.speed * Math.max(0.1, G.bladeReturnSpeed);
+      const orbitSpeed = Math.max(0.1, G.bladeOrbitSpeed);
+      for (const b of this.items) {
+        if (b.state === 'return') {
+          const dx = hero.x - b.x, dy = hero.y - b.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > B.orbit) {
+            const step = Math.min(dist - B.orbit, returnSpeed * dt);
+            b.a = Math.atan2(dy, dx);
+            b.vx = Math.cos(b.a) * returnSpeed;
+            b.vy = Math.sin(b.a) * returnSpeed;
+            b.x += dx / dist * step;
+            b.y += dy / dist * step;
+          }
+          if (Math.hypot(hero.x - b.x, hero.y - b.y) <= B.orbit + 0.01) {
+            b.gravTheta = Math.atan2(b.y - hero.y, b.x - hero.x);
+            b.gravProgress = 0;
+            b.state = 'gravityOrbit';
+          }
+        } else if (b.state === 'gravityOrbit') {
+          const step = orbitSpeed * dt;
+          b.gravTheta += step;
+          b.gravProgress = Math.min(TAU, b.gravProgress + step);
+          b.x = hero.x + Math.cos(b.gravTheta) * B.orbit;
+          b.y = hero.y + Math.sin(b.gravTheta) * B.orbit;
+          b.a = b.gravTheta + Math.PI / 2;
+          if (b.gravProgress >= TAU) {
+            const target = this.nearest(hero.x, hero.y, B.range);
+            if (target) {
+              b.target = target;
+              b.age = 0;
+              b.pc = undefined;
+              b.a = Math.atan2(target.y - b.y, target.x - b.x);
+              b.state = 'fly';
+            }
+          }
+        }
+      }
     }
 
     // Полёт: самонаведение, попадание, потеря цели.
@@ -226,6 +291,12 @@ export class Blades {
           if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0, m.lightning.mult);
           if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
           if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
+          if (gravityReturn) {
+            b.state = 'return';
+            b.target = null;
+            b.age = 0;
+            continue;
+          }
           if (b.pc === undefined) b.pc = m.pierce ? m.pierce.count : 0;
           if (b.pc > 0 && !m.laser) { // Пробитие: клинок идёт дальше и ищет следующую цель
             b.pc--;
@@ -236,7 +307,10 @@ export class Blades {
           continue;
         }
       }
-      if (b.age >= B.life) items.splice(j, 1);
+      if (b.age >= B.life) {
+        if (gravityReturn) { b.state = 'return'; b.target = null; b.age = 0; }
+        else items.splice(j, 1);
+      }
     }
   }
 
@@ -247,7 +321,7 @@ export class Blades {
   tryPhantomBlade(b, t, m) {
     const F = this.cfg.phantom;
     const B = this.cfg.blades;
-    if (!this.arena || this.items.length >= B.maxAlive) return;
+    if ((m.gravity && !m.laser) || !this.arena || this.items.length >= B.maxAlive) return; // гравитационные клинки не размножаются
     if (!phantomRoll(F, this.rnd, Math.min(1, F.chance * m.phantom.mult), b.gen | 0)) return;
     const s = this.spot;
     if (!phantomSpot(this.arena, this.rnd, F, t, B.size, s)) return;
