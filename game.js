@@ -639,7 +639,7 @@ export class Game {
       if (!hit || !o.active) continue; // отменённый удар не передаёт статус
       this.burst(o.x, o.y, 0.2, 3, 12, col);
       if (bd > 0) this.ignite(o, bd, bi); // Горение + Молния: ровно один стак огня на каждого поражённого цепью врага
-      if (fr) this.chill(o, st, bd, bi);
+      if (fr) this.chill(o, st, bd, bi); // Мороз + Молния: ровно один стак холода каждой выжившей цели цепи
     }
   }
 
