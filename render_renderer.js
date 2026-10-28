@@ -4866,23 +4866,38 @@ export class Renderer {
       const ex = b.x0 + (b.x1 - b.x0) * prog;
       const ey = b.y0 + (b.y1 - b.y0) * prog;
       if (b.zap) this.drawZapArc(ctx, b.x0, b.y0, ex, ey, 2.4, fade, i + 40, ZAP_RGB[b.kind], ZAP_CORE[b.kind]);
-      else {
-        const rgb = b.kind === 1 ? '255,150,50' : b.kind === 3 ? '255,255,255' : '110,205,255';
-        ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.35 * fade + ')';
-        ctx.lineWidth = 9;
-        ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(ex, ey); ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,255,255,' + fade + ')';
-        ctx.lineWidth = 2.2;
-        ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(ex, ey); ctx.stroke();
-      }
-      if (b.done) { // зона эффектов в точке прибытия
-        ctx.globalAlpha = 0.5 * fade;
-        ctx.strokeStyle = this.cfg.shock.colors[b.kind];
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(b.x1, b.y1, this.cfg.kinetic.laserZone * (1 - 0.3 * fade), 0, TAU);
-        ctx.stroke();
+      else { // луч по стихии рывка: как у Лазера (слои и детали), kind: 0 нет, 1 огонь, 2 мороз, 3 пар
+        const el = b.kind | 0;
+        const rgb = LASER_RGB[el];
+        const core = LASER_CORE[el];
+        const w = 3.4;
+        const mk = (a, lw, c) => { ctx.strokeStyle = 'rgba(' + c + ',' + a + ')'; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(ex, ey); ctx.stroke(); };
+        mk(0.1 * fade, w * 6, rgb);
+        mk(0.22 * fade, w * 3, rgb);
+        mk(0.7 * fade, w * 1.5, rgb);
+        mk(fade, w * 0.6, core);
+        if (el) this.laserElement(ctx, el, b.x0, b.y0, ex, ey, w, fade, i + 7, this.clock, this.getPuff());
+        const gl = el === 1 ? this.getGlow() : el === 3 ? this.getGlow('gold') : this.getGlow('blue');
+        const g1 = w * 6;
+        ctx.globalAlpha = 0.8 * fade;
+        ctx.drawImage(gl, ex - g1, ey - g1, g1 * 2, g1 * 2);
         ctx.globalAlpha = 1;
+      }
+      if (b.done) { // зона эффектов в точке прибытия: мягкая лужа света и тонкое кольцо (детали даёт HitFx 'zone')
+        const Z = this.cfg.kinetic.laserZone * (1 - 0.25 * (1 - fade));
+        const rgb = LASER_RGB[b.kind | 0];
+        const pool = ctx.createRadialGradient(b.x1, b.y1, 0, b.x1, b.y1, Z);
+        pool.addColorStop(0, 'rgba(' + rgb + ',' + (0.3 * fade).toFixed(3) + ')');
+        pool.addColorStop(0.7, 'rgba(' + rgb + ',' + (0.12 * fade).toFixed(3) + ')');
+        pool.addColorStop(1, 'rgba(' + rgb + ',0)');
+        ctx.fillStyle = pool;
+        ctx.beginPath(); ctx.arc(b.x1, b.y1, Z, 0, TAU); ctx.fill();
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.5 * fade).toFixed(3) + ')';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([6, 7]);
+        ctx.lineDashOffset = -this.clock * 24;
+        ctx.beginPath(); ctx.arc(b.x1, b.y1, Z * 0.92, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
     ctx.restore();
