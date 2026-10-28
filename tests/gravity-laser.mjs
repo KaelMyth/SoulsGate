@@ -6,6 +6,7 @@ import { BuildGrid } from '../build_grid.js';
 import { canPlace } from '../build_rules.js';
 import { AutoAttack } from '../systems_autoattack.js';
 import { Game } from '../game.js';
+import { Blades } from '../systems_blades.js';
 import { laserStats } from '../build_cores.js';
 
 function setup(gravity = 'sibling') {
@@ -237,4 +238,52 @@ test('Несколько Лазеров и X2 сохраняют число лу
   const expected = CONFIG.attack.count * 2;
   assert.equal(s.lasers.length, expected);
   assert.ok(s.lasers.every(l => l.gravityLaser && l.gravityChargeAge === 0));
+});
+
+test('Лазер из Спектральных клинков тоже создаёт гравитационный круг', () => {
+  const s = setup('none');
+  s.build.takeMod(3, 4);
+  s.equip('blades', 3, 4);
+  s.equip('laser', 3, 5);
+  s.equip('gravity', 3, 6);
+  assert.deepEqual(s.build.orphans(), []);
+  const mods = s.build.modifiersFor('projectile');
+  assert.equal(mods.gravity.count, 1);
+  const blades = new Blades({ config: CONFIG, hero: s.hero, lasers: s.lasers });
+  const anchor = { x: 25, y: 0, state: 'fire' };
+  assert.equal(blades.pushLaser(anchor, s.enemies[0], mods, 50, 1), true);
+  const l = s.lasers[0];
+  const base = laserStats(CONFIG, mods.laser, 50, 1);
+  assert.equal(l.gravityLaser, true);
+  assert.equal(l.gravityOrigin, 0);
+  assert.ok(Math.abs(l.tick - base.tick * 1.25) < 1e-9);
+  s.frame(CONFIG.gravity.laserCharge - 0.05);
+  assert.equal(s.hits.length, 0);
+  assert.equal(l.x, anchor.x);
+  s.frame(0.1);
+  assert.ok(s.hits.length > 0);
+});
+
+test('Фантомный лазер из сферы также сохраняет задержку и усиливает урон лишь однажды', () => {
+  const s = setup('none');
+  s.build.takeMod(3, 4);
+  s.equip('blades', 3, 4);
+  s.equip('laser', 3, 5);
+  s.equip('gravity', 3, 6);
+  const m = s.build.modifiersFor('projectile');
+  const blades = new Blades({ config: CONFIG, hero: s.hero, lasers: s.lasers });
+  const anchor = { x: 25, y: 0, state: 'fire' };
+  blades.pushLaser(anchor, s.enemies[0], m, 50, 1);
+  const laser = s.lasers[0];
+  laser.phantom = 1;
+  const g = s.game;
+  g.phSpot = { x: 0, y: 0, d: 30 };
+  g.burst = () => {};
+  g.rnd = () => 0;
+  g.tryPhantomLaser = Game.prototype.tryPhantomLaser;
+  g.tryPhantomLaser(laser, s.enemies[0]);
+  const clone = s.lasers.at(-1);
+  assert.equal(clone.gravityChargeAge, 0);
+  assert.equal(clone.gravityLaser, true);
+  assert.ok(Math.abs(clone.tick - laser.tick * CONFIG.phantom.damageFrac * (laser.phDmg || 1)) < 1e-9);
 });
