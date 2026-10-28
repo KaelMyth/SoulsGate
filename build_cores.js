@@ -95,7 +95,7 @@ export function coreStats(core, config, mods) {
   if (core.def.canGravity && mods && mods.gravity) {
     const G = config.gravity;
     rows.push({ label: 'Гравитация: урон', text: '+' + Math.round(G.damageBonus * 100 * mods.gravity.count) + '%', bonus: 'отдельно от Мощи' });
-    rows.push({ label: 'Гравитация: скорость', text: Math.round(G.startSpeed * 100) + '% → ' + Math.round(G.maxSpeed * 100) + '%', bonus: 'разгон за ' + G.rampTime + ' с' });
+    rows.push({ label: 'Гравитация: скорость', text: Math.round(G.startSpeed * 100) + '% → ' + Math.round(G.maxSpeed * 100) + '%', bonus: 'удержание ' + (Math.round(G.rampTime * G.holdFraction * 100) / 100) + ' с, затем рывок' });
   }
   if (core.def.canBurn && mods && mods.burn) {
     const dmgRow = rows.find((r) => r.key === 'damage');
