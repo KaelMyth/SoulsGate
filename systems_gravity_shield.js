@@ -1,5 +1,19 @@
-// Гравитация на щите: враги не проходят через горизонт, а вражеские снаряды огибают героя.
-import { initProjectile } from './world_projectile.js';
+// Гравитация на щите: движение сильно замедляется внутри поля, но граница проходима.
+// Вражеские снаряды остаются опасными, слегка огибают героя и могут задеть других врагов.
+
+/** Доля отрезка внутри круга. Без выделения объектов в горячем цикле. */
+export function gravitySegmentFraction(ax, ay, bx, by, cx, cy, radius) {
+  const dx = bx - ax, dy = by - ay, A = dx * dx + dy * dy;
+  const x = ax - cx, y = ay - cy, R = radius * radius;
+  if (A < 1e-10) return x * x + y * y < R ? 1 : 0;
+  const B = x * dx + y * dy;
+  const D = B * B - A * (x * x + y * y - R);
+  if (D <= 0) return 0;
+  const q = Math.sqrt(D);
+  const enter = Math.max(0, (-B - q) / A);
+  const exit = Math.min(1, (-B + q) / A);
+  return Math.max(0, exit - enter);
+}
 
 export class GravityShield {
   constructor({ config, hero, defense, arena, enemies, enemyShots, heroShots }) {
@@ -10,85 +24,96 @@ export class GravityShield {
     this.enemies = enemies;
     this.enemyShots = enemyShots;
     this.heroShots = heroShots;
+    this.grid = null;      // привязывается после создания Swarm
+    this.combat = null;    // штатная система урона по врагам
+    this.candidates = []; // переиспользуемый буфер запросов сетки
+    this.enemyReach = 24;
+    for (const key in config.enemies || {}) this.enemyReach = Math.max(this.enemyReach, config.enemies[key].radius || 0);
   }
 
   get active() {
     return this.defense.gravityActive;
   }
 
-  /** Граница поля отталкивает обычных врагов, даже если толпа давит со спины. */
-  blockEnemies() {
+  /** Запоминаем позиции до движения, чтобы тормозить также рывки врагов. */
+  beginEnemyStep() {
     if (!this.active) return;
-    const h = this.hero, R = this.cfg.gravity.shieldRadius, list = this.enemies.items;
+    const list = this.enemies.items;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
-      if (!e.active || e.def.immovable || (e.def.passThroughHero && e.atk.state === 'strike')) continue;
-      const dx = e.x - h.x, dy = e.y - h.y;
-      const min = R + e.radius, d2 = dx * dx + dy * dy;
-      if (d2 >= min * min) continue;
-      const d = Math.sqrt(d2);
-      e.x = h.x + (d > 1e-5 ? dx / d : 1) * min;
-      e.y = h.y + (d > 1e-5 ? dy / d : 0) * min;
+      if (!e.active) continue;
+      e.gravityPrevX = e.x;
+      e.gravityPrevY = e.y;
+    }
+  }
+
+  /** Вместо непробиваемой стены — сопротивление движению внутри поля. */
+  slowEnemies() {
+    if (!this.active) return;
+    const list = this.enemies.items, h = this.hero, G = this.cfg.gravity;
+    const slow = Math.max(0.05, Math.min(1, G.shieldEnemySpeed));
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      if (!e.active) continue;
+      const x0 = e.gravityPrevX, y0 = e.gravityPrevY;
+      const x1 = e.x, y1 = e.y;
+      if (!Number.isFinite(x0) || !Number.isFinite(y0)) continue;
+      const fraction = gravitySegmentFraction(x0, y0, x1, y1, h.x, h.y, G.shieldRadius + e.radius);
+      if (fraction <= 0) continue;
+      const factor = 1 - (1 - slow) * fraction;
+      e.x = x0 + (x1 - x0) * factor;
+      e.y = y0 + (y1 - y0) * factor;
+      e.prevX = x0;
+      e.prevY = y0;
       this.arena.resolveCircle(e);
     }
   }
 
-  /** Перехват по отрезку, а не по точке: быстрые пули не пролетят сквозь поле. */
-  captureShots() {
-    if (!this.active) return;
-    const h = this.hero, G = this.cfg.gravity, list = this.enemyShots.items;
-    for (let i = 0; i < list.length; i++) {
-      const p = list[i];
-      if (!p.active) continue;
-      const sx = p.x - p.prevX, sy = p.y - p.prevY, step2 = sx * sx + sy * sy;
-      const t = step2 > 1e-9 ? Math.max(0, Math.min(1, ((h.x - p.prevX) * sx + (h.y - p.prevY) * sy) / step2)) : 0;
-      let ax = p.prevX + sx * t - h.x, ay = p.prevY + sy * t - h.y;
-      const reach = G.shieldRadius + p.radius;
-      if (ax * ax + ay * ay > reach * reach) continue;
-      if (this.cfg.limits && this.heroShots.count >= this.cfg.limits.maxShots) { p.active = false; continue; }
-      const q = this.heroShots.spawn();
-      if (!q) { p.active = false; continue; }
-      let len = Math.hypot(ax, ay);
-      if (len < 1e-5) { ax = p.prevX - h.x; ay = p.prevY - h.y; len = Math.hypot(ax, ay); }
-      if (len < 1e-5) { ax = 1; ay = 0; }
-      const angle = Math.atan2(ay, ax);
-      const cross = ax * p.vy - ay * p.vx;
-      const dir = Math.abs(cross) < 1e-5 ? (i % 2 ? 1 : -1) : Math.sign(cross);
-      initProjectile(q, p, h.x + Math.cos(angle) * reach, h.y + Math.sin(angle) * reach,
-        -Math.sin(angle) * dir, Math.cos(angle) * dir, h);
-      q.speed = Math.max(120, p.speed);
-      q.range = Math.max(G.shieldShotRange, p.range);
-      q.damage = p.damage;
-      q.gravityReflected = true;
-      q.gravityOrbit = true;
-      q.orbitAngle = angle;
-      q.orbitDirection = dir;
-      q.orbitRadius = reach;
-      q.orbitAge = 0;
-      q.vx = -Math.sin(angle) * dir * q.speed;
-      q.vy = Math.cos(angle) * dir * q.speed;
-      p.active = false;
+  /** Меняем длительность шага только внутри поля; пуля не меняет владельца и сохраняет урон. */
+  enemyShotDt(p, dt) {
+    if (!this.active) return dt;
+    const G = this.cfg.gravity, h = this.hero;
+    const fraction = gravitySegmentFraction(p.x, p.y, p.x + p.vx * dt, p.y + p.vy * dt,
+      h.x, h.y, G.shieldRadius + p.radius);
+    if (fraction <= 0) return dt;
+    p.gravityTouched = true;
+    // При прямом попадании изгиб отсутствует. Косые снаряды отклоняются по касательной.
+    const rx = p.x - h.x, ry = p.y - h.y;
+    const speed = Math.hypot(p.vx, p.vy), radius = Math.hypot(rx, ry);
+    if (speed > 1e-5 && radius > 1e-5 && G.shieldBend > 0) {
+      const tangent = Math.max(-1, Math.min(1, (rx * p.vy - ry * p.vx) / (radius * speed)));
+      const angle = -tangent * G.shieldBend * dt * fraction;
+      if (Math.abs(angle) > 1e-7) {
+        const c = Math.cos(angle), s = Math.sin(angle), vx = p.vx, vy = p.vy;
+        p.vx = vx * c - vy * s;
+        p.vy = vx * s + vy * c;
+      }
     }
+    const slow = Math.max(0.05, Math.min(1, G.shieldProjectileSpeed));
+    return dt * (1 - (1 - slow) * fraction);
   }
 
-  /** Облёт вокруг героя с выходом по касательной, после чего работает обычная физика снаряда. */
-  updateOrbits(dt) {
-    const h = this.hero, G = this.cfg.gravity, list = this.heroShots.items;
+  /** Искривлённый снаряд способен по дороге задеть врага, кроме самого стрелка. */
+  hitEnemies() {
+    if (!this.grid || !this.combat) return;
+    const list = this.enemyShots.items, enemies = this.enemies.items, buf = this.candidates;
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
-      if (!p.active || !p.gravityOrbit) continue;
-      p.prevX = p.x; p.prevY = p.y;
-      const step = Math.min(dt, Math.max(0, G.shieldOrbitTime - p.orbitAge));
-      p.orbitAge += step;
-      p.orbitAngle += G.shieldOrbitSpeed * step * p.orbitDirection;
-      const a = p.orbitAngle, dir = p.orbitDirection;
-      p.x = h.x + Math.cos(a) * p.orbitRadius;
-      p.y = h.y + Math.sin(a) * p.orbitRadius;
-      p.vx = -Math.sin(a) * dir * p.speed;
-      p.vy = Math.cos(a) * dir * p.speed;
-      if (p.orbitAge >= G.shieldOrbitTime || !h.active) {
-        p.gravityOrbit = false;
-        p.travelled = 0;
+      if (!p.active || !p.gravityTouched) continue;
+      const sx = p.x - p.prevX, sy = p.y - p.prevY, step2 = sx * sx + sy * sy;
+      const n = this.grid.query((p.x + p.prevX) * 0.5, (p.y + p.prevY) * 0.5,
+        this.enemyReach + p.radius + Math.sqrt(step2) * 0.5, buf);
+      for (let j = 0; j < n; j++) {
+        const e = enemies[buf[j]];
+        if (!e || !e.active || e === p.owner) continue;
+        const t = step2 > 1e-10 ? Math.max(0, Math.min(1,
+          ((e.x - p.prevX) * sx + (e.y - p.prevY) * sy) / step2)) : 0;
+        const dx = p.prevX + sx * t - e.x, dy = p.prevY + sy * t - e.y;
+        const r = p.radius + e.radius;
+        if (dx * dx + dy * dy > r * r) continue;
+        p.active = false;
+        this.combat.damageEnemy(e, p.damage, p);
+        break;
       }
     }
   }

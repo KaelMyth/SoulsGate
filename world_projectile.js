@@ -22,7 +22,7 @@ export function createProjectile() {
     color: '#fff',
     glow: 0,      // 0..1: сила свечения огненного шара (растёт с числом снарядов), только для отрисовки
     gravity: false, gravityAge: 0, gravityStart: 1, gravityEnd: 1, gravityRamp: 0, gravityHold: 0.72,
-    gravityOrbit: false, gravityReflected: false, orbitAge: 0, orbitAngle: 0, orbitRadius: 0, orbitDirection: 1,
+    gravityOrbit: false, gravityReflected: false, gravityTouched: false, orbitAge: 0, orbitAngle: 0, orbitRadius: 0, orbitDirection: 1,
     owner: null,
   };
 }
@@ -33,6 +33,7 @@ export function resetProjectile(p) {
   p.gravity = false;
   p.gravityOrbit = false;
   p.gravityReflected = false;
+  p.gravityTouched = false;
 }
 
 /** def: запись из CONFIG.projectiles; (dirX, dirY): любое ненулевое направление. */
@@ -65,6 +66,7 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.gravityAge = 0;
   p.gravityOrbit = false;
   p.gravityReflected = false;
+  p.gravityTouched = false;
   p.orbitAge = 0;
   p.orbitAngle = 0;
   p.orbitRadius = 0;
