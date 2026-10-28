@@ -285,7 +285,7 @@ export class Game {
     this.loop = new GameLoop({
       stepper: this.stepper,
       update: (dt) => this.update(dt),
-      render: (alpha) => this.renderer.draw(alpha),
+      render: (alpha) => this.renderDraw(alpha),
       meter: this.meter,
     });
 
@@ -380,6 +380,7 @@ export class Game {
     });
 
     this.bus.on('config:changed', (e) => {
+      this._frozenKey = ''; // ползунок мог изменить вид: на паузе перерисуем один раз
       if (e.path === 'render.maxDpr') this.onResize();
       // Размер поля или расстояние между ядрами: ядра встают заново.
       if (e.path === 'build.size' || e.path === 'build.minCoreDistance') this.relayoutBuild();
@@ -1689,6 +1690,22 @@ export class Game {
     this.deathScreen.hide();
     this.syncWaveHud(); // HUD сразу показывает новый забег, не дожидаясь шага
     this.bus.emit('run:restarted', {});
+  }
+
+  /**
+   * Рисование кадра. Пока открыто меню, пауза или выбор награды, мир стоит на месте под затемнением: рисуем его один раз
+   * (и снова при смене размера), а не 60 раз в секунду. Это экономит батарею и нагрев телефона.
+   */
+  renderDraw(alpha) {
+    const s = this.state;
+    if (s === 'paused' || s === 'menu' || s === 'levelup') {
+      if (this._frozenKey === s + this.renderer.canvas.width + 'x' + this.renderer.canvas.height) return;
+      this.renderer.draw(alpha);
+      this._frozenKey = s + this.renderer.canvas.width + 'x' + this.renderer.canvas.height;
+      return;
+    }
+    this._frozenKey = '';
+    this.renderer.draw(alpha);
   }
 
   onResize() {
