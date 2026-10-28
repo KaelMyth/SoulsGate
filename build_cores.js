@@ -119,10 +119,11 @@ export function coreStats(core, config, mods) {
   }
   if (core.def.canAbsorption && mods && mods.absorption) {
     const a = config.absorption;
-    rows.push({ label: 'Поглощение: урон', text: String(Math.round(a.damage * mods.absorption.count * 100) / 100), bonus: '' });
+    rows.push({ label: 'Поглощение: урон каждой цели', text: String(Math.round(a.damage * 100) / 100), bonus: '' });
+    rows.push({ label: 'Поглощение: целей одновременно', text: String(Math.min(a.maxTargets, mods.absorption.targets || mods.absorption.count)), bonus: 'Х2/Х3 перемножаются' });
     rows.push({ label: 'Поглощение: каждые', text: a.interval + ' с', bonus: '' });
     if (mods.absorption.vampirism) rows.push({ label: 'Поглощение + Вампиризм', text: Math.round(a.lifesteal * 100) + '% урона → здоровье', bonus: 'красный круг' });
-    rows.push({ label: 'Поглощение: дальняя цель', text: 'от ' + a.minDistance, bonus: 'в пределах экрана' });
+    rows.push({ label: 'Поглощение: выбор целей', text: 'самые дальние', bonus: 'в пределах экрана' });
   }
   if (core.def.canBlades && mods && mods.blades) {
     const bm = mods.blades;
