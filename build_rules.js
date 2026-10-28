@@ -31,13 +31,14 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
   if (e.kind === 'blades' || e.kind === 'aura' || e.kind === 'absorption') return false; // «Клинки» и «Аура» крепятся только к ядру
-  if (carry === 'absorption:vamp') return false; // для этой связки дополнительные моды пока не предусмотрены
-  if (e.kind === 'double') return !['burn', 'frost', 'steam', 'absorption'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
+  if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
+  if (carry === 'absorption' || carry === 'absorption:mult')
+    return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp'); // Х2/Х3 умножают цели, Вампиризм лечит
+  if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
   if (e.kind === 'lightning') return carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // «Молния»: к ядру снаряда, рывка или на Лазер, Клинки, Ауру
   if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
   if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
-  if (carry === 'absorption') return e.kind === 'passive' && e.passive === 'vamp'; // исключение для Вампиризма
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
   if (carry === 'aura') return e.stat === 'damage' || e.stat === 'rate'; // к «Ауре»: урон тика и число тиков
