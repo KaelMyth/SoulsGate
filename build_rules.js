@@ -40,7 +40,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
-  if (e.kind === 'lightning') return carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // «Молния» на Горение передаёт один стак огня по цепи
+  if (e.kind === 'lightning') return carry === 'burn' || carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // Горение/Мороз → Молния: один стак соответствующей стихии по цепи
   if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
   if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
