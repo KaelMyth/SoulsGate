@@ -9,7 +9,7 @@ import { Absorption } from '../systems_absorption.js';
 function setup() {
   const build = new BuildGrid(7);
   build.placeCore('shield', CONFIG.cores.shield, 3, 3);
-  const hero = { x: 0, y: 0, active: true };
+  const hero = { x: 0, y: 0, active: true, hp: 50, maxHp: 100 };
   const camera = { x: 0, y: 0, viewW: 480, viewH: 800 };
   const enemies = [];
   const hits = [];
