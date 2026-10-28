@@ -1227,6 +1227,7 @@ export class Game {
       q.gravityStart = p.gravityStart;
       q.gravityEnd = p.gravityEnd;
       q.gravityRamp = p.gravityRamp;
+      q.gravityHold = p.gravityHold; // фантом тоже сначала преодолевает притяжение
       this.burst(x, y, 0.3, 4, 16, F.color);
       return;
     }
