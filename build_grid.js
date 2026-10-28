@@ -453,15 +453,21 @@ export class BuildGrid {
     let absorptionLightning = false;
     let absorptionDamageBonus = 0;
     let absorptionRateBonus = 0;
-    const absorptionBranch = (i) => {
+    const absorptionBranch = (i, inElement = false) => {
       let factor = 1;
       for (const k of kids.get(i) || []) {
         const e = this.cells[k].mod.def.effect;
-        if (e.kind === 'double') factor *= e.value * absorptionBranch(k);
+        if (e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning') {
+          if (e.kind === 'burn') absorptionBurn = true;
+          if (e.kind === 'frost') absorptionFrost = true;
+          if (e.kind === 'lightning') absorptionLightning = true;
+          // Усиления под стихией принадлежат стихии, а не урону/числу целей Поглощения.
+          absorptionBranch(k, true);
+        } else if (inElement) {
+          // Х2/Х3 под Молнией усиливают её цепь, не количество целей Поглощения.
+          continue;
+        } else if (e.kind === 'double') factor *= e.value * absorptionBranch(k);
         else if (e.kind === 'passive' && e.passive === 'vamp') absorptionVamp = true;
-        else if (e.kind === 'burn') { absorptionBurn = true; absorptionBranch(k); }
-        else if (e.kind === 'frost') { absorptionFrost = true; absorptionBranch(k); }
-        else if (e.kind === 'lightning') { absorptionLightning = true; absorptionBranch(k); }
         else if (e.kind === 'stat' && e.stat === 'damage') absorptionDamageBonus += walk(k, 0);
         else if (e.kind === 'stat' && e.stat === 'rate') absorptionRateBonus += walk(k, 0);
       }
