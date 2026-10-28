@@ -327,7 +327,7 @@ export class Game {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
         else if (e.source && e.source.shock) this.burst(e.target.x, e.target.y, 0.2, 3, 14, config.shock.color);
-        else if (e.source && e.source.absorption && e.source.vampiric) this.burst(e.target.x, e.target.y, 0.2, 3, 14, '#ff536b');
+        else if (e.source && e.source.absorption) this.burst(e.target.x, e.target.y, 0.2, 3, 14, 'rgb(' + this.absorption.color + ')');
         else if (!this.hitFxFor(e)) this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
