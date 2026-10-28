@@ -242,12 +242,14 @@ test('Несколько Лазеров и X2 сохраняют число лу
 
 test('Лазер из Спектральных клинков тоже создаёт гравитационный круг', () => {
   const s = setup('none');
-  s.build.takeMod(3, 4);
-  s.equip('blades', 3, 4);
-  s.equip('laser', 3, 5);
-  s.equip('gravity', 3, 6);
-  assert.deepEqual(s.build.orphans(), []);
-  const mods = s.build.modifiersFor('projectile');
+  const build = new BuildGrid(7);
+  build.placeCore('shield', CONFIG.cores.shield, 3, 3);
+  for (const [key, x, y] of [['blades', 3, 4], ['laser', 3, 5], ['gravity', 3, 6]]) {
+    assert.equal(canPlace(build, CONFIG.mods[key], x, y).ok, true);
+    build.placeMod({ key, def: CONFIG.mods[key] }, x, y);
+  }
+  assert.deepEqual(build.orphans(), []);
+  const mods = build.modifiersFor('shield');
   assert.equal(mods.gravity.count, 1);
   const blades = new Blades({ config: CONFIG, hero: s.hero, lasers: s.lasers });
   const anchor = { x: 25, y: 0, state: 'fire' };
@@ -266,11 +268,13 @@ test('Лазер из Спектральных клинков тоже созд�
 
 test('Фантомный лазер из сферы также сохраняет задержку и усиливает урон лишь однажды', () => {
   const s = setup('none');
-  s.build.takeMod(3, 4);
-  s.equip('blades', 3, 4);
-  s.equip('laser', 3, 5);
-  s.equip('gravity', 3, 6);
-  const m = s.build.modifiersFor('projectile');
+  const build = new BuildGrid(7);
+  build.placeCore('shield', CONFIG.cores.shield, 3, 3);
+  for (const [key, x, y] of [['blades', 3, 4], ['laser', 3, 5], ['gravity', 3, 6]]) {
+    assert.equal(canPlace(build, CONFIG.mods[key], x, y).ok, true);
+    build.placeMod({ key, def: CONFIG.mods[key] }, x, y);
+  }
+  const m = build.modifiersFor('shield');
   const blades = new Blades({ config: CONFIG, hero: s.hero, lasers: s.lasers });
   const anchor = { x: 25, y: 0, state: 'fire' };
   blades.pushLaser(anchor, s.enemies[0], m, 50, 1);
