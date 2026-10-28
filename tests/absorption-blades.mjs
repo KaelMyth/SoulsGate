@@ -146,6 +146,7 @@ test('В комбинации двух видов Клинков только с
   const m = s.build.modifiersFor('shield');
   assert.equal(m.blades.count, 2);
   assert.equal(m.blades.linkedAbsorption, 1);
+  s.en[0].active = false; // не запускаем залп: проверяем происхождение накопленных клинков
   s.blades.update(0.52);
   assert.ok(s.blades.items.some(b => b.state === 'orbit' && b.absorptionLinked));
   s.blades.update(0.52);
@@ -170,21 +171,41 @@ test('После сброса игры счётчики и ожидающие м
   assert.equal(s.absorption.bladeMarks.length, 0);
 });
 
-test('Бонусный удар применяет Мощь, Вампиризм, Горение, Мороз и Молнию', () => {
+
+test('Бонусный удар использует Мощь и Вампиризм непосредственно на Поглощении', () => {
   const s = setup(); s.equip('blades', 3, 5);
   s.equip('power', 2, 4);
   s.equip('vamp', 4, 4);
-  s.equip('burn', 2, 3); // на Мощь нельзя, вместо этого можно к Х2/Х3 — тест ниже заменит позиции
-  s.equip('frost', 4, 3);
-  s.equip('lightning', 3, 6);
+  assert.deepEqual(s.build.orphans(), []);
   for (let i = 0; i < 3; i++) s.bladeHit(s.en[0]);
   s.frame(1.05);
-  assert.equal(s.hits.filter(h => h.absorption).length, 1);
-  assert.equal(s.hits.filter(h => h.absorption)[0].amount, CONFIG.absorption.damage * 1.1 + CONFIG.shock.attackBonus);
+  const strike = s.hits.filter(h => h.absorption);
+  assert.equal(strike.length, 1);
+  assert.ok(Math.abs(strike[0].amount - CONFIG.absorption.damage * 1.1) < 1e-9);
   assert.ok(s.hero.hp > 20);
+  assert.equal(s.absorption.flashes[0].color, '255,50,75');
+});
+
+test('Бонусный удар использует Горение, Мороз, Молнию и сочетание Пар из настоящего дерева', () => {
+  const s = setup(); s.equip('blades', 3, 5);
+  s.equip('burn', 2, 4);
+  s.equip('frost', 1, 4); // Мороз как ребёнок Горения
+  s.equip('lightning', 4, 4);
+  assert.deepEqual(s.build.orphans(), []);
+  const m = s.build.modifiersFor('shield');
+  assert.equal(m.absorption.burn, true);
+  assert.equal(m.absorption.frost, true);
+  assert.equal(m.absorption.lightning, true);
+  assert.ok(m.steam);
+  for (let i = 0; i < 3; i++) s.bladeHit(s.en[0]);
+  s.frame(1.05);
+  const strike = s.hits.filter(h => h.absorption);
+  assert.equal(strike.length, 1);
+  assert.equal(strike[0].amount, CONFIG.absorption.damage + CONFIG.shock.attackBonus);
   assert.equal(s.en[0].burnStacks, CONFIG.burn.maxStacks);
-  assert.equal(s.en[0].freezeT, CONFIG.frost.freezeTime);
-  assert.equal(s.en[0].shockStacks, 0);
+  assert.equal(s.en[0].freezeT, CONFIG.frost.freezeTime); // тестовый chill вызывает заморозку
+  assert.equal(s.en[0].shockStacks, 0); // четыре заряда дали разряд
+  assert.equal(s.absorption.flashes[0].color, '255,255,255');
 });
 
 test('Обычный трёхсекундный цикл Поглощения не сбивается бонусным', () => {
