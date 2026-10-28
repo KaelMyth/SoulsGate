@@ -144,8 +144,8 @@ test('Обычный Лазер без Гравитации стреляет с�
 test('Горение + Мороз + Молния применяются после зарядки, не до неё', () => {
   const s = setup();
   s.equip('burn', 4, 3);
-  s.equip('frost', 4, 4);
-  s.equip('lightning', 2, 4);
+  s.equip('frost', 5, 3); // на Горении, без замыкания соседней ветки
+  s.equip('lightning', 3, 5); // на Лазере, не касается Гравитации
   assert.deepEqual(s.build.orphans(), []);
   s.fire();
   s.frame(CONFIG.gravity.laserCharge - 0.05);
