@@ -5493,6 +5493,59 @@ export class Renderer {
     ctx.restore();
   }
 
+  /**
+   * Клинок-молния (мод Молния на Клинках): ломаный разряд вдоль полёта, мерцает, с двумя ответвлениями.
+   * Цвет по связке: без стихии жёлтая, с Горением красная, с Морозом голубая, с паром белая.
+   */
+  drawZeusBlade(ctx, b, k, kd, i, t) {
+    const RGB = ['255,210,40', '110,205,255', '255,56,44', '236,230,255'];
+    const CORE = ['255,252,225', '240,252,255', '255,226,210', '255,255,255'];
+    const rgb = RGB[kd];
+    const core = CORE[kd];
+    const step = Math.floor(t * 18);
+    const rnd = (n) => { const h = Math.sin((step * 7 + i * 13 + n) * 12.9898) * 43758.5453; return h - Math.floor(h); };
+    const fly = b.state === 'fly';
+    const len = fly ? 3.4 : 2.7; // в полёте длиннее
+    const N = 6;
+    const pts = [];
+    for (let q = 0; q <= N; q++) {
+      const u = q / N;
+      const x = (-len + 2 * len * u) * k;
+      const y = q === 0 || q === N ? 0 : (rnd(q) - 0.5) * 1.7 * k * (fly ? 1 : 0.8);
+      pts.push(x, y);
+    }
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.a);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'miter';
+    const path = () => {
+      ctx.beginPath();
+      for (let q = 0; q <= N; q++) { if (q) ctx.lineTo(pts[q * 2], pts[q * 2 + 1]); else ctx.moveTo(pts[0], pts[1]); }
+      // ответвления: короткие вилки от второй и четвёртой вершин
+      for (let br = 0; br < 2; br++) {
+        const q = br ? 4 : 2;
+        const bx = pts[q * 2];
+        const by = pts[q * 2 + 1];
+        const sg = rnd(40 + br) > 0.5 ? 1 : -1;
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx + 0.9 * k, by + sg * 0.9 * k);
+        ctx.lineTo(bx + 1.7 * k, by + sg * (0.9 + (rnd(50 + br) - 0.3) * 0.8) * k);
+      }
+    };
+    ctx.strokeStyle = 'rgba(' + rgb + ',0.28)';
+    ctx.lineWidth = k * 1.5;
+    path(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + rgb + ',0.85)';
+    ctx.lineWidth = k * 0.55;
+    path(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + core + ',1)';
+    ctx.lineWidth = Math.max(1, k * 0.2);
+    path(); ctx.stroke();
+    ctx.restore();
+  }
+
   drawBlades(ctx) {
     const bl = this.blades;
     if (!bl || !bl.length) return;
@@ -5504,15 +5557,16 @@ export class Renderer {
     const mainC = ['#3f86ff', '#7fd8ff', '#ff8a2a', '#d9efff'];
     const liteC = ['#d6ecff', '#f2fcff', '#fff0c8', '#ffffff'];
     const glowGold = this.getGlow('gold');
+    const zapGlow = [glowGold, this.getGlow('blue'), this.getGlow('red'), this.getGlow(true)]; // молнии: жёлтая, голубая (мороз), красная (огонь), белая с фиолетом (пар)
     // Проход 1: хвосты и свечение сложением цветов.
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < bl.length; i++) {
       const b = bl[i];
       const kd = b.kind | 0;
       const fly = b.state === 'fly';
-      const gl = b.zap ? glowGold : b.gen ? glows[4] : glows[kd];
+      const gl = b.zap ? zapGlow[kd] : b.gen ? glows[4] : glows[kd];
       const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
-      if (fly && !b.sphere) {
+      if (fly && !b.sphere && !b.zap) {
         const sc = (k * 0.5) / 14;
         ctx.save();
         ctx.translate(b.x, b.y);
@@ -5535,21 +5589,8 @@ export class Renderer {
       const mc = b.zap ? ['#ffd21e', '#7fd8ff', '#ff9a3a', '#ffffff'][b.kind | 0] : b.gen ? '#a577ff' : mainC[kd];
       const lc = b.zap ? '#fffbe0' : b.gen ? '#f0e4ff' : liteC[kd];
       ctx.globalAlpha = 1;
-      if (b.zap && !b.sphere) { // клинок-молния: зигзаг по ходу полёта
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(b.a);
-        ctx.scale(k, k);
-        ctx.fillStyle = mc;
-        ctx.strokeStyle = lc;
-        ctx.lineWidth = 1 / k;
-        ctx.beginPath();
-        ctx.moveTo(15, 0); ctx.lineTo(3, -4.5); ctx.lineTo(5, -0.5); ctx.lineTo(-6, -4); ctx.lineTo(-14, 0);
-        ctx.lineTo(-6, 4); ctx.lineTo(1, 1); ctx.lineTo(3, 4.5);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+      if (b.zap && !b.sphere) { // клинок-молния Зевса: ломаный разряд с ответвлениями
+        this.drawZeusBlade(ctx, b, k, kd, i, t);
         continue;
       }
       if (b.sphere) { // с Лазером клинки это сферы: вид и форма по стихии (render: drawOrb)
