@@ -11,7 +11,8 @@ const storageKey = 'proto.tunables.v' + CONFIG.version;
 const defaults = JSON.parse(JSON.stringify(CONFIG));
 loadOverrides(CONFIG, TUNABLES, storage, storageKey);
 
-lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen, #mode-screen');
+// Оракл и Настройки — прокручиваемые окна: их свайпы нельзя блокировать обработчиком жестов.
+lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen, #mode-screen, #settings-screen, #oracle-screen');
 
 const game = new Game({
   canvas: document.getElementById('game'),
