@@ -46,6 +46,7 @@ function classify(src) {
   if (src.pellet) return 'pellet';
   if (src.blade) return 'blades';
   if (src.aura) return 'aura';
+  if (src.absorption) return 'absorption';
   if (src.shock) return 'shock';
   if (src.lightning) return 'lightdash';
   if (src.burn) return 'burn';
