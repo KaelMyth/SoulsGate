@@ -1670,7 +1670,7 @@ export class Game {
     const c = this.config;
     if (this.build.size !== Math.round(c.build.size)) this.build.resize(c.build.size);
     this.inventory.resize(c.build.storageSlots);
-    this.inventory.fill(c.mods, this.mode === 'game' ? [] : c.build.startMods); // в «Игре» инвентарь пуст: моды выдают награды за уровень
+    this.inventory.fill(c.mods, []); // «Игра» и «Тестирование»: стартовый инвентарь пуст, моды выдаются наградами / через тестовые инструменты
     layoutCores(this.build, c.cores, this.rnd, c.build.minCoreDistance);
   }
 
