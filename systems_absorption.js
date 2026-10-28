@@ -18,6 +18,9 @@ export class Absorption {
     this.ignite = o.ignite || null;
     this.chill = o.chill || null;
     this.zap = o.zap || null;
+    this.aura = o.aura || null; // только читаем радиус и активность; systems_aura.js не меняем
+    this.rnd = o.rnd || Math.random;
+    this.auraCandidates = [];
     this.source = { absorption: true, active: true };
     this.targets = []; // зафиксированные цели текущего удара
     this.candidates = []; // временный буфер для выбора наиболее дальних врагов
@@ -44,6 +47,9 @@ export class Absorption {
     this.bladeMarks.length = 0;
     this.bladeCounters = new WeakMap(); // учитываем поколение сущности при повторном использовании пула
     this.bladesConnected = false;
+    this.auraTimer = 0;
+    this.auraPeriod = 0;
+    this.auraConnected = false;
     this.flash = 0;
     this.flashX = 0;
     this.flashY = 0;
@@ -148,6 +154,55 @@ export class Absorption {
     return dealt;
   }
 
+  /** Поглощение на Ауре: каждые 2 с (быстрее с Ускорением) случайные цели внутри реального радиуса Ауры.
+   * Х2/Х3 увеличивают количество уникальных целей, а не урон или число стаков по одной.
+   * Механика не вызывает тики Ауры и не вмешивается в основной 3-секундный цикл Поглощения. */
+  updateAura(dt, mods) {
+    const a = mods.absorption;
+    const aura = this.aura;
+    if (!a.auraCount || !mods.aura || !aura || !aura.active) {
+      this.auraConnected = false;
+      this.auraTimer = 0;
+      this.auraPeriod = 0;
+      return;
+    }
+    const A = this.cfg.absorption;
+    const period = Math.max(0.05, Math.max(0.05, A.auraInterval || 2) / Math.max(0.01, a.rate || 1));
+    if (!this.auraConnected) {
+      this.auraConnected = true;
+      this.auraTimer = period;
+    } else if (this.auraPeriod > 0 && period !== this.auraPeriod) {
+      // Смена Ускорения сохраняет относительный прогресс до следующего удара.
+      this.auraTimer *= period / this.auraPeriod;
+    }
+    this.auraPeriod = period;
+    this.auraTimer -= dt;
+    if (this.auraTimer > 0) return;
+    this.auraTimer += period;
+    if (this.auraTimer <= 0) this.auraTimer = period; // защита от больших dt
+
+    const h = this.hero;
+    const list = this.auraCandidates;
+    list.length = 0;
+    const radius = aura.radius; // уже включает Х2/Х3 и другие изменения радиуса Ауры
+    const enemies = this.enemies.items;
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e || !e.active) continue;
+      const dx = e.x - h.x, dy = e.y - h.y;
+      const reach = radius + e.radius; // совпадает с попаданием обычной Ауры
+      if (dx * dx + dy * dy <= reach * reach) list.push(e);
+    }
+    const count = Math.min(Math.max(1, Math.floor(A.maxTargets || 64)),
+      Math.max(1, Math.floor(a.auraTargets || a.auraCount)));
+    // Частичная перестановка Фишера—Йетса: равномерная выборка без повторов.
+    for (let i = 0, n = Math.min(count, list.length); i < n; i++) {
+      const j = i + Math.min(list.length - i - 1, Math.floor(Math.max(0, this.rnd()) * (list.length - i)));
+      const t = list[i]; list[i] = list[j]; list[j] = t;
+      this.strike(list[i], mods); // полное Поглощение: Вампиризм, Мощь, все стихии
+    }
+  }
+
   update(dt) {
     const mods = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     if (!mods || !mods.absorption || !this.hero.active) { this.reset(); return; }
@@ -186,6 +241,7 @@ export class Absorption {
       this.bladeCounters = new WeakMap();
     }
     this.bladesConnected = !!mods.absorption.blades;
+    this.updateAura(dt, mods);
     // Отдельный бонусный удар после трёх попаданий клинков, не сбивает основной цикл.
     for (let i = this.bladeMarks.length - 1; i >= 0; i--) {
       const mark = this.bladeMarks[i];
@@ -201,10 +257,19 @@ export class Absorption {
       }
     }
 
+    // Поглощение, прикреплённое только к Ауре, не запускает ещё и стандартный
+    // 3-секундный удар по дальним целям. Прямой мод на щите работает как раньше.
+    if (!mods.absorption.standaloneCount) {
+      this.aiming = false;
+      this.target = null;
+      this.targets.length = 0;
+      this.timer = interval;
+      return;
+    }
     this.timer -= dt;
     if (!this.aiming && this.timer <= telegraph) {
       const max = Math.max(1, Math.floor(A.maxTargets || 64));
-      const count = Math.min(max, Math.max(1, Math.floor(mods.absorption.targets || mods.absorption.count || 1)));
+      const count = Math.min(max, Math.max(1, Math.floor(mods.absorption.standaloneTargets || mods.absorption.standaloneCount || 1)));
       this.selectTargets(count);
       // Нет видимых врагов — ждём. Следующая найденная цель получит полное предупреждение.
       this.timer = telegraph;
