@@ -21,6 +21,7 @@ export function createProjectile() {
     travelled: 0,
     color: '#fff',
     glow: 0,      // 0..1: сила свечения огненного шара (растёт с числом снарядов), только для отрисовки
+    gravity: false, gravityAge: 0, gravityStart: 1, gravityEnd: 1, gravityRamp: 0,
     owner: null,
   };
 }
@@ -28,6 +29,7 @@ export function createProjectile() {
 export function resetProjectile(p) {
   p.active = false;
   p.owner = null;
+  p.gravity = false;
 }
 
 /** def: запись из CONFIG.projectiles; (dirX, dirY): любое ненулевое направление. */
@@ -56,6 +58,10 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.travelled = 0;
   p.color = def.color;
   p.glow = 0;
+  p.gravity = false;
+  p.gravityAge = 0;
+  p.gravityStart = p.gravityEnd = 1;
+  p.gravityRamp = 0;
   p.owner = owner;
 }
 
@@ -66,9 +72,19 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
 export function updateProjectile(p, dt, arena) {
   p.prevX = p.x;
   p.prevY = p.y;
-  p.x += p.vx * dt;
-  p.y += p.vy * dt;
-  p.travelled += p.speed * dt;
+  let speedFactor = 1;
+  if (p.gravity) {
+    p.gravityAge += dt;
+    const t = Math.min(1, p.gravityAge / Math.max(0.001, p.gravityRamp));
+    const curve = t * t * (3 - 2 * t); // медленный старт, резкое ускорение, ровный финиш
+    speedFactor = p.gravityStart + (p.gravityEnd - p.gravityStart) * curve;
+  }
+  let step = p.speed * dt * speedFactor;
+  if (p.gravity) step = Math.min(step, Math.max(0, p.range - p.travelled));
+  const moveDt = p.speed > 0 ? step / p.speed : 0;
+  p.x += p.vx * moveDt;
+  p.y += p.vy * moveDt;
+  p.travelled += step; // гравитационный снаряд останавливается точно на предельной дальности
   if (p.x < arena.left || p.x > arena.right || p.y < arena.top || p.y > arena.bottom) {
     p.active = false;
     return 'edge';

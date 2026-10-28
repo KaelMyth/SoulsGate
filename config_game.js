@@ -14,7 +14,7 @@ export const CONFIG = {
     size: 7,
     minCoreDistance: 5,
     storageSlots: 22,  // ячеек в ряду хранилища над полем
-    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'rain', 'aura', 'absorption', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
+    startMods: ['swift', 'magnet', 'vamp', 'xpmul', 'vitality', 'reach', 'lightning', 'kinetic', 'rain', 'aura', 'absorption', 'gravity', 'phantom', 'shot', 'blades', 'laser', 'pierce', 'burn', 'frost', 'power', 'power', 'haste', 'x2', 'x2', 'x3'], // что лежит в хранилище с начала забега (пока для проверки)
   },
 
   // Ядра билда. Данные ядра: что показывать (stats), это пути в живой конфиг,
@@ -30,6 +30,7 @@ export const CONFIG = {
       canLaser: true,    // и мод «Лазер»
       canShot: true,     // и мод «Дробь»
       canPhantom: true,  // и мод «Фантомный выстрел»
+      canGravity: true,  // мод «Гравитация»: разгон обычных снарядов
       icon: 'bolt',
       stats: [
         { label: 'Снарядов', key: 'count', path: 'attack.count' },
@@ -65,6 +66,13 @@ export const CONFIG = {
   //   к моду: удваивает суммарный бонус этого мода и всего, что к нему приложено; к другому Х2: ещё удваивает.
   // Моды на разных гранях ядра это разные ветки: они влияют на ядро независимо (добавки складываются), моды цепочкой в одной ветке перемножаются.
   mods: {
+    gravity: {
+      name: 'Гравитация',
+      icon: 'gravity',
+      rarity: 'rare',
+      description: 'На Снаряде: начинает полёт медленно, затем резко ускоряется (45% → 220% скорости за 0,45 с). Урон снаряда +25%. Для Щита будет отдельный эффект.',
+      effect: { kind: 'gravity' },
+    },
     power: {
       name: 'Мощь',
       icon: 'power',
@@ -377,6 +385,13 @@ export const CONFIG = {
     viewMargin: 12,  // центр цели не должен быть у самой кромки экрана
     ringPadding: 14, // кольцо шире врага
     flashTime: 0.25, // с: длительность вспышки-заглушки
+  },
+  // Гравитация: траектория обычных и фантомных снарядов, не влияет на вражеские снаряды.
+  gravity: {
+    damageBonus: 0.25,  // прибавка к урону каждого обычного снаряда
+    startSpeed: 0.45,   // доля базовой скорости при вылете
+    maxSpeed: 2.2,      // доля базовой скорости после разгона
+    rampTime: 0.45,     // секунд до максимальной скорости (smoothstep)
   },
   // Фантомный выстрел: при попадании снаряда шанс появиться ещё одному выстрелу из точки рядом с врагом.
   phantom: {
@@ -972,7 +987,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, kinetic: 1, rain: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, gravity: 1, kinetic: 1, rain: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
 

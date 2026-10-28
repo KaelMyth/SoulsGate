@@ -28,6 +28,14 @@ const ICONS = {
     ['path', S({ d: 'M16 7V25', 'stroke-width': 1.6, opacity: 0.55, style: 'stroke:var(--dark,#1a2236)' })],
     spark(16, 14, 3.4),
   ],
+  // Гравитация: центральное ядро и уходящие наружу орбиты / линии ускорения.
+  gravity: [
+    ['circle', S({ cx: 13, cy: 16, r: 5.2, 'stroke-width': 2 })],
+    ['circle', Object.assign({ cx: 13, cy: 16, r: 2.6 }, HI)],
+    ['path', S({ d: 'M2 11C11 2 24 5 29 12M3 22C12 31 26 27 30 18', 'stroke-width': 2 })],
+    ['path', Object.assign({ d: 'M22 10L29 12L27 5M23 24L30 18L25 16', 'stroke-width': 2 }, HIS)],
+    ['path', S({ d: 'M2 16H6M22 16H30', 'stroke-width': 1.5, opacity: 0.6 })],
+  ],
   // Мощь: три шеврона, растущие вверх.
   power: [
     ['path', S({ d: 'M6 27L16 17L26 27', 'stroke-width': 3.2, opacity: 0.45 })],

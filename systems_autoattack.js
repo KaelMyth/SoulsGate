@@ -15,6 +15,18 @@ function setBurn(p, cfg, m) {
   if (m.frost && m.steam) p.steam = m.steam.damage; // связка: на 5 зарядах взрыв пара вместо заморозки
 }
 
+/** Гравитация включается только для обычных летящих снарядов (не Дробь/Лазер). */
+function setGravity(p, cfg, m) {
+  if (!m || !m.gravity) return;
+  const G = cfg.gravity;
+  p.gravity = true;
+  p.gravityAge = 0;
+  p.gravityStart = G.startSpeed;
+  p.gravityEnd = G.maxSpeed;
+  p.gravityRamp = G.rampTime;
+  p.damage *= 1 + G.damageBonus * m.gravity.count;
+}
+
 /**
  * Ближайший активный враг в пределах radius от (x, y) или null.
  * Если передана арена, враги за скалой (снаряд в них не долетит) не выбираются;
@@ -151,6 +163,7 @@ export class AutoAttack {
         if (!p) break; // потолок снарядов
         initProjectile(p, def, hero.x + nx * side + fx * back, hero.y + ny * side + fy * back, dx, dy, hero);
         p.damage = applyMod(p.damage, m && m.damage) * pen;
+        setGravity(p, this.cfg, m);
         p.glow = countGlow(count);
         p.range *= this.rangeMul;
         setBurn(p, this.cfg, m);
@@ -288,6 +301,7 @@ export class AutoAttack {
     p.glow = countGlow(count);
     p.range *= this.rangeMul;
     p.damage = applyMod(p.damage, m && m.damage) * countPenalty(this.cfg, count);
+    setGravity(p, this.cfg, m);
     setBurn(p, this.cfg, m);
     hero.facing = Math.atan2(dy, dx);
     this.bus.emit('projectile:fired', { projectile: p, target, count: 1 });

@@ -238,6 +238,7 @@ export class BuildGrid {
       else if (e.kind === 'absorption') carry.set(ci, 'absorption'); // мод щита: число целей, урон, скорость, Вампиризм
       else if (e.kind === 'passive' && e.passive === 'vamp') carry.set(ci, 'absorption:vamp'); // Вампиризм на Поглощении, не угловой пассив
       else if (e.kind === 'stat' && (pc === 'absorption' || pc === 'absorption:mult' || pc === 'absorption:damage' || pc === 'absorption:rate')) carry.set(ci, 'absorption:' + e.stat);
+      else if (e.kind === 'gravity') carry.set(ci, 'gravity'); // гравитационный разгон — отдельный мод снаряда
       else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
@@ -323,6 +324,8 @@ export class BuildGrid {
       return total;
     };
     const res = {};
+    const gravityCount = this.cells.filter((c, idx) => c.mod && c.mod.def.effect.kind === 'gravity' && owner.get(idx) === coreId).length;
+    if (gravityCount) res.gravity = { count: gravityCount };
     let extraCount = 0;
     // Горение: у каждого мода «Горение» своя ветка. Мощь в ней усиливает урон тика, Ускорение учащает тики.
     // Несколько «Горений» складывают урон тика и усредняют частоту.
@@ -573,7 +576,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'absorption:mult' || stat === 'absorption:damage' || stat === 'absorption:rate' || stat === 'lightning') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'gravity' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'absorption:mult' || stat === 'absorption:damage' || stat === 'absorption:rate' || stat === 'lightning') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }

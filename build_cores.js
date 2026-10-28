@@ -92,6 +92,11 @@ export function coreStats(core, config, mods) {
     }
     return { label: s.label, key: s.key, value: v, text: formatStat(s, v), bonus };
   });
+  if (core.def.canGravity && mods && mods.gravity) {
+    const G = config.gravity;
+    rows.push({ label: 'Гравитация: урон', text: '+' + Math.round(G.damageBonus * 100 * mods.gravity.count) + '%', bonus: 'отдельно от Мощи' });
+    rows.push({ label: 'Гравитация: скорость', text: Math.round(G.startSpeed * 100) + '% → ' + Math.round(G.maxSpeed * 100) + '%', bonus: 'разгон за ' + G.rampTime + ' с' });
+  }
   if (core.def.canBurn && mods && mods.burn) {
     const dmgRow = rows.find((r) => r.key === 'damage');
     const base = dmgRow ? dmgRow.value : 0;
