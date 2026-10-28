@@ -27,6 +27,7 @@ export function createEnemy() {
     aimTotal: 1,
     fireTimer: 0,     // стрелок: до следующего прицеливания
     speedMul: 1,      // множитель скорости (мороз замедляет)
+    gravityDashSlowT: 0, gravityDashSlowMul: 1, // отдельное замедление после гравитационного телепорта
     pushId: 0, // номер рывка, который уже оттолкнул этого врага
     vuln: false, // уязвимость от Магического дождя: до смерти, +урон
     shockStacks: 0, shockT: 0, // электризация: заряды и время до угасания
@@ -61,6 +62,8 @@ export function initEnemy(e, def, x, y) {
   e.shockT = 0;
   e.vuln = false;
   e.speedMul = 1;
+  e.gravityDashSlowT = 0;
+  e.gravityDashSlowMul = 1;
   e.frostT = 0;
   e.freezeT = 0;
   e.kbVx = e.kbVy = 0;
@@ -105,6 +108,7 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   e.prevY = e.y;
   if (e.touchTimer > 0) e.touchTimer -= dt;
   if (e.flash > 0) e.flash -= dt;
+  if (e.gravityDashSlowT > 0) e.gravityDashSlowT = Math.max(0, e.gravityDashSlowT - dt);
   if (e.freezeT > 0) { // заморожен: стоит как вкопанный, ни ходьбы, ни откидывания
     e.hx = e.hy = 0;
     e.kbVx = e.kbVy = 0;
@@ -148,7 +152,7 @@ export function updateEnemy(e, dt, hero, arena, nav) {
         my /= ml;
       }
     }
-    let step = e.def.speed * dt * e.speedMul;
+    let step = e.def.speed * dt * e.speedMul * (e.gravityDashSlowT > 0 ? e.gravityDashSlowMul : 1);
     if (direct && step > gap) step = gap; // не вдавливаемся в героя
     e.x += mx * step;
     e.y += my * step;
