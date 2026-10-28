@@ -177,6 +177,9 @@ export class Game {
     this.absorption = new Absorption({
       config, hero: this.hero, enemies: this.enemies, camera: this.camera, combat: this.combat,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+      ignite: (e, d, i) => this.ignite(e, d, i),
+      chill: (e, st, d, i) => this.chill(e, st, d, i),
+      zap: (e, d, i, fr, st) => this.zap(e, d, i, fr, st),
     });
 
     this.renderer = new Renderer(o.canvas, config, {
