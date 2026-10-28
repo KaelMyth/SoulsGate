@@ -16,6 +16,9 @@ export function createEnemy() {
     kbTau: 0.07,      // за сколько секунд затухает откидывание
     hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
     headAngle: 0,     // Апофеоз: поворот головы-солнца, радианы (systems_apotheosis.js)
+    gen: 0,           // номер «жизни» записи: меняется при каждом появлении (охрана узнаёт, что стрелок погиб, а запись заняли заново)
+    guardOf: null, guardGen: 0, guardAng: 0, // охрана (systems_guards.js): чей телохранитель, его gen, угол на кольце вокруг подопечного
+    goalOn: false, goalX: 0, goalY: 0,       // если goalOn: идёт к этой точке, а не к герою (охрана держит место в кольце)
     swX: 0, swY: 0,   // подсказка курса от стаи (сплочённость и согласованность)
     // Атака с телеграфом (systems/attacks.js): состояние, время в нём, пауза до следующей, направление удара.
     atk: { state: 'idle', t: 0, cd: 0, hit: false, dirX: 1, dirY: 0 },
@@ -42,6 +45,9 @@ export function initEnemy(e, def, x, y) {
   e.y = e.prevY = y;
   e.radius = def.radius;
   e.hp = e.maxHp = def.hp;
+  e.gen++;
+  e.guardOf = null;
+  e.goalOn = false;
   e.def = def; // ссылка, не копия: скорость из панели действует на живых врагов сразу
   e.touchTimer = 0;
   e.flash = 0;
@@ -103,22 +109,28 @@ export function updateEnemy(e, dt, hero, arena, nav) {
     return;
   }
 
-  const dx = hero.x - e.x;
-  const dy = hero.y - e.y;
-  const d = Math.hypot(dx, dy);
-  const gap = d - (hero.radius + e.radius - 2);
+  const hdx = hero.x - e.x;
+  const hdy = hero.y - e.y;
+  const d = Math.hypot(hdx, hdy); // до героя (стрелок держит дистанцию по нему)
+  // Цель шага: герой, а у охранника в кольце — его место возле подопечного.
+  const tx = e.goalOn ? e.goalX : hero.x;
+  const ty = e.goalOn ? e.goalY : hero.y;
+  const dx = tx - e.x;
+  const dy = ty - e.y;
+  const dt2 = e.goalOn ? Math.hypot(dx, dy) : d;
+  const gap = e.goalOn ? dt2 - 3 : d - (hero.radius + e.radius - 2);
   // Стрелок держит дистанцию: стоит, пока целится, и когда видит героя с нужного расстояния.
   let hold = false;
   if (e.def.keepDistance > 0) {
     hold = e.aim > 0 || (d <= e.def.keepDistance && !arena.segmentBlocked(e.x, e.y, hero.x, hero.y, 3));
   }
   if (e.atk.state !== 'idle') hold = true; // замах, удар, восстановление и оглушение: сам не идёт
-  if (d > 1e-6 && gap > 0 && !hold) {
-    let mx = dx / d;
-    let my = dy / d;
+  if (dt2 > 1e-6 && gap > 0 && !hold) {
+    let mx = dx / dt2;
+    let my = dy / dt2;
     let direct = true;
     // Скала на пути к герою: идём по полю навигации в обход.
-    if (nav && arena.segmentBlocked(e.x, e.y, hero.x, hero.y, e.radius + 2) && nav.direction(e.x, e.y, dir)) {
+    if (nav && !e.goalOn && arena.segmentBlocked(e.x, e.y, hero.x, hero.y, e.radius + 2) && nav.direction(e.x, e.y, dir)) {
       mx = dir.x;
       my = dir.y;
       direct = false;
