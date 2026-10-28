@@ -244,6 +244,8 @@ export class AutoAttack {
     const dmg = applyMod(def.damage, m.damage); // урон снаряда с модами
     const ls = laserStats(this.cfg, m.laser, dmg, count);
     const b = m.burn;
+    const grav = m.gravity ? 1 + this.cfg.gravity.damageBonus * m.gravity.count : 1;
+    const charge = m.gravity ? Math.max(0.05, this.cfg.gravity.laserCharge) : 0;
     const list = this.targetsByDistance();
     if (!list.length) list.push({ e: target, d: Math.hypot(target.x - hero.x, target.y - hero.y) });
     const burnDmg = b ? dmg * countPenalty(this.cfg, count) * this.cfg.burn.damageFrac * b.damage : 0;
@@ -263,8 +265,10 @@ export class AutoAttack {
         target: t, pierce: 0, // конец луча следует за целью и упирается в первого врага на пути
         off: split > 1 ? (i % split) - (split - 1) / 2 : 0, // тонкие лучи расходятся у героя и сходятся на цели
         width: split > 1 ? ls.width * L.splitWidth : ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0,
-        tick: split > 1 ? ls.tick * sdm / split : ls.tick, big: ls.big,
-        burnDmg,
+        tick: (split > 1 ? ls.tick * sdm / split : ls.tick) * grav, big: ls.big,
+        gravityLaser: !!m.gravity, gravityChargeTime: charge, gravityChargeAge: 0,
+        gravityOrigin: m.gravity ? this.cfg.gravity.laserOrigin : 0,
+        burnDmg: burnDmg * grav,
         burnInt: b ? this.cfg.burn.interval / b.rate : 0,
         frost: !!m.frost,
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
