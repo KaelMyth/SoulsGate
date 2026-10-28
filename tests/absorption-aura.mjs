@@ -195,6 +195,7 @@ test('Удаление Ауры и сброс нового забега отме
   s.advance(2.0);
   assert.equal(s.hits.length, 0);
   assert.equal(s.absorption.active, false);
+  s.build.takeMod(3, 5); // после удаления родителя дочерний мод остаётся сиротой
   s.equip('aura', 3, 4);
   s.equip('absorption', 3, 5);
   s.absorption.reset();
