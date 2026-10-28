@@ -525,6 +525,7 @@ export class Renderer {
     this.lightdash = deps.lightdash || null;
     this.zapBolts = deps.zapBolts || [];
     this.dashBeams = deps.dashBeams || [];
+    this.gravityDash = deps.gravityDash || null;
     this.fires = deps.fires || [];
     this.pellets = deps.pellets || null;
     this.hud = deps.hud || null;
@@ -713,6 +714,7 @@ export class Renderer {
     this.drawAbsorptionFlash(ctx); // заглушка: короткая вспышка в момент удара
 
     if (hero.active) {
+      this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.dashfx.frame(ctx, this.dt, hx, hy);
       if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния: герой превращается в молнию
@@ -4932,6 +4934,48 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(0, 0, R, q.a - spread, q.a + spread);
       ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** Портал Гравитационного рывка: вихрь в точке назначения появляется до телепортации. */
+  drawGravityDash(ctx) {
+    const g = this.gravityDash;
+    if (!g || !g.active) return;
+    const K = this.cfg.kinetic, t = this.clock;
+    const phase = g.charging ? Math.min(1, g.t / Math.max(0.05, g.charge)) : 1;
+    const fade = g.charging ? 1 : Math.max(0, 1 - g.t / g.life);
+    const r = (g.charging ? 12 + (K.gravityPushRadius * 0.55 - 12) * phase : K.gravityPushRadius * (0.45 + g.t / g.life * 0.55));
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    ctx.globalAlpha = fade * (0.45 + 0.35 * phase);
+    ctx.fillStyle = K.gravityVoidColor;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0, TAU); ctx.fill();
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = K.gravityEdgeColor;
+    ctx.lineWidth = 2.5 + (1 - phase) * 2;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = K.gravityCoreColor;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.54, 0, TAU); ctx.stroke();
+    // Три перекрученные ленты создают «искривлённое пространство».
+    for (let i = 0; i < 3; i++) {
+      ctx.save();
+      ctx.rotate(t * (i % 2 ? -2.7 : 2.3) + i * TAU / 3);
+      ctx.strokeStyle = i === 0 ? K.gravityCoreColor : K.gravityEdgeColor;
+      ctx.lineWidth = 1.5 + phase;
+      ctx.globalAlpha = fade * (0.5 + 0.35 * phase);
+      ctx.beginPath(); ctx.ellipse(0, 0, r * (0.73 + 0.07 * i), r * (0.24 + 0.03 * i), 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    if (g.charging) {
+      // Тонкая искривлённая связь с местом старта, чтобы цель телепорта читалась заранее.
+      ctx.globalAlpha = 0.22 + 0.35 * phase;
+      ctx.strokeStyle = K.gravityEdgeColor;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 8]);
+      ctx.beginPath(); ctx.moveTo(g.ox - g.x, g.oy - g.y); ctx.lineTo(0, 0); ctx.stroke();
+      ctx.setLineDash([]);
     }
     ctx.restore();
   }

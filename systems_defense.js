@@ -168,6 +168,7 @@ export class HeroDefense {
       this.hero.facing = Math.atan2(this.dashY, this.dashX);
       this.dashSeq++;
       this.bus.emit('dash:gravity-started', { dirX: this.dashX, dirY: this.dashY, distance: dist * K.gravityDistanceMul, seq: this.dashSeq });
+      this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY }); // Дробь/Лазер сохраняют работу с Кинетическим рывком
       return true;
     }
     if (light) { // героя двигает цепочка рикошетов, обычной скорости нет
@@ -181,6 +182,7 @@ export class HeroDefense {
       this.hero.dashVx = 0;
       this.hero.dashVy = 0;
       this.lightning.begin();
+      this.dashSeq++;
       this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
       return true;
     }

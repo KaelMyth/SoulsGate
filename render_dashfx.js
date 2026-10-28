@@ -119,7 +119,7 @@ export class DashFx {
     const r = this.r;
     const hero = r.hero;
     const light = !!(r.lightdash && r.lightdash.active);
-    const dashing = !!hero.dashing && !light;
+    const dashing = !!hero.dashing && !light && !r.gravityDash?.charging;
     const kinetic = !!r.dashKinetic;
     const kind = light ? (r.lightdash.kind | 0) : (kinetic ? r.dashKind | 0 : 0);
     const R = this.rnd;
@@ -137,7 +137,7 @@ export class DashFx {
         this.ly = hy;
         this.acc = 0;
       }
-      if (!dashing && this.wasDash && kinetic) this.land(hx, hy, this.kind, this.r.cfg.kinetic.pushRadius);
+      // Приземление генерируется игровым событием, одновременно с реальным импульсом по врагам.
       if (light && !this.wasLight) { this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.25, 34); this.add(T_RING, kind + 4, hx, hy + 6, 0, 0, 0.3, 36, { ex: 0.5 }); }
       if (!light && this.wasLight) { this.add(T_FLASH, this.kind + 4, hx, hy, 0, 0, 0.3, 40); this.add(T_RING, this.kind + 4, hx, hy + 6, 0, 0, 0.4, 60, { ex: 0.5 }); for (let i = 0; i < 8; i++) { const a = R() * TAU; this.add(T_SPARK, this.kind + 4, hx, hy, Math.cos(a) * 200, Math.sin(a) * 200, 0.3, 10, { drag: 5 }); } }
       if (light) this.kind = kind;
