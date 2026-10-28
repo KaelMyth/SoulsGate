@@ -163,6 +163,7 @@ export class Game {
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
       zap: (e, bd, bi, fr, st, cm) => this.zap(e, bd, bi, fr, st, cm),
+      onAbsorptionHit: (e) => this.absorption && this.absorption.recordBladeHit(e),
     });
 
     this.aura = new Aura({
