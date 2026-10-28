@@ -635,10 +635,10 @@ export class Game {
     for (let k = 0; k < bestE.length; k++) {
       const o = bestE[k];
       this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0, k: kind });
-      this.combat.damageEnemy(o, S.damage * S.chainFrac, this.shockSource, null);
-      if (!o.active) continue;
+      const hit = this.combat.damageEnemy(o, S.damage * S.chainFrac, this.shockSource, null);
+      if (!hit || !o.active) continue; // отменённый удар не передаёт статус
       this.burst(o.x, o.y, 0.2, 3, 12, col);
-      if (bd > 0) this.ignite(o, bd, bi);
+      if (bd > 0) this.ignite(o, bd, bi); // Горение + Молния: ровно один стак огня на каждого поражённого цепью врага
       if (fr) this.chill(o, st, bd, bi);
     }
   }
