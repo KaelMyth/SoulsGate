@@ -33,7 +33,10 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (e.kind === 'blades' || e.kind === 'aura' || e.kind === 'absorption') return false; // «Клинки» и «Аура» крепятся только к ядру
   if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
   if (carry === 'absorption' || carry === 'absorption:mult')
-    return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp'); // Х2/Х3 умножают цели, Вампиризм лечит
+    return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp')
+      || (e.kind === 'stat' && (e.stat === 'damage' || e.stat === 'rate')); // Мощь, Ускорение, множители целей и Вампиризм
+  if (carry === 'absorption:damage' || carry === 'absorption:rate')
+    return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
   if (e.kind === 'lightning') return carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // «Молния»: к ядру снаряда, рывка или на Лазер, Клинки, Ауру

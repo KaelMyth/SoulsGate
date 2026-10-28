@@ -235,8 +235,9 @@ export class BuildGrid {
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'lightning') carry.set(ci, 'lightning'); // «Молния»: ничего не вешается
       else if (e.kind === 'aura') carry.set(ci, 'aura'); // корень ветки ауры: усилители и стихии
-      else if (e.kind === 'absorption') carry.set(ci, 'absorption'); // мод щита, принимает Вампиризм
+      else if (e.kind === 'absorption') carry.set(ci, 'absorption'); // мод щита: число целей, урон, скорость, Вампиризм
       else if (e.kind === 'passive' && e.passive === 'vamp') carry.set(ci, 'absorption:vamp'); // Вампиризм на Поглощении, не угловой пассив
+      else if (pc === 'absorption' || pc === 'absorption:mult' || pc === 'absorption:damage' || pc === 'absorption:rate') carry.set(ci, 'absorption:' + e.stat);
       else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
@@ -447,12 +448,16 @@ export class BuildGrid {
     let absorptionCount = 0;
     let absorptionTargets = 0;
     let absorptionVamp = false;
+    let absorptionDamageBonus = 0;
+    let absorptionRateBonus = 0;
     const absorptionBranch = (i) => {
       let factor = 1;
       for (const k of kids.get(i) || []) {
         const e = this.cells[k].mod.def.effect;
         if (e.kind === 'double') factor *= e.value * absorptionBranch(k);
         else if (e.kind === 'passive' && e.passive === 'vamp') absorptionVamp = true;
+        else if (e.kind === 'stat' && e.stat === 'damage') absorptionDamageBonus += walk(k, 0);
+        else if (e.kind === 'stat' && e.stat === 'rate') absorptionRateBonus += walk(k, 0);
       }
       return factor;
     };
@@ -462,7 +467,10 @@ export class BuildGrid {
       absorptionCount++;
       absorptionTargets += absorptionBranch(i);
     }
-    if (absorptionCount) res.absorption = { count: absorptionCount, targets: absorptionTargets, vampirism: absorptionVamp };
+    if (absorptionCount) res.absorption = {
+      count: absorptionCount, targets: absorptionTargets, vampirism: absorptionVamp,
+      damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
+    };
     // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
     let blades = 0;
     let kMax = 0;
@@ -522,7 +530,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'absorption:mult' || stat === 'lightning') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'absorption:mult' || stat === 'absorption:damage' || stat === 'absorption:rate' || stat === 'lightning') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }

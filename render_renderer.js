@@ -779,7 +779,7 @@ export class Renderer {
     const a = this.absorption;
     if (!a || !a.active || !a.aiming || !a.targets.length) return;
     const A = this.cfg.absorption;
-    const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.05, A.telegraph)));
+    const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.02, a.castTime || A.telegraph)));
     const c = Math.round(125 + 130 * p);
     ctx.save();
     ctx.lineWidth = 2.5;
