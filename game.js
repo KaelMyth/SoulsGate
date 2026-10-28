@@ -122,6 +122,7 @@ export class Game {
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
     this.rayT = [];
     this.pelletSource = { pellet: true, active: true };
+    this.shotCandidates = []; // отдельный буфер: эффекты попадания вызывают вложенные grid.query()
     this.pellets = new Pellets({
       config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
       onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp, pc, pp, pg) => {
@@ -527,14 +528,15 @@ export class Game {
     const grid = this.swarm.grid;
     let big = 0;
     for (const k in this.config.enemies) big = Math.max(big, this.config.enemies[k].radius || 0);
-    const reach = big + 12; // самый крупный враг + запас на сдвиг врагов с момента сборки сетки
-    for (let i = 0; i < shots.length; i++) {
+    const reach = big + 12; // запас после движения врагов
+    const shotCount = shots.length; // фантомы, появившиеся от удара, обрабатываются со следующего шага
+    for (let i = 0; i < shotCount; i++) {
       const p = shots[i];
       if (!p.active) continue;
-      const n = grid.query(p.x, p.y, p.radius + reach);
-      const buf = grid.buf;
+      const candidates = this.shotCandidates;
+      const n = grid.query(p.x, p.y, p.radius + reach, candidates);
       for (let k = 0; k < n; k++) {
-        const e = en[buf[k]];
+        const e = en[candidates[k]];
         if (!e.active) continue;
         this.collisions.checks++;
         const dx = p.x - e.x;
@@ -813,7 +815,8 @@ export class Game {
   laserTick(l) {
     l.pulse = 1;
     const E = this.rayE;
-    const hit = [];
+    const hit = this._laserHits || (this._laserHits = []);
+    hit.length = 0;
     for (let k = 0; k < l.hits; k++) hit.push(E[k]);
     // Бьём после поиска: убийство меняет пул врагов.
     for (let hi = 0; hi < hit.length; hi++) {
@@ -1307,6 +1310,7 @@ export class Game {
       this.shooters.update(dt, en);
       this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
+      this.swarm.rebuild(en); // попадания используют актуальные позиции после движения и расталкивания
       this.moveShots(this.heroShots.items, dt);
       this.moveShots(this.enemyShots.items, dt);
       this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
