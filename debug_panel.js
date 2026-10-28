@@ -3,6 +3,7 @@
 // ощущение настраивается на ходу.
 import { getPath, setPath, formatValue, snapshot, saveOverrides } from './debug_tunables.js';
 import { h } from './ui_dom.js';
+import { RELEASE } from './release_notes.js';
 
 export class DebugPanel {
   /**
@@ -17,11 +18,12 @@ export class DebugPanel {
     this.timer = null;
 
     this.button = h('button', { id: 'dbg-btn', type: 'button', 'aria-label': 'Отладка', onclick: () => this.toggle() }, '⚙');
-    this.fpsLabel = h('div', { id: 'dbg-fps' }, 'FPS …');
+    this.fpsLabel = h('div', { id: 'dbg-fps' }, '№' + RELEASE.number + ' · FPS …');
     this.stats = h('pre', { id: 'dbg-stats' });
     this.copyBox = h('textarea', { id: 'dbg-copy', readonly: '', hidden: '' });
     this.panel = h('div', { id: 'dbg-panel', hidden: '' },
       h('h3', {}, 'Отладка · ' + o.build),
+      h('div', { class: 'dbg-release' }, 'Обновление №' + RELEASE.number + ' — ' + RELEASE.title),
       this.stats,
       this.buildActions(),
       this.buildSliders(),
@@ -164,7 +166,7 @@ export class DebugPanel {
     const m = this.o.meter;
     if (m.fps === 0) return; // первое окно замера ещё не накопилось
     const min = isFinite(m.minFps) ? Math.round(m.minFps) : '—';
-    const text = 'FPS ' + Math.round(m.fps) + ' · мин ' + min;
+    const text = '№' + RELEASE.number + ' · FPS ' + Math.round(m.fps) + ' · мин ' + min;
     if (text !== this.fpsText) {
       this.fpsText = text;
       this.fpsLabel.textContent = text;
@@ -176,6 +178,7 @@ export class DebugPanel {
     const s = this.o.getStats();
     const min = isFinite(m.minFps) ? m.minFps.toFixed(1) : '—';
     this.stats.textContent = [
+      'Обновление №' + RELEASE.number + ' — ' + RELEASE.title,
       'FPS ' + m.fps.toFixed(1) + '   мин ' + min,
       'кадр ' + m.frameMs.toFixed(1) + ' мс   шагов/кадр ' + s.steps,
       'здоровье ' + s.hp + ' · убито ' + s.kills,
