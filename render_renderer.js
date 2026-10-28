@@ -4510,7 +4510,12 @@ export class Renderer {
     // Слоты умений: первый Магический дождь (если ядро стоит в билде), остальные пустые.
     this.drawRain(hud);
     const f0 = hud.skillFrac0 === undefined ? 1 : hud.skillFrac0;
-    if (hud.rainOn) this.drawAbility(cx - 64, rowY, f0, '#6fb6ff', '#d6efff', 3, U.slots[0] > 0.01, f0 >= 0.999 ? 'blue' : undefined, U.slots[0]);
+    if (hud.rainOn) {
+      const mask = hud.rainEquippedMask || 0;
+      const P = this.cfg.skills.rain;
+      this.drawAbility(cx - 64, rowY, f0, P.iconColors[mask], P.iconLights[mask], 3,
+        U.slots[0] > 0.01, f0 >= 0.999 ? (mask & 4 ? 'gold' : 'blue') : undefined, U.slots[0]);
+    }
     else this.drawAbility(cx - 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
     this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
     this.drawAbility(cx + 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
@@ -4558,32 +4563,81 @@ export class Renderer {
     this.rhomb(x + w + 8, y + hh / 2, 3, null);
   }
 
-  /** Магический дождь на весь экран: тонкие синие струи и слабая синева, плавно приходят и уходят. */
+  /** Стихийный дождь: 7 сочетаний с собственными цветами и формой осадков. */
   drawRain(hud) {
-    const t = hud.rainT || 0;
-    if (t <= 0) return;
-    const D = this.cfg.skills.rain.duration;
-    const a = Math.min(1, t / 0.4, (D - t) / 0.25 + 0.0001, 1);
-    const ctx = this.ctx;
-    const w = this.w;
-    const h = this.h;
+    const remaining = hud.rainT || 0;
+    if (remaining <= 0) return;
+    const P = this.cfg.skills.rain;
+    const mask = hud.rainMask || 0;
+    const fire = !!(mask & 1), ice = !!(mask & 2), lightning = !!(mask & 4);
+    const steam = fire && ice;
+    const a = Math.max(0, Math.min(1, remaining / 0.4, (P.duration - remaining) / 0.25 + 0.0001, 1));
+    const ctx = this.ctx, w = this.w, h = this.h;
     ctx.save();
-    ctx.globalAlpha = 0.12 * a;
-    ctx.fillStyle = '#4a86ff';
+    ctx.globalAlpha = (mask ? 0.17 : 0.12) * a;
+    ctx.fillStyle = P.skyColors[mask];
     ctx.fillRect(0, 0, w, h);
-    ctx.globalAlpha = 0.5 * a;
-    ctx.strokeStyle = '#9cc8ff';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = P.streakColors[mask];
+    ctx.globalAlpha = 0.56 * a;
+    ctx.lineWidth = ice ? 1.7 : lightning ? 1.5 : 1.2;
+    ctx.lineCap = ice ? 'square' : 'round';
     ctx.beginPath();
     const n = 90;
     for (let i = 0; i < n; i++) {
       const sx = (((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1) * (w + 60) - 30;
       const sp = 700 + ((i * 37) % 300);
       const y = (((this.clock * sp + i * 131) % (h + 60)) + h + 60) % (h + 60) - 30;
-      ctx.moveTo(sx, y);
-      ctx.lineTo(sx - 5, y + 18);
+      if (!mask) { // обычный дождь сохраняет прежнюю форму
+        ctx.moveTo(sx, y); ctx.lineTo(sx - 5, y + 18);
+      } else if (lightning && (i % 3 === 0)) { // ломаные электрические жилы
+        ctx.moveTo(sx, y); ctx.lineTo(sx + 5, y + 7);
+        ctx.lineTo(sx - 3, y + 11); ctx.lineTo(sx + 2, y + 22);
+      } else if (ice && (i % 2 === 0)) { // колючие ледяные кристаллы
+        ctx.moveTo(sx, y); ctx.lineTo(sx - 5, y + 10);
+        ctx.lineTo(sx + 2, y + 14); ctx.lineTo(sx - 6, y + 22);
+        ctx.moveTo(sx - 5, y + 10); ctx.lineTo(sx - 10, y + 7);
+      } else if (fire) { // вытянутые раскалённые капли
+        ctx.moveTo(sx + 3, y - 3); ctx.lineTo(sx - 4, y + 17);
+        ctx.lineTo(sx - 7, y + 20);
+      } else {
+        ctx.moveTo(sx, y); ctx.lineTo(sx - 5, y + 18);
+      }
     }
     ctx.stroke();
+    if (fire) {
+      ctx.fillStyle = P.streakColors[1];
+      ctx.globalAlpha = 0.55 * a;
+      for (let i = 0; i < 25; i++) {
+        const x = (((Math.sin(i * 17.173 + 4) * 43758.5) % 1 + 1) % 1) * w;
+        const y = ((this.clock * (95 + i * 3) + i * 83) % (h + 30) + h + 30) % (h + 30);
+        ctx.fillRect(x, y, 2.5, 3.5);
+      }
+    }
+    if (steam) {
+      // Слой тумана поверх огненно-ледяных осадков: заметный вид реакции Пара.
+      ctx.strokeStyle = P.streakColors[3]; ctx.lineWidth = 12;
+      ctx.globalAlpha = 0.13 * a;
+      ctx.beginPath();
+      for (let i = 0; i < 7; i++) {
+        const y = ((i * 109 + this.clock * 32) % (h + 80)) - 40;
+        const x = ((i * 149 + this.clock * 18) % (w + 140)) - 70;
+        ctx.moveTo(x, y); ctx.bezierCurveTo(x + 20, y - 35, x + 74, y + 32, x + 115, y - 12);
+      }
+      ctx.stroke();
+    }
+    if (lightning) {
+      ctx.strokeStyle = P.streakColors[4];
+      ctx.lineWidth = 2.2;
+      ctx.globalAlpha = 0.42 * a * (0.6 + 0.4 * Math.sin(this.clock * 26));
+      ctx.beginPath();
+      for (let i = 0; i < 9; i++) {
+        const x = (((i * 173 + Math.floor(this.clock * 10) * 31) % (w + 60)) + w + 60) % (w + 60) - 30;
+        const y = ((i * 89 + Math.floor(this.clock * 12) * 47) % (h + 50)) - 20;
+        ctx.moveTo(x, y); ctx.lineTo(x + 7, y + 10);
+        ctx.lineTo(x - 3, y + 16); ctx.lineTo(x + 9, y + 28);
+      }
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
