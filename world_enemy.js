@@ -31,7 +31,7 @@ export function createEnemy() {
     vuln: false, // уязвимость от Магического дождя: до смерти, +урон
     shockStacks: 0, shockT: 0, // электризация: заряды и время до угасания
     frostStacks: 0, frostT: 0, freezeT: 0, // мороз: заряды замедления, до таяния, заморозка (с)
-    burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, // горение: осталось, до тика, урон тика, интервал
+    burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, burnStacks: 0, // горение: длительность, таймер, базовый урон, интервал, заряды
   };
 }
 
@@ -54,6 +54,8 @@ export function initEnemy(e, def, x, y) {
   e.burnT = 0;
   e.burnTick = 0;
   e.burnDmg = 0;
+  e.burnStacks = 0;
+  e.burnInt = 0.5;
   e.frostStacks = 0;
   e.shockStacks = 0;
   e.shockT = 0;
