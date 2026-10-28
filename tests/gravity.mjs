@@ -55,28 +55,34 @@ test('Урон обычного снаряда повышается ровно �
     assert.equal(p.gravityAge, 0);
     assert.equal(p.gravityStart, CONFIG.gravity.startSpeed);
     assert.equal(p.gravityEnd, CONFIG.gravity.maxSpeed);
+    assert.equal(p.gravityHold, CONFIG.gravity.holdFraction);
   }
 });
 
-test('При старте снаряд идёт медленно, затем ускоряется выше базовой скорости', () => {
+test('Снаряд удерживается притяжением, затем резко вырывается с повышенной скоростью', () => {
   const def = CONFIG.projectiles[CONFIG.attack.projectile];
-  const p = createProjectile(); initProjectile(p, { ...def, range: 1500 }, 0, 0, 1, 0, {});
-  p.active = true; // увеличенная дистанция только в тесте, чтобы успеть измерить 220%
+  const p = createProjectile(); initProjectile(p, { ...def, range: 2000 }, 0, 0, 1, 0, {});
+  p.active = true; // длинная трасса для измерения скорости уже после рывка
   p.gravity = true;
   p.gravityStart = CONFIG.gravity.startSpeed;
   p.gravityEnd = CONFIG.gravity.maxSpeed;
   p.gravityRamp = CONFIG.gravity.rampTime;
+  p.gravityHold = CONFIG.gravity.holdFraction;
   const d1 = p.x; updateProjectile(p, 1 / 60, arena);
-  const v1 = (p.x - d1) * 60;
-  advance(p, 0.2);
-  const x2 = p.x; updateProjectile(p, 1 / 60, arena);
-  const v2 = (p.x - x2) * 60;
+  const vStart = (p.x - d1) * 60;
+  advance(p, 0.6);
+  const d2 = p.x; updateProjectile(p, 1 / 60, arena);
+  const vHeld = (p.x - d2) * 60;
+  advance(p, 0.26);
+  const d3 = p.x; updateProjectile(p, 1 / 60, arena);
+  const vEscape = (p.x - d3) * 60;
   advance(p, 0.3);
-  const x3 = p.x; updateProjectile(p, 1 / 60, arena);
-  const v3 = (p.x - x3) * 60;
-  assert.ok(v1 < def.speed * 0.6);
-  assert.ok(v2 > v1 && v2 < v3);
-  assert.ok(Math.abs(v3 - def.speed * CONFIG.gravity.maxSpeed) < 1e-7);
+  const d4 = p.x; updateProjectile(p, 1 / 60, arena);
+  const vMax = (p.x - d4) * 60;
+  assert.ok(vStart < def.speed * 0.12, 'медленный отрыв');
+  assert.ok(vHeld < def.speed * 0.25, 'длительное сопротивление');
+  assert.ok(vEscape > def.speed * 2, 'резкое ускорение');
+  assert.ok(Math.abs(vMax - def.speed * CONFIG.gravity.maxSpeed) < 1e-7);
 });
 
 test('Дальность считает фактическое расстояние, а не базовую скорость', () => {
@@ -153,6 +159,7 @@ test('Фантомная копия тоже разгоняется с нуля 
   assert.equal(q.gravityAge, 0);
   assert.equal(q.gravityStart, p.gravityStart);
   assert.equal(q.gravityEnd, p.gravityEnd);
+  assert.equal(q.gravityHold, p.gravityHold);
   assert.ok(Math.abs(q.damage - p.damage * CONFIG.phantom.damageFrac * p.phDmg) < 1e-8);
 });
 
@@ -229,4 +236,57 @@ test('Сегмент ускоренного снаряда не поражает
   g.onShotHitEnemy = () => hits.push(true);
   g.hitEnemiesWithShots();
   assert.equal(hits.length, 0);
+});
+
+test('При максимальном притяжении снаряд долго остаётся возле героя', () => {
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  p.active = true;
+  const G = CONFIG.gravity;
+  Object.assign(p, { gravity: true, gravityStart: G.startSpeed,
+    gravityEnd: G.maxSpeed, gravityRamp: G.rampTime, gravityHold: G.holdFraction });
+  advance(p, G.rampTime * G.holdFraction - 1 / 60);
+  assert.ok(p.travelled < 70, 'не улетает далеко до освобождения');
+  assert.equal(p.active, true);
+});
+
+test('На стандартной дальности после удержания следует короткий мощный рывок', () => {
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  p.active = true;
+  const G = CONFIG.gravity;
+  Object.assign(p, { gravity: true, gravityStart: G.startSpeed,
+    gravityEnd: G.maxSpeed, gravityRamp: G.rampTime, gravityHold: G.holdFraction });
+  advance(p, G.rampTime * G.holdFraction - 1 / 60);
+  const heldDistance = p.travelled;
+  let extra = 0;
+  while (p.active && extra < 2) { updateProjectile(p, 1 / 60, arena); extra += 1 / 60; }
+  assert.equal(p.active, false);
+  assert.ok(heldDistance < p.range / 4);
+  assert.ok(extra < 0.4, 'после вырывания снаряд быстро долетает до конца');
+  assert.ok(Math.abs(p.travelled - p.range) < 1e-6);
+});
+
+test('Доля удержания настраивается независимо от максимальной скорости', () => {
+  const G = CONFIG.gravity, def = CONFIG.projectiles.bolt;
+  const first = createProjectile(), second = createProjectile();
+  for (const p of [first, second]) {
+    initProjectile(p, { ...def, range: 3000 }, 0, 0, 1, 0, {});
+    p.active = true; p.gravity = true;
+    p.gravityStart = G.startSpeed; p.gravityEnd = G.maxSpeed; p.gravityRamp = G.rampTime;
+  }
+  first.gravityHold = 0.2;
+  second.gravityHold = 0.85;
+  advance(first, 0.7); advance(second, 0.7);
+  assert.ok(first.travelled > second.travelled * 3, 'ранний выход из поля ускоряет полёт');
+});
+
+test('Пул снарядов сбрасывает длительность удержания на безопасное значение', () => {
+  const p = createProjectile();
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  p.gravityHold = 0.92;
+  resetProjectile(p);
+  initProjectile(p, CONFIG.projectiles.bolt, 0, 0, 1, 0, {});
+  assert.equal(p.gravity, false);
+  assert.equal(p.gravityHold, 0.72);
 });
