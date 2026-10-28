@@ -4046,6 +4046,22 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
       ctx.fill();
+      if (p.gravity) { // заглушка: сжатое кольцо при старте, вытянутый штрих при разгоне
+        const progress = Math.min(1, p.gravityAge / Math.max(0.001, p.gravityRamp));
+        const vx = p.vx / (p.speed || 1);
+        const vy = p.vy / (p.speed || 1);
+        ctx.strokeStyle = 'rgba(181,147,255,' + (0.9 - progress * 0.45) + ')';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(px, py, r * (1.9 - progress * 0.45), 0, TAU);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(221,204,255,' + (0.3 + progress * 0.65) + ')';
+        ctx.lineWidth = 1.4 + progress * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(px - vx * (r * 1.8 + progress * 20), py - vy * (r * 1.8 + progress * 20));
+        ctx.lineTo(px - vx * r * 0.7, py - vy * r * 0.7);
+        ctx.stroke();
+      }
       if (p.zap) { // шар молний: потрескивающие дуги вокруг
         ctx.strokeStyle = '#fffbe0';
         ctx.lineWidth = 1.2;
