@@ -1259,8 +1259,7 @@ export class Game {
         hh.hpMul = ps.hp;
         hh.speedMul = ps.speed;
         const want = this.config.hero.maxHp * ps.hp;
-        if (Math.abs(hh.maxHp - want) > 1e-6) { // здоровье выросло: прибавка сразу в запас; упало: запас обрезается
-          if (want > hh.maxHp) hh.hp += want - hh.maxHp;
+        if (Math.abs(hh.maxHp - want) > 1e-6) { // здоровье выросло: растёт только потолок (текущее не лечится, иначе вечное лечение через меню); упало: запас обрезается
           hh.maxHp = want;
           if (hh.hp > want) hh.hp = want;
         }
