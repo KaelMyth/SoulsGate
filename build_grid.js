@@ -446,7 +446,11 @@ export class BuildGrid {
     // Вложенные Х2→Х3 перемножаются, разные ветви от одного Поглощения — тоже.
     // Несколько отдельных модов Поглощения суммируют получившиеся количества целей.
     let absorptionCount = 0;
+    let absorptionStandaloneCount = 0;
+    let absorptionAuraCount = 0;
     let absorptionTargets = 0;
+    let absorptionAuraTargets = 0;
+    let absorptionStandaloneTargets = 0;
     let absorptionVamp = false;
     let absorptionBlades = false;
     let absorptionBurn = false;
@@ -481,10 +485,24 @@ export class BuildGrid {
       const c = this.cells[i];
       if (!c.mod || c.mod.def.effect.kind !== 'absorption' || owner.get(i) !== coreId) continue;
       absorptionCount++;
-      absorptionTargets += absorptionBranch(i);
+      // Прямой мод Поглощения оставляет обычный 3-секундный цикл.
+      // Если мод прикреплён под Аурой, он даёт отдельный удар внутри ауры каждые 2 с.
+      let ancestor = parent.get(i);
+      let onAura = false;
+      while (ancestor >= 0) {
+        const prev = this.cells[ancestor].mod;
+        if (prev && prev.def.effect.kind === 'aura') { onAura = true; break; }
+        ancestor = parent.get(ancestor);
+      }
+      const count = absorptionBranch(i);
+      if (onAura) { absorptionAuraCount++; absorptionAuraTargets += count; }
+      else { absorptionStandaloneCount++; absorptionStandaloneTargets += count; }
+      absorptionTargets += count;
     }
     if (absorptionCount) res.absorption = {
-      count: absorptionCount, targets: absorptionTargets, vampirism: absorptionVamp,
+      count: absorptionCount, standaloneCount: absorptionStandaloneCount, auraCount: absorptionAuraCount,
+      targets: absorptionTargets, standaloneTargets: absorptionStandaloneTargets, auraTargets: absorptionAuraTargets,
+      vampirism: absorptionVamp,
       blades: absorptionBlades,
       burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
