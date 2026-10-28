@@ -43,6 +43,7 @@ export class Absorption {
     this.flashes.length = 0;
     this.bladeMarks.length = 0;
     this.bladeCounters = new WeakMap(); // учитываем поколение сущности при повторном использовании пула
+    this.bladesConnected = false;
     this.flash = 0;
     this.flashX = 0;
     this.flashY = 0;
@@ -178,10 +179,12 @@ export class Absorption {
       if (f.time <= 0) this.flashes.splice(i, 1);
     }
 
-    if (!mods.absorption.blades && this.bladeMarks.length) {
+    if (!mods.absorption.blades && this.bladesConnected) {
+      // При снятии клинков сбрасываются и готовые метки, и неполные серии 1/3, 2/3.
       this.bladeMarks.length = 0;
       this.bladeCounters = new WeakMap();
     }
+    this.bladesConnected = !!mods.absorption.blades;
     // Отдельный бонусный удар после трёх попаданий клинков, не сбивает основной цикл.
     for (let i = this.bladeMarks.length - 1; i >= 0; i--) {
       const mark = this.bladeMarks[i];
