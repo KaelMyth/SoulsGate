@@ -24,6 +24,7 @@ function setGravity(p, cfg, m) {
   p.gravityStart = G.startSpeed;
   p.gravityEnd = G.maxSpeed;
   p.gravityRamp = G.rampTime;
+  p.gravityHold = G.holdFraction;
   p.damage *= 1 + G.damageBonus * m.gravity.count;
 }
 
