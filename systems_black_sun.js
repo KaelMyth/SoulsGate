@@ -20,6 +20,7 @@ export class BlackSun {
     this.souls=[]; // души, летящие по спирали в Чёрное солнце
     this.soulsStored=0; // заряд только после того, как душа вошла в ядро
     this.soulPulse=0;
+    this.pressureMult=1;
     this.burstX=0;
     this.burstY=0;
     this.burstRadius=0;
@@ -29,9 +30,10 @@ export class BlackSun {
   sync() {
     const m=this.modifiers?.(this.cfg.block.core);
     // Проверяем один и тот же владеющий ядром Щит, а не наличие модов где-либо на поле.
-    const enabled=!!(this.hero.active && this.aura.active && m?.aura && m?.gravity && m?.absorption);
+    const enabled=!!(this.hero.active && this.aura.active && m?.blackSun);
     if(!enabled && this.enabled) this.reset();
     this.enabled=enabled;
+    this.pressureMult=enabled?Math.max(1,m.blackSun.pressureMult||1):1;
     return enabled;
   }
 
