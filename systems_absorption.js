@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Поглощение: раз в interval секунд фиксирует до N видимых целей (N усиливают Х2/Х3).
 // После постановки кругов новые враги не перехватывают цель; урон и вспышки происходят одновременно.
 // Вампиризм на Поглощении лечит за реально снятое здоровье каждой поражённой цели.
@@ -118,6 +119,7 @@ export class Absorption {
 
   /** Все варианты Поглощения используют единый урон, Вампиризм и стихии. */
   strike(e, mods, damageScale = 1, suppressPhantom = false, phantomGeneration = 0) {
+    mods = forCarrier(mods, 'absorption');
     if (!e || !e.active || !this.hero.active) return false;
     const A = this.cfg.absorption;
     const vampiric = !!mods.absorption.vampirism;
