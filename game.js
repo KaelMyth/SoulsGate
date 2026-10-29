@@ -863,11 +863,12 @@ export class Game {
       const l = ls[i];
       const an = l.anchor; // луч сферы клинка привязан к ней, остальные к герою
       if (an && an.state === 'gone') { ls.splice(i, 1); continue; }
-      if (!l.fixed) { // фантомный луч стоит на месте, остальные привязаны к герою или к сфере
+      if (!l.fixed && !l.lockedOrigin) { // после захвата цели обычный лазер держит исходную позицию
         l.x = an ? an.x : this.hero.x;
         l.y = an ? an.y : this.hero.y;
       }
       const tg = l.target;
+      if (tg && !l.fixed && !an && !l.lockedOrigin) l.lockedOrigin = true;
       if (tg && !tg.active) { this.endLaser(l, ls, i); continue; } // цель погибла: луч гаснет сразу
       if (tg) {
         const ax = tg.x - l.x;
@@ -919,7 +920,7 @@ export class Game {
 
   /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */
   scanLaser(l) {
-    const maxLen = this.config.laser.length;
+    const maxLen = l.target && l.lockedOrigin ? Math.max(this.config.laser.length, Math.hypot(l.target.x-l.x,l.target.y-l.y) + l.target.radius + 5) : this.config.laser.length;
     let cut = maxLen;
     const pad = l.width * 0.3;
     const ex = l.x + l.dx * maxLen;
