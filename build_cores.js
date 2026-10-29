@@ -212,6 +212,17 @@ export function coreStats(core, config, mods) {
       rows.push({ label: 'Мороз: заморозка', text: f.maxStacks + ' попаданий → ' + f.freezeTime + ' с', bonus: '' });
     }
   }
+  // Все источники используют те же реакции; показ соответствует реально собранным стихиям.
+  if (mods) {
+    const mask = mods.gravity?.elements?.mask || 0;
+    const fire = !!mods.burn || !!mods.absorption?.burn || !!(mask & 1);
+    const ice = !!mods.frost || !!mods.absorption?.frost || !!(mask & 2);
+    const shock = !!mods.lightning || !!mods.absorption?.lightning || !!(mask & 4);
+    if (ice && shock) rows.push({ label: 'Мороз + Электризация', text: config.frost.shockStrikeDamage + ' урона',
+      bonus: 'молния сверху при заморозке электризованного врага' });
+    if (fire && shock) rows.push({ label: 'Горение + Электризация', text: 'красные дуги',
+      bonus: 'мгновенно ' + config.burn.maxStacks + ' стака Горения при разряде' });
+  }
   return rows;
 }
 
