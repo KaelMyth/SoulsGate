@@ -5,7 +5,7 @@ const clamp=v=>Math.max(0,Math.min(1,v));
 const rgb=(r,g,b,a)=>'rgba('+r+','+g+','+b+','+clamp(a)+')';
 
 export class BlackSunFx {
-  constructor(renderer){this.r=renderer;}
+  constructor(renderer){this.r=renderer;this.point={x:0,y:0};this.tail={x:0,y:0};}
 
   drawBack(ctx,hx,hy) {
     const sun=this.r.blackSun;
@@ -66,11 +66,14 @@ export class BlackSunFx {
     if(!sun?.enabled)return;
     const B=this.r.cfg.blackSun,t=this.r.clock;
     if(sun.phase==='burst')this.drawBurst(ctx,sun,t);
-    if(sun.phase==='soul' && sun.soul)this.drawSoul(ctx,sun.soul,clamp(sun.time/Math.max(.01,B.soulTime)),t);
     const cx=hx,cy=hy-this.r.hero.radius*2.6;
+    for(let i=0;i<sun.souls.length;i++) {
+      const soul=sun.souls[i];
+      this.drawSoul(ctx,soul,clamp(soul.time/Math.max(.01,B.soulTime)),t,cx,cy);
+    }
     const collapsing=sun.phase==='collapse';
     const u=collapsing?clamp(sun.time/Math.max(.01,B.collapseTime)):0;
-    const core=this.r.hero.radius*(1.45+(sun.phase==='soul'?.22*Math.sin(t*14):0))*(collapsing?1-.82*u:1);
+    const core=this.r.hero.radius*(1.45+.26*sun.soulPulse+.06*sun.soulsStored)*(collapsing?1-.82*u:1);
     ctx.save();
     ctx.translate(cx,cy);
     ctx.globalCompositeOperation='lighter';
@@ -111,6 +114,31 @@ export class BlackSunFx {
       ctx.arc(0,0,core*(1.17+.1*Math.sin(t+i)),a,a+1.2);
       ctx.stroke();
     }
+    // Каждая поглощённая душа становится светлячком в дымной короне.
+    const capacity=Math.max(1,B.soulsRequired|0);
+    const glow=this.r.getGlow(true);
+    for(let i=0;i<capacity;i++){
+      const filled=i<sun.soulsStored;
+      const a=i*TAU/capacity+t*(filled?.26:.09)+Math.sin(t*.9+i*2.8)*.06;
+      const rr=core*(2.35+.19*Math.sin(t*1.9+i*1.8));
+      const x=Math.cos(a)*rr,y=Math.sin(a)*rr*.73;
+      const sz=filled?5.3+1.2*Math.sin(t*3+i):2.1;
+      ctx.globalAlpha=filled?.69:.14;
+      ctx.drawImage(glow,x-sz,y-sz,sz*2,sz*2);
+      if(filled){
+        ctx.fillStyle='#f7ddff';
+        ctx.globalAlpha=.7+.14*Math.sin(t*4+i);
+        ctx.beginPath();ctx.arc(x,y,1.5,0,TAU);ctx.fill();
+      }
+    }
+    // Всплеск ядра на каждом завершённом поглощении.
+    if(sun.soulPulse>0){
+      const wave=core*(1.25+1.35*(1-sun.soulPulse));
+      ctx.strokeStyle='#c88bff';
+      ctx.lineWidth=2+4*sun.soulPulse;
+      ctx.globalAlpha=.42*sun.soulPulse;
+      ctx.beginPath();ctx.ellipse(0,0,wave,wave*.73,t*.3,0,TAU);ctx.stroke();
+    }
     if(collapsing) {
       // Короткая сверхъяркая точка в конце имплозии, затем большой удар.
       ctx.globalAlpha=.65*u*u;
@@ -120,27 +148,62 @@ export class BlackSunFx {
     ctx.restore();
   }
 
-  drawSoul(ctx,soul,u,t) {
-    const fade=(1-u)*(1-u);
-    if(fade<=0)return;
-    const radius=Math.max(9,soul.radius*1.35)*(1+.75*u);
+  // Кривая засасывания: при подходе скорость растёт, виток закручивается в горловину.
+  soulPoint(soul,u,t,targetX,targetY,out) {
+    const p=clamp(u),speed=p*p*(1.35-.35*p);
+    const dx=targetX-soul.x,dy=targetY-soul.y;
+    const dist=Math.hypot(dx,dy)||1;
+    const curl=Math.sin(Math.PI*p)*Math.min(48,dist*.4)*(1-p*.45);
+    const spin=p*TAU*1.7+t*.5+soul.seed;
+    out.x=soul.x+dx*speed-dy/dist*Math.sin(spin)*curl;
+    out.y=soul.y+dy*speed+dx/dist*Math.sin(spin)*curl;
+    return out;
+  }
+
+  drawSoul(ctx,soul,u,t,targetX,targetY) {
+    const p=clamp(u),fade=Math.pow(1-p,.43);
+    if(fade<=.001)return;
+    const radius=Math.max(8,soul.radius*1.2)*(1-.7*p);
     const glow=this.r.getGlow(true);
-    ctx.save();ctx.translate(soul.x,soul.y);
+    const pos=this.soulPoint(soul,p,t,targetX,targetY,this.point);
+    ctx.save();
     ctx.globalCompositeOperation='lighter';
-    ctx.globalAlpha=.7*fade;
-    ctx.drawImage(glow,-radius,-radius,radius*2,radius*2);
-    for(let i=0;i<10;i++){
-      const a=i*2.4+t*(i%2?-.55:.64)+soul.seed;
-      const d=radius*(.2+1.4*u)*(1+.13*Math.sin(t*3+i));
-      const x=Math.cos(a)*d,y=Math.sin(a)*d*.82-u*8;
-      const s=3+3*fade+(i%3);
-      ctx.globalAlpha=fade*(.3+.28*(i%3)/3);
-      ctx.drawImage(glow,x-s,y-s,2*s,2*s);
-      ctx.strokeStyle=i%2?'#9e65c9':'#d9b4ff';ctx.lineWidth=2.2*fade+.6;
-      ctx.beginPath();ctx.moveTo(x,y);
-      ctx.quadraticCurveTo(x+Math.sin(a)*7,y-6-u*9,x+Math.sin(t+i)*3,y-14-u*15);
+    ctx.lineCap='round';
+    // Дымный хвост остаётся на изогнутой траектории — нити втягиваются вслед за ядром.
+    for(let pass=0;pass<3;pass++) {
+      ctx.beginPath();
+      for(let j=0;j<=14;j++){
+        const q=Math.max(0,p-j*.027);
+        const v=this.soulPoint(soul,q,t,targetX,targetY,this.tail);
+        if(!j)ctx.moveTo(v.x,v.y);else ctx.lineTo(v.x,v.y);
+      }
+      ctx.strokeStyle=pass===0?'#3b235b':pass===1?'#8350bb':'#e0a9ff';
+      ctx.globalAlpha=(pass===0?.38:pass===1?.43:.67)*fade;
+      ctx.lineWidth=(pass===0?radius*2.3:pass===1?radius*.9:1.45)*(1-.5*p);
       ctx.stroke();
     }
+    const x=pos.x,y=pos.y;
+    // Вырванная из врага душа не шар: деформированный туман и плотная сердцевина.
+    ctx.globalAlpha=.64*fade;
+    ctx.drawImage(glow,x-radius*2.1,y-radius*2.1,radius*4.2,radius*4.2);
+    for(let i=0;i<9;i++){
+      const angle=i*2.399+t*(i%2?-.85:.62)+soul.seed+p*7.5;
+      const swirlR=radius*(.48+1.05*(1-p))*(.85+.12*Math.sin(t*2.8+i));
+      const xx=x+Math.cos(angle)*swirlR,yy=y+Math.sin(angle)*swirlR*.78;
+      const sz=(2+i%3)*(.62+.43*fade);
+      ctx.globalAlpha=fade*(.2+.35*(i%4)/4);
+      ctx.drawImage(glow,xx-sz,yy-sz,2*sz,2*sz);
+      ctx.strokeStyle=i%2?'#9e65c9':'#dbb0f5';
+      ctx.lineWidth=1.8*fade+.5;
+      ctx.beginPath();ctx.moveTo(xx,yy);
+      ctx.quadraticCurveTo(xx+Math.sin(angle)*7,yy-4,
+        x+Math.cos(angle-.65)*radius*.25,y+Math.sin(angle-.65)*radius*.25);
+      ctx.stroke();
+    }
+    ctx.fillStyle='#f2d9ff';
+    ctx.globalAlpha=.65*fade;
+    ctx.beginPath();ctx.ellipse(x,y,radius*(.46+.3*p),radius*(.33-.11*p),
+      Math.atan2(targetY-y,targetX-x),0,TAU);ctx.fill();
     ctx.restore();
   }
 
