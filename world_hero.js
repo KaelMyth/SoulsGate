@@ -23,6 +23,7 @@ export class Hero {
     this.incarnationT = 0; // «Воплощение»: неуязвимый энергетический шар
     this.incarnationSpeedMul = 1;
     this.incarnationInertia = 0;
+    this.incarnationMask = 0;
     // Статусы от босса (разломы Тартаса): замедление и горение. Накладывает systems_boss.js, снимает таймер.
     this.slowT = 0;       // сколько ещё секунд замедлен
     this.slowMul = 1;     // во сколько раз медленнее, пока slowT > 0
@@ -102,6 +103,7 @@ export class Hero {
     this.incarnationT = 0;
     this.incarnationSpeedMul = 1;
     this.incarnationInertia = 0;
+    this.incarnationMask = 0;
     this.slowT = 0;
     this.slowMul = 1;
     this.burnT = 0;
