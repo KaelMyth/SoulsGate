@@ -192,6 +192,7 @@ export const CONFIG = {
       canBurn: true,
       canFrost: true,
       canLightning: true,
+      canBlades: true,
       effect: { kind: 'incarnation', secondary: true },
     },
     aura: {
@@ -330,6 +331,11 @@ export const CONFIG = {
       inertia: 0.34, // с: инерция при поворотах и остановке, занос
       coreRadius: 12, // размер светящегося энергетического ядра
       tailLength: 45, // длина кометного хвоста
+      bladeLaunchGap: 0.5,
+      bladeBaseCount: 4,
+      bladeMultiplierBase: 2,
+      bladeSpeed: 700,
+      bladeRange: 600,
       contactDamage: 30, // контактный урон каждому задетому врагу один раз за применение
       contactPadding: 4, // дополнительная ширина области касания
       burnTickDamage: 6, // сила горения от огненной/смешанной кометы
