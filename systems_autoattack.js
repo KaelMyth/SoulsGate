@@ -188,7 +188,8 @@ export class AutoAttack {
     const want = Math.round(S.base * projectileCount(this.cfg, m));
     const n = Math.min(want, P.free()); // места нет: стреляем тем, что влезает
     const sd = m.shot && m.shot.damage ? m.shot.damage : 1; // Мощь на Дроби
-    const dmg = applyMod(def.damage, m.damage) * S.damageFrac * sd;
+    const gravityBonus = m.gravity ? 1 + this.cfg.gravity.damageBonus * m.gravity.count : 1;
+    const dmg = applyMod(def.damage, m.damage) * S.damageFrac * sd * gravityBonus;
     const half = (S.spread * Math.PI) / 360;
     // Горение и Мороз: несут только каждая вторая дробинка, иначе заряды Мороза набирались бы за один залп.
     const full = applyMod(def.damage, m.damage) * sd;
@@ -202,8 +203,10 @@ export class AutoAttack {
       const t = n > 1 ? (i + this.rnd() * 0.8) / n : 0.5;
       const a = base + (t * 2 - 1) * half;
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
+      // Дробь наследует гравитационный разгон без подмены отдельной системой снарядов.
+      const gravitySpeed = m.gravity ? this.cfg.gravity.maxSpeed : 1;
       const fx = (i & 1) === 0; // половина несёт эффекты
-      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range * this.rangeMul, dmg,
+      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp * gravitySpeed, Math.sin(a) * sp * gravitySpeed, S.range * this.rangeMul, dmg,
         fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0, pc, (i & 3) === 0 ? ph : 0, 0);
     }
     hero.facing = base;
