@@ -59,7 +59,7 @@ export class Incarnation {
     this.afterimageTimer = 0;
     const S = this.config.skills.incarnation;
     this.bladeQueue = this.mods.blades && !this.mods.laser ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
-    this.bladeGap = this.bladeQueue ? Math.min(S.bladeLaunchGap, S.duration / this.bladeQueue) / this.hasteMultiplier : S.bladeLaunchGap;
+    this.bladeGap = this.bladeQueue ? Math.min(S.bladeLaunchGap, S.duration * this.splitCount / this.bladeQueue) / this.hasteMultiplier : S.bladeLaunchGap;
     this.bladeTimer = this.bladeGap;
     if (this.bladeQueue) for (let i = 0; i < this.bladeQueue; i++) this.bladeItems.push({ state: 'orbit', x: this.hero.x, y: this.hero.y, a: i * Math.PI * 2 / this.bladeQueue, off: i * Math.PI * 2 / this.bladeQueue, kind: this.mods.frost && this.mods.burn ? 3 : this.mods.burn ? 2 : this.mods.frost ? 1 : 0, zap: this.mods.lightning ? 1 : 0, age: 0, incarnationBlade: true });
     this.active = true;
@@ -149,6 +149,7 @@ export class Incarnation {
       this.laserPath.push({ x1: fromX, y1: fromY, x2: h.x, y2: h.y, life: 0.18, maxLife: 0.18 });
       this.laserLastTarget = pick; this.laserLastGen = pick.gen;
       const hit = this.combat.damageEnemy(pick, S.laserDamage * this.damageMultiplier * (this.mods?.laser?.damage || 1), this.source, null);
+      this.laserPath[this.laserPath.length-1].strands = this.splitCount;
       if (hit && pick.active) this.applyElements(pick);
     }
     for (let i = this.laserPath.length - 1; i >= 0; i--) {
@@ -195,6 +196,7 @@ export class Incarnation {
       this.bladeTimer -= dt;
       if (this.bladeTimer <= 0) {
         this.bladeTimer += gap;
+        for (let volley = 0; volley < this.splitCount; volley++) {
         const b = this.bladeItems.find(b => b.state === 'orbit');
         if (b) {
           const targets = this.enemies.items.filter(e => e.active && e.hp > 0 && Math.hypot(e.x - h.x, e.y - h.y) <= S.bladeRange);
@@ -210,6 +212,8 @@ export class Incarnation {
             h.incarnationInertia = 0;
             this.active = false;
           }
+        }
+        if (!this.bladeQueue) break;
         }
       }
       // Воплощение клинков длится до последнего вылета, независимо от обычных 5 секунд.
