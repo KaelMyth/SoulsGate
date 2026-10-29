@@ -20,8 +20,10 @@ export function phantomSpot(arena, rnd, F, e, pad, out) {
   return false;
 }
 
-/** Выпал ли фантом: шанс chance падает вдвое (decay) с каждым поколением gen, дальше maxChain не идём. */
+/** Общая вероятность фантома: не бросаем RNG, если шанс ниже порога (по умолчанию 5%). */
 export function phantomRoll(F, rnd, chance, gen) {
   if (!(chance > 0) || gen >= F.maxChain) return false;
-  return rnd() < chance * Math.pow(F.decay, gen);
+  const actualChance = chance * Math.pow(F.decay, gen);
+  if (actualChance < (F.minChance ?? 0.05)) return false;
+  return rnd() < actualChance;
 }
