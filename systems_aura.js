@@ -51,7 +51,7 @@ export class Aura {
     this.lightning = !!m.lightning; // Молния на ауре: поле потрескивает разрядами (только вид)
     this.laserShimmer = !!m.auraLaser;
     this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)) * (this.laserShimmer ? 1.2 : 1); // Х2/Х3 на ауре: шире
-    const hybrid = !!m.gravity; // С Гравитацией Аура постоянна, но слабее и тикает реже
+    const hybrid = !!(m.scopes ? (m.scopes.root?.gravity || m.scopes.aura?.gravity) : m.gravity); // Только Гравитация, связанная с Аурой
     const power = hybrid ? this.cfg.gravity.auraDamageMul : 1;
     const rate = hybrid ? this.cfg.gravity.auraTickRateMul : 1;
     const dmg = (A.damage * (a.damage || 1) + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0)) * power * (this.laserShimmer ? 1.25 : 1);
