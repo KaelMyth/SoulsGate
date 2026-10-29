@@ -85,6 +85,7 @@ export class Game {
     this.kineticBladeTrail = null;
     this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
     this.gravityDash = { active: false, charging: false, x: 0, y: 0, ox: 0, oy: 0, t: 0, life: 0.45, charge: 0.28 };
+    this.laserDash = {active:false,x:0,y:0,seq:0};
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
     this.frostShockSource = { shock: true, frostShock: true, active: true }; // отдельный небесный разряд от заморозки
@@ -359,6 +360,8 @@ export class Game {
     });
     this.bus.on('dash:gravity-started', (event) => this.startGravityDash(event));
     this.bus.on('dash:gravity-arrived', (event) => this.finishGravityDash(event));
+    this.bus.on('dash:laser-started', (event) => this.startLaserDash(event));
+    this.bus.on('dash:laser-arrived', (event) => this.finishLaserDash(event));
     this.bus.on('dash:landed', () => this.kineticLanding(false));
     this.bus.on('dash:started', () => { this.startDashBeam(); this.beginKineticBladeTrail(); });
     this.bus.on('damage:dealt', (e) => {
@@ -1227,6 +1230,40 @@ export class Game {
     }
   }
 
+  /** Лазер на Рывке: заранее находим безопасный конец луча, не применяя Гравитацию. */
+  startLaserDash({dirX,dirY,distance,seq}) {
+    const h=this.hero, ar=this.arena;
+    let x=h.x,y=h.y;
+    const zone=ar.zone;
+    for(let traveled=6;traveled<=distance+6;traveled+=6) {
+      const d=Math.min(traveled,distance);
+      const nx=h.x+dirX*d,ny=h.y+dirY*d;
+      if(nx<ar.left+h.radius||nx>ar.right-h.radius||ny<ar.top+h.radius||ny>ar.bottom-h.radius||
+        (zone&&(nx<zone.left+h.radius||nx>zone.right-h.radius||
+          ny<zone.top+h.radius||ny>zone.bottom-h.radius||
+          (zone.poly&&!pointInPoly(zone.poly,nx,ny))))||
+        ar.circleHitsRock(nx,ny,h.radius))break;
+      x=nx;y=ny;
+    }
+    Object.assign(this.laserDash,{active:true,x,y,seq});
+  }
+
+  /** Перемещение случается после того, как луч прошёл путь. */
+  finishLaserDash({seq}) {
+    const ld=this.laserDash;
+    if(!ld.active||ld.seq!==seq)return;
+    ld.active=false;
+    this.hero.place(ld.x,ld.y);
+    this.arena.resolveCircle(this.hero);
+    this.hero.place(this.hero.x,this.hero.y);
+    this.hero.vx=this.hero.vy=0;
+    this.hero.glideTime=0;
+    this.hero.invuln=Math.max(this.hero.invuln||0,0.14);
+    // Клинки выходят ВДОЛЬ всей пройденной траектории, даже при мгновенном прыжке.
+    this.spawnKineticBlades();
+    this.bus.emit('dash:landed',{seq});
+  }
+
   /** Безопасная точка пространственной аномалии: нельзя попасть внутрь стены или выйти из арены. */
   startGravityDash({ dirX, dirY, distance, seq }) {
     const hero = this.hero, ar = this.arena, K = this.config.kinetic;
@@ -1381,7 +1418,8 @@ export class Game {
       ex = x; ey = y;
     }
     if (this.defense.gravityDashCharging && this.gravityDash.active) { ex = this.gravityDash.x; ey = this.gravityDash.y; }
-    this.dashBeams.push({ x0: h.x, y0: h.y, x1: ex, y1: ey, age: 0, done: false, zap: !!m.lightning, kind: this.kineticEl().kind });
+    if (this.defense.laserDashCharging && this.laserDash.active) { ex = this.laserDash.x; ey = this.laserDash.y; }
+    this.dashBeams.push({ x0: h.x, y0: h.y, x1: ex, y1: ey, age: 0, done: false, zap: false, kind: this.kineticEl('laser').kind });
   }
 
   updateBeams(dt) {
@@ -1704,6 +1742,7 @@ export class Game {
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!this.kineticMods?.scopes?.root?.lightning; // Молния на рывке: рикошеты по врагам
       this.defense.gravityDashEnabled = !!this.kineticMods?.scopes?.root?.gravity;
+      this.defense.laserDashEnabled = !!this.kineticMods?.scopes?.root?.laser && !this.defense.gravityDashEnabled && !this.defense.lightDash;
       { // моды рывка: Х2/Х3 (рикошеты, толчок), Мощь (урон), Ускорение (перезарядка)
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
@@ -2116,6 +2155,7 @@ export class Game {
     this.dashBeams.length = 0;
     this.gravityDash.active = false;
     this.gravityDash.charging = false;
+    this.laserDash.active = false;
     this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
     this.hud.rainT = 0;
     this.hud.rainMask = 0;
