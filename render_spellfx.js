@@ -233,113 +233,145 @@ export class SpellFx {
     ctx.restore();
   }
 
-  // #155: Поглощение теперь растущая СФЕРА, постепенно обволакивающая врага.
-  // Back рисуется за моделью, Front поверх неё; оба используют одну анимацию.
-  // Визуальный центр совпадает с целью. Нет отдельных геометрических колец.
+  // #156: кэшированные облака с неоднородными краями вместо гладких
+  // окружностей. Рисуем их множеством мягких облачных сгустков: сзади,
+  // затем поверх моба, чтобы дым действительно постепенно его укрывал.
+  smokeTexture(mode='blood',bright=false) {
+    if(!this.smokeCache)this.smokeCache=Object.create(null);
+    const key=mode+(bright?'-lit':'-dark');
+    if(this.smokeCache[key])return this.smokeCache[key];
+    const canvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(128,128):
+      (typeof document!=='undefined'?document.createElement('canvas'):null);
+    if(!canvas)return null;
+    canvas.width=canvas.height=128;
+    const g=canvas.getContext('2d');
+    if(!g)return null;
+    const col=orbPalettes[mode]||orbPalettes.blood;
+    // Смещённые перекрывающиеся дольки с разной прозрачностью.
+    // Прозрачность всегда уходит в ноль на границах спрайта.
+    for(let j=0;j<7;j++){
+      const angle=j*2.399;
+      const cx=64+Math.cos(angle)*(j%2?15:10);
+      const cy=64+Math.sin(angle)*(j%3?12:17);
+      const r=34+(j%3)*7;
+      const grad=g.createRadialGradient(cx,cy,2,cx,cy,r);
+      const core=bright?(j%3===0?col.light:col.bright):(j%3===0?col.edge:col.smoke);
+      const outer=bright?col.edge:col.bright;
+      grad.addColorStop(0,rgba(core,bright?.22:.37));
+      grad.addColorStop(.33,rgba(core,bright?.18:.31));
+      grad.addColorStop(.66,rgba(outer,bright?.10:.15));
+      grad.addColorStop(1,rgba(outer,0));
+      g.fillStyle=grad;g.beginPath();g.arc(cx,cy,r,0,TAU);g.fill();
+    }
+    this.smokeCache[key]=canvas;
+    return canvas;
+  }
+
+  smokeCloud(ctx,x,y,size,opacity,mode='blood',bright=false) {
+    const a=clamp(opacity);
+    if(a<=0||size<=0)return;
+    const tile=this.smokeTexture(mode,bright);
+    if(tile){
+      ctx.globalAlpha=a;
+      ctx.drawImage(tile,x-size,y-size*.82,size*2,size*1.64);
+    }else{
+      // Без OffscreenCanvas остаётся точно такое же плавное облако.
+      const col=orbPalettes[mode]||orbPalettes.blood;
+      const grad=ctx.createRadialGradient(x,y,0,x,y,size);
+      const tint=bright?col.bright:col.edge;
+      grad.addColorStop(0,rgba(tint,a*(bright?.37:.52)));
+      grad.addColorStop(.48,rgba(bright?col.light:col.smoke,a*.24));
+      grad.addColorStop(1,rgba(col.smoke,0));
+      ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,size,0,TAU);ctx.fill();
+    }
+  }
+
+  // Источник сферы — клубящийся объем вокруг центра противника,
+  // а не плоский диск и не ровная обводка.
   absorptionSphereBack(ctx,x,y,r,progress,time,mode='blood',seed=0) {
     const col=orbPalettes[mode]||orbPalettes.blood;
-    const p=sm(clamp(progress)),pulse=.93+.07*Math.sin(time*6+seed);
-    const R=Math.max(8,r*1.13)*(0.9+.17*p)*pulse;
-    ctx.save();
-    ctx.globalCompositeOperation='source-over';
-    // Широкий насыщенный ореол вписывает сферу в палитру остальных эффектов игры.
-    const halo=ctx.createRadialGradient(x,y,R*.18,x,y,R*2);
-    halo.addColorStop(0,rgba(col.bright,.22+.23*p));
-    halo.addColorStop(.28,rgba(col.edge,.36+.23*p));
-    halo.addColorStop(.65,rgba(col.smoke,.18+.14*p));
-    halo.addColorStop(1,rgba(col.smoke,0));
-    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,R*2,0,TAU);ctx.fill();
+    const p=sm(clamp(progress)),R=Math.max(10,r*1.20);
+    const inherited=ctx.globalAlpha;
+    ctx.save();ctx.globalCompositeOperation='source-over';
+    // Большое насыщенное, но размытое пятно света за мобом.
+    const aura=ctx.createRadialGradient(x,y,R*.22,x,y,R*1.95);
+    aura.addColorStop(0,rgba(col.bright,.13+.13*p));
+    aura.addColorStop(.37,rgba(col.edge,.23+.15*p));
+    aura.addColorStop(.73,rgba(col.smoke,.095+.11*p));
+    aura.addColorStop(1,rgba(col.smoke,0));
+    ctx.fillStyle=aura;ctx.beginPath();ctx.arc(x,y,R*1.95,0,TAU);ctx.fill();
 
-    // Тёмная полупрозрачная сердцевина — уже видимая сферическая оболочка.
-    const shell=ctx.createRadialGradient(x-R*.32,y-R*.34,R*.06,x+R*.17,y+R*.15,R*1.48);
-    shell.addColorStop(0,rgba(col.light,.22+.17*p));
-    shell.addColorStop(.24,rgba(col.bright,.31+.20*p));
-    shell.addColorStop(.59,rgba(col.edge,.46+.16*p));
-    shell.addColorStop(.84,rgba(col.smoke,.58+.14*p));
-    shell.addColorStop(1,rgba(col.smoke,0));
-    ctx.fillStyle=shell;ctx.beginPath();ctx.arc(x,y,R*1.13,0,TAU);ctx.fill();
-    // Несколько мягких, неровных концентрических течений внутри сферы.
-    ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
-    for(let k=0;k<4;k++){
-      const angle=time*(k%2?-.65:.85)+k*1.73+seed*.19;
-      const stretch=R*(.62+.07*k+.08*Math.sin(time*2.3+k));
-      ctx.strokeStyle=rgba(k%2?col.bright:col.edge,.17+.17*p);
-      ctx.lineWidth=R*(.085+.027*(k%2));
-      ctx.beginPath();ctx.ellipse(x,y,stretch,stretch*(.69+.06*k),angle,
-        angle+Math.PI*.17,angle+Math.PI*(1.04+.15*k));ctx.stroke();
+    // Несинхронные дымные клубы облетают моба с разной скоростью.
+    for(let i=0;i<21;i++){
+      const birth=(i%11)/18;
+      const t=sm(clamp((p-birth)*2.5));
+      const ang=i*2.399+seed*.27+time*(i%2?-.24:.30);
+      const orbit=R*(1.12-.53*t+.10*Math.sin(time*1.3+i));
+      const px=x+Math.cos(ang)*orbit;
+      const py=y+Math.sin(ang)*orbit*.86;
+      const sz=R*(.41+.10*(i%4)+.21*t);
+      this.smokeCloud(ctx,px,py,sz,inherited*(.24+.49*t),mode,i%4===0);
     }
     ctx.restore();
   }
 
-  // Передняя полусфера постепенно смыкается поверх врага. На ранних кадрах
-  // центр почти прозрачен, к концу накрыт плотным пурпурным энергетическим слоем.
+  // Сгустки возникают по краям и сходятся к середине; каждый имеет
+  // собственную фазу, поэтому оболочка выглядит живым дымом, а не шариком.
   absorptionSphereFront(ctx,x,y,r,progress,time,mode='blood',seed=0) {
     const col=orbPalettes[mode]||orbPalettes.blood;
-    const p=sm(clamp(progress));
-    const close=sm(clamp((progress-.05)/.95));
-    const R=Math.max(8,r*1.13)*(0.9+.17*p)*(.93+.07*Math.sin(time*6+seed));
+    const p=sm(clamp(progress)),R=Math.max(10,r*1.20);
+    const inherited=ctx.globalAlpha;
     ctx.save();ctx.globalCompositeOperation='source-over';
-    // Уплотняющаяся в центре дымная мембрана именно СКРЫВАЕТ врага.
-    const skin=ctx.createRadialGradient(x-R*.23,y-R*.26,R*.02,x,y,R*1.1);
-    skin.addColorStop(0,rgba(col.bright,.02+.63*close*close));
-    skin.addColorStop(.34,rgba(col.edge,.08+.73*close));
-    skin.addColorStop(.72,rgba(col.smoke,.12+.72*close));
-    skin.addColorStop(1,rgba(col.edge,.01+.24*close));
-    ctx.fillStyle=skin;ctx.beginPath();ctx.arc(x,y,R,0,TAU);ctx.fill();
-
-    // Два массивных завихрения растут навстречу друг другу с обеих сторон,
-    // без жёсткого контура или прямых линий.
-    ctx.lineCap='round';ctx.lineJoin='round';ctx.globalCompositeOperation='lighter';
-    const arcLength=(.23+.72*close)*Math.PI;
-    for(let side=0;side<2;side++){
-      const base=side?Math.PI*.5:-Math.PI*.5;
-      const direction=side?-1:1;
-      const start=base-direction*(.09+Math.sin(time*.7+seed)*.06);
-      const finish=start+direction*arcLength;
-      const grad=ctx.createLinearGradient(x-R,y-R*.65,x+R,y+R*.65);
-      grad.addColorStop(0,rgba(side?col.edge:col.bright,.4+.47*close));
-      grad.addColorStop(.5,rgba(col.light,.51+.36*close));
-      grad.addColorStop(1,rgba(side?col.bright:col.edge,.38+.52*close));
-      ctx.beginPath();
-      ctx.arc(x,y,R*(.91+.025*Math.sin(time*3+side)),
-        start,finish,side===1);
-      ctx.strokeStyle=grad;ctx.lineWidth=R*(.15+.095*close);ctx.stroke();
+    // На раннем этапе враг виден между клубами, к концу почти скрыт.
+    // Каждая группа облаков накрывает другую сторону, без сплошной заливки.
+    for(let i=0;i<27;i++){
+      const birth=(i%9)*.085;
+      const arrive=sm(clamp((p-birth)*2.9));
+      if(arrive<.005)continue;
+      const side=i%2===0?1:-1;
+      const a=i*2.399+seed*.24+time*(.19+(i%3)*.045)*side;
+      const orbit=R*(1.17-.98*arrive);
+      const wobble=Math.sin(time*1.6+i*2.1)*R*.14;
+      const px=x+Math.cos(a)*orbit+Math.cos(a+1.3)*wobble;
+      const py=y+Math.sin(a)*orbit*.9+Math.sin(a+.7)*wobble*.68;
+      const sz=R*(.37+.11*(i%4)+.29*arrive);
+      const alpha=inherited*clamp((.25+.70*arrive)*(.62+.38*p));
+      this.smokeCloud(ctx,px,py,sz,alpha,mode,i%5===0);
     }
-    // Неравномерное преломлённое свечение делает сферу объёмной, не плоским диском.
-    const spec=ctx.createRadialGradient(x-R*.39,y-R*.46,0,x-R*.24,y-R*.3,R*.8);
-    spec.addColorStop(0,rgba(col.light,(.25+.38*close)));
-    spec.addColorStop(.44,rgba(col.bright,(.11+.25*close)));
-    spec.addColorStop(1,rgba(col.bright,0));
-    ctx.fillStyle=spec;ctx.beginPath();ctx.arc(x,y,R,0,TAU);ctx.fill();
-    // Движущиеся огоньки замыкают оболочку; плавная синусоидальная траектория.
-    for(let i=0;i<9;i++){
-      const a=i*2.399+time*(i%2?-.53:.7)+seed*.23;
-      const rr=R*(.75+.13*Math.sin(time*2+i));
-      const px=x+Math.cos(a)*rr,py=y+Math.sin(a)*rr;
-      const dot=ctx.createRadialGradient(px,py,0,px,py,R*.17);
-      dot.addColorStop(0,rgba(i%3===0?col.light:col.bright,(.45+.44*close)));
-      dot.addColorStop(1,rgba(col.bright,0));
-      ctx.fillStyle=dot;ctx.beginPath();ctx.arc(px,py,R*.17,0,TAU);ctx.fill();
+    // Световые облака под поверхностью дымной оболочки: не линии и не дуги.
+    ctx.globalCompositeOperation='lighter';
+    for(let j=0;j<6;j++){
+      const a=j*TAU/6+seed*.16-time*(j%2?-.27:.32);
+      const dist=R*(.83-.27*p);
+      const cx=x+Math.cos(a)*dist,cy=y+Math.sin(a)*dist*.83;
+      const sz=R*(.28+.08*(j%3));
+      this.smokeCloud(ctx,cx,cy,sz,inherited*(.19+.25*p),mode,true);
     }
+    // Тусклой плоской сердцевины нет — только мягкий бликующий туман.
+    const light=ctx.createRadialGradient(x-R*.22,y-R*.31,0,x,y,R*.98);
+    light.addColorStop(0,rgba(col.light,(.045+.18*p)*inherited));
+    light.addColorStop(.34,rgba(col.bright,(.05+.16*p)*inherited));
+    light.addColorStop(1,rgba(col.smoke,0));
+    ctx.fillStyle=light;ctx.beginPath();ctx.arc(x,y,R,0,TAU);ctx.fill();
     ctx.restore();
   }
 
-  // После удара сфера не взрывается наружу, а сжимается внутрь,
-  // оставляя яркую короткую вспышку. Алое Пробитие остаётся самостоятельным.
+  // На ударе сгустки сжимаются внутрь и рассеиваются, сохраняя
+  // объёмный дымный характер вместо геометрической ударной волны.
   absorptionSphereBurst(ctx,x,y,r,remaining,time,mode='blood',seed=0) {
     const left=clamp(remaining),gone=1-left;
     if(left<=0)return;
-    const radius=r*(1.08-.69*sm(gone));
-    ctx.save();ctx.globalAlpha=left;
+    const radius=r*(1.08-.65*sm(gone));
+    ctx.save();ctx.globalAlpha*=left;
     this.absorptionSphereBack(ctx,x,y,radius,1,time,mode,seed);
     this.absorptionSphereFront(ctx,x,y,radius,1,time,mode,seed);
     const col=orbPalettes[mode]||orbPalettes.blood;
-    const flare=ctx.createRadialGradient(x,y,0,x,y,r*(.68+.22*gone));
-    flare.addColorStop(0,rgba(col.light,(.36+.5*gone)*left));
-    flare.addColorStop(.28,rgba(col.bright,.37*left));
+    const flare=ctx.createRadialGradient(x,y,0,x,y,r*(.72+.18*gone));
+    flare.addColorStop(0,rgba(col.light,.53*left));
+    flare.addColorStop(.34,rgba(col.bright,.37*left));
     flare.addColorStop(1,rgba(col.edge,0));
-    ctx.globalCompositeOperation='lighter';
-    ctx.fillStyle=flare;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+    ctx.globalCompositeOperation='lighter';ctx.fillStyle=flare;
+    ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
     ctx.restore();
   }
 
