@@ -895,12 +895,13 @@ export class Game {
       const l = ls[i];
       const an = l.anchor; // луч сферы клинка привязан к ней, остальные к герою
       if (an && an.state === 'gone') { ls.splice(i, 1); continue; }
-      if (!l.fixed && !l.lockedOrigin) { // после захвата цели обычный лазер держит исходную позицию
+      // Все подвижные лучи перепривязываются КАЖДЫЙ КАДР к герою или клинку.
+      // fixed=true означает независимый фантомный луч со своей неподвижной точкой.
+      if (!l.fixed) {
         l.x = an ? an.x : this.hero.x;
         l.y = an ? an.y : this.hero.y;
       }
       const tg = l.target;
-      if (tg && !l.fixed && !an && !l.lockedOrigin) l.lockedOrigin = true;
       if (tg && !tg.active) { this.endLaser(l, ls, i); continue; } // цель погибла: луч гаснет сразу
       if (tg) {
         const ax = tg.x - l.x;
@@ -952,7 +953,8 @@ export class Game {
 
   /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */
   scanLaser(l) {
-    const maxLen = l.target && l.lockedOrigin ? Math.max(this.config.laser.length, Math.hypot(l.target.x-l.x,l.target.y-l.y) + l.target.radius + 5) : this.config.laser.length;
+    // При движении героя/клинка лазер остаётся направленным в текущую цель.
+    const maxLen = l.target && !l.fixed ? Math.max(this.config.laser.length, Math.hypot(l.target.x-l.x,l.target.y-l.y) + l.target.radius + 5) : this.config.laser.length;
     let cut = maxLen;
     const pad = l.width * 0.3;
     const ex = l.x + l.dx * maxLen;
@@ -1992,6 +1994,12 @@ export class Game {
     this.effects.clear();
     this.steamClouds.length = 0;
     this.fires.length = 0;
+    // Отложенные эффекты прошлой игры не должны попадать в новых врагов из пула.
+    this.synergyCasts.length = 0;
+    this.synergyFlashes.length = 0;
+    this.laserAbsorptionCooldowns = new WeakMap();
+    this.kineticBlades.length = 0;
+    this.kineticBladeTrail = null;
     this.kPending = false;
     this.kineticMods = null;
     this.lightdash.reset();
@@ -2004,6 +2012,7 @@ export class Game {
     this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
     this.hud.rainT = 0;
     this.hud.rainMask = 0;
+    this.hud.rainBlades = false;
     this.hud.rainEquippedMask = 0;
     this.hud.incarnationT = 0;
     this.hud.incarnationOn = false;
