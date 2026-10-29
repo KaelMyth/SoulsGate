@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Спектральные клинки (мод на щите): голубые треугольники копятся вокруг героя, а когда набралось максимум,
 // все летят во врагов. На одного врага не больше perTarget клинков, остальные выбирают других.
 // Клинок самонаводится на цель, при попадании бьёт и исчезает. Сам щит мод не меняет.
@@ -123,7 +124,15 @@ export class Blades {
 
   update(dt) {
     const B = this.cfg.blades;
-    const m = this.modifiers ? this.modifiers(B.core) : null;
+    const raw = this.modifiers ? this.modifiers(B.core) : null;
+    const m = raw ? forCarrier(raw, 'blades') : null;
+    if (m?.scopes) {
+      const carrier = m.scopes.blades || {};
+      m.laser = carrier.laser ? raw.laser : null;
+      m.shot = carrier.shot ? raw.shot : null;
+      m.phantom = carrier.phantom ? {...raw.phantom, mult:carrier.phantom.mult} : null;
+      m.pierce = carrier.pierce ? {count:carrier.pierce.mult} : null;
+    }
     if (!m || !m.blades) {
       for (const b of this.items) b.state = 'gone'; // мод сняли: клинки и их лучи пропали
       if (this.items.length) this.items.length = 0;
