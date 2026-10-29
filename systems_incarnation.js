@@ -45,7 +45,8 @@ export class Incarnation {
     this.hero.incarnationLaser = !!this.mods.laser;
     const S = this.config.skills.incarnation;
     this.bladeQueue = this.mods.blades && !this.mods.laser ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
-    this.bladeTimer = S.bladeLaunchGap;
+    this.bladeGap = this.bladeQueue ? Math.min(S.bladeLaunchGap, S.duration / this.bladeQueue) : S.bladeLaunchGap;
+    this.bladeTimer = this.bladeGap;
     if (this.bladeQueue) for (let i = 0; i < this.bladeQueue; i++) this.bladeItems.push({ state: 'orbit', x: this.hero.x, y: this.hero.y, a: i * Math.PI * 2 / this.bladeQueue, off: i * Math.PI * 2 / this.bladeQueue, kind: this.mods.frost && this.mods.burn ? 3 : this.mods.burn ? 2 : this.mods.frost ? 1 : 0, zap: this.mods.lightning ? 1 : 0, age: 0, incarnationBlade: true });
     this.active = true;
   }
@@ -149,7 +150,7 @@ export class Incarnation {
 
   updateBlades(dt) {
     const S = this.config.skills.incarnation, h = this.hero;
-    const gap = Math.max(0.01, S.bladeLaunchGap);
+    const gap = Math.max(0.01, this.bladeGap || S.bladeLaunchGap);
     if (this.bladeQueue && h.incarnationT > 0) {
       this.bladeTimer -= dt;
       if (this.bladeTimer <= 0) {
@@ -177,9 +178,16 @@ export class Incarnation {
     for (const b of this.bladeItems) {
       b.age += dt;
       if (b.state === 'orbit') {
-        b.a += dt * 2;
-        b.x = h.x + Math.cos(b.a + b.off) * 17;
-        b.y = h.y + Math.sin(b.a + b.off) * 17;
+        // Стая перемещается вместе с героем, клинки смотрят в сторону движения.
+        const speed = Math.hypot(h.vx || 0, h.vy || 0);
+        b.a = speed > 3 ? Math.atan2(h.vy, h.vx) : h.facing;
+        const waiting = Math.max(1, this.bladeQueue);
+        const slot = this.bladeItems.filter(q => q.state === 'orbit').indexOf(b);
+        const lateral = (slot - (waiting - 1) / 2) * 13;
+        const depth = Math.floor(slot / 6) * 13;
+        const sideX = -Math.sin(b.a), sideY = Math.cos(b.a);
+        b.x = h.x + sideX * lateral - Math.cos(b.a) * depth;
+        b.y = h.y + sideY * lateral - Math.sin(b.a) * depth;
       } else if (b.state === 'fly') {
         const x = b.x, y = b.y;
         b.x += b.vx * dt; b.y += b.vy * dt;
