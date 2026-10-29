@@ -220,6 +220,7 @@ export class Game {
       boss: this.boss,
       clouds: this.steamClouds,
       blades: this.blades.items,
+      incarnation: this.incarnation,
       aura: this.aura,
       absorption: this.absorption,
       lightdash: this.lightdash,
@@ -735,7 +736,7 @@ export class Game {
     const mods = this.build.modifiersFor(id);
     h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.incarnation?.begin(mods);
-    h.incarnationT = Math.max(0.05, S.duration);
+    h.incarnationT = Math.max(0.05, mods.blades ? this.incarnation.bladeQueue * S.bladeLaunchGap + 0.1 : S.duration);
     h.incarnationSpeedMul = Math.max(1, S.speedMul);
     h.incarnationInertia = Math.max(0, S.inertia);
     h.glideTime = 0;
@@ -1531,7 +1532,7 @@ export class Game {
 
       const en = this.enemies.items;
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
-      this.incarnation.update(); // комета бьёт весь пройденный путь; реакции используют актуальную сетку врагов
+      this.incarnation.update(dt); // комета бьёт весь пройденный путь; реакции используют актуальную сетку врагов
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.gravityShield.beginEnemyStep();
