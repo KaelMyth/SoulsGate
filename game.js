@@ -736,7 +736,7 @@ export class Game {
     const mods = this.build.modifiersFor(id);
     h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.incarnation?.begin(mods);
-    h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.blades ? this.incarnation.bladeQueue * S.bladeLaunchGap + 0.1 : S.duration);
+    h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.blades ? this.incarnation.bladeQueue * this.incarnation.bladeGap + 0.1 : S.duration);
     h.incarnationSpeedMul = Math.max(1, S.speedMul);
     h.incarnationInertia = Math.max(0, S.inertia);
     h.glideTime = 0;
