@@ -433,6 +433,7 @@ export class BuildGrid {
     // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
     let ph = 0;
     let phMul = 0;
+    let phAbsorptionMult = 0;
     let phDmg = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
@@ -446,7 +447,19 @@ export class BuildGrid {
         else if (carry.get(k) === 'phantom:rate') r += walk(k, 0);
       }
       ph++;
-      phMul += f * (1 + r); // Ускорение на Фантоме тоже повышает шанс
+      const chanceMult = f * (1 + r); // Х2/Х3 и Ускорение повышают шанс
+      phMul += chanceMult;
+      // Только фантомы именно под Поглощением влияют на шанс копий Поглощения.
+      // Фантомы на параллельных ветках Клинков не должны его усиливать.
+      let ancestor = parent.get(i);
+      while (ancestor >= 0) {
+        const node = this.cells[ancestor].mod;
+        if (node?.def.effect.kind === 'absorption') {
+          phAbsorptionMult += chanceMult;
+          break;
+        }
+        ancestor = parent.get(ancestor);
+      }
       phDmg += 1 + d;
     }
     if (ph) res.phantom = { count: ph, mult: phMul, damage: phDmg / ph };
@@ -569,7 +582,8 @@ export class BuildGrid {
     if (absorptionCount) res.absorption = {
       count: absorptionCount, standaloneCount: absorptionStandaloneCount, auraCount: absorptionAuraCount,
       targets: absorptionTargets, standaloneTargets: absorptionStandaloneTargets, auraTargets: absorptionAuraTargets,
-      vampirism: absorptionVamp, gravity: absorptionGravity, pierce: absorptionPierce, phantom: absorptionPhantom,
+      vampirism: absorptionVamp, gravity: absorptionGravity, pierce: absorptionPierce,
+      phantom: absorptionPhantom, phantomChanceMult: phAbsorptionMult,
       blades: absorptionBlades,
       burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
