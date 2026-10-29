@@ -1359,7 +1359,7 @@ export class Game {
       else this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
-      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
+      if (m?.scopes?.root?.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
     }
   }
 
@@ -1367,7 +1367,7 @@ export class Game {
   kineticShots() {
     const m = this.kineticMods;
     const h = this.hero;
-    if (!m || !m.shot || !h.active || !h.dashing) { this.shotLast = null; return; }
+    if (!m?.scopes?.root?.shot || !h.active || !h.dashing) { this.shotLast = null; return; }
     const K = this.config.kinetic;
     const S = this.config.shot;
     const P = this.pellets;
@@ -1380,7 +1380,7 @@ export class Game {
     const steps = Math.floor(d / K.shotStep);
     const pc = (k) => (m[k] ? m[k].percent / 100 : 0);
     const dmg = K.shotDamage * (m.shot.damage || 1) * (1 + pc('damage'));
-    const bd = el.bd > 0 ? dmg * this.config.burn.damageFrac * m.burn.damage : 0;
+    const bd = el.bd > 0 ? dmg * this.config.burn.damageFrac * (m.scopes?.shot?.burn?.damage || 1) : 0;
     const per = Math.max(2, Math.round(K.shotPerStep * (m.shotMul || 1)));
     const nx = -this.defense.dashY;
     const ny = this.defense.dashX;
@@ -1394,7 +1394,7 @@ export class Game {
         const sp = S.speed * 0.8 * (0.8 + this.rnd() * 0.4);
         const fx = ((i >> 1) & 1) === 0; // половина несёт эффекты
         P.add(px, py, Math.cos(a) * sp, Math.sin(a) * sp, S.range * 0.6, dmg,
-          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? el.cm : 0, 0);
+          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.scopes?.shot?.lightning ? el.cm : 0, 0);
       }
     }
     last.x += (dx / d) * K.shotStep * steps;
@@ -1404,7 +1404,7 @@ export class Game {
   /** Лазер на рывке: в начале рывка в точку прибытия бьёт луч; когда он долетел, там срабатывает зона эффектов. */
   startDashBeam() {
     const m = this.kineticMods;
-    if (!this.defense.kinetic || !m || !m.laser || this.lightdash.active) return;
+    if (!this.defense.kinetic || !m?.scopes?.root?.laser || this.lightdash.active) return;
     const K = this.config.kinetic;
     const h = this.hero;
     const dist = this.config.dash.distance * K.distanceScale;
@@ -1477,7 +1477,7 @@ export class Game {
     const h = this.hero;
     const fires = this.fires;
     const km = this.kineticMods;
-    if (this.defense.kinetic && km && km.burn && h.active && (h.dashing || h.glideTime > 0)) { // шлейф только с Горением
+    if (this.defense.kinetic && km?.scopes?.root?.burn && h.active && (h.dashing || h.glideTime > 0)) { // шлейф только с Горением
       const last = this.fireLast || (this.fireLast = { x: h.x, y: h.y });
       const dx = h.x - last.x;
       const dy = h.y - last.y;
@@ -1485,7 +1485,7 @@ export class Game {
       if (d >= F.trailStep) {
         const n = Math.floor(d / F.trailStep);
         for (let k = 1; k <= n && fires.length < F.maxFires; k++) {
-          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0, bd: F.burnDamage * km.burn.damage, bi: this.config.burn.interval / km.burn.rate });
+          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0, bd: F.burnDamage * km.scopes.root.burn.damage, bi: this.config.burn.interval / km.scopes.root.burn.rate });
         }
         last.x += (dx / d) * F.trailStep * n;
         last.y += (dy / d) * F.trailStep * n;
