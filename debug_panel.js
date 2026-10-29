@@ -22,7 +22,7 @@ export class DebugPanel {
     this.stats = h('pre', { id: 'dbg-stats' });
     this.copyBox = h('textarea', { id: 'dbg-copy', readonly: '', hidden: '' });
     this.panel = h('div', { id: 'dbg-panel', hidden: '' },
-      h('h3', {}, 'Отладка · ' + o.build),
+      h('h3', {}, 'Отладка'),
       h('div', { class: 'dbg-release' }, 'Обновление №' + RELEASE.number + ' — ' + RELEASE.title),
       this.stats,
       this.buildActions(),
@@ -178,7 +178,6 @@ export class DebugPanel {
     const s = this.o.getStats();
     const min = isFinite(m.minFps) ? m.minFps.toFixed(1) : '—';
     this.stats.textContent = [
-      'Обновление №' + RELEASE.number + ' — ' + RELEASE.title,
       'FPS ' + m.fps.toFixed(1) + '   мин ' + min,
       'кадр ' + m.frameMs.toFixed(1) + ' мс   шагов/кадр ' + s.steps,
       'здоровье ' + s.hp + ' · убито ' + s.kills,
