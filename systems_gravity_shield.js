@@ -97,7 +97,10 @@ export class GravityShield {
   slowEnemies() {
     if (!this.active) return;
     const list = this.enemies.items, h = this.hero, G = this.cfg.gravity;
-    const slow = Math.max(0.05, Math.min(1, this.defense.gravityAuraMode ? G.auraEnemySpeed : G.shieldEnemySpeed));
+    const pressure = Math.max(1,this.defense.blackSunPressure || 1);
+    const base = this.defense.gravityAuraMode ? G.auraEnemySpeed : G.shieldEnemySpeed;
+    const slow = Math.max(G.shieldEnemySpeed, Math.min(1,
+      this.defense.gravityAuraMode ? base/(1+(pressure-1)*this.cfg.blackSun.gravityPressureStep) : base));
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       if (!e.active) continue;
@@ -143,7 +146,8 @@ export class GravityShield {
           p.gravityReturned = true;
           p.gravityElementMask = this.defense.gravityElements?.mask || 0;
           p.gravityAuraWeak = hybrid;
-          const speedKeep = hybrid ? G.auraProjectileSpeed : G.shieldProjectileSpeed;
+          const speedKeep = hybrid ? Math.max(G.shieldProjectileSpeed,
+            G.auraProjectileSpeed/(1+(Math.max(1,this.defense.blackSunPressure||1)-1)*this.cfg.blackSun.gravityPressureStep)) : G.shieldProjectileSpeed;
           return dt * (1 - (1 - Math.max(0.05, Math.min(1, speedKeep))) * fraction);
         }
       }
@@ -154,7 +158,8 @@ export class GravityShield {
         p.vy = vx * s + vy * c;
       }
     }
-    const slow = Math.max(0.05, Math.min(1, hybrid ? G.auraProjectileSpeed : G.shieldProjectileSpeed));
+    const slow = hybrid ? Math.max(G.shieldProjectileSpeed,
+      G.auraProjectileSpeed/(1+(Math.max(1,this.defense.blackSunPressure||1)-1)*this.cfg.blackSun.gravityPressureStep)) : G.shieldProjectileSpeed;
     return dt * (1 - (1 - slow) * fraction);
   }
 

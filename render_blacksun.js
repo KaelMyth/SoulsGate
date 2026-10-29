@@ -11,6 +11,7 @@ export class BlackSunFx {
     const sun=this.r.blackSun;
     if(!sun?.enabled)return;
     const t=this.r.clock,R=this.r.aura.radius;
+    const pressure=Math.min(6,Math.max(1,sun.pressureMult||1));
     const charging=sun.phase==='collapse';
     const u=charging?clamp(sun.time/Math.max(.01,this.r.cfg.blackSun.collapseTime)):0;
     ctx.save();
@@ -18,20 +19,20 @@ export class BlackSunFx {
     // Поле наследует обычную ослабленную Гравитацию с Аурой; добавляем только свой слой.
     const mist=ctx.createRadialGradient(0,0,R*.1,0,0,R*1.1);
     mist.addColorStop(0,rgb(13,8,31,.11+(charging?.17*u:0)));
-    mist.addColorStop(.52,rgb(60,28,105,.075));
-    mist.addColorStop(.79,rgb(105,50,163,.11));
+    mist.addColorStop(.52,rgb(60,28,105,.075+.022*(pressure-1)));
+    mist.addColorStop(.79,rgb(105,50,163,.11+.02*(pressure-1)));
     mist.addColorStop(1,rgb(35,18,76,0));
     ctx.fillStyle=mist;
     ctx.beginPath();ctx.arc(0,0,R*1.1,0,TAU);ctx.fill();
     ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
     // Широкие, неодинаковые дымные ленты; спирали плывут в противоположные стороны.
-    for(let i=0;i<9;i++){
+    for(let i=0;i<9+Math.min(5,Math.floor((pressure-1)*2));i++){
       const a0=i*2.399+t*(i%2?-.26:.31);
       const drift=Math.sin(t*1.2+i*1.91)*.09;
       const scale=charging?1-.79*u:1;
       for(let pass=0;pass<2;pass++){
         ctx.strokeStyle=pass?'#b17bdf':'#3d245e';
-        ctx.lineWidth=(pass?3.2:16)*(1-(charging?.48*u:0));
+        ctx.lineWidth=(pass?3.2:16)*(1+.11*(pressure-1))*(1-(charging?.48*u:0));
         ctx.globalAlpha=(pass?.16:.23)*(charging?1+u:1);
         ctx.beginPath();
         for(let k=0;k<=13;k++){
@@ -74,6 +75,7 @@ export class BlackSunFx {
     const collapsing=sun.phase==='collapse';
     const u=collapsing?clamp(sun.time/Math.max(.01,B.collapseTime)):0;
     const core=this.r.hero.radius*(1.45+.26*sun.soulPulse+.06*sun.soulsStored)*(collapsing?1-.82*u:1);
+    const pressure=Math.min(6,Math.max(1,sun.pressureMult||1));
     ctx.save();
     ctx.translate(cx,cy);
     ctx.globalCompositeOperation='lighter';
@@ -82,12 +84,12 @@ export class BlackSunFx {
     halo.addColorStop(.21,rgb(133,58,233,.4));
     halo.addColorStop(.56,rgb(100,42,191,.14));
     halo.addColorStop(1,rgb(63,25,109,0));
-    ctx.globalAlpha=.83+(collapsing?.17*u:0);
+    ctx.globalAlpha=Math.min(1,.79+.045*(pressure-1)+(collapsing?.17*u:0));
     ctx.fillStyle=halo;ctx.beginPath();ctx.arc(0,0,core*4.4,0,TAU);ctx.fill();
     // Плазменная корона, без идеальных колец: 12 вращающихся разлохмаченных языков.
     for(let i=0;i<12;i++){
       const angle=i*TAU/12+t*(i%2?-.53:.48);
-      const spike=core*(1.7+.5*Math.sin(t*2.9+i*2.1));
+      const spike=core*(1.7+.09*(pressure-1)+.5*Math.sin(t*2.9+i*2.1));
       const w=core*(.28+.08*Math.sin(t*2+i));
       const x=Math.cos(angle),y=Math.sin(angle);
       ctx.globalAlpha=.16+.13*(1+Math.sin(t*3+i));

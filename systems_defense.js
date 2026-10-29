@@ -36,6 +36,7 @@ export class HeroDefense {
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
     this.gravityOn = false;
     this.gravityElements = null; // битовая маска стихий ветки Гравитации: 1 Огонь, 2 Мороз, 4 Молния
+    this.blackSunPressure = 1;
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
     // Блок ставится один раз за остановку: новый блок только после нового касания стика.
@@ -55,6 +56,7 @@ export class HeroDefense {
     this.gravityDashCharging = false;
     this.gravityDashEnabled = false;
     this.gravityAuraRadius = 0; // радиус Ауры с Х2/Х3: общая область ослабленной Гравитации
+    this.blackSunPressure = 1;
     this.gravityDashEnabled = false;
     this.gravityDashCharging = false;
     this.laserDashEnabled = false;
@@ -244,6 +246,7 @@ export class HeroDefense {
     this.gravityOn = !!(am && am.gravity);
     this.gravityElements = this.gravityOn ? am.gravity.elements || null : null;
     this.gravityCooldownRate = this.gravityOn ? am.gravity.cooldownRate || 1 : 1;
+    this.blackSunPressure = this.hero.active && am?.blackSun ? Math.max(1, am.blackSun.pressureMult || 1) : 1;
     this.gravityAuraRadius = this.gravityOn && this.auraOn
       ? this.cfg.aura.radius * (1 + this.cfg.aura.radiusStep * ((am.aura.mult || 1) - 1))
       : 0;

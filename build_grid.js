@@ -414,6 +414,9 @@ export class BuildGrid {
         let gravityFactor = 1;
         for (const i of gravityNodes) gravityFactor += doubles(kids.get(i) || []) - 1;
         res.gravity.durationMult = doubles(kids.get(-1) || []) * gravityFactor;
+        // В тройке Чёрного солнца Х2/Х3 на Гравитации усиливают давление,
+        // а не влияют на радиус Ауры или число ударов Поглощения.
+        res.gravity.pressureMult = gravityFactor;
         // Ускорение только из ветки Гравитации — на обычный щит и Клинки не влияет.
         const gravityHaste = (node) => {
           let boost = 0;
@@ -746,6 +749,10 @@ export class BuildGrid {
       const m = res.count || (res.count = { percent: 0, flat: 0 });
       m.percent += extraCount * 100;
     }
+    // Только все три мода одного Щита. Ветки могут быть раздельными или вложенными.
+    // Дочерние Х2/Х3 сохраняют собственное назначение каждого мода.
+    if (cc?.def?.multStat === 'blockPower' && res.aura && res.gravity && res.absorption)
+      res.blackSun = { pressureMult: res.gravity.pressureMult || 1 };
     res.scopes = this.effectScopes(coreId);
     return res;
   }
