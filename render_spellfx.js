@@ -9,6 +9,11 @@ const palettes = {
   phantom: {bright:'195,166,255', edge:'120,75,204', smoke:'51,31,96', light:'241,225,255'},
   scarlet: {bright:'255,122,117', edge:'204,44,66', smoke:'98,22,39', light:'255,222,214'}
 };
+// Более насыщенная палитра оболочки, независимая от уже настроенного лазера.
+const orbPalettes = {
+  blood: {bright:'255,111,216',edge:'176,54,191',smoke:'81,27,119',light:'255,223,253'},
+  phantom: {bright:'216,151,255',edge:'134,68,249',smoke:'66,35,146',light:'249,228,255'}
+};
 const rgba = (v,a) => 'rgba('+v+','+clamp(a)+')';
 
 export class SpellFx {
@@ -232,7 +237,7 @@ export class SpellFx {
   // Back рисуется за моделью, Front поверх неё; оба используют одну анимацию.
   // Визуальный центр совпадает с целью. Нет отдельных геометрических колец.
   absorptionSphereBack(ctx,x,y,r,progress,time,mode='blood',seed=0) {
-    const col=palettes[mode]||palettes.blood;
+    const col=orbPalettes[mode]||orbPalettes.blood;
     const p=sm(clamp(progress)),pulse=.93+.07*Math.sin(time*6+seed);
     const R=Math.max(8,r*1.13)*(0.9+.17*p)*pulse;
     ctx.save();
@@ -269,7 +274,7 @@ export class SpellFx {
   // Передняя полусфера постепенно смыкается поверх врага. На ранних кадрах
   // центр почти прозрачен, к концу накрыт плотным пурпурным энергетическим слоем.
   absorptionSphereFront(ctx,x,y,r,progress,time,mode='blood',seed=0) {
-    const col=palettes[mode]||palettes.blood;
+    const col=orbPalettes[mode]||orbPalettes.blood;
     const p=sm(clamp(progress));
     const close=sm(clamp((progress-.05)/.95));
     const R=Math.max(8,r*1.13)*(0.9+.17*p)*(.93+.07*Math.sin(time*6+seed));
@@ -328,7 +333,7 @@ export class SpellFx {
     ctx.save();ctx.globalAlpha=left;
     this.absorptionSphereBack(ctx,x,y,radius,1,time,mode,seed);
     this.absorptionSphereFront(ctx,x,y,radius,1,time,mode,seed);
-    const col=palettes[mode]||palettes.blood;
+    const col=orbPalettes[mode]||orbPalettes.blood;
     const flare=ctx.createRadialGradient(x,y,0,x,y,r*(.68+.22*gone));
     flare.addColorStop(0,rgba(col.light,(.36+.5*gone)*left));
     flare.addColorStop(.28,rgba(col.bright,.37*left));
