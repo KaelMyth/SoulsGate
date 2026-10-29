@@ -905,7 +905,7 @@ export class Game {
     if (!nearby.length) return false;
     const t = nearby[Math.min(nearby.length - 1, Math.floor(this.rnd() * nearby.length))];
     this.synergyCasts.push({
-      enemy: t, gen: t.gen, time: 0.45, mods, phantom: true,
+      enemy: t, gen: t.gen, time: 0.45, maxTime: 0.45, mods, phantom: true,
       phantomGeneration: generation + 1,
     });
     return true;
@@ -919,7 +919,7 @@ export class Game {
       if(c.time>0)continue;
       this.synergyCasts.splice(i,1);
       if(!c.enemy.active || c.enemy.gen!==c.gen)continue;
-      this.synergyFlashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,maxTime:this.config.absorption.flashTime,color:c.phantom?'#b783ff':'#a9eaff'});
+      this.synergyFlashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,maxTime:this.config.absorption.flashTime,phantom:!!c.phantom});
       // Фантомный каст наносит 50% урона и может породить следующую копию,
       // но вероятность снижается вдвое с каждым поколением (лимит из config.phantom).
       if (c.mods?.absorption)
@@ -1056,7 +1056,7 @@ export class Game {
         if (!old || old.gen !== e.gen || old.until <= this.runTime) {
           const cooldown = this.config.absorption.interval / Math.max(0.01, lm.absorption?.rate || 1);
           this.laserAbsorptionCooldowns.set(e, {gen:e.gen, until:this.runTime + cooldown});
-          this.synergyCasts.push({enemy:e, gen:e.gen, time:this.config.absorption.telegraph, mods:lm, phantom:false});
+          this.synergyCasts.push({enemy:e, gen:e.gen, time:this.config.absorption.telegraph, maxTime:this.config.absorption.telegraph, mods:lm, phantom:false});
         }
       }
       if (!e.active) continue;
@@ -1085,7 +1085,7 @@ export class Game {
       zap: l.zap,
       gravityLaser: !!l.gravityLaser, gravityChargeTime: l.gravityChargeTime || 0,
       gravityChargeAge: 0, gravityOrigin: 0, // фантом заряжает круг на своей точке появления
-      gen: (l.gen | 0) + 1, phantom: l.phantom,
+      gen: (l.gen | 0) + 1, phantom: l.phantom, absorptionBeam:!!l.absorptionBeam,
     });
     this.burst(s.x, s.y, 0.3, 4, 16, F.color);
   }
