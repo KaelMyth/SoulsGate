@@ -3,6 +3,7 @@
 
 import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
+import { SpellFx } from './render_spellfx.js';
 import { DashFx } from './render_dashfx.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
@@ -500,6 +501,7 @@ export class Renderer {
   constructor(canvas, cfg, deps) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false });
+    this.spellFx = new SpellFx();
     this.cfg = cfg;
     this.arena = deps.arena;
     this.hero = deps.hero;
@@ -691,7 +693,7 @@ export class Renderer {
     this.drawCrumble();
     this.drawGrip(viewL, viewR, viewT, viewB);
     this.drawFog();
-    this.drawAbsorptionMarker(ctx); // заглушка: круг под отмеченным врагом
+    this.drawAbsorptionMarker(ctx); // #153 тёмные воронки, втягивающие души
 
     // Цель автоатаки: тёплое свечение под врагом, без контуров (поверх врага ляжет лёгкий тон, ниже).
     const target = this.autoattack && this.autoattack.target;
@@ -715,7 +717,7 @@ export class Renderer {
     this.drawBeams();
 
     this.drawTargetGlow(alpha, true);
-    this.drawAbsorptionFlash(ctx); // заглушка: короткая вспышка в момент удара
+    this.drawAbsorptionFlash(ctx); // #153 дымка, частицы и анимированная вспышка
 
     if (hero.active) {
       this.drawGravityDash(ctx);
@@ -739,14 +741,16 @@ export class Renderer {
     this.drawFinale();
     this.drawLasers(ctx);
     this.drawLaserIncarnationPaths(ctx);
-    // Заглушка каста от попадания лазером / призрачного Поглощения.
+    // #153: отложенное Поглощение Лазера и рекурсивный Фантом используют
+    // те же модели тёмного каста, но Фантом имеет более фиолетовый оттенок.
     if (this.synergyCasts) for (const c of this.synergyCasts) {
       if (!c.enemy?.active || c.enemy.gen!==c.gen)continue;
-      ctx.save();ctx.strokeStyle=c.phantom?'#b783ff':'#a9eaff';
-      ctx.globalAlpha=0.35+0.4*Math.sin(this.clock*13)**2;
-      ctx.lineWidth=3;ctx.beginPath();ctx.arc(c.enemy.x,c.enemy.y,c.enemy.radius+17+4*Math.sin(this.clock*9),0,TAU);ctx.stroke();ctx.restore();
+      const p=1-c.time/Math.max(.05,c.maxTime||this.cfg.absorption.telegraph);
+      this.spellFx.absorptionCharge(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+this.cfg.absorption.ringPadding,p,this.clock,c.phantom?'phantom':'blood',c.gen||0);
     }
-    for(const f of this.synergyFlashes){ctx.save();ctx.globalAlpha=Math.max(0,f.time/f.maxTime);ctx.lineWidth=5;ctx.strokeStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,f.r+10*(1-f.time/f.maxTime),0,TAU);ctx.stroke();ctx.restore();}
+    for(const f of this.synergyFlashes){
+      this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/Math.max(.01,f.maxTime),this.clock,f.phantom?'phantom':'blood');
+    }
     this.drawBolts(ctx);
     this.drawBlades(ctx);
 
@@ -795,71 +799,37 @@ export class Renderer {
     this.drawPortalArrow();
   }
 
-  /** Заглушка Поглощения: все зафиксированные цели светлеют одновременно. */
+  /** #153: тёмная воронка вокруг каждой отмеченной цели, следует за мобом. */
   drawAbsorptionMarker(ctx) {
-    const a = this.absorption;
-    if (!a || !a.active || (!a.aiming && !a.bladeMarks.length)) return;
-    const A = this.cfg.absorption;
-    const p = Math.max(0, Math.min(1, 1 - a.timer / Math.max(0.02, a.castTime || A.telegraph)));
-    const color = a.color || '215,230,255';
-    ctx.save();
-    ctx.lineWidth = 2.5;
-    ctx.fillStyle = 'rgba(' + color + ',' + (0.04 + 0.2 * p) + ')';
-    ctx.strokeStyle = 'rgba(' + color + ',' + (0.4 + 0.6 * p) + ')';
-    for (let i = 0; i < a.targets.length; i++) {
-      const target = a.targets[i];
-      if (!target || !target.active) continue;
-      if (target.absorptionGravity) {
-        ctx.save();
-        ctx.strokeStyle = '#ae82ff';
-        ctx.fillStyle = 'rgba(121,71,219,0.16)';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(target.x, target.y, target.radius + A.ringPadding + 10, 0, TAU); ctx.fill(); ctx.stroke();
-        ctx.restore();
-      }
-      ctx.beginPath();
-      ctx.arc(target.x, target.y, target.radius + A.ringPadding, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
+    const a=this.absorption;
+    if(!a || !a.active || (!a.aiming && !a.bladeMarks.length))return;
+    const cfg=this.cfg.absorption;
+    const p=Math.max(0,Math.min(1,1-a.timer/Math.max(.02,a.castTime||cfg.telegraph)));
+    for(let i=0;i<a.targets.length;i++){
+      const e=a.targets[i];
+      if(!e?.active)continue;
+      const r=e.radius+cfg.ringPadding;
+      this.spellFx.absorptionCharge(ctx,e.x,e.y,r,p,this.clock,'blood',i);
+      if(e.absorptionGravity)this.spellFx.gravityLens(ctx,e.x,e.y,r*.52,p,this.clock);
     }
-    // Дополнительная метка от трёх попаданий клинков: следует за конкретной целью 1 с.
-    // В отличие от обычного прицеливания не исчезает, если цель ушла за край камеры.
-    for (let i = 0; i < a.bladeMarks.length; i++) {
-      const mark = a.bladeMarks[i];
-      if (!mark.enemy.active || mark.enemy.gen !== mark.gen) continue;
-      const progress = Math.max(0, Math.min(1, 1 - mark.remaining / mark.total));
-      const radius = mark.enemy.radius + A.ringPadding + 5;
-      ctx.beginPath();
-      ctx.arc(mark.enemy.x, mark.enemy.y, radius, 0, TAU);
-      ctx.fillStyle = 'rgba(' + color + ',' + (0.05 + 0.22 * progress) + ')';
-      ctx.fill();
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(' + color + ',' + (0.35 + 0.65 * progress) + ')';
-      ctx.stroke();
+    for(let i=0;i<a.bladeMarks.length;i++){
+      const m=a.bladeMarks[i];
+      if(!m.enemy?.active || m.enemy.gen!==m.gen)continue;
+      const p=1-Math.max(0,m.remaining)/Math.max(.01,m.total);
+      this.spellFx.absorptionCharge(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
     }
-    ctx.restore();
   }
 
-  /** Заглушка: одновременные белые/красные вспышки на поражённых врагах. */
+  /** #153: мягкая имплозия, дымные ленты и шоковая волна; пробитие — алое. */
   drawAbsorptionFlash(ctx) {
-    const a = this.absorption;
-    if (!a || !a.flashes.length) return;
-    const A = this.cfg.absorption;
-    ctx.save();
-    ctx.lineWidth = 4;
-    for (let i = 0; i < a.flashes.length; i++) {
-      const f = a.flashes[i];
-      const left = Math.max(0, Math.min(1, f.time / Math.max(0.01, A.flashTime)));
-      const radius = f.r + (1 - left) * 24;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, radius, 0, TAU);
-      const color = f.color || (f.vampiric ? '255,50,75' : '255,255,255');
-      ctx.fillStyle = 'rgba(' + color + ',' + (0.55 * left) + ')';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(' + color + ',' + left + ')';
-      ctx.stroke();
+    const a=this.absorption;
+    if(!a?.flashes?.length)return;
+    const duration=Math.max(.01,this.cfg.absorption.flashTime);
+    for(let i=0;i<a.flashes.length;i++){
+      const f=a.flashes[i];
+      const mode=f.pierce?'scarlet':f.phantom?'phantom':'blood';
+      this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/duration,this.clock,mode,i);
     }
-    ctx.restore();
   }
 
   /** Камни опыта: маленькие ромбики; красный крупнее. Вне экрана не рисуем. */
@@ -4813,9 +4783,8 @@ export class Renderer {
       const sx = (((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1) * (w + 60) - 30;
       const sp = 700 + ((i * 37) % 300);
       const y = (((this.clock * sp + i * 131) % (h + 60)) + h + 60) % (h + 60) - 30;
-      if (hud.rainBlades) { // заглушка: падающие спектральные мечи вместо капель
-        ctx.moveTo(sx+3,y-8);ctx.lineTo(sx-4,y+17);ctx.lineTo(sx-7,y+8);
-        ctx.moveTo(sx-4,y+17);ctx.lineTo(sx+1,y+11);
+      if (hud.rainBlades) {
+        // Мечи рисуются отдельным проходом после обычной геометрии осадков.
       } else if (!mask) { // обычный дождь сохраняет прежнюю форму
         ctx.moveTo(sx, y); ctx.lineTo(sx - 5, y + 18);
       } else if (lightning && (i % 3 === 0)) { // ломаные электрические жилы
@@ -4833,6 +4802,15 @@ export class Renderer {
       }
     }
     ctx.stroke();
+    if (hud.rainBlades) {
+      // Не создаём сотни объектов: готовый меч-спрайт кешируется в SpellFx.
+      for (let i=0;i<46;i++) {
+        const sx=(((Math.sin(i*12.9898)*43758.5453)%1+1)%1)*(w+80)-40;
+        const velocity=480+(i%9)*29;
+        const sy=((this.clock*velocity+i*137)%(h+120)+(h+120))%(h+120)-60;
+        this.spellFx.rainSword(ctx,sx,sy,.44+(i%4)*.11,this.clock,a*.8);
+      }
+    }
     if (fire) {
       ctx.fillStyle = P.streakColors[1];
       ctx.globalAlpha = 0.55 * a;
@@ -5815,13 +5793,14 @@ export class Renderer {
       const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
       const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
       const ph = !!l.gen;
+      const absorb = !!l.absorptionBeam;
       const zp = !!l.zap;
       const zk = (l.burnDmg > 0 ? 1 : 0) | (l.frost ? 2 : 0);
       const el = ph ? 4 : zk; // 0 синий, 1 огонь, 2 мороз, 3 пар, 4 фантом
-      const glow = glowBy[el];
-      const rgb = zp ? ZAP_RGB[zk] : LASER_RGB[el];
-      const core = zp ? ZAP_CORE[zk] : LASER_CORE[el];
-      if (zp) { this.drawZapArc(ctx, x0, y0, x1, y1, w, fade, li, rgb, core); } else {
+      const glow = absorb ? this.getGlow(true) : glowBy[el];
+      const rgb = absorb ? '156,61,116' : (zp ? ZAP_RGB[zk] : LASER_RGB[el]);
+      const core = absorb ? '247,179,210' : (zp ? ZAP_CORE[zk] : LASER_CORE[el]);
+      if (zp && !absorb) { this.drawZapArc(ctx, x0, y0, x1, y1, w, fade, li, rgb, core); } else {
       ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
       ctx.lineWidth = w * 6;
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
@@ -5835,7 +5814,8 @@ export class Renderer {
       ctx.lineWidth = Math.max(0.9, w * 0.6);
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       }
-      if (!zp && el !== 0 && el !== 4) this.laserElement(ctx, el, x0, y0, x1, y1, w, fade, li, t, puffSp);
+      if (absorb) this.spellFx.absorptionLaser(ctx,x0,y0,x1,y1,w,fade,t);
+      else if (!zp && el !== 0 && el !== 4) this.laserElement(ctx, el, x0, y0, x1, y1, w, fade, li, t, puffSp);
       if (l.gravityLaser) {
         // Фиолетовая оболочка усиленного луча и остаточное кольцо в источнике.
         ctx.globalAlpha = 1;
