@@ -5,6 +5,7 @@ import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
 import { SpellFx } from './render_spellfx.js';
 import { DashFx } from './render_dashfx.js';
+import { BlackSunFx } from './render_blacksun.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
@@ -528,6 +529,7 @@ export class Renderer {
     this.synergyCasts = deps.synergyCasts || [];
     this.synergyFlashes = deps.synergyFlashes || [];
     this.absorption = deps.absorption || null;
+    this.blackSun = deps.blackSun || null;
     this.lightdash = deps.lightdash || null;
     this.zapBolts = deps.zapBolts || [];
     this.dashBeams = deps.dashBeams || [];
@@ -569,6 +571,7 @@ export class Renderer {
     for (let i = 0; i < 48; i++) this.puffs.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, age: 0, life: 1, size: 8 });
     this.apoFin = new ApoFinaleFx(this); // Апофеоз: крик, обвал платформы, эпилог, портал (render_apofinale.js)
     this.apoArt = new ApotheosisArt(this); // Апофеоз и апостолы: маска-солнце и мантии (render_apotheosis.js)
+    this.blackSunFx = new BlackSunFx(this);
     this.dashfx = new DashFx(this); // эффекты рывков, костров и героя-молнии (render_dashfx.js)
     this.dashKind = 0;     // стихия кинетического рывка (0 нет, 1 огонь, 2 мороз, 3 пар): выставляет игра
     this.dashKinetic = false;
@@ -723,6 +726,7 @@ export class Renderer {
     if (hero.active) {
       this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
+      this.blackSunFx.drawBack(ctx,hx,hy);
       this.dashfx.frame(ctx, this.dt, hx, hy);
       if (hero.incarnationLaser) this.drawLaserIncarnation(ctx, hx, hy);
       else if (hero.incarnationT > 0 && this.incarnation?.bladeQueue) { /* герой скрыт: игрок управляет стаей */ }
@@ -735,6 +739,7 @@ export class Renderer {
         this.drawBlock(hx, hy, C);
         this.drawHeroArcs(hx, hy, C);
       }
+      this.blackSunFx.drawFront(ctx,hx,hy);
     }
 
     this.drawFlash(viewL, viewR, viewT, viewB);
