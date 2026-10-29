@@ -204,10 +204,10 @@ export class AutoAttack {
       const a = base + (t * 2 - 1) * half;
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
       // Дробь наследует гравитационный разгон без подмены отдельной системой снарядов.
-      const gravitySpeed = m.gravity ? this.cfg.gravity.maxSpeed : 1;
+      const gravitySpeed = 1;
       const fx = (i & 1) === 0; // половина несёт эффекты
       P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp * gravitySpeed, Math.sin(a) * sp * gravitySpeed, S.range * this.rangeMul, dmg,
-        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0, pc, (i & 3) === 0 ? ph : 0, 0);
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0, pc, (i & 3) === 0 ? ph : 0, 0, !!m.gravity);
     }
     hero.facing = base;
     this.bus.emit('projectile:fired', { projectile: null, target, count: n });
