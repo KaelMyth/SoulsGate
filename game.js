@@ -81,6 +81,8 @@ export class Game {
       bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
     this.skillCd = [0, 0, 0]; // перезарядки умений (с)
+    this.kineticBlades = [];
+    this.kineticBladeTrail = null;
     this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
     this.gravityDash = { active: false, charging: false, x: 0, y: 0, ox: 0, oy: 0, t: 0, life: 0.45, charge: 0.28 };
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
@@ -231,6 +233,7 @@ export class Game {
       boss: this.boss,
       clouds: this.steamClouds,
       blades: this.blades.items,
+      kineticBlades: this.kineticBlades,
       incarnation: this.incarnation,
       aura: this.aura,
       absorption: this.absorption,
@@ -1067,6 +1070,7 @@ export class Game {
       this.gravityDash.t += dt;
       if (!this.gravityDash.charging && this.gravityDash.t >= this.gravityDash.life) this.gravityDash.active = false;
     }
+    this.updateKineticBlades(dt);
     if (!this.defense.kinetic) { this.shotLast = null; if (this.renderer) this.renderer.dashKinetic = false; return; }
     this.lightdash.kind = this.kineticEl().kind;
     if (this.renderer) { this.renderer.dashKind = this.lightdash.kind; this.renderer.dashKinetic = true; }
@@ -1074,6 +1078,42 @@ export class Game {
     if (moving && h.invuln < 0.1) h.invuln = 0.1; // таран: пока герой в рывке и скольжении, урон от врагов не проходит
     if (h.dashing && !this.lightdash.active && !this.defense.gravityDashCharging) this.kineticRam();
     if (!this.defense.gravityDashCharging) this.kineticShots();
+    this.spawnKineticBlades();
+  }
+
+  spawnKineticBlades() {
+    const m=this.kineticMods,h=this.hero;
+    if(!m?.blades || !h.active || !h.dashing || this.lightdash.active || this.defense.gravityDashCharging){this.kineticBladeTrail=null;return;}
+    const mult=Math.max(1,Math.round(1+(m.bounces?.percent||0)/100));
+    const count=5*mult;
+    const last=this.kineticBladeTrail;
+    if(!last || last.seq!==this.defense.dashSeq){this.kineticBladeTrail={seq:this.defense.dashSeq,x:h.x,y:h.y,spawned:0};return;}
+    const dx=h.x-last.x,dy=h.y-last.y;
+    const dist=Math.hypot(dx,dy);
+    const step=Math.max(7,this.config.dash.distance*this.config.kinetic.distanceScale*this.defense.kineticBladeDistanceMul/count);
+    while(last.spawned<count && Math.hypot(h.x-last.x,h.y-last.y)>=step){
+      const d=Math.hypot(h.x-last.x,h.y-last.y);
+      last.x+=dx/d*step;last.y+=dy/d*step;
+      const k=last.spawned++, side=(k%5)<3?1:-1;
+      const nx=-this.defense.dashY*side,ny=this.defense.dashX*side;
+      this.kineticBlades.push({x:last.x,y:last.y,a:Math.atan2(ny,nx),vx:nx*this.config.blades.speed,vy:ny*this.config.blades.speed,state:'fly',age:0,life:1.35,kind:0,zap:0,kinetic:true});
+    }
+  }
+
+  updateKineticBlades(dt){
+    for(let i=this.kineticBlades.length-1;i>=0;i--){
+      const b=this.kineticBlades[i],ox=b.x,oy=b.y;
+      b.age+=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
+      if(b.age>b.life || this.arena.circleHitsRock(b.x,b.y,3)){this.kineticBlades.splice(i,1);continue;}
+      for(const e of this.enemies.items){
+        if(!e.active)continue;
+        const dx=b.x-ox,dy=b.y-oy,dd=dx*dx+dy*dy;
+        const t=dd?Math.max(0,Math.min(1,((e.x-ox)*dx+(e.y-oy)*dy)/dd)):0;
+        if(Math.hypot(ox+dx*t-e.x,oy+dy*t-e.y)>e.radius+5)continue;
+        this.combat.damageEnemy(e,this.config.blades.damage*(this.kineticMods?.blades?.damage||1),{active:true,kineticBlade:true},null);
+        this.kineticBlades.splice(i,1);break;
+      }
+    }
   }
 
   /** Безопасная точка пространственной аномалии: нельзя попасть внутрь стены или выйти из арены. */
@@ -1557,6 +1597,7 @@ export class Game {
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
         this.defense.dashCdMul = 1 / (1 + pc('rate'));
+      this.defense.kineticBladeDistanceMul = km0?.blades ? Math.max(1,1+pc('bounces')) : 1;
         this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
         this.lightdash.damageMul = 1 + pc('damage');
         this.lightdash.bonus = this.shockBonus(km0);
