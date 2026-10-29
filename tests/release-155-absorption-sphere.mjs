@@ -1,4 +1,4 @@
-// SoulsGate #155: сфера Поглощения закрывает врага, не затрагивая боевую логику.
+// SoulsGate #156: клубящийся дым постепенно обволакивает врага, без чётких контуров.
 // node --experimental-default-type=module --test tests/release-155-absorption-sphere.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -49,4 +49,31 @@ test('Game renderer places sphere back behind enemy and sphere front above it',(
   assert.ok(src.includes('absorptionSphereBack'));
   assert.ok(top.includes('absorptionSphereFront'));
   assert.ok(!top.includes('absorptionVeil('));
+});
+
+test('Smoke envelops enemy progressively and textures are cached, not rebuilt per frame',()=>{
+  const previous=globalThis.OffscreenCanvas;
+  let created=0;
+  class FakeCanvas {
+    constructor(){created++;}
+    getContext(){return canvasMock();}
+  }
+  globalThis.OffscreenCanvas=FakeCanvas;
+  try{
+    const fx=new SpellFx(),c=canvasMock();
+    c.drawImage=function(){this.history.push('smoke');};
+    fx.absorptionSphereFront(c,20,30,16,.09,1,'blood',0);
+    const early=c.history.filter(x=>x==='smoke').length;
+    c.history.length=0;
+    fx.absorptionSphereFront(c,20,30,16,.96,1,'blood',0);
+    const late=c.history.filter(x=>x==='smoke').length;
+    assert.ok(late>early*2,'smoke clouds gather and cover the enemy');
+    assert.equal(created,2,'only two pre-rendered smoke textures');
+    fx.absorptionSphereFront(c,20,30,16,1,1.2,'blood',1);
+    assert.equal(created,2,'no canvas allocation on later frames');
+    assert.ok(!c.history.includes('stroke'),'absorption smoke has no sharp circular outlines');
+  }finally{
+    if(previous===undefined)delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas=previous;
+  }
 });
