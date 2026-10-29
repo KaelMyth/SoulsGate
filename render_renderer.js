@@ -4276,43 +4276,11 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(px - r * 0.12, py - r * 0.16, r * (0.55 + 0.15 * gl), 0, TAU);
       ctx.fill();
-      if (p.gravity) { // заглушка: притяжение удерживает снаряд, затем он вырывается вперёд
-        const phase = Math.min(1, p.gravityAge / Math.max(0.001, p.gravityRamp));
-        const hold = Math.min(0.95, Math.max(0, p.gravityHold ?? 0.72));
-        const released = Math.max(0, Math.min(1, (phase - hold) / Math.max(0.001, 1 - hold)));
-        const vx = p.vx / (p.speed || 1);
-        const vy = p.vy / (p.speed || 1);
-        if (phase < hold) {
-          const pulse = 0.5 + 0.5 * Math.sin(t * 20 + i);
-          ctx.strokeStyle = 'rgba(181,147,255,' + (0.45 + pulse * 0.4) + ')';
-          ctx.lineWidth = 1.5 + pulse;
-          ctx.beginPath();
-          ctx.arc(px, py, r * (1.9 + pulse * 0.25), 0, TAU);
-          ctx.stroke();
-          // Узкая энергетическая связь с героем, только для снарядов, вылетевших из посоха.
-          const owner = p.owner;
-          if (p.gen === 0 && owner && owner.active) {
-            const dx = px - owner.x, dy = py - owner.y;
-            if (dx * dx + dy * dy < 80 * 80) {
-              ctx.strokeStyle = 'rgba(181,147,255,' + (0.16 + pulse * 0.18) + ')';
-              ctx.lineWidth = 1;
-              ctx.beginPath();
-              ctx.moveTo(owner.x, owner.y);
-              ctx.lineTo(px, py);
-              ctx.stroke();
-            }
-          }
-        } else {
-          ctx.strokeStyle = 'rgba(221,204,255,' + (0.55 + released * 0.35) + ')';
-          ctx.lineWidth = 2 + released * 0.7;
-          ctx.beginPath();
-          ctx.arc(px, py, r * (1.6 - released * 0.35), 0, TAU);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(px - vx * (r * 2 + 38 * released), py - vy * (r * 2 + 38 * released));
-          ctx.lineTo(px - vx * r * 0.8, py - vy * r * 0.8);
-          ctx.stroke();
-        }
+      if (p.gravity) {
+        // #153: линзовые кольца, дуги преломления и растягивающееся поле.
+        // Параметры берём из реального разгона, не создаём отдельного снаряда.
+        const phase=Math.min(1,(p.gravityAge||0)/Math.max(.001,p.gravityRamp||.1));
+        this.spellFx.gravityLens(ctx,px,py,r,phase,t,p.vx,p.vy);
       }
       if (p.zap) { // шар молний: потрескивающие дуги вокруг
         ctx.strokeStyle = '#fffbe0';
