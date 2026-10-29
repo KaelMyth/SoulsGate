@@ -37,7 +37,7 @@ export class Absorption {
     this.flashVampiric = false;
     this.source.vampiric = false;
     this.element = 0;
-    this.color = COLORS[0];
+    this.color = '172,84,136'; // #153 тёмно-фиолетовое Поглощение
     this.timer = 0;
     this.rate = 1; // прежняя скорость для сохранения прогресса каста при смене билда
     this.castTime = this.cfg.absorption.telegraph;
@@ -125,13 +125,13 @@ export class Absorption {
     const vampiric = !!mods.absorption.vampirism;
     const element = (mods.absorption.burn ? 1 : 0) |
       (mods.absorption.frost ? 2 : 0) | (mods.absorption.lightning ? 4 : 0);
-    const color = vampiric ? '255,50,75' : COLORS[element];
+    const color = vampiric ? '197,73,110' : '172,84,136';
     this.flash = Math.max(0, A.flashTime);
     this.flashVampiric = vampiric;
     this.flashX = e.x;
     this.flashY = e.y;
     this.flashR = e.radius + A.ringPadding;
-    this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric, color });
+    this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric, color, phantom:phantomGeneration>0 });
     const hpBefore = Math.max(0, e.hp);
     const baseDamage = A.damage * (mods.absorption.damage || 1) * damageScale;
     const damage = baseDamage + (mods.absorption.lightning
@@ -144,7 +144,7 @@ export class Absorption {
         if (!other.active || other === e || Math.hypot(other.x-e.x,other.y-e.y)>radius+other.radius)continue;
         this.combat.damageEnemy(other,damage*(A.pierceDamageFrac||0.4),this.source,null);
       }
-      this.flashes.push({x:e.x,y:e.y,r:radius,time:A.flashTime,vampiric:false,color:'142,225,255'});
+      this.flashes.push({x:e.x,y:e.y,r:radius,time:A.flashTime,vampiric:false,pierce:true,color:'241,78,91'});
     }
     if (dealt && e.active) {
       const burn = mods.absorption.burn;
@@ -236,7 +236,7 @@ export class Absorption {
       | (mods.absorption.frost ? 2 : 0)
       | (mods.absorption.lightning ? 4 : 0);
     this.element = element;
-    this.color = this.vampiric ? '255,50,75' : COLORS[element];
+    this.color = this.vampiric ? '197,73,110' : '172,84,136';
     const rate = Math.max(0.01, mods.absorption.rate || 1);
     const interval = Math.max(0.05, A.interval / rate);
     const telegraph = Math.min(interval, Math.max(0.02, A.telegraph / rate));
