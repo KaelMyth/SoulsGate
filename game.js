@@ -5,6 +5,7 @@ import { Rewards } from './systems_rewards.js';
 import { LevelUpScreen } from './ui_levelup.js';
 import { Aura } from './systems_aura.js';
 import { Absorption } from './systems_absorption.js';
+import { BlackSun } from './systems_black_sun.js';
 import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
 import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
@@ -218,6 +219,8 @@ export class Game {
       zap: (e, d, i, fr, st, cm) => this.zap(e, d, i, fr, st, cm),
     });
 
+    this.blackSun = new BlackSun({config,hero:this.hero,aura:this.aura,enemies:this.enemies,combat:this.combat,
+      modifiers:(id)=>this.build?.modifiersFor(id)});
     this.aura.pellets = this.pellets;
     this.synergyCasts = [];
     this.synergyFlashes = [];
@@ -248,6 +251,7 @@ export class Game {
       incarnation: this.incarnation,
       aura: this.aura,
       absorption: this.absorption,
+      blackSun: this.blackSun,
       synergyCasts: this.synergyCasts,
       synergyFlashes: this.synergyFlashes,
       lightdash: this.lightdash,
@@ -363,6 +367,7 @@ export class Game {
       if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
+      this.blackSun.onEnemyKilled(enemy);
       const vamp = this.build.passives().vamp; // пассив «Вампиризм»
       if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
       this.kills++;
@@ -1816,6 +1821,7 @@ export class Game {
       this.blades.update(attackDt);
       this.aura.update(attackDt);
       this.absorption.update(attackDt);
+      this.blackSun.update(attackDt);
       this.updateSynergyCasts(attackDt);
       this.hitShotsOnBlock();
       this.spawner.update(worldDt);
@@ -2194,6 +2200,7 @@ export class Game {
     this.defense.reset();
     this.blades.reset();
     this.absorption.reset();
+    this.blackSun.reset();
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();
