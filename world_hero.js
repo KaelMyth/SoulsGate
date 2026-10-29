@@ -24,6 +24,7 @@ export class Hero {
     this.incarnationSpeedMul = 1;
     this.incarnationInertia = 0;
     this.incarnationMask = 0;
+    this.incarnationLaser = false;
     // Статусы от босса (разломы Тартаса): замедление и горение. Накладывает systems_boss.js, снимает таймер.
     this.slowT = 0;       // сколько ещё секунд замедлен
     this.slowMul = 1;     // во сколько раз медленнее, пока slowT > 0
@@ -45,6 +46,8 @@ export class Hero {
       this.incarnationT = Math.max(0, this.incarnationT - dt);
       if (this.incarnationT < 0.000001) this.incarnationT = 0; // убираем хвост погрешности после пяти секунд
     }
+
+    if (this.incarnationLaser) { this.vx = this.vy = 0; return; }
 
     if (this.dashing) {
       this.vx = this.dashVx;
