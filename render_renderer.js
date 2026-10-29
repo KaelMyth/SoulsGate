@@ -3713,7 +3713,18 @@ export class Renderer {
         ctx.strokeStyle=color; ctx.shadowColor=color;ctx.shadowBlur=14;
         ctx.lineWidth=Math.max(1.5, 9/Math.sqrt(n));
         ctx.beginPath();ctx.moveTo(p.x1,p.y1);
-        ctx.quadraticCurveTo(mx-dy/dist*bend,my+dx/dist*bend,p.x2,p.y2);ctx.stroke();
+        if (p.chaotic) {
+          const segment = Math.max(3, Math.ceil(dist / 30));
+          const nx = -dy/dist, ny = dx/dist;
+          for (let k=1;k<segment;k++) {
+            const t = k/segment;
+            const jitter = (Math.sin((j+1)*19.1+k*7.43+this.clock*34)*0.6 + Math.sin(k*12.3-this.clock*19+j)*0.4) * (10 + 13*Math.sin(Math.PI*t));
+            const warp = bend*Math.sin(Math.PI*t) + jitter;
+            ctx.lineTo(p.x1+dx*t+nx*warp,p.y1+dy*t+ny*warp);
+          }
+          ctx.lineTo(p.x2,p.y2);
+        } else ctx.quadraticCurveTo(mx-dy/dist*bend,my+dx/dist*bend,p.x2,p.y2);
+        ctx.stroke();
         ctx.strokeStyle='#ffffff';ctx.lineWidth=Math.max(.5,2/Math.sqrt(n));
         ctx.stroke();
       }
@@ -3727,19 +3738,22 @@ export class Renderer {
     const fire = !!(mask & 1), frost = !!(mask & 2), lightning = !!(mask & 4);
     const form = S.forms?.[mask] || { outer: form.outer, glow: form.glow, core: form.core, tail: form.tail };
     const copies = this.incarnation?.splitCount || 1;
-    if (copies > 1) {
-      const radius = Math.max(3, S.coreRadius * Math.min(0.72, 1.25 / Math.sqrt(copies)));
+    const scatter = !!this.incarnation?.shotForm;
+    if (copies > 1 || scatter) {
+      const nodes = scatter ? Math.max(8, copies * 8) : copies;
+      const radius = Math.max(2.5, S.coreRadius * (scatter ? 0.24 : Math.min(0.72, 1.25 / Math.sqrt(copies))));
       const spread = copies >= 12 ? S.coreRadius * 0.9 : S.coreRadius * 1.35;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < copies; i++) {
-        const ring = copies >= 12 ? (i % 3) / 3 : 1;
-        const ang = this.clock * (2.6 + 0.3 * (i % 3)) + i * Math.PI * 2 / copies;
+      for (let i = 0; i < nodes; i++) {
+        const ring = scatter ? 0.5 + (i % 5) / 10 : copies >= 12 ? (i % 3) / 3 : 1;
+        const ang = this.clock * (scatter ? (2.6 + (i % 4) * 0.7) : 2.6 + 0.3 * (i % 3)) + i * Math.PI * 2 / nodes;
         const x = hx + Math.cos(ang) * spread * ring;
         const y = hy + Math.sin(ang) * spread * ring;
         ctx.shadowColor = form.glow;
         ctx.shadowBlur = radius * 2.5;
         ctx.fillStyle = form.core;
+        if (scatter) { ctx.strokeStyle = form.glow; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x - Math.cos(ang + this.clock * 4) * 16, y - Math.sin(ang + this.clock * 4) * 16); ctx.stroke(); }
         ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill();
       }
       ctx.restore();
