@@ -97,6 +97,67 @@ test('Laser announces every lightning hop BEFORE moving the hero',()=>{
   assert.equal(d.active,false);
 });
 
+test('Lightning + Laser on the same dash core performs LASER hops between enemies',()=>{
+  const {mods}=composition();
+  assert.ok(mods.scopes.root.lightning);
+  assert.ok(mods.scopes.root.laser);
+  const enemies=[100,200,300].map((x,i)=>({active:true,x,y:0,radius:10,gen:i+1}));
+  const hero={active:true,x:0,y:0,invuln:0,radius:14};
+  const created=[],laserImpacts=[],lightningHits=[];
+  const arena={left:-1000,right:1000,top:-1000,bottom:1000,circleHitsRock:()=>false};
+  const dash=new LightDash({
+    config:CONFIG,hero,enemies:{items:enemies},arena,rnd:()=>0.5,
+    combat:{damageEnemy(e){lightningHits.push(e);return true;}},
+    onTelegraph:(x0,y0,x1,y1)=>{
+      const beam={x0,y0,x1,y1,age:0,done:false,telegraph:true};
+      created.push(beam);
+      return beam;
+    },
+    onLaserArrival:(beam,target)=>{
+      assert.equal(beam.done,false);
+      assert.equal(hero.x,target.x);
+      laserImpacts.push({beam,target});
+      beam.done=true;
+    },
+  });
+  dash.laserMode=true;dash.bounces=3;
+  assert.equal(dash.plan(),true);
+  dash.begin();
+  assert.equal(created.length,1);
+  dash.update(CONFIG.kinetic.beamTime-0.001);
+  assert.equal(hero.x,0,'hero must not move before beam has formed');
+  dash.update(0.002);
+  assert.ok(hero.x>0,'hero travels on the laser after the telegraph');
+  for(let i=0;i<80;i++)dash.update(0.016);
+  assert.equal(created.length,3);
+  assert.equal(laserImpacts.length,3);
+  assert.equal(lightningHits.length,3);
+  assert.equal(dash.bolts.length,0,'no normal lightning bolt visuals in laser mode');
+  assert.ok(CONFIG.kinetic.laserHopTime<CONFIG.lightdash.hopTime);
+  for(let i=0;i<3;i++){
+    assert.equal(laserImpacts[i].beam,created[i]);
+    assert.equal(laserImpacts[i].target,enemies[i]);
+  }
+});
+
+test('Without Laser the lightning dash keeps its original hops and lightning arcs',()=>{
+  const enemies=[{active:true,x:100,y:0,radius:10}];
+  const hero={active:true,x:0,y:0,invuln:0,radius:14};
+  let telegraphs=0,impacts=0;
+  const dash=new LightDash({
+    config:CONFIG,hero,enemies:{items:enemies},
+    arena:{left:-500,right:500,top:-500,bottom:500,circleHitsRock:()=>false},
+    combat:{damageEnemy(){return true;}},rnd:()=>0.5,
+    onTelegraph:()=>telegraphs++,onLaserArrival:()=>impacts++,
+  });
+  dash.laserMode=false;dash.bounces=1;
+  assert.equal(dash.plan(),true);dash.begin();
+  dash.update(CONFIG.lightdash.hopTime+0.001);
+  assert.equal(telegraphs,0);
+  assert.equal(impacts,0);
+  assert.ok(dash.bolts.length>0);
+});
+
 test('Blades from the dash retain homing and burn independently of dash',()=>{
   const {mods}=composition(), g=Object.create(Game.prototype);
   const target={active:true,x:65,y:0,radius:15,hp:1000};
