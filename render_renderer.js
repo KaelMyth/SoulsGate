@@ -2204,6 +2204,7 @@ export class Renderer {
 
     if (e.vuln) this.drawVulnFx(e, x, y, r);
     this.drawStatusFx(e, x, y, r);
+    if (e.rainGravityT > 0) this.drawRainPressure(e, x, y, r);
     if (e.gravityDashSlowT > 0) {
       // Замедление от пространственного импульса: три прерывистые фиолетовые орбиты.
       const ctx = this.ctx;
@@ -4836,6 +4837,35 @@ export class Renderer {
       }
       ctx.stroke();
     }
+    if (hud.rainGravity) {
+      // Волны воздуха проваливаются вниз, словно осадки прижаты невидимой тяжестью.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = '#b39be9';
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 9; i++) {
+        const u = (this.clock * 0.36 + i / 9) % 1;
+        const yy = u * (h + 130) - 65;
+        const wave = Math.sin(Math.PI * u);
+        ctx.globalAlpha = a * wave * 0.3;
+        ctx.lineWidth = 5 + wave * 14;
+        ctx.beginPath();
+        ctx.moveTo(-30, yy - 18);
+        ctx.bezierCurveTo(w * 0.25, yy - 44, w * 0.28, yy + 36, w * 0.52, yy);
+        ctx.bezierCurveTo(w * 0.76, yy - 28, w * 0.81, yy + 36, w + 30, yy - 16);
+        ctx.stroke();
+        ctx.globalAlpha = a * wave * 0.48;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#c6b5ff';
+      for (let i = 0; i < 28; i++) {
+        const x = ((i * 143 + 21) % (w + 40)) - 20;
+        const y = ((this.clock * (175 + i % 5 * 37) + i * 97) % (h + 80)) - 40;
+        ctx.globalAlpha = 0.25 * a;
+        ctx.fillRect(x + Math.sin(y * 0.024 + i) * 8, y, 1.5, 7);
+      }
+    }
     ctx.restore();
   }
 
@@ -5494,6 +5524,45 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Дождь с Гравитацией продавливает пространство вокруг поражённого моба. */
+  drawRainPressure(e, x, y, r) {
+    const ctx = this.ctx, t = this.clock;
+    const fade = Math.min(1, e.rainGravityT * 2.5);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const phase = t * (1.9 + i * 0.3) + i * 2.1;
+      const ry = r * (0.34 + 0.13 * i) + 2;
+      const yy = y - r * 0.7 + Math.sin(phase) * 3;
+      ctx.strokeStyle = i === 1 ? '#d2b7ff' : '#7e65c6';
+      ctx.globalAlpha = fade * (0.43 - i * 0.07);
+      ctx.lineWidth = 1.3 + (2 - i) * 1.1;
+      ctx.beginPath();
+      ctx.ellipse(x, yy, r * (1.5 + i * 0.23), ry, Math.sin(phase) * 0.13, 0.2 + i * 0.4, Math.PI * 1.82 + i * 0.24);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#30224c';
+    ctx.globalAlpha = fade * 0.19;
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.54, r * 1.7, r * 0.46, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 5; i++) {
+      const u = (t * (0.7 + 0.08 * i) + i * 0.21) % 1;
+      const xx = x + Math.sin(i * 2.5 + t * 1.1) * r * 1.1;
+      ctx.strokeStyle = '#b19cfb';
+      ctx.lineWidth = 1.1 + (1 - u) * 2.3;
+      ctx.globalAlpha = fade * Math.sin(Math.PI * u) * 0.44;
+      ctx.beginPath();
+      ctx.moveTo(xx, y - r * 1.9 + u * r * 1.4);
+      ctx.quadraticCurveTo(xx + 5 * Math.sin(t + i), y + r * 0.1, x + (xx - x) * 0.64, y + r * 0.65);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /** Костры огненного шлейфа: тёплое пятно с мерцающим язычком, к концу жизни гаснет. */
   drawFires(ctx) {
     const F = this.cfg.kinetic;
@@ -5638,15 +5707,90 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     ctx.restore();
-    if (au.laserShimmer) {
-      // Поверх готового поля: иначе линзирование и дымка скрывали перелив.
-      ctx.save();
-      ctx.strokeStyle = `hsla(${190+55*Math.sin(t*1.7)},90%,73%,0.45)`;
-      ctx.lineWidth = 4 + 1.5 * Math.sin(t*3);
-      ctx.beginPath(); ctx.arc(hx,hy,R,0,Math.PI*2); ctx.stroke();
-      ctx.restore();
-    }
+    if (au.laserShimmer) this.drawAuraLaserCurrents(ctx, hx, hy, R, t);
+    if (au.shotTimer > 0) this.drawAuraPelletForging(ctx, hx, hy, au, t);
     ctx.globalAlpha = 1;
+  }
+
+  /** Лазер насыщает Ауру потоками: спиральные жилы проходят через весь объём, а не обводят границу. */
+  drawAuraLaserCurrents(ctx, hx, hy, R, t) {
+    const glow = this.getGlow('blue');
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      const spin = i % 2 ? -1 : 1;
+      const seed = i * 2.39996;
+      const flicker = 0.76 + 0.24 * Math.sin(t * 3.6 + i * 2.9);
+      // Три слоя одного живого русла: рассеянное поле, цветная плазма и светлая середина.
+      for (let layer = 0; layer < 3; layer++) {
+        ctx.beginPath();
+        for (let j = 0; j <= 22; j++) {
+          const u = j / 22;
+          const a = seed + spin * (u * 2.7 + t * 0.72) + Math.sin(u * 11 - t * 2.4 + i) * 0.19;
+          const rr = R * (0.13 + 0.79 * u) * (1 + 0.065 * Math.sin(u * 15 + t * 2.8 + i));
+          const x = Math.cos(a) * rr, y = Math.sin(a) * rr * 0.92;
+          if (!j) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = layer === 0 ? '#5245aa' : layer === 1 ? (i % 2 ? '#b16dff' : '#55b9ff') : '#e0e7ff';
+        ctx.lineWidth = layer === 0 ? 16 : layer === 1 ? 5.3 : 1.25;
+        ctx.globalAlpha = (layer === 0 ? 0.12 : layer === 1 ? 0.36 : 0.65) * flicker;
+        ctx.stroke();
+      }
+      // Световые сгустки скользят вдоль жил; их движение не связано с пульсацией контура.
+      for (let j = 0; j < 2; j++) {
+        const u = (t * (0.34 + i * 0.012) + i * 0.137 + j * 0.47) % 1;
+        const a = seed + spin * (u * 2.7 + t * 0.72) + Math.sin(u * 11 - t * 2.4 + i) * 0.19;
+        const rr = R * (0.13 + 0.79 * u) * (1 + 0.065 * Math.sin(u * 15 + t * 2.8 + i));
+        const x = Math.cos(a) * rr, y = Math.sin(a) * rr * 0.92;
+        const size = 9 + 5 * Math.sin(Math.PI * u);
+        ctx.globalAlpha = 0.6 * Math.sin(Math.PI * u);
+        ctx.drawImage(glow, x - size, y - size, size * 2, size * 2);
+        ctx.fillStyle = '#e6f2ff';
+        ctx.globalAlpha = 0.85 * Math.sin(Math.PI * u);
+        ctx.beginPath(); ctx.arc(x, y, 1.4, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Перед залпом четыре зародыша дроби уплотняются из вихрей рядом с каждым врагом в Ауре. */
+  drawAuraPelletForging(ctx, hx, hy, au, t) {
+    const u = Math.max(0, Math.min(1, (au.shotTimer - 2.55) / 1.45));
+    if (u <= 0) return;
+    const glow = this.getGlow('blue');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    let drawn = 0;
+    for (const e of this.enemies.items) {
+      if (!e.active || ++drawn > 16) break;
+      const dx = e.x - hx, dy = e.y - hy;
+      if (dx * dx + dy * dy > (au.radius + e.radius) ** 2) { drawn--; continue; }
+      const fade = Math.min(1, u * 4);
+      for (let j = 0; j < 4; j++) {
+        const a = j * TAU / 4 + Math.sin(t * 4 + j * 1.7) * (1 - u) * 0.8;
+        const rr = e.radius + 8 + 31 * (1 - u);
+        const x = e.x + Math.cos(a) * rr, y = e.y + Math.sin(a) * rr;
+        const tail = 15 * (1 - u) + 4;
+        ctx.globalAlpha = 0.16 * fade;
+        ctx.strokeStyle = '#8263e9';
+        ctx.lineWidth = 7 * (1 - u) + 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x - Math.sin(a) * tail, y + Math.cos(a) * tail);
+        ctx.quadraticCurveTo(e.x + Math.cos(a - 0.5) * rr, e.y + Math.sin(a - 0.5) * rr, x, y);
+        ctx.stroke();
+        const size = 13 * (1 - u) + 6;
+        ctx.globalAlpha = (0.45 + 0.45 * u) * fade;
+        ctx.drawImage(glow, x - size, y - size, size * 2, size * 2);
+        ctx.fillStyle = '#e9f5ff';
+        ctx.globalAlpha = 0.9 * fade;
+        ctx.beginPath(); ctx.arc(x, y, 1.2 + 1.5 * u, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   /** Полилиния по точкам [[x,y],...] (без заливки и stroke: их делает вызывающий). */
