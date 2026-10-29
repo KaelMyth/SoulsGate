@@ -355,6 +355,7 @@ export class Blades {
 
   /** Луч из сферы b в цель t: те же правила, что у лазера снаряда, урон луча от урона клинка. */
   pushLaser(b, t, m, dmg, max) {
+    m = forCarrier(m, 'laser');
     const L = this.cfg.laser;
     if (this.lasers.length >= L.max) return false;
     const one = laserStats(this.cfg, m.laser, dmg, 1);   // урон тика без штрафа за число
@@ -383,6 +384,7 @@ export class Blades {
    * а каждое новое попадание поворачивает разлёт на shotShift. Половина дробинок несёт Горение и Мороз.
    */
   scatter(t, fromAngle, m, dmg) {
+    m = forCarrier(m, 'shot');
     const B = this.cfg.blades;
     const S = this.cfg.shot;
     const P = this.pellets;
