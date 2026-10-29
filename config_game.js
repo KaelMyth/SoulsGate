@@ -1109,7 +1109,7 @@ export const CONFIG = {
     inTest: 0,           // 1: окно выбора работает и в режиме «Тестирование» (0: только в «Игре»)
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
-      x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
+      x2: 2, x3: 1, power: 5, haste: 5, burn: 1, frost: 1,
       shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, gravity: 1, kinetic: 1, rain: 1, incarnation: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
