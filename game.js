@@ -125,7 +125,7 @@ export class Game {
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
     this.incarnation = new Incarnation({
-      config, hero: this.hero, enemies: this.enemies, combat: this.combat,
+      config, hero: this.hero, enemies: this.enemies, combat: this.combat, arena: this.arena,
       igniteMax: (e, dmg, interval) => this.igniteMax(e, dmg, interval),
       chill: (e, steam, dmg, interval) => this.chill(e, steam, dmg, interval),
       zap: (e, dmg, interval, frost, steam, chain) => this.zap(e, dmg, interval, frost, steam, chain),
@@ -736,7 +736,7 @@ export class Game {
     const mods = this.build.modifiersFor(id);
     h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.incarnation?.begin(mods);
-    h.incarnationT = Math.max(0.05, mods.blades ? this.incarnation.bladeQueue * S.bladeLaunchGap + 0.1 : S.duration);
+    h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.blades ? this.incarnation.bladeQueue * S.bladeLaunchGap + 0.1 : S.duration);
     h.incarnationSpeedMul = Math.max(1, S.speedMul);
     h.incarnationInertia = Math.max(0, S.inertia);
     h.glideTime = 0;
