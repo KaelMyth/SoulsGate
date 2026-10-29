@@ -35,10 +35,16 @@ export class Incarnation {
     this.gravityTime = 0;
     this.afterimages = [];
     this.afterimageTimer = 0;
+    this.splitCount = 1;
+    this.damageMultiplier = 1;
+    this.hasteMultiplier = 1;
   }
 
   begin(mods) {
     this.mods = mods || {};
+    this.splitCount = Math.max(1, Math.round(1 + (this.mods.incarnationCount?.percent || 0) / 100));
+    this.damageMultiplier = (1 + (this.mods.damage?.percent || 0) / 100) * (1 + (this.splitCount-1)*this.config.skills.incarnation.splitDamageScale);
+    this.hasteMultiplier = 1 + (this.mods.rate?.percent || 0) / 100;
     this.source.el = (this.mods.burn ? 1 : 0) | (this.mods.frost ? 2 : 0) | (this.mods.lightning ? 4 : 0);
     this.hitGenerations.clear();
     this.bladeItems.length = 0;
@@ -53,7 +59,7 @@ export class Incarnation {
     this.afterimageTimer = 0;
     const S = this.config.skills.incarnation;
     this.bladeQueue = this.mods.blades && !this.mods.laser ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
-    this.bladeGap = this.bladeQueue ? Math.min(S.bladeLaunchGap, S.duration / this.bladeQueue) : S.bladeLaunchGap;
+    this.bladeGap = this.bladeQueue ? Math.min(S.bladeLaunchGap, S.duration / this.bladeQueue) / this.hasteMultiplier : S.bladeLaunchGap;
     this.bladeTimer = this.bladeGap;
     if (this.bladeQueue) for (let i = 0; i < this.bladeQueue; i++) this.bladeItems.push({ state: 'orbit', x: this.hero.x, y: this.hero.y, a: i * Math.PI * 2 / this.bladeQueue, off: i * Math.PI * 2 / this.bladeQueue, kind: this.mods.frost && this.mods.burn ? 3 : this.mods.burn ? 2 : this.mods.frost ? 1 : 0, zap: this.mods.lightning ? 1 : 0, age: 0, incarnationBlade: true });
     this.active = true;
@@ -88,7 +94,7 @@ export class Incarnation {
       if (!e || !e.active || this.hitGenerations.get(e) === (e.gen ?? 0)) continue;
       if (!incarnationSegmentHit(h.prevX, h.prevY, h.x, h.y, e.x, e.y, radius + e.radius)) continue;
       this.hitGenerations.set(e, e.gen ?? 0);
-      const hit = this.combat.damageEnemy(e, S.contactDamage, this.source, null);
+      const hit = this.combat.damageEnemy(e, S.contactDamage * this.damageMultiplier, this.source, null);
       if (!hit || !e.active) continue;
       this.applyElements(e);
     }
@@ -118,7 +124,7 @@ export class Incarnation {
   /** Лазерная форма: удары по всем живым врагам независимо от расстояния. */
   updateLaser(dt) {
     const h = this.hero, S = this.config.skills.incarnation;
-    const step = Math.max(0.02, S.laserHopInterval);
+    const step = Math.max(0.02, S.laserHopInterval / this.hasteMultiplier);
     this.laserTime = Math.max(0, this.laserTime - dt);
     const anyEnemy = this.enemies.items.some(e => e && e.active && e.hp > 0);
     this.laserNoEnemies = anyEnemy ? 0 : this.laserNoEnemies + dt;
@@ -142,7 +148,7 @@ export class Incarnation {
       h.prevX = h.x; h.prevY = h.y;
       this.laserPath.push({ x1: fromX, y1: fromY, x2: h.x, y2: h.y, life: 0.18, maxLife: 0.18 });
       this.laserLastTarget = pick; this.laserLastGen = pick.gen;
-      const hit = this.combat.damageEnemy(pick, S.laserDamage * (this.mods?.laser?.damage || 1), this.source, null);
+      const hit = this.combat.damageEnemy(pick, S.laserDamage * this.damageMultiplier * (this.mods?.laser?.damage || 1), this.source, null);
       if (hit && pick.active) this.applyElements(pick);
     }
     for (let i = this.laserPath.length - 1; i >= 0; i--) {
@@ -227,7 +233,7 @@ export class Incarnation {
         b.x += b.vx * dt; b.y += b.vy * dt;
         for (const e of this.enemies.items) {
           if (!e.active || e.hp <= 0 || !incarnationSegmentHit(x,y,b.x,b.y,e.x,e.y,e.radius + 7)) continue;
-          const hit = this.combat.damageEnemy(e, this.config.blades.damage * (this.mods?.blades?.damage || 1), this.source, null);
+          const hit = this.combat.damageEnemy(e, this.config.blades.damage * this.damageMultiplier * (this.mods?.blades?.damage || 1), this.source, null);
           if (hit && e.active) this.applyElements(e);
           b.state = 'gone';
           break;
