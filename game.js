@@ -723,6 +723,7 @@ export class Game {
     this.hud.rainT = R.duration;
     const mods = this.build.modifiersFor(this.build.secondaryId('rain'));
     const mask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
+    this.hud.rainBlades = !!mods.blades;
     this.hud.rainMask = mask; // фиксируем цвет на время дождя, даже если билд поменяли
     const bd = mods.burn ? R.burnTickDamage * (mods.burn.damage || 1) : 0;
     const bi = mods.burn ? this.config.burn.interval / Math.max(0.01, mods.burn.rate || 1) : 0;
@@ -732,6 +733,8 @@ export class Game {
     for (const e of this.enemies.items) {
       if (!e.active) continue;
       e.vuln = true; // обычная уязвимость остаётся постоянной до смерти
+      if (mods.gravity) e.rainGravityT = Math.max(e.rainGravityT || 0, 5);
+      if (mods.blades) this.combat.damageEnemy(e, 50, {active:true,rainBlade:true},null);
       // Каждый стихией дождь попадает ровно два раза; реакции считают обычные системы статусов.
       for (let i = 0; i < stacks && e.active; i++) {
         if (mods.burn) this.ignite(e, bd, bi);
