@@ -7,6 +7,7 @@ import {BuildGrid} from '../build_grid.js';
 import {canPlace} from '../build_rules.js';
 import {forCarrier} from '../build_scopes.js';
 import {LightDash} from '../systems_lightdash.js';
+import {HeroDefense} from '../systems_defense.js';
 import {Game} from '../game.js';
 
 function composition() {
@@ -137,6 +138,40 @@ test('Lightning + Laser on the same dash core performs LASER hops between enemie
   for(let i=0;i<3;i++){
     assert.equal(laserImpacts[i].beam,created[i]);
     assert.equal(laserImpacts[i].target,enemies[i]);
+  }
+});
+
+test('Dash controller chooses laser-chain against enemies, laser-only without targets',()=>{
+  for (const hasTarget of [true,false]) {
+    const h={active:true,incarnationT:0,x:0,y:0,radius:14};
+    const enemies=hasTarget?[{x:90,y:0,active:true,radius:10}]:[];
+    const events=[],beams=[];
+    const dash=new LightDash({
+      config:CONFIG,hero:h,enemies:{items:enemies},
+      arena:{left:-500,right:500,top:-500,bottom:500,circleHitsRock:()=>false},
+      combat:{damageEnemy(){return true;}},rnd:()=>0.5,
+      onTelegraph:(...beam)=>{beams.push(beam);return {done:false};},
+    });
+    dash.laserMode=true;
+    const defense=Object.create(HeroDefense.prototype);
+    Object.assign(defense,{
+      cfg:CONFIG,hero:h,kinetic:true,gravityDashEnabled:false,
+      lightDash:true,laserDashEnabled:true,lightning:dash,
+      dashCd:0,dashCdMul:1,kineticBladeDistanceMul:1,
+      state:'move',dashSeq:0,
+      bus:{emit(event){events.push(event);}},
+      go(){return true;},
+    });
+    assert.equal(defense.tryDash(1,0),true);
+    if (hasTarget) {
+      assert.equal(dash.active,true);
+      assert.equal(beams.length,1);
+      assert.equal(events.includes('dash:laser-started'),false);
+      assert.equal(events.includes('dash:started'),true);
+    } else {
+      assert.equal(dash.active,false);
+      assert.equal(events.includes('dash:laser-started'),true);
+    }
   }
 });
 
