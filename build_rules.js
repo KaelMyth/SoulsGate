@@ -44,10 +44,10 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
   if (e.kind === 'stat' && e.stat === 'rate' && carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') return true;
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
-  // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
+  // Стихии можно соединять в обоих направлениях; реакции считаются общей системой статусов.
   if (e.kind === 'lightning') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // Горение/Мороз → Молния: один стак соответствующей стихии по цепи
-  if (e.kind === 'frost') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
-  if (e.kind === 'burn') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
+  if (e.kind === 'frost') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'lightning' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
+  if (e.kind === 'burn') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'frost' || carry === 'lightning' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
   if (carry === 'aura') return e.stat === 'damage' || e.stat === 'rate'; // к «Ауре»: урон тика и число тиков
