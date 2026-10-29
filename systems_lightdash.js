@@ -181,7 +181,7 @@ export class LightDash {
       }
       if (near > bs) { bs = near; bx = x; by = y; }
     }
-    this.bolts.push({ x0: h.x, y0: h.y, x1: bx, y1: by, age: 0, k: this.kind });
+    if (!this.laserMode) this.bolts.push({ x0: h.x, y0: h.y, x1: bx, y1: by, age: 0, k: this.kind });
     h.x = bx;
     h.y = by;
     h.prevX = bx;
