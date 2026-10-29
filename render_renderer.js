@@ -4384,6 +4384,10 @@ export class Renderer {
       const hs = r * (4 + 2.2 * gl) * fl;
       ctx.globalAlpha = 0.4 + 0.2 * gl;
       ctx.drawImage(glows[kd], px - hs, py - hs, hs * 2, hs * 2);
+      if (p.gen > 0 && p.travelled < 85)
+        this.drawPhantomConjuring(ctx,px,py,r*2.4,Math.min(1,p.travelled/85),p.gen);
+      if (p.hits?.length)
+        this.drawPierceTrail(ctx,px,py,ang,Math.max(5,r*2.8),0.48,0);
       if (gl > 0.3) {
         const hs2 = hs * 1.7;
         ctx.globalAlpha = 0.1 * gl;
@@ -6104,6 +6108,7 @@ export class Renderer {
       const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
       const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
       const ph = !!l.gen;
+      if (ph && l.age < 0.3) this.drawPhantomConjuring(ctx,x0,y0,Math.max(18,l.width*3),l.age/0.3,li);
       const absorb = !!l.absorptionBeam;
       const zp = !!l.zap;
       const zk = (l.burnDmg > 0 ? 1 : 0) | (l.frost ? 2 : 0);
@@ -6564,6 +6569,10 @@ export class Renderer {
       const g = k * (fly ? 4.6 : 3.8) * pulse;
       ctx.globalAlpha = fly ? 0.75 : 0.55;
       ctx.drawImage(gl, b.x - g, b.y - g, g * 2, g * 2);
+      if (b.gen > 0 && b.state === 'fly' && b.age < 0.3)
+        this.drawPhantomConjuring(ctx,b.x,b.y,k*2.9,b.age/0.3,i+b.gen);
+      if (b.pc !== undefined && b.age < 0.3 && fly && !b.kinetic)
+        this.drawPierceTrail(ctx,b.x,b.y,b.a,k*2.4,1-b.age/0.3,i);
     }
     ctx.globalCompositeOperation = 'source-over';
     // Проход 2: сами клинки.
@@ -6642,6 +6651,63 @@ export class Renderer {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** Фантом возникает из разреза пространства: нити стягивают расколотые зеркальные осколки в ядро. */
+  drawPhantomConjuring(ctx,x,y,r,progress,seed=0) {
+    const p=Math.max(0,Math.min(1,progress)),t=this.clock;
+    const fade=Math.sin(Math.PI*p)*.88,rr=r*(1.65-1.16*p);
+    if(fade<=.01)return;
+    const glow=this.getGlow(true);
+    ctx.save();ctx.translate(x,y);
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+    for(let i=0;i<5;i++){
+      const a=i*TAU/5+t*(i%2?-.9:.65)+seed*.73;
+      const x0=Math.cos(a)*rr,y0=Math.sin(a)*rr*.78;
+      const bend=.5*Math.sin(t*7+i*1.8);
+      ctx.strokeStyle=i%2?'#a67cff':'#e6beff';
+      ctx.lineWidth=i%2?2.3:1.25;ctx.globalAlpha=fade*(i%2?.46:.85);
+      ctx.beginPath();ctx.moveTo(x0,y0);
+      ctx.quadraticCurveTo(Math.cos(a+bend)*rr*.52,Math.sin(a+bend)*rr*.52,0,0);
+      ctx.stroke();
+      ctx.fillStyle=i%2?'#874cce':'#dac2ff';
+      ctx.beginPath();
+      ctx.moveTo(x0+Math.cos(a)*6,y0+Math.sin(a)*6);
+      ctx.lineTo(x0-Math.sin(a)*3,y0+Math.cos(a)*3);
+      ctx.lineTo(x0-Math.cos(a)*4,y0-Math.sin(a)*4);
+      ctx.lineTo(x0+Math.sin(a)*3,y0-Math.cos(a)*3);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.globalAlpha=fade*.7;
+    const sz=r*(.8-p*.32);
+    ctx.drawImage(glow,-sz,-sz,sz*2,sz*2);
+    ctx.globalAlpha=fade*.9;
+    ctx.strokeStyle='#e6d4ff';ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.arc(0,0,r*(1.1-.6*p),t*3,t*3+Math.PI*1.4);ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Пробитие оставляет за снарядом сверхострый канал и две расходящиеся световые кромки. */
+  drawPierceTrail(ctx,x,y,angle,r,fade,seed=0) {
+    if(fade<=0)return;
+    ctx.save();ctx.translate(x,y);ctx.rotate(angle);
+    ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    for(let i=0;i<2;i++){
+      const sign=i?1:-1;
+      const wave=Math.sin(this.clock*17+seed*.7+i)*r*.13;
+      ctx.strokeStyle='#83cbff';ctx.lineWidth=2.8;ctx.globalAlpha=.2*fade;
+      ctx.beginPath();ctx.moveTo(r*.78,0);
+      ctx.quadraticCurveTo(-r*.6,sign*r*.52+wave,-r*2.8,sign*r*.25);
+      ctx.stroke();
+      ctx.strokeStyle='#e6faff';ctx.lineWidth=.9;ctx.globalAlpha=.74*fade;ctx.stroke();
+      ctx.fillStyle='#b6e8ff';ctx.globalAlpha=.67*fade;
+      ctx.beginPath();ctx.moveTo(r*1.28,0);ctx.lineTo(r*.32,sign*r*.3);
+      ctx.lineTo(r*.57,0);ctx.closePath();ctx.fill();
+    }
+    ctx.strokeStyle='#f2fbff';ctx.lineWidth=1.5;ctx.globalAlpha=.75*fade;
+    ctx.beginPath();ctx.moveTo(r*1.45,0);ctx.lineTo(-r*3.2,0);ctx.stroke();
+    ctx.restore();
   }
 
   /** Мягкий клуб пара: белый центр, голубоватый край, прозрачная граница. Один спрайт на все клубы. */
