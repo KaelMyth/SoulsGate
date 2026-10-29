@@ -27,6 +27,7 @@ function build(coreKind, keys) {
 function enemy() {
   const e = createEnemy();
   initEnemy(e, { radius: 12, hp: 1500, speed: 100 }, 0, 0);
+  e.active = true;
   return e;
 }
 
