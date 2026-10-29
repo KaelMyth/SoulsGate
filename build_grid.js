@@ -516,6 +516,7 @@ export class BuildGrid {
     let absorptionStandaloneTargets = 0;
     let absorptionVamp = false;
     let absorptionGravity = false;
+    let absorptionPierce = false;
     let absorptionBlades = false;
     let absorptionBurn = false;
     let absorptionFrost = false;
@@ -527,6 +528,7 @@ export class BuildGrid {
       for (const k of kids.get(i) || []) {
         const e = this.cells[k].mod.def.effect;
         if (e.kind === 'gravity') { absorptionGravity = true; }
+        else if (e.kind === 'pierce') { absorptionPierce = true; }
         else if (e.kind === 'blades') {
           absorptionBlades = true;
           absorptionBranch(k, true); // усиления самих Клинков не усиливают Поглощение
@@ -567,7 +569,7 @@ export class BuildGrid {
     if (absorptionCount) res.absorption = {
       count: absorptionCount, standaloneCount: absorptionStandaloneCount, auraCount: absorptionAuraCount,
       targets: absorptionTargets, standaloneTargets: absorptionStandaloneTargets, auraTargets: absorptionAuraTargets,
-      vampirism: absorptionVamp, gravity: absorptionGravity, phantom: absorptionPhantom,
+      vampirism: absorptionVamp, gravity: absorptionGravity, pierce: absorptionPierce, phantom: absorptionPhantom,
       blades: absorptionBlades,
       burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
