@@ -3349,6 +3349,92 @@ export class Renderer {
    * на каменных лапах, в трещинах загорается тёплый свет и открываются глаза-щели. Размер тот же, что у скалы.
    * Замах: приседает, дрожит, трещины разгораются; удар: оседает с пылью. Взгляд и лапы по ходу движения.
    */
+  /**
+   * Членистая нога сверху (местные оси: x вперёд, y вправо; свет из localLight): бедро, голень и коготь,
+   * сегменты сужаются, со стороны света грань светлее, на колене гранёный сустав.
+   * (hx,hy) крепление, side -1/+1, fb -1..1 наклон вперёд/назад, u размер, ph фаза шага, mv 0..1 ходьба,
+   * pal { dark, base, lite, cap, glow } (hit: всё белое), opt { l1, l2, w, cap, heat }.
+   */
+  drawLeg(ctx, hx, hy, side, fb, u, ph, mv, pal, hit, opt) {
+    const l1 = u * (opt.l1 || 0.5);
+    const l2 = u * (opt.l2 || 0.55);
+    const w = u * (opt.w || 0.12);
+    const sw = Math.sin(ph) * mv;
+    const up = Math.max(0, Math.cos(ph)) * mv; // нога в воздухе: шагает шире
+    const kx = hx + (fb * 0.55 + sw * 0.32) * l1;
+    const ky = hy + side * l1 * (0.88 + 0.18 * up);
+    const fx = kx + (fb * 0.55 + sw * 0.85) * l2 * 0.8;
+    const fy = ky + side * l2 * (0.58 + 0.22 * up);
+    const lx = this.llx;
+    const ly = this.lly;
+    const seg = (x0, y0, x1, y1, w0, w1, base, lite) => {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const d = Math.hypot(dx, dy) || 1;
+      const nx = -dy / d;
+      const ny = dx / d;
+      ctx.beginPath();
+      ctx.moveTo(x0 + nx * w0, y0 + ny * w0); ctx.lineTo(x1 + nx * w1, y1 + ny * w1); ctx.lineTo(x1 - nx * w1, y1 - ny * w1); ctx.lineTo(x0 - nx * w0, y0 - ny * w0);
+      ctx.closePath();
+      ctx.fillStyle = hit ? '#ffffff' : base;
+      ctx.fill();
+      if (hit) return;
+      const sg = nx * lx + ny * ly >= 0 ? 1 : -1;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x1 + sg * nx * w1, y1 + sg * ny * w1); ctx.lineTo(x0 + sg * nx * w0, y0 + sg * ny * w0);
+      ctx.closePath();
+      ctx.fillStyle = lite;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x0 + nx * w0, y0 + ny * w0); ctx.lineTo(x1 + nx * w1, y1 + ny * w1); ctx.lineTo(x1 - nx * w1, y1 - ny * w1); ctx.lineTo(x0 - nx * w0, y0 - ny * w0);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(6,9,18,0.75)';
+      ctx.lineWidth = Math.max(0.8, w * 0.12);
+      ctx.stroke();
+    };
+    ctx.lineJoin = 'round';
+    seg(hx, hy, kx, ky, w * 1.05, w * 0.85, pal.dark, pal.base);                     // бедро
+    seg(kx, ky, fx, fy, w * 0.78, w * 0.3, pal.base, pal.lite);                       // голень
+    if (opt.cap && !hit) { // снежная шапка на бедре
+      const cx = (hx + kx) / 2;
+      const cy = (hy + ky) / 2;
+      ctx.fillStyle = pal.cap;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(cx - w * 0.9, cy - w * 0.3); ctx.lineTo(cx + w * 0.2, cy - w * 0.9); ctx.lineTo(cx + w * 0.7, cy - w * 0.1); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // коготь: острие вдоль голени
+    const dx = fx - kx;
+    const dy = fy - ky;
+    const d = Math.hypot(dx, dy) || 1;
+    ctx.beginPath();
+    ctx.moveTo(fx - (dy / d) * w * 0.38, fy + (dx / d) * w * 0.38); ctx.lineTo(fx + (dx / d) * w * 0.8, fy + (dy / d) * w * 0.8); ctx.lineTo(fx + (dy / d) * w * 0.38, fy - (dx / d) * w * 0.38);
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : pal.lite;
+    ctx.fill();
+    // сустав: гранёная пластина
+    ctx.beginPath();
+    for (let q = 0; q < 6; q++) { const a = q * Math.PI / 3 + 0.3; const rr = w * (q % 2 ? 0.8 : 1.0); if (q) ctx.lineTo(kx + Math.cos(a) * rr, ky + Math.sin(a) * rr); else ctx.moveTo(kx + Math.cos(a) * rr, ky + Math.sin(a) * rr); }
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : pal.dark;
+    ctx.fill();
+    if (!hit) {
+      ctx.beginPath();
+      ctx.moveTo(kx - w * 0.7, ky - w * 0.2); ctx.lineTo(kx - w * 0.1, ky - w * 0.8); ctx.lineTo(kx + w * 0.5, ky - w * 0.45); ctx.lineTo(kx, ky);
+      ctx.closePath();
+      ctx.fillStyle = pal.base;
+      ctx.fill();
+      if (opt.heat > 0.02) { // жар в суставе
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, opt.heat);
+        const g = opt.glow;
+        ctx.drawImage(g, kx - w * 2.2, ky - w * 2.2, w * 4.4, w * 4.4);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
   drawRockBeetle(e, x, y, hit) {
     const ctx = this.ctx;
     const C = this.cfg.render.colors;
@@ -3363,8 +3449,11 @@ export class Renderer {
     }
     st.t = t;
     const frozen = e.freezeT > 0;
+    let mvs = 0;
     if (!frozen) {
       const mv = Math.hypot(x - st.ox, y - st.oy);
+      st.mvs = (st.mvs || 0) + (Math.min(1, mv * 0.8) - (st.mvs || 0)) * 0.15;
+      mvs = st.mvs;
       const target = mv > 0.05 ? Math.atan2(y - st.oy, x - st.ox) : Math.atan2(this.hero.y - y, this.hero.x - x);
       let da = (target - st.a) % TAU;
       if (da > Math.PI) da -= TAU;
@@ -3395,30 +3484,21 @@ export class Renderer {
     const sp = this.rockSprites[rock.id] || (this.rockSprites[rock.id] = buildRockSprite(rock, rock.id + 1, C));
     ctx.save();
     ctx.translate(x + shx, y + shy - lift);
-    // Лапы (под телом): четыре каменные лапы по бокам относительно хода. Растут при вставании.
+    // Лапы (под телом): шесть членистых каменных лап, ходьба тройками. Растут при вставании.
     if (ease > 0.01) {
+      ctx.save();
+      ctx.rotate(st.a);
       this.localLight(st.a);
-      const ca = Math.cos(st.a);
-      const sa = Math.sin(st.a);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      const pal = { dark: '#36425e', base: '#4a5876', lite: '#8296be', cap: '#e4eefb', glow: this.getGlow() };
       for (let i = 0; i < 6; i++) {
         const side = i < 3 ? -1 : 1;
-        const along = ((i % 3) - 1) * 0.55;
-        const sw = Math.sin(st.step + (i % 2) * Math.PI + side) * rk * 0.18;
-        const bx = ca * along * rk + -sa * side * rk * 0.55;
-        const by = sa * along * rk + ca * side * rk * 0.55;
-        const kx = bx + (-sa * side) * rk * 0.38 * ease + ca * sw * 0.5;
-        const ky = by + (ca * side) * rk * 0.38 * ease + sa * sw * 0.5;
-        const fx = kx + (-sa * side) * rk * 0.12 * ease + ca * sw * 0.5;
-        const fy = ky + (ca * side) * rk * 0.2 * ease + sa * sw * 0.5 + lift * 0.9;
-        ctx.strokeStyle = hit ? '#ffffff' : '#2b3347';
-        ctx.lineWidth = Math.max(3, rk * 0.17) * ease;
-        ctx.beginPath(); ctx.moveTo(bx, by + lift * 0.4); ctx.lineTo(kx, ky + lift * 0.7); ctx.lineTo(fx, fy); ctx.stroke();
-        ctx.strokeStyle = hit ? '#ffffff' : '#5b6784';
-        ctx.lineWidth = Math.max(1.2, rk * 0.07) * ease;
-        ctx.beginPath(); ctx.moveTo(bx - 1, by + lift * 0.4 - 1); ctx.lineTo(kx - 1, ky + lift * 0.7 - 1); ctx.stroke();
+        const k = i % 3;
+        const hx = (0.42 - k * 0.42) * rk;
+        const hy = side * rk * 0.55;
+        const ph = st.step * 1.15 + ((k + (side > 0 ? 1 : 0)) % 2) * Math.PI;
+        this.drawLeg(ctx, hx, hy, side, (1 - k) * 0.55, rk * ease, ph, mvs, pal, hit, { l1: 0.55, l2: 0.48, w: 0.19, cap: true, heat: heat * 0.45, glow: pal.glow });
       }
+      ctx.restore();
     }
     ctx.drawImage(sp.cv, -sp.half, -sp.half, sp.half * 2, sp.half * 2);
     if (hit) {
@@ -3550,48 +3630,71 @@ export class Renderer {
       ctx.scale(1.18, 0.92); // сам жук вытянут по ходу движения
     }
 
-    // Лапы: толстые, угловатые; в рывке не рисуем (там и так смазано).
+    this.localLight(0);
+    const lx = this.llx;
+    const ly = this.lly;
+    const mix3 = (c0, c1, k) => 'rgb(' + Math.round(c0[0] + (c1[0] - c0[0]) * k) + ',' + Math.round(c0[1] + (c1[1] - c0[1]) * k) + ',' + Math.round(c0[2] + (c1[2] - c0[2]) * k) + ')';
+    const DK = [14, 20, 36];
+    const LT = [84, 104, 160];
+
+    // Лапы: шесть членистых ног; в рывке прижаты (там и так смазано).
     if (!striking) {
-      ctx.beginPath();
-      for (let i = 0; i < 3; i++) {
-        const lx = (0.4 - i * 0.5) * r;
-        const sw = moving && !frozen ? Math.sin(t * 18 + st.ph + i * 2.1) * 0.22 * r : 0;
-        ctx.moveTo(lx, -0.6 * r);
-        ctx.lineTo(lx + 0.2 * r, -0.95 * r);
-        ctx.lineTo(lx + 0.2 * r + sw, -1.1 * r);
-        ctx.moveTo(lx, 0.6 * r);
-        ctx.lineTo(lx + 0.2 * r, 0.95 * r);
-        ctx.lineTo(lx + 0.2 * r - sw, 1.1 * r);
+      const pal = { dark: '#26325a', base: '#3a4b82', lite: '#7088c4', cap: '#fff', glow };
+      const mvL = frozen ? 0 : moving ? 1 : 0;
+      for (let i = 0; i < 6; i++) {
+        const side = i < 3 ? -1 : 1;
+        const k = i % 3;
+        const ph = t * 16 + st.ph + ((k + (side > 0 ? 1 : 0)) % 2) * Math.PI;
+        this.drawLeg(ctx, (0.4 - k * 0.5) * r, side * 0.5 * r, side, (1 - k) * 0.6, r, ph, mvL, pal, hit, { l1: 0.52, l2: 0.56, w: 0.14, heat: rage * 0.6, glow });
       }
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#2c3550';
-      ctx.stroke();
     }
 
-    // Панцирь: тёмно-синий, верхняя грань светлее, по контуру красная кайма.
-    ctx.beginPath();
-    tracePoly(ctx, BULL_SHELL, r);
-    ctx.fillStyle = hit ? '#ffffff' : '#141a28';
-    ctx.fill();
-    if (!hit) {
-      ctx.fillStyle = '#222c45';
+    // Панцирь: гранёные крылья, каждая грань по свету; красная кайма, жар под швом.
+    const SH = BULL_SHELL;
+    const cx0 = -0.15;
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < 8; i++) {
+      const x0 = SH[i * 2];
+      const y0 = SH[i * 2 + 1];
+      const x1 = SH[((i + 1) % 8) * 2];
+      const y1 = SH[((i + 1) % 8) * 2 + 1];
+      const mx = (x0 + x1) / 2 - cx0;
+      const my = (y0 + y1) / 2;
+      const ml = Math.hypot(mx, my) || 1;
+      const b = 0.5 + 0.5 * ((mx / ml) * lx + (my / ml) * ly);
       ctx.beginPath();
-      ctx.moveTo(0.62 * r, -0.62 * r);
-      ctx.lineTo(0.15 * r, -0.9 * r);
-      ctx.lineTo(-0.65 * r, -0.78 * r);
-      ctx.lineTo(-1.05 * r, -0.2 * r);
-      ctx.lineTo(-1.05 * r, 0);
-      ctx.lineTo(0.4 * r, 0);
+      ctx.moveTo(cx0 * r, 0); ctx.lineTo(x0 * r, y0 * r); ctx.lineTo(x1 * r, y1 * r);
       ctx.closePath();
+      ctx.fillStyle = hit ? '#ffffff' : mix3(DK, LT, 0.1 + 0.75 * b);
       ctx.fill();
+    }
+    if (!hit) {
+      // Борозды надкрылий и шов по центру.
+      const hwAt = (xx) => (xx > 0.62 ? 0.62 : xx > 0.15 ? 0.62 + (0.62 - xx) / 0.47 * 0.28 : xx > -0.65 ? 0.9 - (0.15 - xx) / 0.8 * 0.12 : Math.max(0.1, 0.78 - (-0.65 - xx) / 0.4 * 0.58));
+      ctx.lineCap = 'round';
+      for (let sg = -1; sg <= 1; sg += 2) {
+        for (let f = 0; f < 3; f++) {
+          const fk = 0.3 + f * 0.26;
+          ctx.beginPath();
+          for (let q = 0; q <= 8; q++) { const xx = 0.5 - q * 0.18; const yy = sg * hwAt(xx) * fk; if (q) ctx.lineTo(xx * r, yy * r); else ctx.moveTo(xx * r, yy * r); }
+          ctx.strokeStyle = 'rgba(4,6,12,0.65)';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+          ctx.translate(-0.4, -0.5);
+          ctx.strokeStyle = 'rgba(120,140,200,0.28)';
+          ctx.lineWidth = 0.9;
+          ctx.stroke();
+          ctx.translate(0.4, 0.5);
+        }
+      }
       // Жар под панцирем и красные швы: разгораются в замахе и рывке.
       ctx.globalAlpha = frozen ? 0.06 : 0.1 + 0.4 * rage;
       ctx.drawImage(glow, -1.5 * r, -1.1 * r, 2.4 * r, 2.2 * r);
       ctx.globalAlpha = frozen ? 0.3 : 0.5 + 0.45 * rage + 0.05 * f1;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.7;
       ctx.strokeStyle = '#ff4a3d';
       ctx.beginPath();
-      ctx.moveTo(0.3 * r, 0);
+      ctx.moveTo(0.35 * r, 0);
       ctx.lineTo(-1.05 * r, 0);
       ctx.moveTo(0.1 * r, 0);
       ctx.lineTo(-0.5 * r, -0.5 * r);
@@ -3602,8 +3705,8 @@ export class Renderer {
     }
     ctx.beginPath();
     tracePoly(ctx, BULL_SHELL, r);
-    ctx.lineWidth = 1.5;
-    ctx.globalAlpha = hit ? 1 : 0.55 + 0.4 * rage;
+    ctx.lineWidth = 1.1;
+    ctx.globalAlpha = hit ? 1 : 0.5 + 0.45 * rage;
     ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
     ctx.stroke();
     ctx.globalAlpha = 1;
@@ -3616,29 +3719,68 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
 
-    // Передняя пластина.
-    ctx.beginPath();
-    tracePoly(ctx, BULL_PRON, r);
-    ctx.fillStyle = hit ? '#ffffff' : '#1c2438';
-    ctx.fill();
-    ctx.lineWidth = 1.3;
-    ctx.globalAlpha = hit ? 1 : 0.7;
-    ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    // Передняя пластина (переднеспинка): две половины по свету, гребень и поперечные рёбра.
+    {
+      const P = BULL_PRON;
+      ctx.beginPath();
+      tracePoly(ctx, P, r);
+      ctx.fillStyle = hit ? '#ffffff' : '#18203a';
+      ctx.fill();
+      if (!hit) {
+        ctx.beginPath(); // освещённая половина: сверху слева
+        ctx.moveTo(0.82 * r, -0.4 * r); ctx.lineTo(0.5 * r, -0.62 * r); ctx.lineTo(0.22 * r, -0.52 * r); ctx.lineTo(0.22 * r, 0); ctx.lineTo(0.82 * r, 0);
+        ctx.closePath();
+        ctx.fillStyle = '#34416c';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(4,6,12,0.7)';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(0.82 * r, 0); ctx.lineTo(0.22 * r, 0);
+        for (let q = 0; q < 3; q++) { const xx = (0.34 + q * 0.16) * r; ctx.moveTo(xx, -0.5 * r + q * 0.04 * r); ctx.lineTo(xx, 0.5 * r - q * 0.04 * r); }
+        ctx.stroke();
+      }
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = hit ? 1 : 0.65;
+      ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
+      ctx.beginPath();
+      tracePoly(ctx, P, r);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
 
-    // Рог: тёмный, с двумя отростками и красной каймой.
-    ctx.beginPath();
-    tracePoly(ctx, BULL_HORN, r);
-    tracePoly(ctx, BULL_PRONG_L, r);
-    tracePoly(ctx, BULL_PRONG_R, r);
-    ctx.fillStyle = hit ? '#ffffff' : '#0e121c';
-    ctx.fill();
-    ctx.lineWidth = 1.1;
-    ctx.globalAlpha = hit ? 1 : 0.8;
-    ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    // Рог: гранёный, светлая верхняя грань, два отростка и острые жвалы у основания.
+    {
+      ctx.beginPath();
+      ctx.moveTo(0.8 * r, -0.24 * r); ctx.lineTo(1.3 * r, -0.15 * r); ctx.lineTo(1.78 * r, 0); ctx.lineTo(1.3 * r, 0.15 * r); ctx.lineTo(0.8 * r, 0.24 * r);
+      ctx.closePath();
+      ctx.fillStyle = hit ? '#ffffff' : '#0b0f1a';
+      ctx.fill();
+      if (!hit) {
+        ctx.beginPath(); ctx.moveTo(0.8 * r, -0.24 * r); ctx.lineTo(1.3 * r, -0.15 * r); ctx.lineTo(1.78 * r, 0); ctx.lineTo(0.8 * r, 0); ctx.closePath();
+        ctx.fillStyle = '#2c3860';
+        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(1.3 * r, -0.15 * r); ctx.lineTo(1.62 * r, -0.38 * r); ctx.lineTo(1.52 * r, -0.06 * r); ctx.closePath();
+        ctx.fillStyle = '#34416c';
+        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(1.3 * r, 0.15 * r); ctx.lineTo(1.62 * r, 0.38 * r); ctx.lineTo(1.52 * r, 0.06 * r); ctx.closePath();
+        ctx.fillStyle = '#10172a';
+        ctx.fill();
+        for (let sg = -1; sg <= 1; sg += 2) { // жвалы
+          ctx.beginPath(); ctx.moveTo(0.86 * r, sg * 0.3 * r); ctx.lineTo(1.18 * r, sg * 0.44 * r); ctx.lineTo(1.0 * r, sg * 0.24 * r); ctx.closePath();
+          ctx.fillStyle = sg < 0 ? '#2c3860' : '#10172a';
+          ctx.fill();
+        }
+      }
+      ctx.beginPath();
+      tracePoly(ctx, BULL_HORN, r);
+      tracePoly(ctx, BULL_PRONG_L, r);
+      tracePoly(ctx, BULL_PRONG_R, r);
+      ctx.lineWidth = 0.9;
+      ctx.globalAlpha = hit ? 1 : 0.75;
+      ctx.strokeStyle = hit ? '#ffffff' : '#e0443c';
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
 
     // Оглушение: над головой кружат звёздочки.
     if (stunned) {
