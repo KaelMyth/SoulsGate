@@ -203,6 +203,7 @@ export class Game {
 
     this.aura.pellets = this.pellets;
     this.synergyCasts = [];
+    this.laserAbsorptionCooldowns = new WeakMap();
     this.absorption.onPhantom = (e, mods) => {
       if (!mods.absorption?.phantom || this.rnd() >= 0.2) return;
       const nearby = this.enemies.items.filter(t=>t.active && t!==e && Math.hypot(t.x-e.x,t.y-e.y)<140);
@@ -999,8 +1000,12 @@ export class Game {
       this.laserSource.dy = l.dy;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);
       const lm=this.build.modifiersFor(this.config.attack.core);
-      if(lm?.laserAbsorption && !l.anchor && !l.gen && !this.synergyCasts.some(c=>c.enemy===e && c.gen===e.gen)) {
-        this.synergyCasts.push({enemy:e,gen:e.gen,time:this.config.absorption.telegraph,damage:this.config.absorption.damage,phantom:false});
+      if(lm?.laserAbsorption && !l.anchor && !l.gen) {
+        const old=this.laserAbsorptionCooldowns.get(e);
+        if(!old || old.gen!==e.gen || old.until<=this.runTime) {
+          this.laserAbsorptionCooldowns.set(e,{gen:e.gen,until:this.runTime+this.config.absorption.interval});
+          this.synergyCasts.push({enemy:e,gen:e.gen,time:this.config.absorption.telegraph,damage:this.config.absorption.damage,phantom:false});
+        }
       }
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
