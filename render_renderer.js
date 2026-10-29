@@ -804,12 +804,27 @@ export class Renderer {
       const p=1-a.timer/Math.max(.02,a.castTime||cfg.telegraph);
       const r=e.radius+cfg.ringPadding;
       this.spellFx.absorptionSphereBack(ctx,e.x,e.y,r,p,this.clock,'blood',i);
-      if(e.absorptionGravity)this.spellFx.gravityLens(ctx,e.x,e.y,r*.52,p,this.clock);
+      if(e.absorptionGravity) {
+        this.spellFx.gravityLens(ctx,e.x,e.y,r*.52,p,this.clock);
+        this.drawAbsorptionCompression(ctx,e.x,e.y,r,p,i);
+      }
+    }
+    if(a?.bladesConnected && a.bladeCounters) {
+      let shown=0;
+      for(const e of this.enemies.items) {
+        if(!e?.active)continue;
+        const counter=a.bladeCounters.get(e);
+        if(!counter || counter.gen!==e.gen || !counter.hits)continue;
+        this.drawBladeAbsorptionSigil(ctx,e.x,e.y,e.radius+cfg.ringPadding,
+          Math.min(.65,counter.hits/Math.max(1,cfg.bladeHits||3)),counter.hits);
+        if(++shown>=16)break;
+      }
     }
     if(a?.active)for(let i=0;i<a.bladeMarks.length;i++){
       const m=a.bladeMarks[i];
       if(!m.enemy?.active || m.enemy.gen!==m.gen)continue;
       const p=1-m.remaining/Math.max(.01,m.total);
+      this.drawBladeAbsorptionSigil(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,3);
       this.spellFx.absorptionSphereBack(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
     }
     if(this.synergyCasts)for(const c of this.synergyCasts){
@@ -853,7 +868,101 @@ export class Renderer {
       const mode=f.pierce?'scarlet':f.phantom?'phantom':'blood';
       if(f.pierce) this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/duration,this.clock,mode,i);
       else this.spellFx.absorptionSphereBurst(ctx,f.x,f.y,f.r,f.time/duration,this.clock,mode,i);
+      if(f.vampiric) this.drawVampiricReturn(ctx,f,f.time/duration,i);
     }
+  }
+
+  /** Гравитация сжимает оболочку Поглощения: внутренняя воронка и сходящиеся волны. */
+  drawAbsorptionCompression(ctx,x,y,r,progress,seed=0) {
+    const p=Math.max(0,Math.min(1,progress)),t=this.clock;
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+    const size=r*(1.9-1.18*p);
+    for(let i=0;i<6;i++){
+      const a=i*TAU/6+t*(i%2?-.52:.43);
+      const fade=(.19+.54*p)*(1-.08*i);
+      for(let pass=0;pass<2;pass++){
+        ctx.strokeStyle=pass?'#e4caff':'#7853c4';
+        ctx.lineWidth=pass?1.15:6.5*(1-p)+2;
+        ctx.globalAlpha=fade*(pass?.92:.38);
+        ctx.beginPath();
+        for(let j=0;j<=12;j++){
+          const u=j/12;
+          const rr=size*(1-.75*u)*(1+.06*Math.sin(t*4+j*.7+i));
+          const ang=a+u*(2.5+2*p);
+          const px=Math.cos(ang)*rr,py=Math.sin(ang)*rr*.69;
+          if(!j)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle='#150d2e';
+    ctx.globalAlpha=.18+.45*p;
+    ctx.beginPath();ctx.ellipse(0,r*.28,r*(.42-.19*p),r*(.15-.07*p),0,0,TAU);ctx.fill();
+    ctx.restore();
+  }
+
+  /** Поглощение после ударов клинков: три призрачных осколка сходятся к центру метки. */
+  drawBladeAbsorptionSigil(ctx,x,y,r,progress,count) {
+    const p=Math.max(0,Math.min(1,progress)),t=this.clock;
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+    for(let i=0;i<3;i++){
+      const active=i<count;
+      const a=i*TAU/3+t*(active?.65:.28);
+      const rr=r*(1.35-.72*p)+(active?0:r*.22);
+      const px=Math.cos(a)*rr,py=Math.sin(a)*rr*.78;
+      ctx.save();ctx.translate(px,py);ctx.rotate(a+Math.PI/2);
+      ctx.globalAlpha=active?(.36+.55*p):.1;
+      ctx.fillStyle=active?'#c48aff':'#6f538e';
+      ctx.beginPath();ctx.moveTo(0,-r*.37);ctx.lineTo(-r*.13,r*.05);ctx.lineTo(0,r*.25);ctx.lineTo(r*.13,r*.05);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#f6e5ff';ctx.lineWidth=1.2;ctx.stroke();
+      ctx.restore();
+      if(active){
+        ctx.strokeStyle='#a870ff';ctx.lineWidth=2.1;
+        ctx.globalAlpha=(.22+.5*p);
+        ctx.beginPath();ctx.moveTo(px,py);
+        ctx.quadraticCurveTo(Math.cos(a+.7)*r*.42,Math.sin(a+.7)*r*.42,0,0);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Энергия вытягивается из раны к герою при лечении Вампиризмом. */
+  drawVampiricReturn(ctx,f,life,seed) {
+    const p=1-Math.max(0,Math.min(1,life));
+    const hx=this.hero.x,hy=this.hero.y;
+    const dx=hx-f.x,dy=hy-f.y;
+    const len=Math.hypot(dx,dy);
+    if(len<12)return;
+    const nx=-dy/len,ny=dx/len;
+    const bend=Math.min(46,len*.22)*Math.sin(this.clock*6+seed);
+    ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='lighter';
+    for(let pass=0;pass<3;pass++){
+      ctx.strokeStyle=pass===0?'#592044':pass===1?'#e05587':'#ffe3ed';
+      ctx.lineWidth=pass===0?12:pass===1?4:1.25;
+      ctx.globalAlpha=(1-p)*(pass===0?.14:pass===1?.36:.69);
+      ctx.beginPath();ctx.moveTo(f.x,f.y);
+      ctx.bezierCurveTo(f.x+dx*.22+nx*bend,f.y+dy*.22+ny*bend,
+        f.x+dx*.72-nx*bend,f.y+dy*.72-ny*bend,hx,hy);
+      ctx.stroke();
+    }
+    const glow=this.getGlow('red');
+    for(let i=0;i<5;i++){
+      const u=(p*.95+i*.21)%1, v=1-u;
+      const bx=f.x+dx*u+3*u*v*(nx*bend-ny*bend)*.6;
+      const by=f.y+dy*u+3*u*v*(ny*bend+nx*bend)*.6;
+      const size=6+4*(1-u);
+      ctx.globalAlpha=(1-p)*Math.sin(Math.PI*u)*.85;
+      ctx.drawImage(glow,bx-size,by-size,size*2,size*2);
+    }
+    ctx.restore();
   }
 
   /** Камни опыта: маленькие ромбики; красный крупнее. Вне экрана не рисуем. */
@@ -4275,6 +4384,10 @@ export class Renderer {
       const hs = r * (4 + 2.2 * gl) * fl;
       ctx.globalAlpha = 0.4 + 0.2 * gl;
       ctx.drawImage(glows[kd], px - hs, py - hs, hs * 2, hs * 2);
+      if (p.gen > 0 && p.travelled < 85)
+        this.drawPhantomConjuring(ctx,px,py,r*2.4,Math.min(1,p.travelled/85),p.gen);
+      if (p.hits?.length)
+        this.drawPierceTrail(ctx,px,py,ang,Math.max(5,r*2.8),0.48,0);
       if (gl > 0.3) {
         const hs2 = hs * 1.7;
         ctx.globalAlpha = 0.1 * gl;
@@ -5741,6 +5854,7 @@ export class Renderer {
     ctx.restore();
     if (au.laserShimmer) this.drawAuraLaserCurrents(ctx, hx, hy, R, t);
     if (au.shotTimer > 0) this.drawAuraPelletForging(ctx, hx, hy, au, t);
+    if (this.absorption?.auraConnected) this.drawAuraAbsorptionLinks(ctx,hx,hy,R,t);
     ctx.globalAlpha = 1;
   }
 
@@ -5821,6 +5935,40 @@ export class Renderer {
         ctx.globalAlpha = 0.9 * fade;
         ctx.beginPath(); ctx.arc(x, y, 1.2 + 1.5 * u, 0, TAU); ctx.fill();
       }
+    }
+    ctx.restore();
+  }
+
+  /** Аура тянет тонкие негативные русла к будущим целям Поглощения перед общим ударом. */
+  drawAuraAbsorptionLinks(ctx,hx,hy,R,t) {
+    const a=this.absorption;
+    const period=Math.max(.05,a.auraPeriod||1);
+    const charge=1-Math.max(0,Math.min(1,a.auraTimer/Math.min(.58,period)));
+    if(charge<=0)return;
+    ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='lighter';
+    let shown=0;
+    const glow=this.getGlow(true);
+    for(const e of this.enemies.items){
+      if(!e?.active)continue;
+      const dx=e.x-hx,dy=e.y-hy,len=Math.hypot(dx,dy);
+      if(len>R+e.radius||len<12)continue;
+      const nx=-dy/len,ny=dx/len;
+      const s=Math.sin(t*3+e.gen*2.1)*Math.min(25,len*.22);
+      const x1=hx+dx*.34+nx*s,y1=hy+dy*.34+ny*s;
+      const x2=hx+dx*.67-nx*s,y2=hy+dy*.67-ny*s;
+      ctx.strokeStyle='#6d378d';ctx.lineWidth=9;ctx.globalAlpha=.12*charge;
+      ctx.beginPath();ctx.moveTo(hx,hy);ctx.bezierCurveTo(x1,y1,x2,y2,e.x,e.y);ctx.stroke();
+      ctx.strokeStyle='#cc7bff';ctx.lineWidth=1.7;ctx.globalAlpha=.48*charge;ctx.stroke();
+      for(let j=0;j<2;j++){
+        const u=(t*.36+j*.48+(e.gen%7)*.09)%1;
+        const v=1-u;
+        const x=v*v*v*hx+3*v*v*u*x1+3*v*u*u*x2+u*u*u*e.x;
+        const y=v*v*v*hy+3*v*v*u*y1+3*v*u*u*y2+u*u*u*e.y;
+        const size=5+5*Math.sin(Math.PI*u);
+        ctx.globalAlpha=.6*charge*Math.sin(Math.PI*u);
+        ctx.drawImage(glow,x-size,y-size,size*2,size*2);
+      }
+      if(++shown>=8)break;
     }
     ctx.restore();
   }
@@ -5960,6 +6108,7 @@ export class Renderer {
       const flick = 0.9 + 0.1 * Math.sin(t * 70 + li * 3.7) + l.pulse * 0.25;
       const w = (l.big ? l.width * 0.5 : l.width * 0.26) * flick; // обычный луч около 2.6 единицы
       const ph = !!l.gen;
+      if (ph && l.age < 0.3) this.drawPhantomConjuring(ctx,x0,y0,Math.max(18,l.width*3),l.age/0.3,li);
       const absorb = !!l.absorptionBeam;
       const zp = !!l.zap;
       const zk = (l.burnDmg > 0 ? 1 : 0) | (l.frost ? 2 : 0);
@@ -6420,6 +6569,10 @@ export class Renderer {
       const g = k * (fly ? 4.6 : 3.8) * pulse;
       ctx.globalAlpha = fly ? 0.75 : 0.55;
       ctx.drawImage(gl, b.x - g, b.y - g, g * 2, g * 2);
+      if (b.gen > 0 && b.state === 'fly' && b.age < 0.3)
+        this.drawPhantomConjuring(ctx,b.x,b.y,k*2.9,b.age/0.3,i+b.gen);
+      if (b.pc !== undefined && b.age < 0.3 && fly && !b.kinetic)
+        this.drawPierceTrail(ctx,b.x,b.y,b.a,k*2.4,1-b.age/0.3,i);
     }
     ctx.globalCompositeOperation = 'source-over';
     // Проход 2: сами клинки.
@@ -6498,6 +6651,63 @@ export class Renderer {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** Фантом возникает из разреза пространства: нити стягивают расколотые зеркальные осколки в ядро. */
+  drawPhantomConjuring(ctx,x,y,r,progress,seed=0) {
+    const p=Math.max(0,Math.min(1,progress)),t=this.clock;
+    const fade=Math.sin(Math.PI*p)*.88,rr=r*(1.65-1.16*p);
+    if(fade<=.01)return;
+    const glow=this.getGlow(true);
+    ctx.save();ctx.translate(x,y);
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+    for(let i=0;i<5;i++){
+      const a=i*TAU/5+t*(i%2?-.9:.65)+seed*.73;
+      const x0=Math.cos(a)*rr,y0=Math.sin(a)*rr*.78;
+      const bend=.5*Math.sin(t*7+i*1.8);
+      ctx.strokeStyle=i%2?'#a67cff':'#e6beff';
+      ctx.lineWidth=i%2?2.3:1.25;ctx.globalAlpha=fade*(i%2?.46:.85);
+      ctx.beginPath();ctx.moveTo(x0,y0);
+      ctx.quadraticCurveTo(Math.cos(a+bend)*rr*.52,Math.sin(a+bend)*rr*.52,0,0);
+      ctx.stroke();
+      ctx.fillStyle=i%2?'#874cce':'#dac2ff';
+      ctx.beginPath();
+      ctx.moveTo(x0+Math.cos(a)*6,y0+Math.sin(a)*6);
+      ctx.lineTo(x0-Math.sin(a)*3,y0+Math.cos(a)*3);
+      ctx.lineTo(x0-Math.cos(a)*4,y0-Math.sin(a)*4);
+      ctx.lineTo(x0+Math.sin(a)*3,y0-Math.cos(a)*3);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.globalAlpha=fade*.7;
+    const sz=r*(.8-p*.32);
+    ctx.drawImage(glow,-sz,-sz,sz*2,sz*2);
+    ctx.globalAlpha=fade*.9;
+    ctx.strokeStyle='#e6d4ff';ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.arc(0,0,r*(1.1-.6*p),t*3,t*3+Math.PI*1.4);ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Пробитие оставляет за снарядом сверхострый канал и две расходящиеся световые кромки. */
+  drawPierceTrail(ctx,x,y,angle,r,fade,seed=0) {
+    if(fade<=0)return;
+    ctx.save();ctx.translate(x,y);ctx.rotate(angle);
+    ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    for(let i=0;i<2;i++){
+      const sign=i?1:-1;
+      const wave=Math.sin(this.clock*17+seed*.7+i)*r*.13;
+      ctx.strokeStyle='#83cbff';ctx.lineWidth=2.8;ctx.globalAlpha=.2*fade;
+      ctx.beginPath();ctx.moveTo(r*.78,0);
+      ctx.quadraticCurveTo(-r*.6,sign*r*.52+wave,-r*2.8,sign*r*.25);
+      ctx.stroke();
+      ctx.strokeStyle='#e6faff';ctx.lineWidth=.9;ctx.globalAlpha=.74*fade;ctx.stroke();
+      ctx.fillStyle='#b6e8ff';ctx.globalAlpha=.67*fade;
+      ctx.beginPath();ctx.moveTo(r*1.28,0);ctx.lineTo(r*.32,sign*r*.3);
+      ctx.lineTo(r*.57,0);ctx.closePath();ctx.fill();
+    }
+    ctx.strokeStyle='#f2fbff';ctx.lineWidth=1.5;ctx.globalAlpha=.75*fade;
+    ctx.beginPath();ctx.moveTo(r*1.45,0);ctx.lineTo(-r*3.2,0);ctx.stroke();
+    ctx.restore();
   }
 
   /** Мягкий клуб пара: белый центр, голубоватый край, прозрачная граница. Один спрайт на все клубы. */
