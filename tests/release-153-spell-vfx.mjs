@@ -1,4 +1,4 @@
-// SoulsGate #153 — игровые Canvas-модельки вместо иллюстраций.
+// SoulsGate #154 — наземное Поглощение и органический лазер.
  // Запуск: node --experimental-default-type=module --test tests/release-153-spell-vfx.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ function makeCtx() {
     createRadialGradient(){calls.push('radial');return gr},
     createLinearGradient(){calls.push('linear');return gr},
     fillRect(){},beginPath(){},closePath(){},moveTo(){},lineTo(){},
-    quadraticCurveTo(){},ellipse(){},arc(){},stroke(){calls.push('stroke')},
+    quadraticCurveTo(){},bezierCurveTo(){calls.push('curve')},ellipse(x,y){calls.push(['ground',x,y])},arc(){},stroke(){calls.push('stroke')},
     fill(){calls.push('fill')},translate(){},rotate(){},drawImage(){calls.push('sprite')},
   };
   return ctx;
@@ -27,7 +27,8 @@ test('Absorption and Phantom charge render curved smoke and glowing rings',()=>{
   fx.absorptionCharge(c,40,25,18,.45,2,'phantom',1);
   assert.ok(count>8);
   assert.ok(c.calls.length>count);
-  assert.ok(c.calls.includes('radial')&&c.calls.includes('stroke'));
+  assert.ok(c.calls.includes('radial')&&c.calls.includes('fill'));
+  assert.ok(c.calls.some(v=>Array.isArray(v)&&v[0]==='ground'&&v[2]>25));
 });
 
 test('Base absorption flash and Pierce+Absorption crimson burst are separate variants',()=>{
@@ -78,4 +79,23 @@ test('Pierce strike records a scarlet burst and normal Absorption keeps a dark b
   assert.ok(a.flashes.some(f=>f.pierce===true));
   a.strike(one,{absorption:{damage:1}},.5,false,1);
   assert.ok(a.flashes.at(-1).phantom);
+});
+
+test('Absorption rises out of the ground and passes in front of the target',()=>{
+  const fx=new SpellFx(),c=makeCtx();
+  fx.absorptionCharge(c,20,30,18,.7,1,'blood',1);
+  assert.ok(c.calls.some(v=>Array.isArray(v)&&v[0]==='ground'&&v[2]>30));
+  const before=c.calls.length;
+  fx.absorptionVeil(c,20,30,18,.8,1,'blood',1);
+  assert.ok(c.calls.slice(before).includes('curve'));
+  assert.ok(c.calls.slice(before).includes('fill'));
+});
+
+test('Absorption laser is a curved smoky stream rather than a straight beam',()=>{
+  const fx=new SpellFx(),c=makeCtx();
+  const points=[];
+  c.lineTo=(x,y)=>points.push([x,y]);
+  fx.absorptionLaser(c,0,0,100,0,3,.9,1.2);
+  assert.ok(points.length>25);
+  assert.ok(points.some(([x,y])=>x>10&&x<90&&Math.abs(y)>1.1));
 });
