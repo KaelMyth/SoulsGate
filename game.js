@@ -207,13 +207,9 @@ export class Game {
     this.synergyCasts = [];
     this.synergyFlashes = [];
     this.laserAbsorptionCooldowns = new WeakMap();
-    this.absorption.onPhantom = (e, mods) => {
-      if (!mods.absorption?.phantom || this.rnd() >= 0.2) return;
-      const nearby = this.enemies.items.filter(t=>t.active && t!==e && Math.hypot(t.x-e.x,t.y-e.y)<140);
-      if (!nearby.length)return;
-      const t=nearby[Math.floor(this.rnd()*nearby.length)];
-      this.synergyCasts.push({enemy:t,gen:t.gen,time:0.45,mods,phantom:true});
-    };
+    // Фантом Поглощения использует тот же шанс/затухание, что и другие фантомы.
+    this.absorption.onPhantom = (e, mods, generation = 0) =>
+      this.tryPhantomAbsorption(e, mods, generation);
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -876,6 +872,26 @@ export class Game {
    * Луч растёт из героя, дальний конец следует за целью. Без Пробития он упирается в первого врага на пути,
    * с Пробитием проходит насквозь столько врагов, сколько дано. Скалы обрезают луч.
    */
+  /** Фантом Поглощения: шанс на каждом поколении вдвое ниже, до 10 копий по цепочке. */
+  tryPhantomAbsorption(e, mods, generation = 0) {
+    if (!e || !mods?.absorption?.phantom || !this.hero.active) return false;
+    const F = this.config.phantom;
+    const multiplier = Math.max(0, mods.absorption.phantomChanceMult || 0);
+    const chance = Math.min(1, F.chance * multiplier);
+    // Используется ОБЩАЯ логика фантома: chance * decay^generation.
+    if (!phantomRoll(F, this.rnd, chance, generation)) return false;
+    // Копия должна появиться возле предыдущей цели, а не от героя.
+    const nearby = this.enemies.items.filter(t =>
+      t && t.active && t !== e && Math.hypot(t.x - e.x, t.y - e.y) < 140);
+    if (!nearby.length) return false;
+    const t = nearby[Math.min(nearby.length - 1, Math.floor(this.rnd() * nearby.length))];
+    this.synergyCasts.push({
+      enemy: t, gen: t.gen, time: 0.45, mods, phantom: true,
+      phantomGeneration: generation + 1,
+    });
+    return true;
+  }
+
   updateSynergyCasts(dt) {
     for (let i=this.synergyFlashes.length-1;i>=0;i--){this.synergyFlashes[i].time-=dt;if(this.synergyFlashes[i].time<=0)this.synergyFlashes.splice(i,1);}
     for(let i=this.synergyCasts.length-1;i>=0;i--){
@@ -885,9 +901,11 @@ export class Game {
       this.synergyCasts.splice(i,1);
       if(!c.enemy.active || c.enemy.gen!==c.gen)continue;
       this.synergyFlashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,maxTime:this.config.absorption.flashTime,color:c.phantom?'#b783ff':'#a9eaff'});
-      // И лазерная связка, и фантом вызывают настоящий каст Поглощения.
-      // У фантома половина урона и отключён повторный фантомный запуск.
-      if(c.mods?.absorption) this.absorption.strike(c.enemy,c.mods,c.phantom?0.5:1,!!c.phantom);
+      // Фантомный каст наносит 50% урона и может породить следующую копию,
+      // но вероятность снижается вдвое с каждым поколением (лимит из config.phantom).
+      if (c.mods?.absorption)
+        this.absorption.strike(c.enemy, c.mods, c.phantom ? 0.5 : 1,
+          false, c.phantom ? (c.phantomGeneration || 1) : 0);
     }
   }
 
