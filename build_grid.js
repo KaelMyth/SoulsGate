@@ -468,6 +468,21 @@ export class BuildGrid {
       lRate += 1 + r;
     }
     if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    // Сочетания срабатывают только внутри одной связанной ветви.
+    const linked = (child, ancestor) => this.cells.some((cell,i) => {
+      if (!cell.mod || owner.get(i)!==coreId || cell.mod.def.effect.kind!==child) return false;
+      let p=parent.get(i);
+      while(p>=0){if(this.cells[p].mod?.def.effect.kind===ancestor)return true;p=parent.get(p);}
+      return false;
+    });
+    const laserAbsorption = linked('absorption','laser');
+    const auraLaser = linked('laser','aura');
+    const auraShot = linked('shot','aura');
+    const absorptionPhantom = linked('phantom','absorption');
+    if(laserAbsorption)res.laserAbsorption=true;
+    if(auraLaser)res.auraLaser=true;
+    if(auraShot)res.auraShot=true;
+    if(absorptionPhantom)res.absorptionPhantom=true;
     // Смертельная аура: Х2/Х3 на ней расширяют поле, Мощь усиливает тик, Ускорение учащает тики.
     let auras = 0;
     let aMul = 0;
@@ -552,7 +567,7 @@ export class BuildGrid {
     if (absorptionCount) res.absorption = {
       count: absorptionCount, standaloneCount: absorptionStandaloneCount, auraCount: absorptionAuraCount,
       targets: absorptionTargets, standaloneTargets: absorptionStandaloneTargets, auraTargets: absorptionAuraTargets,
-      vampirism: absorptionVamp, gravity: absorptionGravity,
+      vampirism: absorptionVamp, gravity: absorptionGravity, phantom: absorptionPhantom,
       blades: absorptionBlades,
       burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
       damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
