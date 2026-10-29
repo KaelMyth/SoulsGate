@@ -45,6 +45,7 @@ import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
+import { Incarnation } from './systems_incarnation.js';
 import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -123,6 +124,12 @@ export class Game {
     this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
+    this.incarnation = new Incarnation({
+      config, hero: this.hero, enemies: this.enemies, combat: this.combat,
+      igniteMax: (e, dmg, interval) => this.igniteMax(e, dmg, interval),
+      chill: (e, steam, dmg, interval) => this.chill(e, steam, dmg, interval),
+      zap: (e, dmg, interval, frost, steam, chain) => this.zap(e, dmg, interval, frost, steam, chain),
+    });
     this.gravityShield.grid = this.swarm.grid;
     this.gravityShield.combat = this.combat;
     this.gravityShield.ignite = (e, dmg, interval) => this.ignite(e, dmg, interval);
@@ -715,8 +722,12 @@ export class Game {
   castIncarnation() {
     const S = this.config.skills.incarnation;
     const h = this.hero;
+    const id = this.build.secondaryId('incarnation');
     if (this.state !== 'playing' || !h.active || h.dashing || h.incarnationT > 0
-        || this.skillCd[1] > 0 || !this.build.secondaryId('incarnation')) return false;
+        || this.skillCd[1] > 0 || !id) return false;
+    const mods = this.build.modifiersFor(id);
+    h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
+    this.incarnation?.begin(mods);
     h.incarnationT = Math.max(0.05, S.duration);
     h.incarnationSpeedMul = Math.max(1, S.speedMul);
     h.incarnationInertia = Math.max(0, S.inertia);
@@ -733,8 +744,13 @@ export class Game {
     if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
     this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
     this.hud.skillFrac1 = Math.max(0, Math.min(1, 1 - sc[1] / Math.max(0.1, this.config.skills.incarnation.cooldown)));
-    this.hud.incarnationOn = !!this.build.secondaryId('incarnation');
+    const incarnationId = this.build.secondaryId('incarnation');
+    this.hud.incarnationOn = !!incarnationId;
     this.hud.incarnationT = this.hero.incarnationT;
+    if (incarnationId) {
+      const m = this.build.modifiersFor(incarnationId);
+      this.hud.incarnationEquippedMask = (m.burn ? 1 : 0) | (m.frost ? 2 : 0) | (m.lightning ? 4 : 0);
+    } else this.hud.incarnationEquippedMask = 0;
     const rainId = this.build.secondaryId('rain');
     this.hud.rainOn = !!rainId; // слот занят, только если дождь стоит на поле билда
     if (rainId) {
@@ -1499,6 +1515,7 @@ export class Game {
       }
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      this.incarnation.update(); // удар по всему пройденному отрезку, до перемещения врагов
       this.lightdash.update(dt);
       this.updateKinetic(dt);
       this.updateFires(dt);
@@ -1885,6 +1902,8 @@ export class Game {
     this.kPending = false;
     this.kineticMods = null;
     this.lightdash.reset();
+    this.incarnation.reset(); // новый забег: очищаем память уже задетых врагов
+    this.hero.incarnationMask = 0;
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
     this.gravityDash.active = false;
@@ -1895,6 +1914,7 @@ export class Game {
     this.hud.rainEquippedMask = 0;
     this.hud.incarnationT = 0;
     this.hud.incarnationOn = false;
+    this.hud.incarnationEquippedMask = 0;
     this.hud.skillFrac1 = 1;
     this.rewards.reset();
     this.pendingLevels = 0;

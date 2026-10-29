@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 7 · обновление №135 (Перенос модов напрямую между основным полем и пассивками)';
+export const BUILD = 'этап 7 · обновление №136 (Воплощение: урон кометой, 7 стихийных форм с максимальными стаками)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -188,7 +188,10 @@ export const CONFIG = {
     incarnation: {
       name: 'Воплощение',
       icon: 'incarnation',
-      description: 'Отдельное ядро умения, открывает второй слот. На 5 секунд персонаж превращается в неуязвимый парящий энергетический шар с кометным хвостом, движется быстрее, но с инерцией и заносом. Перезарядка 30 секунд.',
+      description: 'Второе умение: 5 секунд неуязвимой быстрой кометы с инерцией, откат 30 с. Пролетая через врага, наносит один удар за применение. Горение, Мороз и Молния: стихийные сферы сразу доводят стаки каждой стихии до максимума и вызывают соответствующие реакции.',
+      canBurn: true,
+      canFrost: true,
+      canLightning: true,
       effect: { kind: 'incarnation', secondary: true },
     },
     aura: {
@@ -327,6 +330,20 @@ export const CONFIG = {
       inertia: 0.34, // с: инерция при поворотах и остановке, занос
       coreRadius: 12, // размер светящегося энергетического ядра
       tailLength: 45, // длина кометного хвоста
+      contactDamage: 30, // контактный урон каждому задетому врагу один раз за применение
+      contactPadding: 4, // дополнительная ширина области касания
+      burnTickDamage: 6, // сила горения от огненной/смешанной кометы
+      // Маска стихий: 1=Горение, 2=Мороз, 4=Молния. Каждая форма имеет свой цвет.
+      forms: [
+        { outer: '#856bff', glow: '#9bc9ff', core: '#edffff', tail: 'rgba(112,155,255,0.38)', slot: '#a18dff', light: '#e3e2ff' },
+        { outer: '#ff593e', glow: '#ffb655', core: '#fff1bf', tail: 'rgba(255,97,45,0.44)', slot: '#ff7548', light: '#ffe5ad' },
+        { outer: '#63c9ff', glow: '#b8f3ff', core: '#ffffff', tail: 'rgba(96,205,255,0.38)', slot: '#79d5ff', light: '#f1ffff' },
+        { outer: '#d9a5f7', glow: '#f8ddeb', core: '#ffffff', tail: 'rgba(214,162,239,0.42)', slot: '#d8abed', light: '#fff0fc' },
+        { outer: '#c28cff', glow: '#ffe56a', core: '#fff8d1', tail: 'rgba(171,113,255,0.43)', slot: '#bd98ff', light: '#fff4c3' },
+        { outer: '#ff434b', glow: '#ffae76', core: '#fff6d6', tail: 'rgba(250,64,75,0.48)', slot: '#ff6366', light: '#fff1ca' },
+        { outer: '#78b8ff', glow: '#e8ecff', core: '#ffffff', tail: 'rgba(107,165,250,0.46)', slot: '#a1ccff', light: '#ffffff' },
+        { outer: '#dfacff', glow: '#ffdebc', core: '#ffffff', tail: 'rgba(196,126,243,0.47)', slot: '#e9b6ff', light: '#ffecdd' },
+      ],
       outerColor: '#856bff',
       glowColor: '#9bc9ff',
       coreColor: '#edffff',
