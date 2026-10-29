@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Воплощение: комета наносит один контактный удар каждому врагу за применение.
 // Проверяется весь отрезок движения героя, чтобы на высокой скорости не было проскоков.
 export function incarnationSegmentHit(x0, y0, x1, y1, x, y, radius) {
@@ -41,6 +42,7 @@ export class Incarnation {
   }
 
   begin(mods) {
+    mods = forCarrier(mods, 'root');
     this.mods = mods || {};
     this.splitCount = Math.max(1, Math.round(1 + (this.mods.incarnationCount?.percent || 0) / 100));
     this.damageMultiplier = (1 + (this.mods.damage?.percent || 0) / 100) * (1 + (this.splitCount-1)*this.config.skills.incarnation.splitDamageScale);
