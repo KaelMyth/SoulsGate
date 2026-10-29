@@ -736,8 +736,8 @@ export class Game {
     const mods = this.build.modifiersFor(id);
     h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.incarnation?.begin(mods);
-    h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.blades ? this.incarnation.bladeQueue * this.incarnation.bladeGap + 0.1 : S.duration);
-    h.incarnationSpeedMul = Math.max(1, S.speedMul);
+    h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.gravity && !mods.blades ? S.gravityDuration : mods.blades ? this.incarnation.bladeQueue * this.incarnation.bladeGap + 0.1 : S.duration);
+    h.incarnationSpeedMul = Math.max(1, S.speedMul) * (mods.gravity && !mods.laser && !mods.blades ? S.gravitySpeedMultiplier : 1);
     h.incarnationInertia = Math.max(0, S.inertia);
     h.glideTime = 0;
     this.skillCd[1] = Math.max(0.1, S.cooldown);
@@ -1493,6 +1493,10 @@ export class Game {
       return;
     }
     if (this.state === 'playing') {
+      const gravityActive = (this.incarnation?.gravityTime || 0) > 0;
+      const gcfg = this.config.skills.incarnation;
+      const worldDt = gravityActive ? dt * gcfg.gravityWorldScale : dt;
+      const attackDt = gravityActive ? dt * gcfg.gravityCastMultiplier : dt;
       this.runTime += dt;
       const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
       { // пассивы из угловых ячеек
@@ -1521,11 +1525,11 @@ export class Game {
         this.lightdash.damageMul = 1 + pc('damage');
         this.lightdash.bonus = this.shockBonus(km0);
       }
-      this.defense.update(dt);
+      this.defense.update(attackDt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
-      this.lightdash.update(dt);
-      this.updateKinetic(dt);
-      this.updateFires(dt);
+      this.lightdash.update(attackDt);
+      this.updateKinetic(attackDt);
+      this.updateFires(worldDt);
       this.camera.zoomTarget = Math.max(this.boss.cameraZoom(), this.arena.zone ? this.config.waves.finale.zoom : 1); // клинки и финальный бой отдаляют экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
@@ -1533,42 +1537,42 @@ export class Game {
       const en = this.enemies.items;
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
       this.incarnation.update(dt); // комета бьёт весь пройденный путь; реакции используют актуальную сетку врагов
-      this.autoattack.update(dt);  // цель ищется через сетку
+      this.autoattack.update(attackDt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.gravityShield.beginEnemyStep();
-      this.guards.update(dt, en);  // охрана: куда идёт кольцо вокруг стрелка
-      this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
-      this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
-      this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
-      this.apotheosis.update(dt);  // голова-солнце, умение «Руки», очерёдность умений босса
-      for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
-      this.shooters.update(dt, en);
-      this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
+      this.guards.update(worldDt, en);  // охрана: куда идёт кольцо вокруг стрелка
+      this.attacks.update(worldDt, en); // замахи, рывки и восстановление врагов с атакой
+      this.boss.update(worldDt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
+      this.apostles.update(worldDt);    // финальный босс: призыв апостолов, их очерёдность умений
+      this.apotheosis.update(worldDt);  // голова-солнце, умение «Руки», очерёдность умений босса
+      for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], worldDt, this.hero, this.arena, this.nav);
+      this.shooters.update(worldDt, en);
+      this.rockBeetles.update(worldDt, en); // замах и удар Горных жуков, полёт мошек
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
       this.gravityShield.slowEnemies();
       this.swarm.rebuild(en); // попадания используют актуальные позиции после движения и расталкивания
-      this.moveShots(this.heroShots.items, dt);
-      this.moveShots(this.enemyShots.items, dt);
+      this.moveShots(this.heroShots.items, attackDt);
+      this.moveShots(this.enemyShots.items, worldDt);
       // Вражеские снаряды только замедляются в moveShots, автоматического перехвата больше нет.
       this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
 
       this.xp.update(dt);
       this.collisions.detect();
       this.gravityShield.hitEnemies();
-      this.gravityShield.applyElements(dt);
+      this.gravityShield.applyElements(worldDt);
       this.hitEnemiesWithShots();
-      this.pellets.update(dt);
-      this.updateBurning(dt);
-      this.updateFrost(dt);
-      this.updateShock(dt);
-      this.updateSkills(dt);
-      this.updateSteam(dt);
-      this.updateLasers(dt);
-      this.blades.update(dt);
-      this.aura.update(dt);
-      this.absorption.update(dt);
+      this.pellets.update(attackDt);
+      this.updateBurning(worldDt);
+      this.updateFrost(worldDt);
+      this.updateShock(worldDt);
+      this.updateSkills(attackDt);
+      this.updateSteam(worldDt);
+      this.updateLasers(attackDt);
+      this.blades.update(attackDt);
+      this.aura.update(attackDt);
+      this.absorption.update(attackDt);
       this.hitShotsOnBlock();
-      this.spawner.update(dt);
+      this.spawner.update(worldDt);
       this.syncWaveHud();
       this.watchCrash(dt);
     } else {
