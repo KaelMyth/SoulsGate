@@ -171,7 +171,9 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
-    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
+    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd,
+      onTelegraph: (x0,y0,x1,y1) => this.dashBeams.push({x0,y0,x1,y1,age:0,done:false,telegraph:true,zap:false,kind:0}),
+      onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
     this.defense.lightning = this.lightdash;
     this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
     this.blades = new Blades({
@@ -1076,8 +1078,9 @@ export class Game {
    * С Горением на рывке отброшенные враги поджигаются (и остаётся огненный шлейф), с Морозом замедляются.
    */
   /** Стихии рывка из модов вторичного ядра: горение, мороз, пар и вид молнии (0 жёлтая, 1 огонь, 2 мороз, 3 все). */
-  kineticEl() {
-    const m = this.kineticMods;
+  kineticEl(carrier = 'root') {
+    // Стихии из дочерних веток не воздействуют на само умение и соседние моды.
+    const m = this.kineticMods?.scopes?.[carrier] || {};
     const K = this.config.kinetic;
     const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0, cm: 1 });
     el.bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
@@ -1109,20 +1112,30 @@ export class Game {
 
   beginKineticBladeTrail() {
     const m = this.kineticMods;
-    if (!m?.blades || !this.defense.kinetic ||
-        this.lightdash.active || this.defense.gravityDashCharging) {
+    if (!m?.blades || !this.defense.kinetic || this.defense.gravityDashCharging) {
       this.kineticBladeTrail = null;
       return;
     }
     const mult = Math.max(1, Math.round(this.defense.kineticBladeDistanceMul));
     const count = Math.min(120, 5 * mult);
-    const distance = this.config.dash.distance * this.config.kinetic.distanceScale *
+    let distance = this.config.dash.distance * this.config.kinetic.distanceScale *
       this.defense.kineticBladeDistanceMul;
+    // Электрическая цепочка тоже является перемещением: клинки распределяются
+    // по всем её отрезкам, а не исчезают из-за режима Молнии.
+    if (this.lightdash.active && this.lightdash.route.length) {
+      let x = this.hero.x, y = this.hero.y;
+      distance = 0;
+      for (const e of this.lightdash.route) {
+        distance += Math.hypot(e.x - x, e.y - y);
+        x = e.x; y = e.y;
+      }
+    }
     this.kineticBladeTrail = {
       seq: this.defense.dashSeq, x: this.hero.x, y: this.hero.y,
       walked: 0, spawned: 0, count, step: Math.max(1, distance / count),
       dirX: this.defense.dashX, dirY: this.defense.dashY,
       damage: this.config.blades.damage * (m.blades.damage || 1),
+      elements: m.scopes?.blades || {},
     };
   }
 
@@ -1132,11 +1145,14 @@ export class Game {
     const side = (k % 5) < 3 ? 1 : -1;
     const nx = -trail.dirY * side, ny = trail.dirX * side;
     const speed = this.config.blades.speed;
+    const el = trail.elements;
+    const kind = (el.burn ? 2 : 0) | (el.frost ? 1 : 0);
+    const target = this.kineticBladeTarget(x, y);
     this.kineticBlades.push({
       x, y, a: Math.atan2(ny, nx),
-      vx: nx * speed, vy: ny * speed,
-      damage: trail.damage, state: 'fly', age: 0, life: 1.35,
-      kind: 0, zap: 0, kinetic: true,
+      vx: nx * speed, vy: ny * speed, target,
+      damage: trail.damage, state: 'fly', age: 0, life: this.config.blades.life,
+      kind, zap: el.lightning?.mult || 0, elements:el, kinetic: true,
     });
   }
 
@@ -1144,7 +1160,7 @@ export class Game {
     const t = this.kineticBladeTrail, h = this.hero;
     if (!t) return;
     if (!this.defense.kinetic || !h.active || t.seq !== this.defense.dashSeq ||
-        this.lightdash.active || this.defense.gravityDashCharging) {
+        this.defense.gravityDashCharging) {
       this.kineticBladeTrail = null;
       return;
     }
@@ -1166,19 +1182,48 @@ export class Game {
     }
   }
 
-  updateKineticBlades(dt){
-    for(let i=this.kineticBlades.length-1;i>=0;i--){
-      const b=this.kineticBlades[i],ox=b.x,oy=b.y;
-      b.age+=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
-      if(b.age>b.life || this.arena.circleHitsRock(b.x,b.y,3)){this.kineticBlades.splice(i,1);continue;}
-      for(const e of this.enemies.items){
-        if(!e.active)continue;
-        const dx=b.x-ox,dy=b.y-oy,dd=dx*dx+dy*dy;
-        const t=dd?Math.max(0,Math.min(1,((e.x-ox)*dx+(e.y-oy)*dy)/dd)):0;
-        if(Math.hypot(ox+dx*t-e.x,oy+dy*t-e.y)>e.radius+5)continue;
-        this.combat.damageEnemy(e,b.damage,{active:true,kineticBlade:true},null);
-        this.kineticBlades.splice(i,1);break;
+  /** Общий для выпущенных рывком клинков поиск ближайшей цели (как у обычных клинков). */
+  kineticBladeTarget(x, y) {
+    let best = null, bestD = (this.config.blades.range * 1.5) ** 2;
+    for (const e of this.enemies.items) {
+      if (!e.active) continue;
+      const d = (e.x-x)**2 + (e.y-y)**2;
+      if (d < bestD) {bestD = d; best = e;}
+    }
+    return best;
+  }
+
+  updateKineticBlades(dt) {
+    const B = this.config.blades;
+    for (let i = this.kineticBlades.length-1; i>=0; i--) {
+      const b = this.kineticBlades[i], ox = b.x, oy = b.y;
+      b.age += dt;
+      if (b.age > b.life) {this.kineticBlades.splice(i,1);continue;}
+      if (!b.target?.active) b.target = this.kineticBladeTarget(b.x,b.y);
+      if (b.target) {
+        const wanted = Math.atan2(b.target.y-b.y,b.target.x-b.x);
+        const diff = Math.atan2(Math.sin(wanted-b.a),Math.cos(wanted-b.a));
+        b.a += Math.max(-B.turn*dt,Math.min(B.turn*dt,diff));
       }
+      b.vx = Math.cos(b.a)*B.speed;
+      b.vy = Math.sin(b.a)*B.speed;
+      b.x += b.vx*dt; b.y += b.vy*dt;
+      if (this.arena.circleHitsRock(b.x,b.y,3)) {this.kineticBlades.splice(i,1);continue;}
+      const e = b.target;
+      if (!e?.active) continue;
+      const dx=b.x-ox, dy=b.y-oy, dd=dx*dx+dy*dy;
+      const t=dd?Math.max(0,Math.min(1,((e.x-ox)*dx+(e.y-oy)*dy)/dd)):0;
+      if (Math.hypot(ox+dx*t-e.x,oy+dy*t-e.y)>e.radius+B.size) continue;
+      const dealt = this.combat.damageEnemy(e,b.damage,{active:true,kineticBlade:true,kind:b.kind,dx:b.vx,dy:b.vy},null);
+      if (dealt && e.active) {
+        const el=b.elements;
+        const bd=el.burn?b.damage*this.config.burn.damageFrac*(el.burn.damage||1):0;
+        const bi=el.burn?this.config.burn.interval/(el.burn.rate||1):0;
+        if (el.burn) this.ignite(e,bd,bi);
+        if (el.frost && e.active) this.chill(e,el.steam?.damage||0,bd,bi);
+        if (el.lightning && e.active) this.zap(e,bd,bi,!!el.frost,el.steam?.damage||0,el.lightning.mult||1);
+      }
+      this.kineticBlades.splice(i,1);
     }
   }
 
@@ -1285,7 +1330,7 @@ export class Game {
   kineticShots() {
     const m = this.kineticMods;
     const h = this.hero;
-    if (!m || !m.shot || !h.active || !h.dashing || this.lightdash.active) { this.shotLast = null; return; }
+    if (!m || !m.shot || !h.active || !h.dashing) { this.shotLast = null; return; }
     const K = this.config.kinetic;
     const S = this.config.shot;
     const P = this.pellets;
@@ -1294,7 +1339,7 @@ export class Game {
     const dy = h.y - last.y;
     const d = Math.hypot(dx, dy);
     if (d < K.shotStep) return;
-    const el = this.kineticEl();
+    const el = this.kineticEl('shot');
     const steps = Math.floor(d / K.shotStep);
     const pc = (k) => (m[k] ? m[k].percent / 100 : 0);
     const dmg = K.shotDamage * (m.shot.damage || 1) * (1 + pc('damage'));
@@ -1346,7 +1391,7 @@ export class Game {
     for (let i = bm.length - 1; i >= 0; i--) {
       const b = bm[i];
       b.age += dt;
-      if (!b.done && b.age >= K.beamTime) { b.done = true; this.beamZone(b); }
+      if (!b.done && b.age >= K.beamTime) { b.done = true; if (!b.telegraph) this.beamZone(b); }
       if (b.age > K.beamTime + 0.25) bm.splice(i, 1);
     }
   }
@@ -1355,7 +1400,7 @@ export class Game {
   beamZone(b) {
     const K = this.config.kinetic;
     const m = this.kineticMods;
-    const el = this.kineticEl();
+    const el = this.kineticEl('laser');
     const en = this.enemies.items;
     const grid = this.swarm.grid;
     const buf = this._zoneCandidates || (this._zoneCandidates = []);
@@ -1657,13 +1702,14 @@ export class Game {
       }
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
-      this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам
-      this.defense.gravityDashEnabled = !!(this.kineticMods && this.kineticMods.gravity);
+      this.defense.lightDash = !!this.kineticMods?.scopes?.root?.lightning; // Молния на рывке: рикошеты по врагам
+      this.defense.gravityDashEnabled = !!this.kineticMods?.scopes?.root?.gravity;
       { // моды рывка: Х2/Х3 (рикошеты, толчок), Мощь (урон), Ускорение (перезарядка)
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
         this.defense.dashCdMul = 1 / (1 + pc('rate'));
       this.defense.kineticBladeDistanceMul = km0?.blades ? Math.max(1,1+pc('bounces')) * Math.max(1,km0.blades.max||1) : 1;
+        this.lightdash.laserMode = !!km0?.scopes?.root?.laser;
         this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
         this.lightdash.damageMul = 1 + pc('damage');
         this.lightdash.bonus = this.shockBonus(km0);
