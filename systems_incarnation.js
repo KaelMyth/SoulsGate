@@ -9,11 +9,12 @@ export function incarnationSegmentHit(x0, y0, x1, y1, x, y, radius) {
 }
 
 export class Incarnation {
-  constructor({ config, hero, enemies, combat, igniteMax, chill, zap }) {
+  constructor({ config, hero, enemies, combat, arena, igniteMax, chill, zap }) {
     this.config = config;
     this.hero = hero;
     this.enemies = enemies;
     this.combat = combat;
+    this.arena = arena || null;
     this.igniteMax = igniteMax;
     this.chill = chill;
     this.zap = zap;
@@ -25,6 +26,11 @@ export class Incarnation {
     this.bladeItems = [];
     this.bladeQueue = 0;
     this.bladeTimer = 0;
+    this.laserTime = 0;
+    this.laserHopTimer = 0;
+    this.laserLastTarget = null;
+    this.laserLastGen = 0;
+    this.laserPath = [];
   }
 
   begin(mods) {
@@ -32,6 +38,11 @@ export class Incarnation {
     this.source.el = (this.mods.burn ? 1 : 0) | (this.mods.frost ? 2 : 0) | (this.mods.lightning ? 4 : 0);
     this.hitGenerations.clear();
     this.bladeItems.length = 0;
+    this.laserPath.length = 0;
+    this.laserTime = this.mods.laser ? this.config.skills.incarnation.laserDuration : 0;
+    this.laserHopTimer = 0;
+    this.laserLastTarget = null;
+    this.hero.incarnationLaser = !!this.mods.laser;
     const S = this.config.skills.incarnation;
     this.bladeQueue = this.mods.blades ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
     this.bladeTimer = S.bladeLaunchGap;
@@ -46,13 +57,17 @@ export class Incarnation {
     this.source.el = 0;
     this.bladeQueue = 0;
     this.bladeItems.length = 0;
+    this.laserTime = 0;
+    this.laserPath.length = 0;
+    this.hero.incarnationLaser = false;
   }
 
   update(dt = 0) {
     const h = this.hero;
     if (!h.active) return;
+    if (this.laserTime > 0) { this.updateLaser(dt); return; }
     if (this.bladeQueue || this.bladeItems.length) this.updateBlades(dt);
-    if (!this.active || h.incarnationT <= 0 || this.bladeQueue || this.mods?.blades) return;
+    if (!this.active || h.incarnationT <= 0 || this.bladeQueue || this.mods?.blades || this.mods?.laser) return;
     const S = this.config.skills.incarnation;
     const enemies = this.enemies.items;
     const radius = h.radius + Math.max(0, S.contactPadding);
@@ -65,6 +80,70 @@ export class Incarnation {
       if (!hit || !e.active) continue;
       this.applyElements(e);
     }
+  }
+
+
+  /** Лазерная форма: удары по всем живым врагам независимо от расстояния. */
+  updateLaser(dt) {
+    const h = this.hero, S = this.config.skills.incarnation;
+    const step = Math.max(0.02, S.laserHopInterval);
+    this.laserTime = Math.max(0, this.laserTime - dt);
+    this.laserHopTimer -= dt;
+    let hops = 0;
+    while (this.laserHopTimer <= 0 && hops++ < 12 && this.laserTime > 0) {
+      this.laserHopTimer += step;
+      const enemies = this.enemies.items.filter(e => e && e.active && e.hp > 0);
+      if (!enemies.length) break;
+      // Не прыгаем два раза подряд по одной цели, когда есть альтернатива.
+      let candidates = enemies.filter(e => e !== this.laserLastTarget || e.gen !== this.laserLastGen);
+      if (!candidates.length) candidates = enemies;
+      let pick = candidates[0], best = Infinity;
+      for (const e of candidates) {
+        const d = (e.x - h.x) ** 2 + (e.y - h.y) ** 2;
+        if (d < best) { best = d; pick = e; }
+      }
+      const fromX = h.x, fromY = h.y;
+      h.x = pick.x; h.y = pick.y;
+      h.prevX = h.x; h.prevY = h.y;
+      this.laserPath.push({ x1: fromX, y1: fromY, x2: h.x, y2: h.y, life: 0.18, maxLife: 0.18 });
+      this.laserLastTarget = pick; this.laserLastGen = pick.gen;
+      const hit = this.combat.damageEnemy(pick, S.laserDamage * (this.mods?.laser?.damage || 1), this.source, null);
+      if (hit && pick.active) this.applyElements(pick);
+    }
+    for (let i = this.laserPath.length - 1; i >= 0; i--) {
+      this.laserPath[i].life -= dt;
+      if (this.laserPath[i].life <= 0) this.laserPath.splice(i, 1);
+    }
+    if (this.laserTime <= 0) this.endLaser();
+    else h.incarnationT = Math.max(h.incarnationT, 0.03);
+  }
+
+  endLaser() {
+    const h = this.hero, S = this.config.skills.incarnation;
+    const enemies = this.enemies.items.filter(e => e && e.active && e.hp > 0);
+    const distance = Math.max(60, S.laserSafeRadius);
+    let bestX = h.x, bestY = h.y, bestScore = -Infinity;
+    // Ищем безопасное место вокруг последней позиции, с проверкой границ арены.
+    const tries = 48;
+    for (let i = 0; i <= tries; i++) {
+      const r = i === 0 ? 0 : distance * (0.5 + (i % 3) * 0.5);
+      const a = i * Math.PI * (3 - Math.sqrt(5));
+      const probe = { x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r, radius: h.radius };
+      if (this.arena?.resolveCircle) this.arena.resolveCircle(probe);
+      const nearest = enemies.length ? Math.min(...enemies.map(e => Math.hypot(e.x - probe.x, e.y - probe.y) - e.radius - h.radius)) : distance;
+      // Выбираем самое далёкое от врагов доступное место, без приоритета дальнего края карты.
+      const score = Math.min(nearest, distance * 1.5) - Math.hypot(probe.x - h.x, probe.y - h.y) * 0.08;
+      if (score > bestScore) { bestScore = score; bestX = probe.x; bestY = probe.y; }
+    }
+    h.x = h.prevX = bestX;
+    h.y = h.prevY = bestY;
+    h.vx = h.vy = 0;
+    h.incarnationT = 0;
+    h.incarnationSpeedMul = 1;
+    h.incarnationInertia = 0;
+    h.incarnationLaser = false;
+    this.laserTime = 0;
+    this.active = false;
   }
 
   updateBlades(dt) {
