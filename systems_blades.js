@@ -132,6 +132,7 @@ export class Blades {
       m.shot = carrier.shot ? raw.shot : null;
       m.phantom = carrier.phantom ? {...raw.phantom, mult:carrier.phantom.mult} : null;
       m.pierce = carrier.pierce ? {count:carrier.pierce.mult} : null;
+      m.gravity = m.scopes.root?.gravity || carrier.gravity ? raw.gravity : null;
     }
     if (!m || !m.blades) {
       for (const b of this.items) b.state = 'gone'; // мод сняли: клинки и их лучи пропали
