@@ -158,6 +158,7 @@ export class Absorption {
       const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
       this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
     }
+    if (dealt && mods.absorption.phantom && this.onPhantom) this.onPhantom(e,mods);
     return dealt;
   }
 
