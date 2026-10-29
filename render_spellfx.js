@@ -47,91 +47,184 @@ export class SpellFx {
     ctx.restore();
   }
 
-  // Единый каст Поглощения: засасывание тумана внутрь врага, узкий венец, искры.
+  // У Поглощения один источник — земля ПОД мобом. Это не парящий круг:
+  // мягкий разлом в почве, клубы тумана и поднимающиеся из разлома потоки.
+  absorptionGround(ctx,x,y,r,progress,time,col,alpha=1) {
+    const p=sm(clamp(progress));
+    const groundY=y+r*.42;
+    const radius=r*(1.03+.36*p);
+    ctx.save();
+    ctx.globalCompositeOperation='source-over';
+    // Непрозрачный тёмный центр и очень мягкая внешняя граница.
+    const well=ctx.createRadialGradient(x,groundY,0,x,groundY,radius*1.6);
+    well.addColorStop(0,rgba('20,8,26',.71*alpha));
+    well.addColorStop(.32,rgba(col.smoke,.62*alpha));
+    well.addColorStop(.66,rgba(col.edge,.22*alpha));
+    well.addColorStop(1,rgba(col.smoke,0));
+    ctx.fillStyle=well;
+    ctx.beginPath();ctx.ellipse(x,groundY,radius*1.56,radius*.69,0,0,TAU);ctx.fill();
+    // Не геометрические кольца, а отдельные мягкие пятна разрыва земли.
+    for(let i=0;i<7;i++){
+      const ang=i*2.399+time*.13;
+      const rr=radius*(.34+.49*(i%3)/2);
+      const bx=x+Math.cos(ang)*rr, by=groundY+Math.sin(ang)*rr*.33;
+      const size=radius*(.33+.11*(i%3));
+      const g=ctx.createRadialGradient(bx,by,0,bx,by,size);
+      g.addColorStop(0,rgba(i%3?col.smoke:col.edge,(.19+.12*p)*alpha));
+      g.addColorStop(1,rgba(col.smoke,0));
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by,size,0,TAU);ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Дым идёт вверх из того же наземного разлома и обнимает нижнюю часть врага.
+  // Время и seed дают плавное движение, без случайного подёргивания кадров.
+  absorptionMist(ctx,x,y,r,progress,time,col,alpha=1,seed=0) {
+    const p=clamp(progress);
+    const groundY=y+r*.43;
+    ctx.save();ctx.globalCompositeOperation='source-over';
+    for(let i=0;i<10;i++){
+      const drift=((time*(.24+i%3*.045)+i/10+seed*.071)%1+1)%1;
+      const angle=i*2.399+seed*.37;
+      const wander=Math.sin(angle+time*(.68+i%3*.15)+drift*3.8);
+      const sx=x+Math.cos(angle)*r*(.38+.42*(i%4)/3);
+      const sy=groundY+Math.sin(angle)*r*.17;
+      const xx=sx*(1-drift)+ (x+wander*r*.48)*drift;
+      const yy=sy-drift*r*(1.35+.48*p);
+      const size=r*(.22+.21*drift+(.08*(i%3)));
+      const a=alpha*(.13+.15*p)*Math.sin(Math.PI*drift);
+      const g=ctx.createRadialGradient(xx,yy,0,xx,yy,size);
+      g.addColorStop(0,rgba(i%3===0?col.bright:col.edge,a*.8));
+      g.addColorStop(.48,rgba(col.smoke,a));
+      g.addColorStop(1,rgba(col.smoke,0));
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(xx,yy,size,0,TAU);ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Полупрозрачные дымные языки: отдельный верхний слой поверх спрайта моба.
+  // Каждый язык вырастает от нижнего края модели, а не висит в воздухе.
+  absorptionVeil(ctx,x,y,r,progress,time,mode='blood',seed=0) {
+    const col=palettes[mode]||palettes.blood,p=sm(clamp(progress));
+    const groundY=y+r*.43;
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    for(let i=0;i<6;i++){
+      const side=i%2?-1:1;
+      const u=i/5,anchor=x+side*r*(.42+.27*u);
+      const tipX=x+Math.sin(time*(1.13+u*.45)+i*1.91+seed*.2)*r*(.17+.17*u);
+      const tipY=y-r*(.1+.68*p+(.21*(i%3)));
+      const lift=Math.max(.12,p);
+      const g=ctx.createLinearGradient(anchor,groundY,tipX,tipY);
+      g.addColorStop(0,rgba(col.smoke,0));
+      g.addColorStop(.28,rgba(col.edge,(.10+.15*lift)));
+      g.addColorStop(.7,rgba(i%3===0?col.bright:col.edge,(.09+.15*lift)));
+      g.addColorStop(1,rgba(col.bright,0));
+      const bend=side*r*(.21+.16*Math.sin(time*1.7+i));
+      const baseWidth=r*(.11+.045*(i%3));
+      // Вытянутый дымный лепесток; края растворяются, нет ровных контуров.
+      ctx.fillStyle=g;
+      ctx.beginPath();
+      ctx.moveTo(anchor-baseWidth,groundY);
+      ctx.bezierCurveTo(anchor+bend,groundY-r*.38,tipX-bend*.5,tipY+r*.43,tipX,tipY);
+      ctx.bezierCurveTo(tipX+bend*.35,tipY+r*.34,anchor+baseWidth,groundY-r*.24,
+        anchor+baseWidth,groundY);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Каст сначала открывает разлом ПОД целью, затем поднимается дым; свет в
+  // конце собирается снизу в точку удара, без парящих орбитальных колец.
   absorptionCharge(ctx,x,y,r,progress,time,mode='blood',seed=0) {
     const col=palettes[mode]||palettes.blood;
     const p=sm(clamp(progress));
-    const R=r*(1.72-0.58*p);
     ctx.save();
-    this.haze(ctx,x,y,R*1.7,col,0.75+0.25*p);
-    this.ribbons(ctx,x,y,R,time+seed*0.13,0.5+0.4*p,col,true);
-    ctx.globalCompositeOperation='lighter';
-    ctx.strokeStyle=rgba(col.bright,0.18+0.45*p);ctx.lineWidth=1.25;
-    for(let i=0;i<2;i++){
-      ctx.beginPath();
-      ctx.ellipse(x,y,R*(0.96-i*.2),R*(0.4-i*.07),time*(i?-.44:.32)+i,0,TAU);
-      ctx.stroke();
-    }
-    for(let i=0;i<8;i++){
-      const ang=i*2.399+seed*0.7+time*1.7;
-      const rad=R*(0.8-0.67*p+0.1*Math.sin(i*4+time*3));
-      const sx=x+Math.cos(ang)*rad,sy=y+Math.sin(ang)*rad*.7;
-      const len=2.1+(i%3);
-      ctx.strokeStyle=rgba(col.light,(0.12+0.55*p)*(0.5+0.5*Math.sin(i+time*4)**2));
-      ctx.lineWidth=1;
-      ctx.beginPath();ctx.moveTo(sx-len,sy);ctx.lineTo(sx+len,sy);ctx.stroke();
-    }
-    const core=ctx.createRadialGradient(x,y,0,x,y,r*.78);
-    core.addColorStop(0,rgba(col.light,0.11+0.52*p));
-    core.addColorStop(.45,rgba(col.bright,.18*p));
-    core.addColorStop(1,rgba(col.bright,0));
-    ctx.fillStyle=core;ctx.beginPath();ctx.arc(x,y,r*.78,0,TAU);ctx.fill();
+    this.absorptionGround(ctx,x,y,r,p,time,col,.75+.25*p);
+    this.absorptionMist(ctx,x,y,r,p,time,col,.84,seed);
+    // Сдержанный свет из щели под врагом, нарастает к финалу.
+    const baseY=y+r*.34;
+    const gr=ctx.createRadialGradient(x,baseY,0,x,baseY,r*(.78+.20*p));
+    gr.addColorStop(0,rgba(col.bright,(.08+.26*p)));
+    gr.addColorStop(.42,rgba(col.edge,.11*p));
+    gr.addColorStop(1,rgba(col.smoke,0));
+    ctx.fillStyle=gr;ctx.beginPath();ctx.ellipse(x,baseY,r*(.86+.24*p),r*.39,0,0,TAU);ctx.fill();
     ctx.restore();
   }
 
-  // Осколки души и дым после удара; scarlet = мягкий алый взрыв Пробития.
+  // Удар тоже возникает снизу: наземная воронка схлопывается, дым
+  // поднимается и растворяется. Пробитие сохраняет мягкий АЛЫЙ всплеск.
   absorptionBurst(ctx,x,y,r,remaining,time,mode='blood',seed=0) {
     const col=palettes[mode]||palettes.blood;
     const left=clamp(remaining),p=1-left;
-    const wave=r*(0.62+1.1*sm(p));
+    const radius=r*(.8+1.18*sm(p));
+    const groundY=y+r*.4;
     ctx.save();
-    this.haze(ctx,x,y,r*(1.5+1.4*p),col,left*.94);
+    this.absorptionGround(ctx,x,y,r*(1+.65*p),p,time,col,left*.78);
+    this.absorptionMist(ctx,x,y,r*(.92+.32*p),p,time,col,left*.84,seed+11);
+    const flash=ctx.createRadialGradient(x,groundY,0,x,groundY,radius);
+    flash.addColorStop(0,rgba(mode==='scarlet'?'255,186,163':col.light,mode==='scarlet'?.51*left:.32*left));
+    flash.addColorStop(.25,rgba(col.bright,.35*left));
+    flash.addColorStop(.6,rgba(col.edge,.19*left));
+    flash.addColorStop(1,rgba(col.smoke,0));
     ctx.globalCompositeOperation='lighter';
-    const ring=ctx.createRadialGradient(x,y,Math.max(0,wave-r*.18),x,y,wave+r*.32);
-    ring.addColorStop(0,rgba(col.edge,0));
-    ring.addColorStop(.38,rgba(col.bright,.24*left));
-    ring.addColorStop(.65,rgba(col.light,.52*left));
-    ring.addColorStop(1,rgba(col.bright,0));
-    ctx.fillStyle=ring;ctx.beginPath();ctx.arc(x,y,wave+r*.34,0,TAU);ctx.fill();
-    ctx.lineWidth=(mode==='scarlet'?2.4:1.5)*left;
-    ctx.strokeStyle=rgba(col.bright,0.64*left);
-    ctx.beginPath();ctx.ellipse(x,y,wave,wave*.63,time*.42,0,TAU);ctx.stroke();
-    this.ribbons(ctx,x,y,r*(.7+.7*p),time+seed*.3,left*.75,col,false);
-    for(let i=0;i<13;i++){
-      const a=i*2.399+seed*.33;
-      const rr=r*(.25+1.3*p)*(0.7+.3*Math.sin(i*8)**2);
-      const xx=x+Math.cos(a)*rr, yy=y+Math.sin(a)*rr*.7;
-      const d=(1.5+(i%3)*1.1)*left;
-      ctx.fillStyle=rgba(i%3?col.bright:col.light,left*.58);
-      ctx.beginPath();ctx.moveTo(xx,yy-d*1.7);ctx.lineTo(xx+d*.65,yy);
-      ctx.lineTo(xx,yy+d*1.7);ctx.lineTo(xx-d*.65,yy);ctx.closePath();ctx.fill();
+    ctx.fillStyle=flash;
+    ctx.beginPath();ctx.ellipse(x,groundY,radius,radius*.51,0,0,TAU);ctx.fill();
+    // Алый вариант: рассеянные мягкие волны, а не очерченный круг.
+    if(mode==='scarlet') {
+      for(let i=0;i<9;i++){
+        const a=i*2.399+seed*.3;
+        const d=radius*(.3+.57*Math.sin(i*6.8)**2);
+        const px=x+Math.cos(a)*d,py=groundY+Math.sin(a)*d*.48;
+        const g=ctx.createRadialGradient(px,py,0,px,py,r*.32);
+        g.addColorStop(0,rgba(col.bright,.31*left));
+        g.addColorStop(1,rgba(col.edge,0));
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,r*.32,0,TAU);ctx.fill();
+      }
     }
     ctx.restore();
   }
 
-  // Лазер в палитре Поглощения, поверх базового игрового лазера.
+  // Лазер+Поглощение — не геометрический луч, а объёмный живой поток.
+  // Цель/урон определяет игровая логика, здесь только мягкое колышущееся
+  // свечение, четыре дымные ленты и движущиеся сгустки энергии.
   absorptionLaser(ctx,x0,y0,x1,y1,width,fade,time) {
     const dx=x1-x0,dy=y1-y0,len=Math.hypot(dx,dy)||1;
-    const nx=-dy/len,ny=dx/len,w=Math.max(1.1,width);
-    ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
-    for(const [a,thick,color] of [[.14,7,'92,30,104'],[.36,3.4,'171,65,132'],[.81,1.25,'234,139,195'],[.94,.46,'255,220,222']]){
-      ctx.strokeStyle=rgba(color,a*fade);ctx.lineWidth=w*thick;
-      ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
-    }
-    for(let j=0;j<2;j++){
-      const sign=j?1:-1;
+    const nx=-dy/len,ny=dx/len,w=Math.max(1.5,width),f=clamp(fade);
+    if(f<=0)return;
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.lineJoin='round';
+    // Боковые нити не рисуются прямыми и не имеют яркого белого контура.
+    const flow=(strand,layer)=>{
+      const j=strand-1.5;
+      const amp=w*(1.75+Math.abs(j)*1.0);
       ctx.beginPath();
-      for(let k=0;k<=16;k++){
-        const p=k/16;
-        const ripple=Math.sin(p*16-time*8+j*3)*w*1.7*Math.sin(Math.PI*p);
-        const q=sign*ripple;
-        if(!k)ctx.moveTo(x0,y0);
-        else ctx.lineTo(x0+dx*p+nx*q,y0+dy*p+ny*q);
+      for(let k=0;k<=24;k++){
+        const u=k/24,env=Math.sin(Math.PI*u);
+        const drift=Math.sin(u*10-time*(2.0+strand*.19)+strand*1.7)*amp*.6
+          +Math.sin(u*19+time*1.3+strand*2.1)*amp*.28;
+        const off=env*(drift+j*w*.72);
+        const xx=x0+dx*u+nx*off, yy=y0+dy*u+ny*off;
+        if(!k)ctx.moveTo(xx,yy);else ctx.lineTo(xx,yy);
       }
-      ctx.strokeStyle=rgba(j?'123,50,165':'206,74,131',fade*.32);
-      ctx.lineWidth=w*(j?.9:1.5);ctx.stroke();
+      ctx.strokeStyle=rgba(layer===0?'90,30,93':layer===1?'155,60,128':'223,129,182',
+        f*(layer===0?.085:layer===1?.19:.22));
+      ctx.lineWidth=w*(layer===0?8:layer===1?4:1.4)/(1+.26*Math.abs(j));
+      ctx.stroke();
+    };
+    for(let strand=0;strand<4;strand++)
+      for(let layer=0;layer<3;layer++)flow(strand,layer);
+    // Непостоянные мягкие сгустки плывут по потоку к цели.
+    for(let i=0;i<11;i++){
+      const u=((time*(.36+.025*(i%3))+i/11)%1+1)%1;
+      const off=Math.sin(u*14-time*2+i*2.1)*w*(1.4+u*.9)*Math.sin(Math.PI*u);
+      const x=x0+dx*u+nx*off,y=y0+dy*u+ny*off;
+      const rad=w*(1.65+(.8*Math.sin(time+i)**2));
+      const g=ctx.createRadialGradient(x,y,0,x,y,rad);
+      g.addColorStop(0,rgba(i%3===0?'221,149,202':'151,64,143',f*.2));
+      g.addColorStop(.6,rgba('105,39,115',f*.1));
+      g.addColorStop(1,rgba('76,27,81',0));
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,rad,0,TAU);ctx.fill();
     }
-    this.haze(ctx,x1,y1,w*10,palettes.blood,fade);
+    this.haze(ctx,x1,y1,w*9,palettes.blood,f*.58);
     ctx.restore();
   }
 
