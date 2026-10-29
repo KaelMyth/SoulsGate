@@ -798,6 +798,14 @@ export class Renderer {
     for (let i = 0; i < a.targets.length; i++) {
       const target = a.targets[i];
       if (!target || !target.active) continue;
+      if (target.absorptionGravity) {
+        ctx.save();
+        ctx.strokeStyle = '#ae82ff';
+        ctx.fillStyle = 'rgba(121,71,219,0.16)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(target.x, target.y, target.radius + A.ringPadding + 10, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
       ctx.beginPath();
       ctx.arc(target.x, target.y, target.radius + A.ringPadding, 0, TAU);
       ctx.fill();
