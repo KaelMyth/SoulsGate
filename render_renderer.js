@@ -520,6 +520,7 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.incarnation = deps.incarnation || null;
     this.aura = deps.aura || null;
     this.absorption = deps.absorption || null;
     this.lightdash = deps.lightdash || null;
@@ -717,7 +718,7 @@ export class Renderer {
       this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.dashfx.frame(ctx, this.dt, hx, hy);
-      if (hero.incarnationT > 0) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
+      if (hero.incarnationT > 0 && !this.incarnation?.bladeQueue) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
       else if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния
       else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
@@ -6084,7 +6085,7 @@ export class Renderer {
   }
 
   drawBlades(ctx) {
-    const bl = this.blades;
+    const bl = this.incarnation?.bladeItems?.length ? this.blades.concat(this.incarnation.bladeItems) : this.blades;
     if (!bl || !bl.length) return;
     const B = this.cfg.blades;
     const k = B.size * 0.8;
