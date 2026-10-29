@@ -44,7 +44,7 @@ export class Incarnation {
     this.laserLastTarget = null;
     this.hero.incarnationLaser = !!this.mods.laser;
     const S = this.config.skills.incarnation;
-    this.bladeQueue = this.mods.blades ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
+    this.bladeQueue = this.mods.blades && !this.mods.laser ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
     this.bladeTimer = S.bladeLaunchGap;
     if (this.bladeQueue) for (let i = 0; i < this.bladeQueue; i++) this.bladeItems.push({ state: 'orbit', x: this.hero.x, y: this.hero.y, a: i * Math.PI * 2 / this.bladeQueue, off: i * Math.PI * 2 / this.bladeQueue, kind: this.mods.frost && this.mods.burn ? 3 : this.mods.burn ? 2 : this.mods.frost ? 1 : 0, zap: this.mods.lightning ? 1 : 0, age: 0, incarnationBlade: true });
     this.active = true;
@@ -143,6 +143,7 @@ export class Incarnation {
     h.incarnationInertia = 0;
     h.incarnationLaser = false;
     this.laserTime = 0;
+    this.laserPath.length = 0;
     this.active = false;
   }
 
