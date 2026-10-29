@@ -254,6 +254,63 @@ export class BuildGrid {
     return { owner, parent, carry };
   }
 
+  /**
+   * Единое правило наследования свойств.
+   * Стихия принадлежит БЛИЖАЙШЕМУ механическому предку, а не всему ядру.
+   * Например: Кинетический рывок → Клинки → Горение = горящие клинки,
+   * а отдельная Молния на корне остаётся свойством самого рывка.
+   * Вложенные цепочки Горение → Мороз → Молния остаются в одном scope.
+   * Вызывающие системы получают одну и ту же структуру на всех ядрах.
+   */
+  effectScopes(coreId) {
+    const {owner, parent} = this.tree();
+    const scopes = {root: {}};
+    const mechanical = new Set(['blades', 'laser', 'shot', 'aura', 'absorption', 'gravity', 'phantom']);
+    const parentCarrier = (i) => {
+      let p = parent.get(i);
+      while (p >= 0) {
+        const kind = this.cells[p].mod?.def.effect.kind;
+        if (mechanical.has(kind)) return kind;
+        p = parent.get(p);
+      }
+      return 'root';
+    };
+    for (let i = 0; i < this.cells.length; i++) {
+      const cell = this.cells[i];
+      if (!cell.mod || owner.get(i) !== coreId || cell.mod.def.effect.secondary) continue;
+      const kind = cell.mod.def.effect.kind;
+      if (mechanical.has(kind)) {
+        const carrier = parentCarrier(i);
+        const scope = scopes[carrier] || (scopes[carrier] = {});
+        const k = scope[kind] || (scope[kind] = {count:0});
+        k.count++;
+        continue;
+      }
+      if (kind !== 'burn' && kind !== 'frost' && kind !== 'lightning') continue;
+      const carrier = parentCarrier(i);
+      const scope = scopes[carrier] || (scopes[carrier] = {});
+      const entry = scope[kind] || (scope[kind] = {count:0, damage:0, rate:0, mult:0});
+      entry.count++;
+      entry.damage++;
+      entry.rate++;
+      // Множители на самой стихии усиливают её, а не скорость/дальность родителя.
+      let multiplier = 1;
+      const {carry} = this.tree();
+      for (let j = 0; j < this.cells.length; j++) {
+        if (owner.get(j) !== coreId || parent.get(j) !== i) continue;
+        const effect = this.cells[j].mod?.def.effect;
+        if (effect?.kind === 'double') multiplier += effect.value - 1;
+        if (effect?.kind === 'stat' && effect.stat === 'damage') entry.damage += effect.value / 100;
+        if (effect?.kind === 'stat' && effect.stat === 'rate') entry.rate += effect.value / 100;
+      }
+      entry.mult += multiplier;
+    }
+    for (const scope of Object.values(scopes)) {
+      if (scope.burn && scope.frost) scope.steam = {damage:1, count:1};
+    }
+    return scopes;
+  }
+
   /** Ветки: Map индекс клетки → id ядра (ядра и связанные с ними моды). */
   branches() {
     return this.tree().owner;
@@ -673,6 +730,7 @@ export class BuildGrid {
       const m = res.count || (res.count = { percent: 0, flat: 0 });
       m.percent += extraCount * 100;
     }
+    res.scopes = this.effectScopes(coreId);
     return res;
   }
 }
