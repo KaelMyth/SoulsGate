@@ -743,7 +743,7 @@ export class Renderer {
     this.drawLasers(ctx);
     this.drawLaserIncarnationPaths(ctx);
     for(const f of this.synergyFlashes){
-      this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/Math.max(.01,f.maxTime),this.clock,f.phantom?'phantom':'blood');
+      this.spellFx.absorptionSphereBurst(ctx,f.x,f.y,f.r,f.time/Math.max(.01,f.maxTime),this.clock,f.phantom?'phantom':'blood');
     }
     this.drawBolts(ctx);
     this.drawBlades(ctx);
@@ -794,7 +794,7 @@ export class Renderer {
   }
 
   /** #153: тёмная воронка вокруг каждой отмеченной цели, следует за мобом. */
-  /** Вся почва и основной дым сначала отрисовываются ПОД врагами. */
+  /** Светящаяся задняя полусфера появляется позади моба. */
   drawAbsorptionMarker(ctx) {
     const a=this.absorption,cfg=this.cfg.absorption;
     if(a?.active && a.aiming)for(let i=0;i<a.targets.length;i++){
@@ -802,42 +802,42 @@ export class Renderer {
       if(!e?.active)continue;
       const p=1-a.timer/Math.max(.02,a.castTime||cfg.telegraph);
       const r=e.radius+cfg.ringPadding;
-      this.spellFx.absorptionCharge(ctx,e.x,e.y,r,p,this.clock,'blood',i);
+      this.spellFx.absorptionSphereBack(ctx,e.x,e.y,r,p,this.clock,'blood',i);
       if(e.absorptionGravity)this.spellFx.gravityLens(ctx,e.x,e.y,r*.52,p,this.clock);
     }
     if(a?.active)for(let i=0;i<a.bladeMarks.length;i++){
       const m=a.bladeMarks[i];
       if(!m.enemy?.active || m.enemy.gen!==m.gen)continue;
       const p=1-m.remaining/Math.max(.01,m.total);
-      this.spellFx.absorptionCharge(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
+      this.spellFx.absorptionSphereBack(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
     }
     if(this.synergyCasts)for(const c of this.synergyCasts){
       if(!c.enemy?.active || c.enemy.gen!==c.gen)continue;
       const p=1-c.time/Math.max(.05,c.maxTime||cfg.telegraph);
-      this.spellFx.absorptionCharge(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+cfg.ringPadding,
+      this.spellFx.absorptionSphereBack(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+cfg.ringPadding,
         p,this.clock,c.phantom?'phantom':'blood',c.gen||0);
     }
   }
 
-  /** Полупрозрачные языки дыма ПОВЕРХ нижней части спрайта, источник — земля. */
+  /** Передняя оболочка постепенно обволакивает и скрывает моба. */
   drawAbsorptionVeils(ctx) {
     const a=this.absorption,cfg=this.cfg.absorption;
     if(a?.active && a.aiming)for(let i=0;i<a.targets.length;i++){
       const e=a.targets[i];
       if(!e?.active)continue;
       const p=1-a.timer/Math.max(.02,a.castTime||cfg.telegraph);
-      this.spellFx.absorptionVeil(ctx,e.x,e.y,e.radius+cfg.ringPadding,p,this.clock,'blood',i);
+      this.spellFx.absorptionSphereFront(ctx,e.x,e.y,e.radius+cfg.ringPadding,p,this.clock,'blood',i);
     }
     if(a?.active)for(let i=0;i<a.bladeMarks.length;i++){
       const m=a.bladeMarks[i];
       if(!m.enemy?.active || m.enemy.gen!==m.gen)continue;
       const p=1-m.remaining/Math.max(.01,m.total);
-      this.spellFx.absorptionVeil(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
+      this.spellFx.absorptionSphereFront(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
     }
     if(this.synergyCasts)for(const c of this.synergyCasts){
       if(!c.enemy?.active || c.enemy.gen!==c.gen)continue;
       const p=1-c.time/Math.max(.05,c.maxTime||cfg.telegraph);
-      this.spellFx.absorptionVeil(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+cfg.ringPadding,
+      this.spellFx.absorptionSphereFront(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+cfg.ringPadding,
         p,this.clock,c.phantom?'phantom':'blood',c.gen||0);
     }
   }
@@ -850,7 +850,8 @@ export class Renderer {
     for(let i=0;i<a.flashes.length;i++){
       const f=a.flashes[i];
       const mode=f.pierce?'scarlet':f.phantom?'phantom':'blood';
-      this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/duration,this.clock,mode,i);
+      if(f.pierce) this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/duration,this.clock,mode,i);
+      else this.spellFx.absorptionSphereBurst(ctx,f.x,f.y,f.r,f.time/duration,this.clock,mode,i);
     }
   }
 
