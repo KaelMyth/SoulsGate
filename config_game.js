@@ -195,6 +195,8 @@ export const CONFIG = {
       canBlades: true,
       canLaser: true,
       canGravity: true,
+      multStat: 'incarnationCount',
+      stats: [{ label: 'Урон Воплощения', key: 'damage' }, { label: 'Скорость Воплощения', key: 'rate' }],
       effect: { kind: 'incarnation', secondary: true },
     },
     aura: {
@@ -347,6 +349,8 @@ export const CONFIG = {
       bladeMultiplierBase: 2,
       bladeSpeed: 700,
       bladeRange: 600,
+      splitDamageScale: 0.65,
+      splitLaserArc: 18,
       contactDamage: 30, // контактный урон каждому задетому врагу один раз за применение
       contactPadding: 4, // дополнительная ширина области касания
       burnTickDamage: 6, // сила горения от огненной/смешанной кометы
