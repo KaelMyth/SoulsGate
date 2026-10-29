@@ -30,6 +30,7 @@ export class Incarnation {
     this.laserHopTimer = 0;
     this.laserLastTarget = null;
     this.laserLastGen = 0;
+    this.laserNoEnemies = 0;
     this.laserPath = [];
     this.gravityTime = 0;
     this.afterimages = [];
@@ -45,6 +46,7 @@ export class Incarnation {
     this.laserTime = this.mods.laser ? this.config.skills.incarnation.laserDuration : 0;
     this.laserHopTimer = 0;
     this.laserLastTarget = null;
+    this.laserNoEnemies = 0;
     this.hero.incarnationLaser = !!this.mods.laser;
     this.gravityTime = this.mods.gravity && !this.mods.laser && !this.mods.blades ? this.config.skills.incarnation.gravityDuration : 0;
     this.afterimages.length = 0;
@@ -118,6 +120,9 @@ export class Incarnation {
     const h = this.hero, S = this.config.skills.incarnation;
     const step = Math.max(0.02, S.laserHopInterval);
     this.laserTime = Math.max(0, this.laserTime - dt);
+    const anyEnemy = this.enemies.items.some(e => e && e.active && e.hp > 0);
+    this.laserNoEnemies = anyEnemy ? 0 : this.laserNoEnemies + dt;
+    if (this.laserNoEnemies >= 0.5) { this.endLaser(); return; }
     this.laserHopTimer -= dt;
     let hops = 0;
     while (this.laserHopTimer <= 0 && hops++ < 12 && this.laserTime > 0) {
