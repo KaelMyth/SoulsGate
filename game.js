@@ -203,6 +203,7 @@ export class Game {
 
     this.aura.pellets = this.pellets;
     this.synergyCasts = [];
+    this.synergyFlashes = [];
     this.laserAbsorptionCooldowns = new WeakMap();
     this.absorption.onPhantom = (e, mods) => {
       if (!mods.absorption?.phantom || this.rnd() >= 0.2) return;
@@ -233,6 +234,8 @@ export class Game {
       incarnation: this.incarnation,
       aura: this.aura,
       absorption: this.absorption,
+      synergyCasts: this.synergyCasts,
+      synergyFlashes: this.synergyFlashes,
       lightdash: this.lightdash,
       zapBolts: this.zapBolts,
       dashBeams: this.dashBeams,
@@ -868,13 +871,14 @@ export class Game {
    * с Пробитием проходит насквозь столько врагов, сколько дано. Скалы обрезают луч.
    */
   updateSynergyCasts(dt) {
+    for (let i=this.synergyFlashes.length-1;i>=0;i--){this.synergyFlashes[i].time-=dt;if(this.synergyFlashes[i].time<=0)this.synergyFlashes.splice(i,1);}
     for(let i=this.synergyCasts.length-1;i>=0;i--){
       const c=this.synergyCasts[i];
       c.time-=dt;
       if(c.time>0)continue;
       this.synergyCasts.splice(i,1);
       if(!c.enemy.active || c.enemy.gen!==c.gen)continue;
-      this.absorption.flashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,vampiric:false,color:c.phantom?'183,131,255':'215,230,255'});
+      this.synergyFlashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,maxTime:this.config.absorption.flashTime,color:c.phantom?'#b783ff':'#a9eaff'});
       this.combat.damageEnemy(c.enemy,c.damage,this.absorption.source,null);
     }
   }
