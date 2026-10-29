@@ -719,11 +719,14 @@ export class Renderer {
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.dashfx.frame(ctx, this.dt, hx, hy);
       if (hero.incarnationLaser) this.drawLaserIncarnation(ctx, hx, hy);
-      else if (hero.incarnationT > 0 && !this.incarnation?.bladeQueue) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
+      else if (hero.incarnationT > 0 && this.incarnation?.bladeQueue) { /* герой скрыт: игрок управляет стаей */ }
+      else if (hero.incarnationT > 0) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
       else if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния
       else this.drawHero(hx, hy, C);
-      this.drawBlock(hx, hy, C);
-      this.drawHeroArcs(hx, hy, C);
+      if (!this.incarnation?.bladeQueue && !hero.incarnationLaser) {
+        this.drawBlock(hx, hy, C);
+        this.drawHeroArcs(hx, hy, C);
+      }
     }
 
     this.drawFlash(viewL, viewR, viewT, viewB);
