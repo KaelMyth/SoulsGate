@@ -201,6 +201,15 @@ export class Game {
       zap: (e, d, i, fr, st, cm) => this.zap(e, d, i, fr, st, cm),
     });
 
+    this.aura.pellets = this.pellets;
+    this.synergyCasts = [];
+    this.absorption.onPhantom = (e, mods) => {
+      if (!mods.absorption?.phantom || this.rnd() >= 0.2) return;
+      const nearby = this.enemies.items.filter(t=>t.active && t!==e && Math.hypot(t.x-e.x,t.y-e.y)<140);
+      if (!nearby.length)return;
+      const t=nearby[Math.floor(this.rnd()*nearby.length)];
+      this.synergyCasts.push({enemy:t,gen:t.gen,time:0.45,damage:this.config.absorption.damage*(mods.absorption.damage||1)*0.5,phantom:true});
+    };
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -857,6 +866,18 @@ export class Game {
    * Луч растёт из героя, дальний конец следует за целью. Без Пробития он упирается в первого врага на пути,
    * с Пробитием проходит насквозь столько врагов, сколько дано. Скалы обрезают луч.
    */
+  updateSynergyCasts(dt) {
+    for(let i=this.synergyCasts.length-1;i>=0;i--){
+      const c=this.synergyCasts[i];
+      c.time-=dt;
+      if(c.time>0)continue;
+      this.synergyCasts.splice(i,1);
+      if(!c.enemy.active || c.enemy.gen!==c.gen)continue;
+      this.absorption.flashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,vampiric:false,color:c.phantom?'183,131,255':'215,230,255'});
+      this.combat.damageEnemy(c.enemy,c.damage,this.absorption.source,null);
+    }
+  }
+
   updateLasers(dt) {
     const ls = this.lasers;
     for (let i = ls.length - 1; i >= 0; i--) {
@@ -977,6 +998,10 @@ export class Game {
       this.laserSource.dx = l.dx;
       this.laserSource.dy = l.dy;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);
+      const lm=this.build.modifiersFor(this.config.attack.core);
+      if(lm?.laserAbsorption && !l.anchor && !l.gen && !this.synergyCasts.some(c=>c.enemy===e && c.gen===e.gen)) {
+        this.synergyCasts.push({enemy:e,gen:e.gen,time:this.config.absorption.telegraph,damage:this.config.absorption.damage,phantom:false});
+      }
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
       if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
@@ -1573,6 +1598,7 @@ export class Game {
       this.blades.update(attackDt);
       this.aura.update(attackDt);
       this.absorption.update(attackDt);
+      this.updateSynergyCasts(attackDt);
       this.hitShotsOnBlock();
       this.spawner.update(worldDt);
       this.syncWaveHud();
