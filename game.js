@@ -477,6 +477,13 @@ export class Game {
     else if (s.pellet) { kind = 'pellet'; el = s.el | 0; dx = s.dx; dy = s.dy; }
     else if (s.blade) { kind = 'blade'; el = s.gen > 0 ? 4 : s.kind | 0; dx = s.dx; dy = s.dy; }
     else if (s.aura) { kind = 'aura'; el = s.kind | 0; dx = 0; dy = -1; }
+    else if (s.incarnation) { // удар энергетической кометы: эффект попадания по выбранным стихиям
+      const mask = s.el | 0;
+      kind = mask === 4 ? 'zap' : 'bolt';
+      el = (mask & 3) === 3 ? 3 : (mask & 1) ? 2 : (mask & 2) ? 1 : (mask & 4) ? 4 : 0;
+      dx = this.hero.vx; dy = this.hero.vy;
+      power = 1;
+    }
     else if (s.shock || s.lightning) { kind = 'zap'; dx = t.x - this.hero.x; dy = t.y - this.hero.y; }
     else if (s.burn) { kind = 'burn'; el = 2; dx = 0; dy = -1; }
     else if (s.hits && typeof s.vx === 'number') { // снаряд героя
@@ -1515,7 +1522,6 @@ export class Game {
       }
       this.defense.update(dt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
-      this.incarnation.update(); // удар по всему пройденному отрезку, до перемещения врагов
       this.lightdash.update(dt);
       this.updateKinetic(dt);
       this.updateFires(dt);
@@ -1525,6 +1531,7 @@ export class Game {
 
       const en = this.enemies.items;
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
+      this.incarnation.update(); // комета бьёт весь пройденный путь; реакции используют актуальную сетку врагов
       this.autoattack.update(dt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.gravityShield.beginEnemyStep();
