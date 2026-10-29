@@ -1013,7 +1013,7 @@ export class Game {
       this.laserSource.dx = l.dx;
       this.laserSource.dy = l.dy;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);
-      const lm = this.build.modifiersFor(this.config.attack.core);
+      const lm = this.build?.modifiersFor?.(this.config.attack.core);
       if (e.active && lm?.laserAbsorption && !l.anchor && !l.gen) {
         const old = this.laserAbsorptionCooldowns.get(e);
         if (!old || old.gen !== e.gen || old.until <= this.runTime) {
