@@ -737,7 +737,7 @@ export class Game {
     h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.incarnation?.begin(mods);
     h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.gravity && !mods.blades ? S.gravityDuration : mods.blades ? this.incarnation.bladeQueue * this.incarnation.bladeGap + 0.1 : S.duration);
-    h.incarnationSpeedMul = Math.max(1, S.speedMul) * (mods.gravity && !mods.laser && !mods.blades ? S.gravitySpeedMultiplier : 1);
+    h.incarnationSpeedMul = Math.max(1, S.speedMul) * this.incarnation.hasteMultiplier * (mods.gravity && !mods.laser && !mods.blades ? S.gravitySpeedMultiplier : 1);
     h.incarnationInertia = Math.max(0, S.inertia);
     h.glideTime = 0;
     this.skillCd[1] = Math.max(0.1, S.cooldown);
@@ -1497,7 +1497,8 @@ export class Game {
       const gravityActive = (this.incarnation?.gravityTime || 0) > 0;
       const gcfg = this.config.skills.incarnation;
       const worldDt = gravityActive ? dt * gcfg.gravityWorldScale : dt;
-      const attackDt = gravityActive ? dt * gcfg.gravityCastMultiplier : dt;
+      const incarnationHaste = this.hero.incarnationT > 0 ? (this.incarnation?.hasteMultiplier || 1) : 1;
+      const attackDt = (gravityActive ? dt * gcfg.gravityCastMultiplier : dt) * incarnationHaste;
       this.runTime += dt;
       const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
       { // пассивы из угловых ячеек
