@@ -349,7 +349,7 @@ export class Game {
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
     this.bus.on('enemy:hit-incoming', (inc) => { // уязвимость от дождя: входящий урон больше
-      if (inc.enemy.vuln) inc.amount *= 1 + this.config.skills.rain.vulnerability;
+      if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
       const vamp = this.build.passives().vamp; // пассив «Вампиризм»
@@ -734,7 +734,7 @@ export class Game {
       if (!e.active) continue;
       e.vuln = true; // обычная уязвимость остаётся постоянной до смерти
       if (mods.gravity) e.rainGravityT = Math.max(e.rainGravityT || 0, 5);
-      if (mods.blades) this.combat.damageEnemy(e, 50, {active:true,rainBlade:true},null);
+      if (mods.blades) this.combat.damageEnemy(e, 50, {active:true,rainBlade:true,ignoreRainVulnerability:true},null);
       // Каждый стихией дождь попадает ровно два раза; реакции считают обычные системы статусов.
       for (let i = 0; i < stacks && e.active; i++) {
         if (mods.burn) this.ignite(e, bd, bi);
