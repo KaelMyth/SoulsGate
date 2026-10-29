@@ -154,7 +154,7 @@ export class Incarnation {
       const hit = this.combat.damageEnemy(pick, S.laserDamage * this.damageMultiplier * (this.mods?.laser?.damage || 1), this.source, null);
       this.laserPath[this.laserPath.length-1].strands = this.splitCount;
       this.laserPath[this.laserPath.length-1].chaotic = !!this.mods.shot;
-      if (hit && pick.active) this.applyElements(pick);
+      if (hit && pick.active) this.applyElements(pick, 'laser');
     }
     for (let i = this.laserPath.length - 1; i >= 0; i--) {
       this.laserPath[i].life -= dt;
@@ -245,7 +245,7 @@ export class Incarnation {
         for (const e of this.enemies.items) {
           if (!e.active || e.hp <= 0 || !incarnationSegmentHit(x,y,b.x,b.y,e.x,e.y,e.radius + 7)) continue;
           const hit = this.combat.damageEnemy(e, this.config.blades.damage * this.damageMultiplier * (this.mods?.blades?.damage || 1), this.source, null);
-          if (hit && e.active) this.applyElements(e);
+          if (hit && e.active) this.applyElements(e, 'blades');
           b.state = 'gone';
           break;
         }
@@ -258,8 +258,8 @@ export class Incarnation {
   }
 
   /** Реакции проходят через штатные Горение/Мороз/Электризацию (включая Пар и красные дуги). */
-  applyElements(e) {
-    const m = this.mods || {};
+  applyElements(e, carrier = 'root') {
+    const m = forCarrier(this.mods || {}, carrier);
     const cfg = this.config;
     const fire = !!m.burn, ice = !!m.frost, lightning = !!m.lightning;
     const bd = fire ? cfg.skills.incarnation.burnTickDamage * (m.burn.damage || 1) : 0;
