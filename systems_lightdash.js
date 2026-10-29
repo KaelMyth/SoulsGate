@@ -16,6 +16,8 @@ export class LightDash {
     this.damageMul = 1;
     this.bonus = 0; // плоская прибавка от Молнии
     this.onHit = o.onHit || null; // (враг) => void: заряд электризации за каждый удар
+    this.onTelegraph = o.onTelegraph || null; // световой луч ПЕРЕД перемещением
+    this.laserMode = false; // Лазер дополняет цепь Молнии, а не заменяет её
     this.source = { lightning: true, active: true };
     this.route = [];     // цели цепочки
     this.active = false;
@@ -69,7 +71,7 @@ export class LightDash {
       if (!nx) break;
       this.route.push(nx);
     }
-    this.duration = this.route.length * L.hopTime + L.pause;
+    this.duration = this.route.length * (L.hopTime + (this.laserMode ? this.cfg.kinetic.beamTime : 0)) + L.pause;
     return true;
   }
 
@@ -77,10 +79,18 @@ export class LightDash {
     this.active = true;
     this.idx = 0;
     this.t = 0;
-    this.phase = 'hop';
+    this.phase = this.laserMode ? 'charge' : 'hop';
     this.fromX = this.hero.x;
     this.fromY = this.hero.y;
     this.bolts.length = 0;
+    if (this.laserMode) this.telegraph();
+  }
+
+  /** Лазер создаёт луч ДО прыжка, затем Молния проводит героя по тому же отрезку. */
+  telegraph() {
+    const target = this.route[this.idx];
+    if (target?.active && this.onTelegraph)
+      this.onTelegraph(this.fromX, this.fromY, target.x, target.y, this.idx);
   }
 
   update(dt) {
@@ -94,12 +104,18 @@ export class LightDash {
     if (!h.active) { this.active = false; return; }
     if (h.invuln < 0.1) h.invuln = 0.1; // молния неуязвима
     this.t += dt;
+    if (this.phase === 'charge') {
+      if (this.t < this.cfg.kinetic.beamTime) return;
+      this.phase = 'hop';
+      this.t = Math.max(0, this.t - this.cfg.kinetic.beamTime);
+    }
     if (this.phase === 'hop') {
       const e = this.route[this.idx];
       if (!e || !e.active) { // цель пропала: прыгаем к следующей или садимся
         this.idx++;
         this.t = 0;
         if (this.idx >= this.route.length) this.phase = 'wait';
+        else if (this.laserMode) { this.phase = 'charge'; this.telegraph(); }
         return;
       }
       const k = Math.min(1, this.t / L.hopTime);
@@ -114,6 +130,7 @@ export class LightDash {
         this.idx++;
         this.t = 0;
         if (this.idx >= this.route.length) this.phase = 'wait';
+        else if (this.laserMode) { this.phase = 'charge'; this.telegraph(); }
       }
     } else if (this.t >= L.pause) {
       this.land();
