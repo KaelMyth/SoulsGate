@@ -57,6 +57,8 @@ export class HeroDefense {
     this.gravityAuraRadius = 0; // радиус Ауры с Х2/Х3: общая область ослабленной Гравитации
     this.gravityDashEnabled = false;
     this.gravityDashCharging = false;
+    this.laserDashEnabled = false;
+    this.laserDashCharging = false;
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -189,6 +191,23 @@ export class HeroDefense {
       this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
       return true;
     }
+    if (this.kinetic && this.laserDashEnabled) {
+      // Лазер без молнии: сначала световой путь, затем один быстрый прыжок.
+      this.laserDashCharging = true;
+      this.dashT = Math.max(0.05, this.cfg.kinetic.beamTime);
+      this.dashTime = this.dashT;
+      this.dashElapsed = 0;
+      this.dashV0 = 0;
+      this.dashCd = d.cooldown * this.dashCdMul;
+      this.dashCdMax = Math.max(0.001,this.dashCd);
+      this.hero.dashing = true;
+      this.hero.dashVx = this.hero.dashVy = 0;
+      this.hero.facing = Math.atan2(this.dashY,this.dashX);
+      this.dashSeq++;
+      this.bus.emit('dash:laser-started',{dirX:this.dashX,dirY:this.dashY,distance:dist,seq:this.dashSeq});
+      this.bus.emit('dash:started',{dirX:this.dashX,dirY:this.dashY});
+      return true;
+    }
     this.dashTime = d.duration;
     this.dashT = Math.max(0.02, d.duration);
     const cdm = this.kinetic ? this.dashCdMul : 1;
@@ -240,6 +259,19 @@ export class HeroDefense {
     if (!stickUp) this.armed = true;
 
     if (this.state === 'dash') {
+      if (this.laserDashCharging) {
+        this.dashElapsed += dt;
+        if (this.dashElapsed >= this.dashT) {
+          this.laserDashCharging = false;
+          this.go('end');
+          this.hero.dashing = false;
+          this.hero.dashVx = this.hero.dashVy = 0;
+          this.hero.vx = this.hero.vy = 0;
+          this.hero.glideTime = 0;
+          this.bus.emit('dash:laser-arrived',{seq:this.dashSeq});
+        }
+        return;
+      }
       if (this.gravityDashCharging) {
         this.dashElapsed += dt;
         if (this.dashElapsed >= this.dashT) {
