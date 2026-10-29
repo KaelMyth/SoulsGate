@@ -47,3 +47,17 @@ test('Клинки наследуют облик стихий',()=>{
     assert.equal(c.bladeItems[0].zap,zap);
   }
 });
+
+test('Залп не дольше 5 секунд',()=>{
+ for(const [factor,count,gap] of [[1,4,.5],[4,10,.5],[9,20,.25]]) {
+  const {c}=make(factor);
+  assert.equal(c.bladeQueue,count);
+  assert.ok(Math.abs(c.bladeGap-gap)<1e-8);
+ }
+});
+test('Клинки смотрят по движению',()=>{
+ const {c,hero}=make();
+ hero.vx=0;hero.vy=100;
+ c.update(.1);
+ for(const b of c.bladeItems) if(b.state==='orbit') assert.ok(Math.abs(b.a-Math.PI/2)<1e-8);
+});
