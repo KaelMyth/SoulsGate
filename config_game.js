@@ -166,6 +166,7 @@ export const CONFIG = {
       canBurn: true,
       canFrost: true,
       canLightning: true,
+      canBlades: true, // Клинки из шлейфа рывка
       canShot: true,   // Дробь на рывке: дробинки от шлейфа
       canLaser: true,  // Лазер на рывке: луч в точку прибытия
       multStat: 'bounces', // Х2/Х3 на рывке: больше рикошетов Молнии и шире толчок
@@ -461,6 +462,8 @@ export const CONFIG = {
   // Поглощение: мод щита. Удар по самому дальнему видимому врагу вне ближней зоны.
   absorption: {
     gravitySlowMul: 0.25,
+    pierceRadius: 52, // радиус вторичного поражения от Пробития
+    pierceDamageFrac: 0.4, // доля урона Поглощения по соседним врагам
     interval: 3,      // секунд между ударами
     telegraph: 0.9,   // с: как долго светлеет круг перед попаданием
     damage: 90,      // сильный одиночный удар
