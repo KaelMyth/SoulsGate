@@ -183,7 +183,10 @@ export class Absorption {
   updateAura(dt, mods) {
     const a = mods.absorption;
     const aura = this.aura;
-    if (!a.auraCount || !mods.aura || !aura || !aura.active) {
+    // В Чёрном солнце даже отдельно стоящее Поглощение того же Щита
+    // кастует внутри Ауры; Х2/Х3 на Поглощении добавляют уникальные цели.
+    const auraTargets = mods.blackSun ? a.targets : a.auraTargets;
+    if (!auraTargets || !mods.aura || !aura || !aura.active) {
       this.auraConnected = false;
       this.auraTimer = 0;
       this.auraPeriod = 0;
@@ -217,7 +220,7 @@ export class Absorption {
       if (dx * dx + dy * dy <= reach * reach) list.push(e);
     }
     const count = Math.min(Math.max(1, Math.floor(A.maxTargets || 64)),
-      Math.max(1, Math.floor(a.auraTargets || a.auraCount)));
+      Math.max(1, Math.floor(auraTargets)));
     // Частичная перестановка Фишера—Йетса: равномерная выборка без повторов.
     for (let i = 0, n = Math.min(count, list.length); i < n; i++) {
       const j = i + Math.min(list.length - i - 1, Math.floor(Math.max(0, this.rnd()) * (list.length - i)));
@@ -283,7 +286,7 @@ export class Absorption {
 
     // Поглощение, прикреплённое только к Ауре, не запускает ещё и стандартный
     // 3-секундный удар по дальним целям. Прямой мод на щите работает как раньше.
-    if (!mods.absorption.standaloneCount) {
+    if (!mods.absorption.standaloneCount || mods.blackSun) {
       this.releaseGravity();
       this.aiming = false;
       this.target = null;
