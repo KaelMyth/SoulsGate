@@ -41,6 +41,29 @@ test('The same modifier tree keeps unrelated mechanics and elements separate',()
   assert.ok(mods.scopes.blades.burn.damage>0);
 });
 
+test('Nested Fire + Frost + Lightning remains a single compatible blade element chain',()=>{
+  const b=new BuildGrid(7);
+  const put=(key,x,y)=>{
+    const p=canPlace(b,CONFIG.mods[key],x,y);
+    assert.equal(p.ok,true,key+' '+p.reason);
+    b.placeMod({key,def:CONFIG.mods[key]},x,y);
+  };
+  put('kinetic',3,3);
+  put('blades',2,3);
+  put('burn',2,2);
+  put('frost',1,2);
+  put('lightning',1,1);
+  const mods=b.modifiersFor(b.secondaryId('kinetic'));
+  const blade=forCarrier(mods,'blades'),root=forCarrier(mods,'root');
+  assert.ok(blade.burn);
+  assert.ok(blade.frost);
+  assert.ok(blade.lightning);
+  assert.ok(blade.steam);
+  assert.equal(root.burn,null);
+  assert.equal(root.frost,null);
+  assert.equal(root.lightning,null);
+});
+
 test('Root and blade damage respect the nearest mechanical parent',()=>{
   const {mods}=composition(), g=Object.create(Game.prototype);
   g.config=CONFIG;g.kineticMods=mods;
