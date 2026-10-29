@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Смертельная аура: мод на ядро щита. Постоянное поле вокруг героя бьёт врагов внутри тиками.
 // Радиус растёт от Х2/Х3 на ауре, Мощь усиливает урон тика, Ускорение учащает тики.
 // Горение и Мороз на ауре действуют лишь на каждом aura.effectEvery-м тике (по умолчанию на третьем).
@@ -33,7 +34,8 @@ export class Aura {
   }
 
   update(dt) {
-    const m = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
+    const raw = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
+    const m = forCarrier(raw, 'aura');
     const a = m && m.aura;
     this.pulse = Math.max(0, this.pulse - dt * 5);
     if (!a || !this.hero.active) {
