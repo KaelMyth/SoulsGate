@@ -31,6 +31,7 @@ export class HeroDefense {
     this.dashCdMul = 1;     // множитель перезарядки рывка (Ускорение на Кинетическом рывке)
     this.lightDash = false; // Молния на рывке: цепочка рикошетов
     this.lightning = null;  // система рывка-молнии (задаёт игра)
+    this.kineticBladeDistanceMul = 1;
     this.kinetic = false; // стоит «Кинетический рывок»: рывок длиннее
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
     this.gravityOn = false;
@@ -153,7 +154,7 @@ export class HeroDefense {
       this.startBlockCooldown(true);
       this.bus.emit('block:ended', { cancelled: true });
     }
-    const dist = d.distance * (this.kinetic ? this.cfg.kinetic.distanceScale : 1); // кинетический рывок длиннее
+    const dist = d.distance * (this.kinetic ? this.cfg.kinetic.distanceScale * this.kineticBladeDistanceMul : 1); // кинетический рывок длиннее
     this.dashX = dirX / len;
     this.dashY = dirY / len;
     if (this.kinetic && this.gravityDashEnabled) { // аномалия собирается до телепорта: нет движения через врагов или скалы
