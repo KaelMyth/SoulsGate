@@ -41,6 +41,7 @@ export class Absorption {
     this.rate = 1; // прежняя скорость для сохранения прогресса каста при смене билда
     this.castTime = this.cfg.absorption.telegraph;
     this.target = null; // совместимость со старой системой и тестами
+    this.releaseGravity();
     this.targets.length = 0;
     this.candidates.length = 0;
     this.flashes.length = 0;
@@ -55,6 +56,10 @@ export class Absorption {
     this.flashX = 0;
     this.flashY = 0;
     this.flashR = 0;
+  }
+
+  releaseGravity() {
+    for (const e of this.targets) if (e) e.absorptionGravity = false;
   }
 
   /** Новая цель должна быть видимой; после фиксации она остаётся целью даже при движении. */
@@ -80,6 +85,7 @@ export class Absorption {
       return bx * bx + by * by - ax * ax - ay * ay;
     });
     const targets = this.targets;
+    this.releaseGravity();
     targets.length = 0;
     for (let i = 0, n = Math.min(list.length, limit); i < n; i++) targets.push(list[i]);
     this.target = targets[0] || null;
@@ -209,6 +215,7 @@ export class Absorption {
     if (!mods || !mods.absorption || !this.hero.active) { this.reset(); return; }
     const A = this.cfg.absorption;
     this.vampiric = !!mods.absorption.vampirism;
+    if (!mods.absorption.gravity || !this.aiming) this.releaseGravity();
     const element = (mods.absorption.burn ? 1 : 0)
       | (mods.absorption.frost ? 2 : 0)
       | (mods.absorption.lightning ? 4 : 0);
@@ -261,6 +268,7 @@ export class Absorption {
     // Поглощение, прикреплённое только к Ауре, не запускает ещё и стандартный
     // 3-секундный удар по дальним целям. Прямой мод на щите работает как раньше.
     if (!mods.absorption.standaloneCount) {
+      this.releaseGravity();
       this.aiming = false;
       this.target = null;
       this.targets.length = 0;
@@ -276,11 +284,13 @@ export class Absorption {
       this.timer = telegraph;
       if (this.targets.length === 0) return;
       this.aiming = true;
+      if (mods.absorption.gravity) for (const e of this.targets) if (e && e.active) e.absorptionGravity = true;
     }
     if (!this.aiming || this.timer > 0) return;
 
     // Список фиксирован: погибшие цели пропускаем, новых в середине заряда не добавляем.
     // Х2/Х3 увеличивают только число целей; Мощь усиливает урон каждой.
+    this.releaseGravity();
     this.aiming = false;
     this.timer = interval;
     this.target = null;
