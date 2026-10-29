@@ -720,6 +720,7 @@ export class Renderer {
       this.dashfx.frame(ctx, this.dt, hx, hy);
       if (hero.incarnationLaser) this.drawLaserIncarnation(ctx, hx, hy);
       else if (hero.incarnationT > 0 && this.incarnation?.bladeQueue) { /* герой скрыт: игрок управляет стаей */ }
+      else if (hero.incarnationT > 0 && this.incarnation?.gravityTime > 0) { this.drawGravityAfterimages(ctx); this.drawHero(hx, hy, C); }
       else if (hero.incarnationT > 0) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
       else if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния
       else this.drawHero(hx, hy, C);
@@ -3656,6 +3657,24 @@ export class Renderer {
    * хвост плаща и шлейф идут против реального движения. Всё состояние вида лежит в this.hs, игре ничего не пишем.
    */
   /** Неуязвимое Воплощение: парящий шар с динамическим кометным шлейфом в направлении скорости. */
+  drawGravityAfterimages(ctx) {
+    const traces = this.incarnation?.afterimages;
+    if (!traces?.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of traces) {
+      const a = Math.max(0, p.life / 0.3);
+      ctx.globalAlpha = a * 0.4;
+      ctx.fillStyle = '#9d9aff';
+      ctx.shadowColor = '#8fc9ff';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, this.hero.radius * 0.8, this.hero.radius * 1.2, p.facing + Math.PI / 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   drawLaserIncarnation(ctx, x, y) {
     const form = this.cfg.skills.incarnation.forms?.[this.hero.incarnationMask || 0];
     const color = form?.core || '#b6eaff';
