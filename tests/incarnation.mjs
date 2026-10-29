@@ -130,7 +130,10 @@ test('Умение отрабатывает ровно 5 секунд игров
   g.hero.update(0.1, 1, 0, arena);
   assert.ok(g.hero.incarnationT <= 0.000001);
   const grid = g.build;
-  const rain = { secondaryId(kind) { return kind === 'incarnation' ? grid.secondaryId(kind) : null; } };
+  const rain = {
+    secondaryId(kind) { return kind === 'incarnation' ? grid.secondaryId(kind) : null; },
+    modifiersFor(id) { return grid.modifiersFor(id); }, // как реальная сетка билда, для цвета слота
+  };
   g.build = rain;
   Game.prototype.updateSkills.call(g, 1);
   assert.equal(g.skillCd[1], 29);
