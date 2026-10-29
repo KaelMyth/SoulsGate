@@ -712,6 +712,7 @@ export class Renderer {
       this.drawEnemy(e, ex, ey, C);
     }
 
+    this.drawAbsorptionVeils(ctx);
     this.drawDust(this.dt);
     this.hitfx.draw(ctx, this.dt);
     this.drawBeams();
@@ -741,13 +742,6 @@ export class Renderer {
     this.drawFinale();
     this.drawLasers(ctx);
     this.drawLaserIncarnationPaths(ctx);
-    // #153: отложенное Поглощение Лазера и рекурсивный Фантом используют
-    // те же модели тёмного каста, но Фантом имеет более фиолетовый оттенок.
-    if (this.synergyCasts) for (const c of this.synergyCasts) {
-      if (!c.enemy?.active || c.enemy.gen!==c.gen)continue;
-      const p=1-c.time/Math.max(.05,c.maxTime||this.cfg.absorption.telegraph);
-      this.spellFx.absorptionCharge(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+this.cfg.absorption.ringPadding,p,this.clock,c.phantom?'phantom':'blood',c.gen||0);
-    }
     for(const f of this.synergyFlashes){
       this.spellFx.absorptionBurst(ctx,f.x,f.y,f.r,f.time/Math.max(.01,f.maxTime),this.clock,f.phantom?'phantom':'blood');
     }
@@ -800,23 +794,51 @@ export class Renderer {
   }
 
   /** #153: тёмная воронка вокруг каждой отмеченной цели, следует за мобом. */
+  /** Вся почва и основной дым сначала отрисовываются ПОД врагами. */
   drawAbsorptionMarker(ctx) {
-    const a=this.absorption;
-    if(!a || !a.active || (!a.aiming && !a.bladeMarks.length))return;
-    const cfg=this.cfg.absorption;
-    const p=Math.max(0,Math.min(1,1-a.timer/Math.max(.02,a.castTime||cfg.telegraph)));
-    for(let i=0;i<a.targets.length;i++){
+    const a=this.absorption,cfg=this.cfg.absorption;
+    if(a?.active && a.aiming)for(let i=0;i<a.targets.length;i++){
       const e=a.targets[i];
       if(!e?.active)continue;
+      const p=1-a.timer/Math.max(.02,a.castTime||cfg.telegraph);
       const r=e.radius+cfg.ringPadding;
       this.spellFx.absorptionCharge(ctx,e.x,e.y,r,p,this.clock,'blood',i);
       if(e.absorptionGravity)this.spellFx.gravityLens(ctx,e.x,e.y,r*.52,p,this.clock);
     }
-    for(let i=0;i<a.bladeMarks.length;i++){
+    if(a?.active)for(let i=0;i<a.bladeMarks.length;i++){
       const m=a.bladeMarks[i];
       if(!m.enemy?.active || m.enemy.gen!==m.gen)continue;
-      const p=1-Math.max(0,m.remaining)/Math.max(.01,m.total);
+      const p=1-m.remaining/Math.max(.01,m.total);
       this.spellFx.absorptionCharge(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
+    }
+    if(this.synergyCasts)for(const c of this.synergyCasts){
+      if(!c.enemy?.active || c.enemy.gen!==c.gen)continue;
+      const p=1-c.time/Math.max(.05,c.maxTime||cfg.telegraph);
+      this.spellFx.absorptionCharge(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+cfg.ringPadding,
+        p,this.clock,c.phantom?'phantom':'blood',c.gen||0);
+    }
+  }
+
+  /** Полупрозрачные языки дыма ПОВЕРХ нижней части спрайта, источник — земля. */
+  drawAbsorptionVeils(ctx) {
+    const a=this.absorption,cfg=this.cfg.absorption;
+    if(a?.active && a.aiming)for(let i=0;i<a.targets.length;i++){
+      const e=a.targets[i];
+      if(!e?.active)continue;
+      const p=1-a.timer/Math.max(.02,a.castTime||cfg.telegraph);
+      this.spellFx.absorptionVeil(ctx,e.x,e.y,e.radius+cfg.ringPadding,p,this.clock,'blood',i);
+    }
+    if(a?.active)for(let i=0;i<a.bladeMarks.length;i++){
+      const m=a.bladeMarks[i];
+      if(!m.enemy?.active || m.enemy.gen!==m.gen)continue;
+      const p=1-m.remaining/Math.max(.01,m.total);
+      this.spellFx.absorptionVeil(ctx,m.enemy.x,m.enemy.y,m.enemy.radius+cfg.ringPadding,p,this.clock,'blood',i+30);
+    }
+    if(this.synergyCasts)for(const c of this.synergyCasts){
+      if(!c.enemy?.active || c.enemy.gen!==c.gen)continue;
+      const p=1-c.time/Math.max(.05,c.maxTime||cfg.telegraph);
+      this.spellFx.absorptionVeil(ctx,c.enemy.x,c.enemy.y,c.enemy.radius+cfg.ringPadding,
+        p,this.clock,c.phantom?'phantom':'blood',c.gen||0);
     }
   }
 
@@ -5768,23 +5790,28 @@ export class Renderer {
       const glow = absorb ? this.getGlow(true) : glowBy[el];
       const rgb = absorb ? '156,61,116' : (zp ? ZAP_RGB[zk] : LASER_RGB[el]);
       const core = absorb ? '247,179,210' : (zp ? ZAP_CORE[zk] : LASER_CORE[el]);
-      if (zp && !absorb) { this.drawZapArc(ctx, x0, y0, x1, y1, w, fade, li, rgb, core); } else {
-      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.1 * fade + ')';
-      ctx.lineWidth = w * 6;
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.22 * fade + ')';
-      ctx.lineWidth = w * 3;
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      ctx.strokeStyle = 'rgba(' + rgb + ',' + 0.7 * fade + ')';
-      ctx.lineWidth = w * 1.5;
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      ctx.strokeStyle = 'rgba(' + core + ',' + fade + ')';
-      ctx.lineWidth = Math.max(0.9, w * 0.6);
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      if (absorb) {
+        // Никакой ровной световой оси: это дымный магический поток.
+        this.spellFx.absorptionLaser(ctx,x0,y0,x1,y1,w,fade,t);
+      } else {
+        if (zp) this.drawZapArc(ctx,x0,y0,x1,y1,w,fade,li,rgb,core);
+        else {
+          ctx.strokeStyle='rgba('+rgb+','+0.1*fade+')';
+          ctx.lineWidth=w*6;
+          ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+          ctx.strokeStyle='rgba('+rgb+','+0.22*fade+')';
+          ctx.lineWidth=w*3;
+          ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+          ctx.strokeStyle='rgba('+rgb+','+0.7*fade+')';
+          ctx.lineWidth=w*1.5;
+          ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+          ctx.strokeStyle='rgba('+core+','+fade+')';
+          ctx.lineWidth=Math.max(.9,w*.6);
+          ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+        }
+        if (!zp && el!==0 && el!==4) this.laserElement(ctx,el,x0,y0,x1,y1,w,fade,li,t,puffSp);
       }
-      if (absorb) this.spellFx.absorptionLaser(ctx,x0,y0,x1,y1,w,fade,t);
-      else if (!zp && el !== 0 && el !== 4) this.laserElement(ctx, el, x0, y0, x1, y1, w, fade, li, t, puffSp);
-      if (l.gravityLaser) {
+      if (l.gravityLaser && !absorb) {
         // Фиолетовая оболочка усиленного луча и остаточное кольцо в источнике.
         ctx.globalAlpha = 1;
         ctx.strokeStyle = 'rgba(165,108,255,' + (0.35 * fade) + ')';
@@ -5801,13 +5828,15 @@ export class Renderer {
       const g1 = w * (7 + 2 * Math.sin(t * 50 + li));
       ctx.globalAlpha = 0.85 * fade;
       ctx.drawImage(glow, x1 - g1, y1 - g1, g1 * 2, g1 * 2);
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = 'rgba(' + core + ',1)';
-      ctx.beginPath();
-      ctx.arc(x1, y1, Math.max(1, w * 0.7), 0, TAU);
-      ctx.fill();
+      if (!absorb) {
+        ctx.globalAlpha = fade;
+        ctx.fillStyle = 'rgba(' + core + ',1)';
+        ctx.beginPath();
+        ctx.arc(x1, y1, Math.max(1, w * 0.7), 0, TAU);
+        ctx.fill();
+      }
       // Искры, разлетающиеся от точки попадания.
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < (absorb ? 0 : 3); k++) {
         const sp = (t * 3.3 + k * 0.33 + li * 0.17) % 1;
         const a = li * 2.3 + k * 2.1 + Math.floor(t * 3.3 + k * 0.33 + li * 0.17) * 1.7;
         const d = sp * w * 6;
