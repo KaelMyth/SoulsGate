@@ -729,6 +729,7 @@ export class Renderer {
       else if (hero.incarnationT > 0 && this.incarnation?.gravityTime > 0) { this.drawGravityAfterimages(ctx); this.drawHero(hx, hy, C); }
       else if (hero.incarnationT > 0) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
       else if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния
+      else if (this.defense?.laserDashCharging) this.drawLaserDashHero(ctx, hx, hy);
       else this.drawHero(hx, hy, C);
       if (!this.incarnation?.bladeQueue && !hero.incarnationLaser) {
         this.drawBlock(hx, hy, C);
@@ -5441,6 +5442,37 @@ export class Renderer {
   /** Герой-молния (рывок с Молнией): яркий шар с ореолом. */
   drawLightHero(ctx, hx, hy) {
     this.dashfx.drawLightHero(ctx, hx, hy, this.lightdash.kind);
+  }
+
+  /** Пока одиночный лазер строит маршрут, модель героя сжимается в световой сгусток. */
+  drawLaserDashHero(ctx, hx, hy) {
+    const b = this.dashBeams[this.dashBeams.length - 1];
+    const a = b ? Math.atan2(b.y1 - b.y0, b.x1 - b.x0) : this.hero.facing;
+    const glow = this.getGlow('blue');
+    const u = b ? Math.min(1, b.age / Math.max(0.01, this.cfg.kinetic.beamTime)) : 0;
+    ctx.save();
+    ctx.translate(hx, hy); ctx.rotate(a);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.77;
+    const sx = 16 + 34 * u, sy = 19 - 8 * u;
+    ctx.drawImage(glow, -sx * 1.8, -sy * 2, sx * 3.6, sy * 4);
+    ctx.fillStyle = '#bce8ff';
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.ellipse(-11 * u, 0, 17 + 25 * u, 7 - 3 * u, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath(); ctx.ellipse(0, 0, 10 + 8 * u, 4.5 - 1.2 * u, 0, 0, TAU); ctx.fill();
+    for (let i = 0; i < 6; i++) {
+      const f = (this.clock * 3.8 + i / 6) % 1;
+      ctx.globalAlpha = 0.6 * (1 - f);
+      ctx.strokeStyle = i % 2 ? '#c4eeff' : '#6fb6ff';
+      ctx.lineWidth = 1.5 + (1 - f) * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-50 * f - 10, Math.sin(i * 2.7 + this.clock * 9) * 8);
+      ctx.quadraticCurveTo(-15, -5 + i * 2, 12, 0);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** Молнии рывка и разрядов электризации: ломаные с дрожью, гаснут за 0.25 с. */
