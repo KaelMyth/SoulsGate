@@ -362,7 +362,7 @@ export class Game {
     this.bus.on('dash:gravity-started', (event) => this.startGravityDash(event));
     this.bus.on('dash:gravity-arrived', (event) => this.finishGravityDash(event));
     this.bus.on('dash:landed', () => this.kineticLanding(false));
-    this.bus.on('dash:started', () => this.startDashBeam());
+    this.bus.on('dash:started', () => { this.startDashBeam(); this.beginKineticBladeTrail(); });
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
@@ -1086,22 +1086,62 @@ export class Game {
     this.spawnKineticBlades();
   }
 
+  beginKineticBladeTrail() {
+    const m = this.kineticMods;
+    if (!m?.blades || !this.defense.kinetic ||
+        this.lightdash.active || this.defense.gravityDashCharging) {
+      this.kineticBladeTrail = null;
+      return;
+    }
+    const mult = Math.max(1, Math.round(1 + (m.bounces?.percent || 0) / 100));
+    const count = Math.min(120, 5 * mult);
+    const distance = this.config.dash.distance * this.config.kinetic.distanceScale *
+      this.defense.kineticBladeDistanceMul;
+    this.kineticBladeTrail = {
+      seq: this.defense.dashSeq, x: this.hero.x, y: this.hero.y,
+      walked: 0, spawned: 0, count, step: Math.max(1, distance / count),
+      dirX: this.defense.dashX, dirY: this.defense.dashY,
+      damage: this.config.blades.damage * (m.blades.damage || 1),
+    };
+  }
+
+  spawnKineticBlade(x, y, trail) {
+    const k = trail.spawned++;
+    // На каждые пять клинков: три слева, два справа; X2/X3 сохраняют пропорцию.
+    const side = (k % 5) < 3 ? 1 : -1;
+    const nx = -trail.dirY * side, ny = trail.dirX * side;
+    const speed = this.config.blades.speed;
+    this.kineticBlades.push({
+      x, y, a: Math.atan2(ny, nx),
+      vx: nx * speed, vy: ny * speed,
+      damage: trail.damage, state: 'fly', age: 0, life: 1.35,
+      kind: 0, zap: 0, kinetic: true,
+    });
+  }
+
   spawnKineticBlades() {
-    const m=this.kineticMods,h=this.hero;
-    if(!m?.blades || !h.active || !h.dashing || this.lightdash.active || this.defense.gravityDashCharging){this.kineticBladeTrail=null;return;}
-    const mult=Math.max(1,Math.round(1+(m.bounces?.percent||0)/100));
-    const count=5*mult;
-    const last=this.kineticBladeTrail;
-    if(!last || last.seq!==this.defense.dashSeq){this.kineticBladeTrail={seq:this.defense.dashSeq,x:h.x,y:h.y,spawned:0};return;}
-    const dx=h.x-last.x,dy=h.y-last.y;
-    const dist=Math.hypot(dx,dy);
-    const step=Math.max(7,this.config.dash.distance*this.config.kinetic.distanceScale*this.defense.kineticBladeDistanceMul/count);
-    while(last.spawned<count && Math.hypot(h.x-last.x,h.y-last.y)>=step){
-      const d=Math.hypot(h.x-last.x,h.y-last.y);
-      last.x+=dx/d*step;last.y+=dy/d*step;
-      const k=last.spawned++, side=(k%5)<3?1:-1;
-      const nx=-this.defense.dashY*side,ny=this.defense.dashX*side;
-      this.kineticBlades.push({x:last.x,y:last.y,a:Math.atan2(ny,nx),vx:nx*this.config.blades.speed,vy:ny*this.config.blades.speed,state:'fly',age:0,life:1.35,kind:0,zap:0,kinetic:true});
+    const t = this.kineticBladeTrail, h = this.hero;
+    if (!t) return;
+    if (!this.defense.kinetic || !h.active || t.seq !== this.defense.dashSeq ||
+        this.lightdash.active || this.defense.gravityDashCharging) {
+      this.kineticBladeTrail = null;
+      return;
+    }
+    const dx = h.x - t.x, dy = h.y - t.y;
+    const moved = Math.hypot(dx, dy);
+    // Равномерно распределяем клинки по ФАКТИЧЕСКИ пройденному пути.
+    while (t.spawned < t.count && moved > 0 &&
+           t.walked + moved >= t.step * (t.spawned + 1)) {
+      const fraction = Math.min(1, Math.max(0, (t.step * (t.spawned + 1) - t.walked) / moved));
+      this.spawnKineticBlade(t.x + dx * fraction, t.y + dy * fraction, t);
+    }
+    t.walked += moved;
+    t.x = h.x; t.y = h.y;
+    // У препятствия путь может оказаться короче планового: выпускаем остаток,
+    // не теряя оговорённые пять клинков (или кратное количество).
+    if (!h.dashing && h.glideTime <= 0) {
+      while (t.spawned < t.count) this.spawnKineticBlade(h.x, h.y, t);
+      this.kineticBladeTrail = null;
     }
   }
 
@@ -1115,7 +1155,7 @@ export class Game {
         const dx=b.x-ox,dy=b.y-oy,dd=dx*dx+dy*dy;
         const t=dd?Math.max(0,Math.min(1,((e.x-ox)*dx+(e.y-oy)*dy)/dd)):0;
         if(Math.hypot(ox+dx*t-e.x,oy+dy*t-e.y)>e.radius+5)continue;
-        this.combat.damageEnemy(e,this.config.blades.damage*(this.kineticMods?.blades?.damage||1),{active:true,kineticBlade:true},null);
+        this.combat.damageEnemy(e,b.damage,{active:true,kineticBlade:true},null);
         this.kineticBlades.splice(i,1);break;
       }
     }
