@@ -82,6 +82,49 @@ export class BuilderUI {
     return true;
   }
 
+  /**
+   * Прямой перенос с основного поля в пассивки, без промежуточного хранилища.
+   * Оставшиеся без родителя ветки возвращаются в хранилище, как при снятии с поля.
+   * При нехватке места всё остаётся на прежних местах.
+   */
+  moveFieldToPassive(x, y, id) {
+    const cell = this.grid.cell(x, y);
+    if (!cell || !cell.mod || !canPlacePassive(this.grid, cell.mod.def, id)) return false;
+    const mod = this.grid.takeMod(x, y);
+    const orphans = this.grid.orphans();
+    const free = this.storage.slots.filter((slot) => slot === null).length;
+    if (free < orphans.length) {
+      this.grid.placeMod(mod, x, y);
+      return false;
+    }
+    for (const o of orphans) this.storage.add(this.grid.takeMod(o.x, o.y));
+    this.grid.placePassive(mod, id);
+    this.sel = { kind: 'pplaced', id };
+    this.rebuild();
+    return true;
+  }
+
+  /**
+   * Прямой перенос из пассивок на основное поле. Проверяем обычные правила билда.
+   * Х2/Х3, оставшиеся без соседнего пассива, возвращаются в хранилище.
+   */
+  movePassiveToField(id, x, y) {
+    const p = this.grid.pcells[id];
+    if (!p || !p.mod || !canPlace(this.grid, p.mod.def, x, y).ok) return false;
+    const mod = this.grid.takePassive(id);
+    const orphans = this.grid.passiveOrphans();
+    const free = this.storage.slots.filter((slot) => slot === null).length;
+    if (free < orphans.length) {
+      this.grid.placePassive(mod, id);
+      return false;
+    }
+    for (const o of orphans) this.storage.add(this.grid.takePassive(o.id));
+    this.grid.placeMod(mod, x, y);
+    this.sel = { kind: 'placed', x, y };
+    this.rebuild();
+    return true;
+  }
+
   /** Мод из хранилища в угловую ячейку пассива. */
   placePassiveFromShelf(index, id) {
     const mod = this.storage.slots[index];
@@ -239,6 +282,7 @@ export class BuilderUI {
 
   tapPassive(id) {
     if (this.sel && this.sel.kind === 'shelf' && this.placePassiveFromShelf(this.sel.index, id)) return;
+    if (this.sel && this.sel.kind === 'placed' && this.moveFieldToPassive(this.sel.x, this.sel.y, id)) return;
     if (this.sel && this.sel.kind === 'pplaced' && this.movePassive(this.sel.id, id)) return;
     this.sel = null;
     this.refresh();
@@ -246,6 +290,7 @@ export class BuilderUI {
 
   tapEmpty(x, y) {
     if (this.sel && this.sel.kind === 'shelf' && this.placeFromShelf(this.sel.index, x, y)) return;
+    if (this.sel && this.sel.kind === 'pplaced' && this.movePassiveToField(this.sel.id, x, y)) return;
     if (this.sel && this.sel.kind === 'placed' && this.moveOnField(this.sel.x, this.sel.y, x, y)) return;
     this.sel = null;
     this.refresh();
@@ -287,8 +332,8 @@ export class BuilderUI {
       this.info.append(h('p', { class: 'hint' }, sel.kind === 'preview'
         ? 'Так выглядит поле: зелёные клетки это места, куда этот мод можно поставить. Красные грани: не подходит'
         : sel.kind === 'shelf'
-        ? 'Перетащи на поле или нажми на зелёную клетку. Красные грани: ядру не подходит'
-        : 'Перетащи на другое место или в хранилище. Красные грани: не подходит'));
+        ? 'Перетащи на поле или в пассивки, либо нажми на зелёную клетку. Красные грани: ядру не подходит'
+        : 'Перетащи на поле, в пассивки или хранилище. Красные грани: не подходит'));
       if (sel.kind === 'placed') {
         this.info.append(h('button', {
           id: 'mod-return', type: 'button', class: 'small', onclick: () => this.returnToShelf(sel.x, sel.y),
@@ -318,7 +363,7 @@ export class BuilderUI {
 
   /**
    * Нажатие выбирает мод; сдвиг пальца больше DRAG_START_PX начинает перетаскивание.
-   * Отпускание над клеткой поля (из хранилища) или над рядом хранилища (с поля) выполняет действие.
+   * Поддерживаются оба направления между основным полем, пассивками и хранилищем.
    */
   attachDrag(el, src, mod, onSelect) {
     let start = null;
@@ -336,12 +381,16 @@ export class BuilderUI {
       if (!t) return;
       if (src.from === 'shelf' && t.classList.contains('pcell')) {
         this.placePassiveFromShelf(src.index, +t.getAttribute('data-p'));
+      } else if (src.from === 'placed' && t.classList.contains('pcell')) {
+        this.moveFieldToPassive(src.x, src.y, +t.getAttribute('data-p'));
       } else if (src.from === 'pplaced' && t.classList.contains('pcell')) {
         this.movePassive(src.id, +t.getAttribute('data-p'));
       } else if (src.from === 'pplaced' && t.classList.contains('shelf')) {
         this.returnPassiveToShelf(src.id);
       } else if (src.from === 'shelf' && t.classList.contains('cell')) {
         this.placeFromShelf(src.index, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
+      } else if (src.from === 'pplaced' && t.classList.contains('cell')) {
+        this.movePassiveToField(src.id, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
       } else if (src.from === 'placed' && t.classList.contains('cell')) {
         this.moveOnField(src.x, src.y, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
       } else if (src.from === 'placed' && t.classList.contains('shelf')) {
