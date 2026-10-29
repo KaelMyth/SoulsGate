@@ -132,6 +132,14 @@ export class Absorption {
       ? this.cfg.shock.attackBonus * (mods.lightning ? mods.lightning.count : 1) : 0);
     this.source.vampiric = this.vampiric;
     const dealt = this.combat.damageEnemy(e, damage, this.source, null);
+    if (dealt && mods.absorption.pierce) {
+      const radius = A.pierceRadius || 52;
+      for (const other of this.enemies.items) {
+        if (!other.active || other === e || Math.hypot(other.x-e.x,other.y-e.y)>radius+other.radius)continue;
+        this.combat.damageEnemy(other,damage*(A.pierceDamageFrac||0.4),this.source,null);
+      }
+      this.flashes.push({x:e.x,y:e.y,r:radius,time:A.flashTime,vampiric:false,color:'142,225,255'});
+    }
     if (dealt && e.active) {
       const burn = mods.absorption.burn;
       const frost = mods.absorption.frost;
