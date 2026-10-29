@@ -192,3 +192,53 @@ test('Состояние реакций не переносится новому
   assert.equal(e.burnStacks, 0);
   assert.equal(e.freezeT, 0);
 });
+
+
+test('Цепочки Мороз + Электризация работают на Ауре, Клинках, Поглощении и Дроби', () => {
+  const cases = [
+    ['shield', ['aura', 'frost', 'lightning']],
+    ['shield', ['aura', 'lightning', 'frost']],
+    ['shield', ['blades', 'frost', 'lightning']],
+    ['shield', ['blades', 'lightning', 'frost']],
+    ['shield', ['absorption', 'lightning', 'frost']],
+    ['projectile', ['shot', 'frost', 'lightning']],
+    ['projectile', ['laser', 'lightning', 'frost']],
+  ];
+  for (const [core, keys] of cases) {
+    const m = build(core, keys);
+    if (keys[0] === 'absorption') assert.ok(m.absorption.frost && m.absorption.lightning);
+    else assert.ok(m.frost && m.lightning, core + ': ' + keys.join('→'));
+  }
+});
+
+test('Общий Магический дождь вызывает удар сверху при заморозке уже электризованного врага', () => {
+  const grid = new BuildGrid(7);
+  grid.placeMod({ key: 'rain', def: CONFIG.mods.rain }, 3, 3);
+  grid.placeMod({ key: 'lightning', def: CONFIG.mods.lightning }, 3, 4);
+  grid.placeMod({ key: 'frost', def: CONFIG.mods.frost }, 3, 5);
+  assert.deepEqual(grid.orphans(), []);
+  const { g, foes } = world(2);
+  g.state = 'playing';
+  g.hero = { active: true };
+  g.build = grid;
+  g.skillCd = [0, 0, 0];
+  g.hud = {};
+  foes[0].frostStacks = CONFIG.frost.maxStacks - 1;
+  foes[0].shockStacks = 1;
+  const hp = foes[0].hp;
+  assert.equal(Game.prototype.castRain.call(g), true);
+  assert.equal(foes[0].hp, hp - CONFIG.frost.shockStrikeDamage);
+  assert.ok(g.zapBolts.some(b => b.sky));
+});
+
+test('Парная реакция на цепи Горение→Молния→Мороз не заменяется ударом с неба', () => {
+  const m = build('rain', ['burn', 'lightning', 'frost']);
+  assert.ok(m.steam);
+  const { g, foes } = world();
+  foes[0].shockStacks = 2;
+  foes[0].frostStacks = CONFIG.frost.maxStacks - 1;
+  Game.prototype.ignite.call(g, foes[0], 7, 0.5);
+  Game.prototype.chill.call(g, foes[0], m.steam.damage, 7, 0.5);
+  assert.equal(g.steams, 1);
+  assert.equal(g.zapBolts.length, 0);
+});
