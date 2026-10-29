@@ -736,6 +736,13 @@ export class Renderer {
     this.drawFinale();
     this.drawLasers(ctx);
     this.drawLaserIncarnationPaths(ctx);
+    // Заглушка каста от попадания лазером / призрачного Поглощения.
+    if (this.synergyCasts) for (const c of this.synergyCasts) {
+      if (!c.enemy?.active || c.enemy.gen!==c.gen)continue;
+      ctx.save();ctx.strokeStyle=c.phantom?'#b783ff':'#a9eaff';
+      ctx.globalAlpha=0.35+0.4*Math.sin(this.clock*13)**2;
+      ctx.lineWidth=3;ctx.beginPath();ctx.arc(c.enemy.x,c.enemy.y,c.enemy.radius+17+4*Math.sin(this.clock*9),0,TAU);ctx.stroke();ctx.restore();
+    }
     this.drawBolts(ctx);
     this.drawBlades(ctx);
 
@@ -5527,6 +5534,14 @@ export class Renderer {
     if (!au || !au.active) return;
     const R = au.radius;
     const t = this.clock;
+    // Временная графика Лазер + Аура: мягкий цветовой перелив по границе.
+    if (au.laserShimmer) {
+      ctx.save();
+      ctx.strokeStyle=`hsla(${190+55*Math.sin(t*1.7)},90%,73%,0.35)`;
+      ctx.lineWidth=5+2*Math.sin(t*3);
+      ctx.beginPath();ctx.arc(hx,hy,R,0,Math.PI*2);ctx.stroke();
+      ctx.restore();
+    }
     // au.pulse (вздрагивание на тике) не используем: поле спокойное
     // Искажение: копия экрана под полем, нарисованная обратно с лёгким увеличением вложенными дисками.
     const m = ctx.getTransform();
