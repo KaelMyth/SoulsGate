@@ -17,6 +17,8 @@ export class LightDash {
     this.bonus = 0; // плоская прибавка от Молнии
     this.onHit = o.onHit || null; // (враг) => void: заряд электризации за каждый удар
     this.onTelegraph = o.onTelegraph || null; // световой луч ПЕРЕД перемещением
+    this.onLaserArrival = o.onLaserArrival || null; // эффект Лазера при приземлении на врага
+    this.laserBeam = null;
     this.laserMode = false; // Лазер дополняет цепь Молнии, а не заменяет её
     this.source = { lightning: true, active: true };
     this.route = [];     // цели цепочки
@@ -35,6 +37,7 @@ export class LightDash {
     this.active = false;
     this.route.length = 0;
     this.bolts.length = 0;
+    this.laserBeam = null;
   }
 
   /** Ближайший враг к (x, y) в радиусе range, не равный skip; предпочтение тем, кого ещё не били (route). */
@@ -71,7 +74,8 @@ export class LightDash {
       if (!nx) break;
       this.route.push(nx);
     }
-    this.duration = this.route.length * (L.hopTime + (this.laserMode ? this.cfg.kinetic.beamTime : 0)) + L.pause;
+    const travel = this.laserMode ? this.cfg.kinetic.laserHopTime : L.hopTime;
+    this.duration = this.route.length * (travel + (this.laserMode ? this.cfg.kinetic.beamTime : 0)) + L.pause;
     return true;
   }
 
@@ -83,14 +87,15 @@ export class LightDash {
     this.fromX = this.hero.x;
     this.fromY = this.hero.y;
     this.bolts.length = 0;
+    this.laserBeam = null;
     if (this.laserMode) this.telegraph();
   }
 
   /** Лазер создаёт луч ДО прыжка, затем Молния проводит героя по тому же отрезку. */
   telegraph() {
     const target = this.route[this.idx];
-    if (target?.active && this.onTelegraph)
-      this.onTelegraph(this.fromX, this.fromY, target.x, target.y, this.idx);
+    this.laserBeam = target?.active && this.onTelegraph
+      ? this.onTelegraph(this.fromX, this.fromY, target.x, target.y, this.idx) : null;
   }
 
   update(dt) {
@@ -112,19 +117,30 @@ export class LightDash {
     if (this.phase === 'hop') {
       const e = this.route[this.idx];
       if (!e || !e.active) { // цель пропала: прыгаем к следующей или садимся
+        if (this.laserBeam) this.laserBeam.done = true; // убрать неподтверждённый луч
+        this.laserBeam = null;
         this.idx++;
         this.t = 0;
         if (this.idx >= this.route.length) this.phase = 'wait';
         else if (this.laserMode) { this.phase = 'charge'; this.telegraph(); }
         return;
       }
-      const k = Math.min(1, this.t / L.hopTime);
+      // Лазер изменяет именно СПОСОБ перемещения в цепи Молнии:
+      // короткий направленный рывок следует за уже появившимся лучом.
+      const hopTime = this.laserMode ? this.cfg.kinetic.laserHopTime : L.hopTime;
+      const k = Math.min(1, this.t / hopTime);
       h.x = this.fromX + (e.x - this.fromX) * k;
       h.y = this.fromY + (e.y - this.fromY) * k;
       if (k >= 1) {
-        this.bolts.push({ x0: this.fromX, y0: this.fromY, x1: e.x, y1: e.y, age: 0, k: this.kind });
+        // Без Лазера остаётся исходная графика молнии; с Лазером виден
+        // только лазерный маршрут, но электрический урон и статусы сохраняются.
+        if (!this.laserMode)
+          this.bolts.push({ x0: this.fromX, y0: this.fromY, x1: e.x, y1: e.y, age: 0, k: this.kind });
         this.combat.damageEnemy(e, L.damage * this.damageMul + this.bonus, this.source, { knockback: 0 });
         if (e.active && this.onHit) this.onHit(e);
+        if (this.laserMode && this.laserBeam && this.onLaserArrival)
+          this.onLaserArrival(this.laserBeam, e);
+        this.laserBeam = null;
         this.fromX = h.x;
         this.fromY = h.y;
         this.idx++;
