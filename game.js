@@ -212,7 +212,7 @@ export class Game {
       const nearby = this.enemies.items.filter(t=>t.active && t!==e && Math.hypot(t.x-e.x,t.y-e.y)<140);
       if (!nearby.length)return;
       const t=nearby[Math.floor(this.rnd()*nearby.length)];
-      this.synergyCasts.push({enemy:t,gen:t.gen,time:0.45,damage:this.config.absorption.damage*(mods.absorption.damage||1)*0.5,phantom:true});
+      this.synergyCasts.push({enemy:t,gen:t.gen,time:0.45,mods,phantom:true});
     };
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
@@ -885,7 +885,9 @@ export class Game {
       this.synergyCasts.splice(i,1);
       if(!c.enemy.active || c.enemy.gen!==c.gen)continue;
       this.synergyFlashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,maxTime:this.config.absorption.flashTime,color:c.phantom?'#b783ff':'#a9eaff'});
-      this.combat.damageEnemy(c.enemy,c.damage,this.absorption.source,null);
+      // И лазерная связка, и фантом вызывают настоящий каст Поглощения.
+      // У фантома половина урона и отключён повторный фантомный запуск.
+      if(c.mods?.absorption) this.absorption.strike(c.enemy,c.mods,c.phantom?0.5:1,!!c.phantom);
     }
   }
 
@@ -1011,12 +1013,13 @@ export class Game {
       this.laserSource.dx = l.dx;
       this.laserSource.dy = l.dy;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);
-      const lm=this.build.modifiersFor(this.config.attack.core);
-      if(lm?.laserAbsorption && !l.anchor && !l.gen) {
-        const old=this.laserAbsorptionCooldowns.get(e);
-        if(!old || old.gen!==e.gen || old.until<=this.runTime) {
-          this.laserAbsorptionCooldowns.set(e,{gen:e.gen,until:this.runTime+this.config.absorption.interval});
-          this.synergyCasts.push({enemy:e,gen:e.gen,time:this.config.absorption.telegraph,damage:this.config.absorption.damage,phantom:false});
+      const lm = this.build.modifiersFor(this.config.attack.core);
+      if (e.active && lm?.laserAbsorption && !l.anchor && !l.gen) {
+        const old = this.laserAbsorptionCooldowns.get(e);
+        if (!old || old.gen !== e.gen || old.until <= this.runTime) {
+          const cooldown = this.config.absorption.interval / Math.max(0.01, lm.absorption?.rate || 1);
+          this.laserAbsorptionCooldowns.set(e, {gen:e.gen, until:this.runTime + cooldown});
+          this.synergyCasts.push({enemy:e, gen:e.gen, time:this.config.absorption.telegraph, mods:lm, phantom:false});
         }
       }
       if (!e.active) continue;
