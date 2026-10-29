@@ -84,6 +84,7 @@ export class Game {
     this.gravityDash = { active: false, charging: false, x: 0, y: 0, ox: 0, oy: 0, t: 0, life: 0.45, charge: 0.28 };
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
+    this.frostShockSource = { shock: true, frostShock: true, active: true }; // отдельный небесный разряд от заморозки
     this.fires = [];       // костры огненного рывка: { x, y, age, tick }
     this.fireLast = null;  // где стоял последний костёр шлейфа
     this.steamClouds = []; // облака пара на земле: { x, y, age, tick, hit:Set, dmg, int }
@@ -608,6 +609,13 @@ export class Game {
     e.burnT = b.duration;
   }
 
+  /** Насыщение огнём без повторных вызовов и лишних эффектов: для красных электрических дуг. */
+  igniteMax(e, dmg, interval) {
+    if (!e || !e.active || !(dmg > 0)) return;
+    this.ignite(e, dmg, interval);
+    if (e.active) e.burnStacks = Math.max(1, this.config.burn.maxStacks);
+  }
+
   /**
    * Электризация: +1 заряд; на последнем враг разряжается (см. discharge).
    * bd, bi, fr, st: стихии источника (горение: урон и интервал, мороз, пар): их разряд разносит цепью.
@@ -630,16 +638,21 @@ export class Game {
   }
 
   /**
-   * Разряд: удар по врагу и цепная молния на 2–3 ближайших. С Горением молния оранжевая и поджигает, с Морозом синяя и морозит,
-   * со всеми тремя белая: электризует, поджигает, морозит и поднимает паровые взрывы. Цепь заряды электризации не копит.
+   * Разряд: при наличии Горения у источника или на враге выпускает красные широкие дуги,
+   * мгновенно насыщающие Горением всех поражённых (без рекурсивной электризации).
+   * С Морозом сохраняет обычную передачу зарядов, Пар остаётся приоритетной реакцией.
    */
   discharge(e, bd = 0, bi = 0, fr = 0, st = 0, cm = 1) {
     const S = this.config.shock;
-    const kind = (bd > 0 ? 1 : 0) | (fr ? 2 : 0);
-    const col = S.colors[kind];
+    const burnDmg = bd > 0 ? bd : e.burnT > 0 ? e.burnDmg : 0;
+    const burnInt = bd > 0 ? bi : e.burnInt;
+    const fireArc = burnDmg > 0;
+    const kind = (fireArc ? 1 : 0) | (fr ? 2 : 0);
+    const col = fireArc ? S.colors[1] : S.colors[kind];
     const grid = this.swarm.grid;
     const en = this.enemies.items;
     this.combat.damageEnemy(e, S.damage, this.shockSource, null);
+    if (fireArc && e.active) this.igniteMax(e, burnDmg, burnInt);
     this.burst(e.x, e.y, 0.3, e.radius, e.radius * 2.4, col);
     const want = Math.round((S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1))) * Math.max(1, cm)); // Х2/Х3 на Молнии множат число молний
     const range = S.chainRange * (this.autoattack.rangeMul || 1); // «Дальность атаки» растит и дальность цепи
@@ -662,12 +675,12 @@ export class Game {
     }
     for (let k = 0; k < bestE.length; k++) {
       const o = bestE[k];
-      this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0, k: kind });
+      this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0, k: kind, fireArc });
       const hit = this.combat.damageEnemy(o, S.damage * S.chainFrac, this.shockSource, null);
       if (!hit || !o.active) continue; // отменённый удар не передаёт статус
       this.burst(o.x, o.y, 0.2, 3, 12, col);
-      if (bd > 0) this.ignite(o, bd, bi); // Горение + Молния: ровно один стак огня на каждого поражённого цепью врага
-      if (fr) this.chill(o, st, bd, bi); // Мороз + Молния: ровно один стак холода каждой выжившей цели цепи
+      if (fireArc) this.igniteMax(o, burnDmg, burnInt); // красные дуги мгновенно накладывают максимальное Горение
+      if (fr && o.active) this.chill(o, st, burnDmg, burnInt); // ледяная часть реакции продолжает работать
     }
   }
 
@@ -770,6 +783,13 @@ export class Game {
       e.speedMul = 0;
       e.kbVx = e.kbVy = 0;
       this.burst(e.x, e.y, 0.35, e.radius, e.radius * 2.6, f.color);
+      // Только при РЕАЛЬНОЙ заморозке электризованного врага. Пар и иммунитет не запускают удар.
+      if (e.shockStacks > 0 && e.active) {
+        const F = this.config.frost;
+        this.zapBolts.push({ x0: e.x, y0: e.y - F.shockStrikeHeight, x1: e.x, y1: e.y,
+          age: 0, k: 2, sky: true });
+        this.combat.damageEnemy(e, F.shockStrikeDamage, this.frostShockSource || this.shockSource, null);
+      }
     } else if (!immune) {
       e.speedMul = 1 - e.frostStacks * f.slowPerStack;
     }
