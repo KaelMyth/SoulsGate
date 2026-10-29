@@ -3696,10 +3696,19 @@ export class Renderer {
     for (const p of paths) {
       const a = Math.max(0,p.life / p.maxLife);
       ctx.globalAlpha = a;
-      ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 24;
-      ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(p.x1,p.y1); ctx.lineTo(p.x2,p.y2); ctx.stroke();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(p.x1,p.y1); ctx.lineTo(p.x2,p.y2); ctx.stroke();
+      const n = Math.max(1, p.strands || 1);
+      for (let j=0; j<n; j++) {
+        const offset = j-(n-1)/2;
+        const bend = offset * (this.cfg.skills.incarnation.splitLaserArc || 18);
+        const mx=(p.x1+p.x2)/2, my=(p.y1+p.y2)/2;
+        const dx=p.x2-p.x1,dy=p.y2-p.y1,dist=Math.hypot(dx,dy)||1;
+        ctx.strokeStyle=color; ctx.shadowColor=color;ctx.shadowBlur=14;
+        ctx.lineWidth=Math.max(1.5, 9/Math.sqrt(n));
+        ctx.beginPath();ctx.moveTo(p.x1,p.y1);
+        ctx.quadraticCurveTo(mx-dy/dist*bend,my+dx/dist*bend,p.x2,p.y2);ctx.stroke();
+        ctx.strokeStyle='#ffffff';ctx.lineWidth=Math.max(.5,2/Math.sqrt(n));
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -3709,6 +3718,25 @@ export class Renderer {
     const mask = hero.incarnationMask || 0;
     const fire = !!(mask & 1), frost = !!(mask & 2), lightning = !!(mask & 4);
     const form = S.forms?.[mask] || { outer: form.outer, glow: form.glow, core: form.core, tail: form.tail };
+    const copies = this.incarnation?.splitCount || 1;
+    if (copies > 1) {
+      const radius = Math.max(3, S.coreRadius * Math.min(0.72, 1.25 / Math.sqrt(copies)));
+      const spread = copies >= 12 ? S.coreRadius * 0.9 : S.coreRadius * 1.35;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < copies; i++) {
+        const ring = copies >= 12 ? (i % 3) / 3 : 1;
+        const ang = this.clock * (2.6 + 0.3 * (i % 3)) + i * Math.PI * 2 / copies;
+        const x = hx + Math.cos(ang) * spread * ring;
+        const y = hy + Math.sin(ang) * spread * ring;
+        ctx.shadowColor = form.glow;
+        ctx.shadowBlur = radius * 2.5;
+        ctx.fillStyle = form.core;
+        ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
     const speed = Math.hypot(hero.vx, hero.vy);
     const angle = speed > 10 ? Math.atan2(hero.vy, hero.vx) : hero.facing;
     const bob = Math.sin(this.clock * 6.5) * 2.4;
