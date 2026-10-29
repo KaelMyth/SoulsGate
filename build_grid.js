@@ -606,7 +606,8 @@ export class BuildGrid {
     const cc = this.coreById(coreId);
     if (extra && cc && cc.def.multStat === 'count') extraCount = extra;
     if (extra && res.shot) res.shotMul = 1 + extra; // Х2/Х3 на Дроби (для Дроби на рывке)
-    if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
+    // Пар существует при любой комбинации Горения и Мороза на ядре, в том числе через Молнию.
+    if (burns && frosts) res.steam = { count: steams || 1, damage: steams ? sDmg / steams : 1 };
     // Что стоит «на ядре»: моды прямо на нём и моды под множителями Х2/Х3, которые сидят на ядре (они только ветка).
     const rootStat = [];
     const rootDoubles = [];
