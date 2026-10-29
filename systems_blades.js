@@ -133,6 +133,14 @@ export class Blades {
       return;
     }
     const hero = this.hero;
+    if (hero.incarnationT > 0) {
+      // Обычные клинки скрыты на всё время Воплощения и не продолжают стрелять.
+      this.items.length = 0;
+      this.timer = 0;
+      this.wave = false;
+      this.gravitySpawned = 0;
+      return;
+    }
     if (!hero.active) return;
     this.spin += B.spin * dt;
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
