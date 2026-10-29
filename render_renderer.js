@@ -5541,14 +5541,6 @@ export class Renderer {
     if (!au || !au.active) return;
     const R = au.radius;
     const t = this.clock;
-    // Временная графика Лазер + Аура: мягкий цветовой перелив по границе.
-    if (au.laserShimmer) {
-      ctx.save();
-      ctx.strokeStyle=`hsla(${190+55*Math.sin(t*1.7)},90%,73%,0.35)`;
-      ctx.lineWidth=5+2*Math.sin(t*3);
-      ctx.beginPath();ctx.arc(hx,hy,R,0,Math.PI*2);ctx.stroke();
-      ctx.restore();
-    }
     // au.pulse (вздрагивание на тике) не используем: поле спокойное
     // Искажение: копия экрана под полем, нарисованная обратно с лёгким увеличением вложенными дисками.
     const m = ctx.getTransform();
@@ -5677,6 +5669,14 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+    if (au.laserShimmer) {
+      // Поверх готового поля: иначе линзирование и дымка скрывали перелив.
+      ctx.save();
+      ctx.strokeStyle = `hsla(${190+55*Math.sin(t*1.7)},90%,73%,0.45)`;
+      ctx.lineWidth = 4 + 1.5 * Math.sin(t*3);
+      ctx.beginPath(); ctx.arc(hx,hy,R,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
     ctx.globalAlpha = 1;
   }
 
