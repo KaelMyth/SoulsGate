@@ -1,4 +1,4 @@
-// Проверка Фантома на Поглощении (#149).
+// Проверка Фантома на Поглощении (#150).
 // Запуск: node --experimental-default-type=module --test tests/phantom-absorption-chain.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -51,30 +51,50 @@ test('A Phantom on a separate Blades branch cannot amplify Absorption copies',()
   assert.equal(m.phantom.mult,3);
 });
 
-test('Each phantom Absorption can summon the next, stopping after 10 clones',()=>{
-  const m = shieldBuild().modifiersFor('shield');
-  const enemies = [0,1].map(i=>({
-    active:true, gen:i+1, x:i*60, y:0, radius:12, hp:10000,
-  }));
-  const hero={active:true,hp:100,maxHp:100}, hits=[];
-  const game=Object.create(Game.prototype);
-  game.config=CONFIG;
-  game.hero=hero;
-  game.enemies={items:enemies};
-  game.rnd=()=>0; // every possible roll succeeds
-  game.synergyCasts=[];
-  game.synergyFlashes=[];
-  game.absorption=new Absorption({
-    config:CONFIG,hero,enemies:game.enemies,
-    combat:{damageEnemy(e,amount){hits.push({e,amount});return true;}},
-  });
-  game.absorption.onPhantom=(e,mods,gen)=>game.tryPhantomAbsorption(e,mods,gen);
-  game.absorption.strike(enemies[0],m);
-  for(let i=0;i<12;i++)game.updateSynergyCasts(0.5);
-  assert.equal(hits.length,11); // original + generations 1..10
-  assert.equal(hits[0].amount,CONFIG.absorption.damage);
-  for(const copy of hits.slice(1))assert.equal(copy.amount,CONFIG.absorption.damage*0.5);
-  assert.equal(game.synergyCasts.length,0);
+test('Probability below 5% stops the chain without even rolling RNG',()=>{
+  const F=CONFIG.phantom;
+  let rolls=0;
+  const rnd=()=>{rolls++;return 0;};
+  assert.equal(phantomRoll(F,rnd,0.2,2),true);  // 5% is allowed
+  assert.equal(rolls,1);
+  assert.equal(phantomRoll(F,rnd,0.2,3),false); // 2.5% is stopped
+  assert.equal(rolls,1);
+  assert.equal(phantomRoll(F,rnd,0.4,3),true);  // X2: 5% is allowed
+  assert.equal(phantomRoll(F,rnd,0.4,4),false); // X2: 2.5% is stopped
+  assert.equal(phantomRoll(F,rnd,0.6,3),true);  // X3: 7.5% is allowed
+  assert.equal(phantomRoll(F,rnd,0.6,4),false); // X3: 3.75% is stopped
+  assert.equal(rolls,3);
+  assert.equal(phantomRoll(F,rnd,100,9),true); // fallback cap still works
+  assert.equal(phantomRoll(F,rnd,100,10),false);
+  assert.equal(rolls,4);
+});
+
+test('Phantom Absorption chain stops at 5% for normal, X2 and X3',()=>{
+  for (const [boost,expectedHits] of [[null,4],['x2',5],['x3',5]]) {
+    const m = shieldBuild(boost).modifiersFor('shield');
+    const enemies = [0,1].map(i=>({
+      active:true, gen:i+1, x:i*60, y:0, radius:12, hp:10000,
+    }));
+    const hero={active:true,hp:100,maxHp:100}, hits=[];
+    const game=Object.create(Game.prototype);
+    game.config=CONFIG;
+    game.hero=hero;
+    game.enemies={items:enemies};
+    game.rnd=()=>0; // all rolls at or above the threshold succeed
+    game.synergyCasts=[];
+    game.synergyFlashes=[];
+    game.absorption=new Absorption({
+      config:CONFIG,hero,enemies:game.enemies,
+      combat:{damageEnemy(e,amount){hits.push({e,amount});return true;}},
+    });
+    game.absorption.onPhantom=(e,mods,gen)=>game.tryPhantomAbsorption(e,mods,gen);
+    game.absorption.strike(enemies[0],m);
+    for(let i=0;i<12;i++)game.updateSynergyCasts(0.5);
+    assert.equal(hits.length,expectedHits,String(boost));
+    assert.equal(hits[0].amount,CONFIG.absorption.damage);
+    for(const copy of hits.slice(1))assert.equal(copy.amount,CONFIG.absorption.damage*0.5);
+    assert.equal(game.synergyCasts.length,0);
+  }
 });
 
 test('A phantom cannot chain if there is no nearby living enemy',()=>{
