@@ -117,7 +117,7 @@ export class Absorption {
   }
 
   /** Все варианты Поглощения используют единый урон, Вампиризм и стихии. */
-  strike(e, mods, damageScale = 1, suppressPhantom = false) {
+  strike(e, mods, damageScale = 1, suppressPhantom = false, phantomGeneration = 0) {
     if (!e || !e.active || !this.hero.active) return false;
     const A = this.cfg.absorption;
     const vampiric = !!mods.absorption.vampirism;
@@ -170,7 +170,8 @@ export class Absorption {
       const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
       this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
     }
-    if (dealt && !suppressPhantom && mods.absorption.phantom && this.onPhantom) this.onPhantom(e,mods);
+    if (dealt && !suppressPhantom && mods.absorption.phantom && this.onPhantom)
+      this.onPhantom(e, mods, phantomGeneration);
     return dealt;
   }
 
