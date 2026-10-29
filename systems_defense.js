@@ -287,7 +287,7 @@ export class HeroDefense {
     } else if (this.state === 'block') {
       this.blockTime += dt;
       if (!stickUp) this.endBlock(true); // взялся за стик: блок снят
-      else if (this.blockTime >= this.blockDuration || (this.gravityOn && this.gravityTime <= 0)) this.endBlock(false);
+      else if (this.blockTime >= this.blockDuration || (this.gravityOn && !this.auraOn && this.gravityTime <= 0)) this.endBlock(false);
     }
   }
 
