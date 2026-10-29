@@ -240,3 +240,60 @@ test('Стихийная форма рисует уникальную палит
       'different outer color for mask ' + i);
   }
 });
+
+
+test('Активация через второй слот запоминает стихийную сборку и подключает боевую систему', () => {
+  const a = setup(['frost', 'lightning']);
+  const g = a.g;
+  g.state = 'playing';
+  g.skillCd = [0,0,0];
+  g.build = a.grid;
+  g.hud = { slotFlash: 0 };
+  g.incarnation = a.incarnation;
+  a.incarnation.reset();
+  a.hero.incarnationT = 0;
+  a.hero.dashing = false;
+  assert.equal(Game.prototype.castIncarnation.call(g), true);
+  assert.equal(a.hero.incarnationT, CONFIG.skills.incarnation.duration);
+  assert.equal(a.hero.incarnationMask, 6);
+  assert.equal(g.skillCd[1], 30);
+  assert.equal(g.skillCd[0], 0);
+  a.incarnation.update();
+  assert.equal(a.enemies[0].freezeT, CONFIG.frost.freezeTime);
+  assert.equal(a.g.zapBolts.filter(x => x.sky).length, 1);
+});
+
+test('Снятие стихии из билда во время полёта не меняет уже запущенную сферу', () => {
+  const a = setup(['burn']);
+  const g = a.g;
+  g.state = 'playing';
+  g.skillCd = [0, 0, 0];
+  g.build = a.grid;
+  g.hud = {};
+  g.incarnation = a.incarnation;
+  a.incarnation.reset();
+  a.hero.incarnationT = 0;
+  Game.prototype.castIncarnation.call(g);
+  assert.equal(a.hero.incarnationMask, 1);
+  a.grid.takeMod(3, 4);
+  assert.equal(a.grid.modifiersFor(a.grid.secondaryId('incarnation')).burn, undefined);
+  a.incarnation.update();
+  assert.equal(a.enemies[0].burnStacks, CONFIG.burn.maxStacks);
+});
+
+test('Морозная сфера реагирует и на электризацию, оставшуюся от других умений', () => {
+  const a = setup(['frost']);
+  a.enemies[0].shockStacks = 2;
+  a.incarnation.update();
+  assert.equal(a.enemies[0].freezeT, CONFIG.frost.freezeTime);
+  assert.equal(a.g.zapBolts.filter(x => x.sky).length, 1);
+});
+
+test('Электрическая сфера превращается в огненные дуги при уже горящем враге', () => {
+  const a = setup(['lightning'], [[55,0],[172,0]]);
+  a.g.ignite(a.enemies[0], 7, 0.5);
+  a.incarnation.update();
+  assert.equal(a.enemies[0].burnStacks, CONFIG.burn.maxStacks);
+  assert.equal(a.enemies[1].burnStacks, CONFIG.burn.maxStacks);
+  assert.ok(a.g.zapBolts.every(b => b.fireArc));
+});
