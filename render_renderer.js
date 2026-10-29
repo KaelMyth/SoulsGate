@@ -3652,6 +3652,9 @@ export class Renderer {
   /** Неуязвимое Воплощение: парящий шар с динамическим кометным шлейфом в направлении скорости. */
   drawIncarnation(hx, hy) {
     const ctx = this.ctx, hero = this.hero, S = this.cfg.skills.incarnation;
+    const mask = hero.incarnationMask || 0;
+    const fire = !!(mask & 1), frost = !!(mask & 2), lightning = !!(mask & 4);
+    const form = S.forms?.[mask] || { outer: form.outer, glow: form.glow, core: form.core, tail: form.tail };
     const speed = Math.hypot(hero.vx, hero.vy);
     const angle = speed > 10 ? Math.atan2(hero.vy, hero.vx) : hero.facing;
     const bob = Math.sin(this.clock * 6.5) * 2.4;
@@ -3663,14 +3666,14 @@ export class Renderer {
     ctx.rotate(angle);
     // Шлейф отклоняется по инерции и выглядит как несколько слоёв эфирного пламени.
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = S.tailColor;
+    ctx.fillStyle = form.tail;
     ctx.beginPath();
     ctx.moveTo(r * 0.2, -r * 0.8);
     ctx.bezierCurveTo(-length * 0.33, -r * 1.3, -length * 0.7, -r * 0.3,
       -length * (1 + 0.05 * Math.sin(this.clock * 12)), 0);
     ctx.bezierCurveTo(-length * 0.65, r * 0.5, -length * 0.3, r * 1.25, r * 0.2, r * 0.8);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = S.outerColor;
+    ctx.fillStyle = form.outer;
     ctx.globalAlpha = 0.52 * pulse;
     ctx.beginPath();
     ctx.moveTo(r * 0.1, -r * 0.4);
@@ -3678,25 +3681,72 @@ export class Renderer {
     ctx.quadraticCurveTo(-length * 0.37, r * 0.58, r * 0.1, r * 0.4);
     ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 0.24 + 0.15 * pulse;
-    ctx.fillStyle = S.glowColor;
+    ctx.fillStyle = form.glow;
     ctx.beginPath(); ctx.arc(0, 0, r * 2.3, 0, TAU); ctx.fill();
     ctx.globalAlpha = 0.5 * pulse;
     ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = S.outerColor;
+    ctx.fillStyle = form.outer;
     ctx.beginPath(); ctx.arc(0, 0, r * 1.12, 0, TAU); ctx.fill();
-    ctx.fillStyle = S.glowColor;
+    ctx.fillStyle = form.glow;
     ctx.beginPath(); ctx.arc(r * 0.13, -r * 0.1, r * 0.79, 0, TAU); ctx.fill();
-    ctx.fillStyle = S.coreColor;
+    ctx.fillStyle = form.core;
     ctx.beginPath(); ctx.arc(r * 0.31, -r * 0.23, r * 0.43, 0, TAU); ctx.fill();
     // Небольшие потоки энергии не требуют отдельных частиц или списков каждый кадр.
-    ctx.strokeStyle = S.coreColor;
+    ctx.strokeStyle = form.core;
     ctx.lineWidth = 1.3;
     ctx.globalAlpha = 0.62;
     for (let i = 0; i < 3; i++) {
       const x = -r - i * length * 0.23;
       const y = Math.sin(this.clock * 7.5 + i * 2.5) * r * (0.55 + i * 0.17);
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - r * 0.8, y * 1.12); ctx.stroke();
+    }
+    // Отличительные признаки стихии: отдельный дизайн для каждой из семи комбинаций.
+    if (fire) {
+      ctx.globalAlpha = 0.76 * pulse;
+      ctx.strokeStyle = '#ff8241'; ctx.lineWidth = 2.5;
+      for (let i = 0; i < 5; i++) {
+        const a = this.clock * 1.6 + i * TAU / 5;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 1.1, Math.sin(a) * r * 1.1);
+        ctx.quadraticCurveTo(Math.cos(a + 0.16) * r * 1.7, Math.sin(a + 0.16) * r * 1.7,
+          Math.cos(a + 0.4) * r * 1.2, Math.sin(a + 0.4) * r * 1.2);
+        ctx.stroke();
+      }
+    }
+    if (frost) {
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = '#c7f6ff'; ctx.lineWidth = 1.9;
+      for (let i = 0; i < 6; i++) {
+        const a = i * TAU / 6 + this.clock * 0.2;
+        const x = Math.cos(a) * r * 1.15, y = Math.sin(a) * r * 1.15;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(Math.cos(a + 0.13) * r * 1.9, Math.sin(a + 0.13) * r * 1.9);
+        ctx.lineTo(Math.cos(a - 0.17) * r * 1.55, Math.sin(a - 0.17) * r * 1.55);
+        ctx.closePath(); ctx.stroke();
+      }
+    }
+    if (lightning) {
+      ctx.globalAlpha = 0.95;
+      ctx.strokeStyle = fire ? '#ff484b' : '#fbf0a6';
+      ctx.lineWidth = fire ? 3 : 1.8;
+      for (let i = 0; i < 4; i++) {
+        const a = i * TAU / 4 + this.clock * 2.5;
+        ctx.save(); ctx.rotate(a);
+        ctx.beginPath(); ctx.moveTo(r * 0.7, -r * 0.15);
+        ctx.lineTo(r * 1.4, -r * 0.5); ctx.lineTo(r * 1.18, r * 0.08);
+        ctx.lineTo(r * 1.9, r * 0.36); ctx.stroke(); ctx.restore();
+      }
+    }
+    if (fire && frost) {
+      ctx.globalAlpha = 0.22 * pulse;
+      ctx.fillStyle = '#f5dbea';
+      for (let i = 0; i < 3; i++) {
+        const a = this.clock * 0.5 + i * TAU / 3;
+        ctx.beginPath(); ctx.arc(Math.cos(a) * r * 1.6, Math.sin(a) * r * 1.6,
+          r * 0.75, 0, TAU); ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -4573,8 +4623,11 @@ export class Renderer {
     if (hud.incarnationOn) {
       const S = this.cfg.skills.incarnation;
       const f1 = hud.skillFrac1 === undefined ? 1 : hud.skillFrac1;
-      this.drawAbility(cx, rowY, f1, S.slotColor, S.slotLight, 4,
-        (hud.incarnationT || 0) > 0, f1 >= 0.999 ? 'blue' : undefined, U.slots[1]);
+      const form = S.forms?.[hud.incarnationEquippedMask || 0];
+      const slotColor = form?.slot || S.slotColor;
+      const slotLight = form?.light || S.slotLight;
+      this.drawAbility(cx, rowY, f1, slotColor, slotLight, 4,
+        (hud.incarnationT || 0) > 0, f1 >= 0.999 ? ((hud.incarnationEquippedMask || 0) & 4 ? 'gold' : 'blue') : undefined, U.slots[1]);
     } else this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
     this.drawAbility(cx + 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
 
