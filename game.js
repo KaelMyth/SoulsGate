@@ -738,6 +738,7 @@ export class Game {
     const mods = forCarrier(rawMods, 'root');
     const mask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.hud.rainBlades = !!mods.blades;
+    this.hud.rainGravity = !!mods.gravity;
     this.hud.rainMask = mask; // фиксируем цвет на время дождя, даже если билд поменяли
     const bd = mods.burn ? R.burnTickDamage * (mods.burn.damage || 1) : 0;
     const bi = mods.burn ? this.config.burn.interval / Math.max(0.01, mods.burn.rate || 1) : 0;
@@ -1169,7 +1170,7 @@ export class Game {
       x, y, a: Math.atan2(ny, nx),
       vx: nx * speed, vy: ny * speed, target,
       damage: trail.damage, state: 'fly', age: 0, life: this.config.blades.life,
-      kind, zap: el.lightning?.mult || 0, elements:el, kinetic: true,
+      kind, zap: el.lightning?.mult || 0, elements:el, kinetic: true, birthX: x, birthY: y,
     });
   }
 
@@ -2176,6 +2177,7 @@ export class Game {
     this.hud.rainT = 0;
     this.hud.rainMask = 0;
     this.hud.rainBlades = false;
+    this.hud.rainGravity = false;
     this.hud.rainEquippedMask = 0;
     this.hud.incarnationT = 0;
     this.hud.incarnationOn = false;
