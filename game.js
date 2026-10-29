@@ -1,5 +1,6 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
 import { LightDash } from './systems_lightdash.js';
+import { forCarrier } from './build_scopes.js';
 import { Rewards } from './systems_rewards.js';
 import { LevelUpScreen } from './ui_levelup.js';
 import { Aura } from './systems_aura.js';
@@ -723,7 +724,7 @@ export class Game {
     this.skillCd[0] = R.cooldown;
     this.hud.rainT = R.duration;
     const rawMods = this.build.modifiersFor(this.build.secondaryId('rain'));
-    const mods = rawMods?.scopes ? {...rawMods,...rawMods.scopes.root} : rawMods;
+    const mods = forCarrier(rawMods, 'root');
     const mask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.hud.rainBlades = !!mods.blades;
     this.hud.rainMask = mask; // фиксируем цвет на время дождя, даже если билд поменяли
