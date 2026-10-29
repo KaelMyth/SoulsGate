@@ -261,8 +261,14 @@ export class HitFx {
       case 'spray': { // Дробь на рывке: короткий веер из точки следа в обе стороны по стихии (d.dx,d.dy нормаль)
         const nx = dx;
         const ny = dy;
-        this.add(T_FLASH, el, x, y, 0, 0, 0.12, 8);
+        // Двусторонний импульс раскрывается прежде дробинок: сжатая сердцевина, два режущих фронта.
+        this.add(T_FLASH, el, x, y, 0, 0, 0.18, 17);
+        this.add(T_RIPPLE, el, x, y, 0, 0, 0.25, 21);
         for (let side = -1; side <= 1; side += 2) {
+          const sideAngle = Math.atan2(ny * side, nx * side);
+          this.add(T_ARCW, el, x + nx * side * 3, y + ny * side * 3, 0, 0, 0.23, 27, { rot: sideAngle });
+          this.add(T_STREAK, el, x + nx * side * 6, y + ny * side * 6, 0, 0, 0.2, 29, { rot: sideAngle });
+          this.add(T_CONE, el, x + nx * side * 5, y + ny * side * 5, 0, 0, 0.16, 19, { rot: sideAngle });
           for (let i = 0; i < 3; i++) {
             const a = Math.atan2(ny * side, nx * side) + (R() - 0.5) * 0.7;
             const sp = 60 + R() * 70;
