@@ -192,6 +192,7 @@ export class Incarnation {
   }
 
   updateBlades(dt) {
+    this.orbitClock = (this.orbitClock || 0) + dt;
     const S = this.config.skills.incarnation, h = this.hero;
     const gap = Math.max(0.01, this.bladeGap || S.bladeLaunchGap);
     if (this.bladeQueue && h.incarnationT > 0) {
@@ -231,7 +232,7 @@ export class Incarnation {
         const slot = this.bladeItems.filter(q => q.state === 'orbit').indexOf(b);
         // Объёмное вращающееся облако вместо ровной шеренги.
         const seed = b.off || (slot+1)*2.39996;
-        const turn = seed + (this.bladeTimer + b.age) * 1.7;
+        const turn = seed + ((this.orbitClock || 0)) * 1.7;
         const ring = 16 + 22 * Math.sqrt((slot + 0.5) / waiting);
         b.x = h.x + Math.cos(turn) * ring;
         b.y = h.y + Math.sin(turn) * ring * 0.68;
