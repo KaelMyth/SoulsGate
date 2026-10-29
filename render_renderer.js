@@ -718,7 +718,8 @@ export class Renderer {
       this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.dashfx.frame(ctx, this.dt, hx, hy);
-      if (hero.incarnationT > 0 && !this.incarnation?.bladeQueue) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
+      if (hero.incarnationLaser) this.drawLaserIncarnation(ctx, hx, hy);
+      else if (hero.incarnationT > 0 && !this.incarnation?.bladeQueue) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
       else if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния
       else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
@@ -730,6 +731,7 @@ export class Renderer {
     this.drawScream();
     this.drawFinale();
     this.drawLasers(ctx);
+    this.drawLaserIncarnationPaths(ctx);
     this.drawBolts(ctx);
     this.drawBlades(ctx);
 
@@ -3651,6 +3653,35 @@ export class Renderer {
    * хвост плаща и шлейф идут против реального движения. Всё состояние вида лежит в this.hs, игре ничего не пишем.
    */
   /** Неуязвимое Воплощение: парящий шар с динамическим кометным шлейфом в направлении скорости. */
+  drawLaserIncarnation(ctx, x, y) {
+    const form = this.cfg.skills.incarnation.forms?.[this.hero.incarnationMask || 0];
+    const color = form?.core || '#b6eaff';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowColor = color; ctx.shadowBlur = 25;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  drawLaserIncarnationPaths(ctx) {
+    const paths = this.incarnation?.laserPath;
+    if (!paths?.length) return;
+    const form = this.cfg.skills.incarnation.forms?.[this.hero.incarnationMask || 0];
+    const color = form?.core || '#b6eaff';
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of paths) {
+      const a = Math.max(0,p.life / p.maxLife);
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 24;
+      ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(p.x1,p.y1); ctx.lineTo(p.x2,p.y2); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(p.x1,p.y1); ctx.lineTo(p.x2,p.y2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawIncarnation(hx, hy) {
     const ctx = this.ctx, hero = this.hero, S = this.cfg.skills.incarnation;
     const mask = hero.incarnationMask || 0;
