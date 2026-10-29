@@ -3736,7 +3736,7 @@ export class Renderer {
     const ctx = this.ctx, hero = this.hero, S = this.cfg.skills.incarnation;
     const mask = hero.incarnationMask || 0;
     const fire = !!(mask & 1), frost = !!(mask & 2), lightning = !!(mask & 4);
-    const form = S.forms?.[mask] || { outer: form.outer, glow: form.glow, core: form.core, tail: form.tail };
+    const form = S.forms?.[mask] || S.forms?.[0] || { outer: '#7bbcff', glow: '#b6eaff', core: '#e5faff', tail: '#4285dd' };
     const copies = this.incarnation?.splitCount || 1;
     const scatter = !!this.incarnation?.shotForm;
     if (copies > 1 || scatter) {
