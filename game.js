@@ -1756,7 +1756,9 @@ export class Game {
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
       this.defense.lightDash = !!this.kineticMods?.scopes?.root?.lightning; // Молния на рывке: рикошеты по врагам
       this.defense.gravityDashEnabled = !!this.kineticMods?.scopes?.root?.gravity;
-      this.defense.laserDashEnabled = !!this.kineticMods?.scopes?.root?.laser && !this.defense.gravityDashEnabled && !this.defense.lightDash;
+      // При наличии целей Молния перехватывает управление и прыгает по ним;
+      // без целей Лазер сохраняет обычный одиночный лазерный рывок.
+      this.defense.laserDashEnabled = !!this.kineticMods?.scopes?.root?.laser && !this.defense.gravityDashEnabled;
       { // моды рывка: Х2/Х3 (рикошеты, толчок), Мощь (урон), Ускорение (перезарядка)
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
