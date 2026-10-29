@@ -54,6 +54,7 @@ export class Incarnation {
     this.laserLastTarget = null;
     this.laserNoEnemies = 0;
     this.hero.incarnationLaser = !!this.mods.laser;
+    this.shotForm = !!this.mods.shot && !this.mods.laser && !this.mods.blades;
     this.gravityTime = this.mods.gravity && !this.mods.laser && !this.mods.blades ? this.config.skills.incarnation.gravityDuration : 0;
     this.afterimages.length = 0;
     this.afterimageTimer = 0;
@@ -150,6 +151,7 @@ export class Incarnation {
       this.laserLastTarget = pick; this.laserLastGen = pick.gen;
       const hit = this.combat.damageEnemy(pick, S.laserDamage * this.damageMultiplier * (this.mods?.laser?.damage || 1), this.source, null);
       this.laserPath[this.laserPath.length-1].strands = this.splitCount;
+      this.laserPath[this.laserPath.length-1].chaotic = !!this.mods.shot;
       if (hit && pick.active) this.applyElements(pick);
     }
     for (let i = this.laserPath.length - 1; i >= 0; i--) {
@@ -227,11 +229,13 @@ export class Incarnation {
         b.a = speed > 3 ? Math.atan2(h.vy, h.vx) : h.facing;
         const waiting = Math.max(1, this.bladeQueue);
         const slot = this.bladeItems.filter(q => q.state === 'orbit').indexOf(b);
-        const lateral = (slot - (waiting - 1) / 2) * 13;
-        const depth = Math.floor(slot / 6) * 13;
-        const sideX = -Math.sin(b.a), sideY = Math.cos(b.a);
-        b.x = h.x + sideX * lateral - Math.cos(b.a) * depth;
-        b.y = h.y + sideY * lateral - Math.sin(b.a) * depth;
+        // Объёмное вращающееся облако вместо ровной шеренги.
+        const seed = b.off || (slot+1)*2.39996;
+        const turn = seed + (this.bladeTimer + b.age) * 1.7;
+        const ring = 16 + 22 * Math.sqrt((slot + 0.5) / waiting);
+        b.x = h.x + Math.cos(turn) * ring;
+        b.y = h.y + Math.sin(turn) * ring * 0.68;
+        b.a += Math.sin(turn) * 0.22;
       } else if (b.state === 'fly') {
         const x = b.x, y = b.y;
         b.x += b.vx * dt; b.y += b.vy * dt;
