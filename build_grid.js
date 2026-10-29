@@ -265,7 +265,7 @@ export class BuildGrid {
   effectScopes(coreId) {
     const {owner, parent} = this.tree();
     const scopes = {root: {}};
-    const mechanical = new Set(['blades', 'laser', 'shot', 'aura', 'absorption', 'gravity', 'phantom']);
+    const mechanical = new Set(['blades', 'laser', 'shot', 'aura', 'absorption', 'gravity', 'phantom', 'pierce']);
     const parentCarrier = (i) => {
       let p = parent.get(i);
       while (p >= 0) {
@@ -284,6 +284,23 @@ export class BuildGrid {
         const scope = scopes[carrier] || (scopes[carrier] = {});
         const k = scope[kind] || (scope[kind] = {count:0});
         k.count++;
+        if (kind === 'phantom' || kind === 'pierce') {
+          // Х2/Х3 прикреплённые к Фантому или Пробитию остаются на нём.
+          const factor = (idx) => {
+            const node = this.cells[idx].mod?.def.effect;
+            if (node?.kind !== 'double') return 1;
+            let n = node.value;
+            for (let j=0;j<this.cells.length;j++)
+              if (parent.get(j)===idx && this.cells[j].mod?.def.effect.kind==='double') n *= factor(j);
+            return n;
+          };
+          let bonus = 1;
+          for (let j=0;j<this.cells.length;j++) {
+            if (parent.get(j)!==i || this.cells[j].mod?.def.effect.kind!=='double') continue;
+            bonus += factor(j)-1;
+          }
+          k.mult = (k.mult || 0) + bonus;
+        }
         continue;
       }
       if (kind !== 'burn' && kind !== 'frost' && kind !== 'lightning') continue;
@@ -295,7 +312,6 @@ export class BuildGrid {
       entry.rate++;
       // Множители на самой стихии усиливают её, а не скорость/дальность родителя.
       let multiplier = 1;
-      const {carry} = this.tree();
       for (let j = 0; j < this.cells.length; j++) {
         if (owner.get(j) !== coreId || parent.get(j) !== i) continue;
         const effect = this.cells[j].mod?.def.effect;
