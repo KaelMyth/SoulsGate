@@ -20,6 +20,8 @@ export class Pellets {
     this.vx = new Float32Array(N);
     this.vy = new Float32Array(N);
     this.speed = new Float32Array(N);
+    this.gravityAge = new Float32Array(N);
+    this.gravityBase = new Float32Array(N);
     this.left = new Float32Array(N); // сколько ещё лететь
     this.sd = new Float32Array(N);   // случайное зерно дробинки: по нему отрисовка раскидывает клубы, не зависит от номера в массиве
     this.mx = new Float32Array(N);   // дальность при вылете: по ней отрисовка считает возраст частицы
@@ -48,13 +50,15 @@ export class Pellets {
   }
 
   /** Добавить дробинку (без проверки места: вызывающий смотрит free()). */
-  add(x, y, vx, vy, range, dmg, bd = 0, bi = 0, fr = 0, st = 0, zp = 0, pc = 0, pp = 0, pg = 0) {
+  add(x, y, vx, vy, range, dmg, bd = 0, bi = 0, fr = 0, st = 0, zp = 0, pc = 0, pp = 0, pg = 0, gravity = false) {
     const i = this.n++;
     this.x[i] = this.px[i] = x;
     this.y[i] = this.py[i] = y;
     this.vx[i] = vx;
     this.vy[i] = vy;
     this.speed[i] = Math.hypot(vx, vy);
+    this.gravityBase[i] = gravity ? this.speed[i] : 0;
+    this.gravityAge[i] = 0;
     this.left[i] = this.mx[i] = range;
     this.sd[i] = Math.random();
     this.dmg[i] = dmg;
@@ -79,6 +83,7 @@ export class Pellets {
     this.x[i] = this.x[last]; this.y[i] = this.y[last];
     this.px[i] = this.px[last]; this.py[i] = this.py[last];
     this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last]; this.speed[i] = this.speed[last];
+    this.gravityAge[i] = this.gravityAge[last]; this.gravityBase[i] = this.gravityBase[last];
     this.left[i] = this.left[last]; this.mx[i] = this.mx[last]; this.sd[i] = this.sd[last]; this.dmg[i] = this.dmg[last];
     this.bd[i] = this.bd[last]; this.bi[i] = this.bi[last]; this.fr[i] = this.fr[last]; this.st[i] = this.st[last]; this.zp[i] = this.zp[last]; this.pc[i] = this.pc[last]; this.lh[i] = this.lh[last]; this.pp[i] = this.pp[last]; this.pg[i] = this.pg[last];
   }
@@ -96,8 +101,20 @@ export class Pellets {
     }
     const q = S.radius + this.reach;
     for (let i = this.n - 1; i >= 0; i--) {
-      const vx = this.vx[i];
-      const vy = this.vy[i];
+      let vx = this.vx[i];
+      let vy = this.vy[i];
+      if (this.gravityBase[i]) {
+        const G = this.cfg.gravity;
+        this.gravityAge[i] += dt;
+        const t = Math.min(1, this.gravityAge[i] / Math.max(0.01, G.rampTime));
+        const q = t < G.holdFraction ? 0 : (t-G.holdFraction)/Math.max(0.01,1-G.holdFraction);
+        const mult = G.startSpeed + (G.maxSpeed-G.startSpeed)*q*q;
+        const base = this.gravityBase[i];
+        const v = Math.hypot(vx,vy) || 1;
+        vx = this.vx[i] = vx/v * base * mult;
+        vy = this.vy[i] = vy/v * base * mult;
+        this.speed[i] = base * mult;
+      }
       this.px[i] = this.x[i];
       this.py[i] = this.y[i];
       const x = (this.x[i] += vx * dt);
