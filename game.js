@@ -174,7 +174,18 @@ export class Game {
     });
 
     this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd,
-      onTelegraph: (x0,y0,x1,y1) => this.dashBeams.push({x0,y0,x1,y1,age:0,done:false,telegraph:true,zap:false,kind:0}),
+      onTelegraph: (x0,y0,x1,y1) => {
+        const beam = {x0,y0,x1,y1,age:0,done:false,telegraph:true,zap:false,kind:this.kineticEl('laser').kind};
+        this.dashBeams.push(beam);
+        return beam;
+      },
+      onLaserArrival: (beam) => {
+        // Каждый прыжок цепи Молнии завершается настоящим эффектом Лазера.
+        // Без повторной электрической анимации: электроурон наносит LightDash.
+        beam.done = true;
+        beam.age = Math.max(beam.age, this.config.kinetic.beamTime);
+        this.beamZone(beam);
+      },
       onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
     this.defense.lightning = this.lightdash;
     this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
@@ -1432,8 +1443,8 @@ export class Game {
     for (let i = bm.length - 1; i >= 0; i--) {
       const b = bm[i];
       b.age += dt;
-      if (!b.done && b.age >= K.beamTime) { b.done = true; if (!b.telegraph) this.beamZone(b); }
-      if (b.age > K.beamTime + 0.25) bm.splice(i, 1);
+      if (!b.done && b.age >= K.beamTime && !b.telegraph) { b.done = true; this.beamZone(b); }
+      if (b.done && b.age > K.beamTime + 0.25) bm.splice(i, 1);
     }
   }
 
