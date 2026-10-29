@@ -1096,7 +1096,7 @@ export class Game {
       this.kineticBladeTrail = null;
       return;
     }
-    const mult = Math.max(1, Math.round(1 + (m.bounces?.percent || 0) / 100));
+    const mult = Math.max(1, Math.round(this.defense.kineticBladeDistanceMul));
     const count = Math.min(120, 5 * mult);
     const distance = this.config.dash.distance * this.config.kinetic.distanceScale *
       this.defense.kineticBladeDistanceMul;
@@ -1645,7 +1645,7 @@ export class Game {
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
         this.defense.dashCdMul = 1 / (1 + pc('rate'));
-      this.defense.kineticBladeDistanceMul = km0?.blades ? Math.max(1,1+pc('bounces')) : 1;
+      this.defense.kineticBladeDistanceMul = km0?.blades ? Math.max(1,1+pc('bounces')) * Math.max(1,km0.blades.max||1) : 1;
         this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
         this.lightdash.damageMul = 1 + pc('damage');
         this.lightdash.bonus = this.shockBonus(km0);
