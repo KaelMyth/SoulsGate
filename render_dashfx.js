@@ -37,6 +37,8 @@ export class DashFx {
     this.glows = [];
     this.wasDash = false;
     this.wasLight = false;
+    this.lightHop = -1;
+    this.lightPhase = '';
     this.acc = 0;
     this.lx = 0;
     this.ly = 0;
@@ -49,6 +51,8 @@ export class DashFx {
     for (const q of this.p) q.on = false;
     this.wasDash = false;
     this.wasLight = false;
+    this.lightHop = -1;
+    this.lightPhase = '';
   }
 
   add(type, c, x, y, vx, vy, life, size, o) {
@@ -140,7 +144,36 @@ export class DashFx {
       // Приземление генерируется игровым событием, одновременно с реальным импульсом по врагам.
       if (light && !this.wasLight) { this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.25, 34); this.add(T_RING, kind + 4, hx, hy + 6, 0, 0, 0.3, 36, { ex: 0.5 }); }
       if (!light && this.wasLight) { this.add(T_FLASH, this.kind + 4, hx, hy, 0, 0, 0.3, 40); this.add(T_RING, this.kind + 4, hx, hy + 6, 0, 0, 0.4, 60, { ex: 0.5 }); for (let i = 0; i < 8; i++) { const a = R() * TAU; this.add(T_SPARK, this.kind + 4, hx, hy, Math.cos(a) * 200, Math.sin(a) * 200, 0.3, 10, { drag: 5 }); } }
-      if (light) this.kind = kind;
+      if (light) {
+        this.kind = kind;
+        const ld = r.lightdash;
+        if (ld.laserMode) {
+          // Каждый переход цепи — отдельная вспышка: цель считывается как следующий узел переноса.
+          if (this.lightHop !== ld.idx || this.lightPhase !== ld.phase) {
+            if (ld.phase === 'charge') {
+              this.add(T_RING, kind + 4, hx, hy, 0, 0, 0.24, 19, { ex: 0.65 });
+              this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.18, 24);
+            } else if (ld.phase === 'hop') {
+              this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.16, 34);
+              const tx = ld.route[ld.idx]?.x ?? hx, ty = ld.route[ld.idx]?.y ?? hy;
+              const a = Math.atan2(ty - hy, tx - hx);
+              for (let j = 0; j < 7; j++) {
+                const ang = a + (R() - 0.5) * 0.75;
+                this.add(T_LINE, kind + 4, hx, hy, Math.cos(ang) * 95, Math.sin(ang) * 95,
+                  0.23, 34 + R() * 24, { rot: ang, drag: 2 });
+              }
+            } else if (ld.phase === 'wait') {
+              this.add(T_RING, kind + 4, hx, hy, 0, 0, 0.3, 40, { ex: 0.6 });
+              this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.2, 29);
+            }
+            this.lightHop = ld.idx;
+            this.lightPhase = ld.phase;
+          }
+        }
+      } else {
+        this.lightHop = -1;
+        this.lightPhase = '';
+      }
       this.wasDash = dashing;
       this.wasLight = light;
       // Удары молнии по врагам: вспышка и искры в точке попадания.
@@ -164,6 +197,13 @@ export class DashFx {
         this.acc += d;
         if (this.acc > 10) { this.acc = 0; this.add(T_AFTER, kind + 4, hx, hy, 0, 0, 0.28, 15); }
         if (R() < dt * 55) { const a = R() * TAU; this.add(T_SPARK, kind + 4, hx + Math.cos(a) * 8, hy + Math.sin(a) * 8, Math.cos(a) * 120, Math.sin(a) * 120, 0.2, 8, { drag: 4 }); }
+        if (r.lightdash.laserMode && r.lightdash.phase === 'hop' && R() < dt * 85) {
+          const a = Math.atan2(hy - this.ly, hx - this.lx);
+          const sideways = a + Math.PI / 2;
+          const off = (R() - 0.5) * hero.radius * 2.4;
+          this.add(T_LINE, kind + 4, hx + Math.cos(sideways) * off, hy + Math.sin(sideways) * off,
+            -Math.cos(a) * 80, -Math.sin(a) * 80, 0.21, 23 + R() * 18, { rot: a, drag: 1.8 });
+        }
       } else if (moving) {
         const pw = kinetic ? 1 : 0.55;
         const rate = (kinetic ? 70 : 38) * dt;
