@@ -92,6 +92,16 @@ export function coreStats(core, config, mods) {
     }
     return { label: s.label, key: s.key, value: v, text: formatStat(s, v), bonus };
   });
+  if (core.def.effect?.kind === 'incarnation') {
+    const S = config.skills.incarnation;
+    rows.push({ label: 'Воплощение: время и откат', text: S.duration + ' / ' + S.cooldown + ' с', bonus: '2-й слот' });
+    rows.push({ label: 'Воплощение: урон', text: S.contactDamage + '', bonus: 'один раз каждому врагу за превращение' });
+    const names = [mods?.burn ? 'Горение' : '', mods?.frost ? 'Мороз' : '', mods?.lightning ? 'Молния' : ''].filter(Boolean);
+    if (names.length) rows.push({ label: 'Воплощение: стихии', text: names.join(' + '), bonus: 'максимум стаков при касании' });
+    if (mods?.burn && mods?.frost) rows.push({ label: 'Воплощение: Пар', text: 'активен', bonus: 'при заполнении Мороза' });
+    if (mods?.frost && mods?.lightning && !mods?.burn) rows.push({ label: 'Воплощение: небесный разряд', text: config.frost.shockStrikeDamage + ' урона', bonus: 'при заморозке электризованного' });
+    if (mods?.burn && mods?.lightning) rows.push({ label: 'Воплощение: огненные дуги', text: 'красные молнии', bonus: 'максимальное Горение по цепи' });
+  }
   if (core.def.effect?.kind === 'rain') {
     const rain = config.skills.rain;
     rows.push({ label: 'Дождь: перезарядка', text: rain.cooldown + ' с', bonus: '1-й слот' });
