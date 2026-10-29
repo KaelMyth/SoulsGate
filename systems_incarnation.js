@@ -22,12 +22,20 @@ export class Incarnation {
     this.hitGenerations = new Map();
     this.mods = null;
     this.active = false;
+    this.bladeItems = [];
+    this.bladeQueue = 0;
+    this.bladeTimer = 0;
   }
 
   begin(mods) {
     this.mods = mods || {};
     this.source.el = (this.mods.burn ? 1 : 0) | (this.mods.frost ? 2 : 0) | (this.mods.lightning ? 4 : 0);
     this.hitGenerations.clear();
+    this.bladeItems.length = 0;
+    const S = this.config.skills.incarnation;
+    this.bladeQueue = this.mods.blades ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
+    this.bladeTimer = S.bladeLaunchGap;
+    if (this.bladeQueue) for (let i = 0; i < this.bladeQueue; i++) this.bladeItems.push({ state: 'orbit', x: this.hero.x, y: this.hero.y, a: i * Math.PI * 2 / this.bladeQueue, off: i * Math.PI * 2 / this.bladeQueue, kind: this.mods.frost && this.mods.burn ? 3 : this.mods.burn ? 2 : this.mods.frost ? 1 : 0, zap: this.mods.lightning ? 1 : 0, age: 0, incarnationBlade: true });
     this.active = true;
   }
 
@@ -36,11 +44,15 @@ export class Incarnation {
     this.mods = null;
     this.hitGenerations.clear();
     this.source.el = 0;
+    this.bladeQueue = 0;
+    this.bladeItems.length = 0;
   }
 
-  update() {
+  update(dt = 0) {
     const h = this.hero;
-    if (!this.active || !h.active || h.incarnationT <= 0) return;
+    if (!h.active) return;
+    if (this.bladeQueue || this.bladeItems.length) this.updateBlades(dt);
+    if (!this.active || h.incarnationT <= 0 || this.bladeQueue || this.mods?.blades) return;
     const S = this.config.skills.incarnation;
     const enemies = this.enemies.items;
     const radius = h.radius + Math.max(0, S.contactPadding);
@@ -53,6 +65,57 @@ export class Incarnation {
       if (!hit || !e.active) continue;
       this.applyElements(e);
     }
+  }
+
+  updateBlades(dt) {
+    const S = this.config.skills.incarnation, h = this.hero;
+    const gap = Math.max(0.01, S.bladeLaunchGap);
+    if (this.bladeQueue && h.incarnationT > 0) {
+      this.bladeTimer -= dt;
+      if (this.bladeTimer <= 0) {
+        this.bladeTimer += gap;
+        const b = this.bladeItems.find(b => b.state === 'orbit');
+        if (b) {
+          const targets = this.enemies.items.filter(e => e.active && e.hp > 0 && Math.hypot(e.x - h.x, e.y - h.y) <= S.bladeRange);
+          targets.sort((a, z) => Math.hypot(a.x-h.x,a.y-h.y) - Math.hypot(z.x-h.x,z.y-h.y));
+          const t = targets[0];
+          const a = t ? Math.atan2(t.y - h.y, t.x - h.x) : h.facing;
+          b.x = h.x; b.y = h.y; b.a = a; b.vx = Math.cos(a) * S.bladeSpeed; b.vy = Math.sin(a) * S.bladeSpeed;
+          b.state = 'fly'; b.age = 0;
+          this.bladeQueue--;
+          if (this.bladeQueue === 0) {
+            h.incarnationT = 0;
+            h.incarnationSpeedMul = 1;
+            h.incarnationInertia = 0;
+            this.active = false;
+          }
+        }
+      }
+      // Воплощение клинков длится до последнего вылета, независимо от обычных 5 секунд.
+      if (this.bladeQueue) h.incarnationT = Math.max(h.incarnationT, gap + 0.02);
+    }
+    for (const b of this.bladeItems) {
+      b.age += dt;
+      if (b.state === 'orbit') {
+        b.a += dt * 2;
+        b.x = h.x + Math.cos(b.a + b.off) * 17;
+        b.y = h.y + Math.sin(b.a + b.off) * 17;
+      } else if (b.state === 'fly') {
+        const x = b.x, y = b.y;
+        b.x += b.vx * dt; b.y += b.vy * dt;
+        for (const e of this.enemies.items) {
+          if (!e.active || e.hp <= 0 || !incarnationSegmentHit(x,y,b.x,b.y,e.x,e.y,e.radius + 7)) continue;
+          const hit = this.combat.damageEnemy(e, this.config.blades.damage * (this.mods?.blades?.damage || 1), this.source, null);
+          if (hit && e.active) this.applyElements(e);
+          b.state = 'gone';
+          break;
+        }
+        if (b.age > S.bladeRange / Math.max(1,S.bladeSpeed)) b.state = 'gone';
+      }
+    }
+    let j = 0;
+    for (const b of this.bladeItems) if (b.state !== 'gone') this.bladeItems[j++] = b;
+    this.bladeItems.length = j;
   }
 
   /** Реакции проходят через штатные Горение/Мороз/Электризацию (включая Пар и красные дуги). */
