@@ -4813,7 +4813,10 @@ export class Renderer {
       const sx = (((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1) * (w + 60) - 30;
       const sp = 700 + ((i * 37) % 300);
       const y = (((this.clock * sp + i * 131) % (h + 60)) + h + 60) % (h + 60) - 30;
-      if (!mask) { // обычный дождь сохраняет прежнюю форму
+      if (hud.rainBlades) { // заглушка: падающие спектральные мечи вместо капель
+        ctx.moveTo(sx+3,y-8);ctx.lineTo(sx-4,y+17);ctx.lineTo(sx-7,y+8);
+        ctx.moveTo(sx-4,y+17);ctx.lineTo(sx+1,y+11);
+      } else if (!mask) { // обычный дождь сохраняет прежнюю форму
         ctx.moveTo(sx, y); ctx.lineTo(sx - 5, y + 18);
       } else if (lightning && (i % 3 === 0)) { // ломаные электрические жилы
         ctx.moveTo(sx, y); ctx.lineTo(sx + 5, y + 7);
