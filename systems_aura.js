@@ -24,6 +24,9 @@ export class Aura {
     this.timer = 0;
     this.n = 0;           // номер тика: каждый effectEvery-й несёт огонь и мороз
     this.hit = [];
+    this.shotTimer = 0;
+    this.laserShimmer = false;
+    this.pellets = null;
     let big = 0;
     for (const k in this.cfg.enemies) big = Math.max(big, this.cfg.enemies[k].radius || 0);
     this.reach = big + 12;
@@ -36,17 +39,33 @@ export class Aura {
     if (!a || !this.hero.active) {
       this.active = false;
       this.timer = 0;
+      this.shotTimer = 0;
+      this.laserShimmer = false;
       return;
     }
     const A = this.cfg.aura;
     this.active = true;
     this.kind = m.frost && m.burn ? 3 : m.burn ? 2 : m.frost ? 1 : 0; // стихия для отрисовки: 0 нет, 1 лёд, 2 огонь, 3 пар
     this.lightning = !!m.lightning; // Молния на ауре: поле потрескивает разрядами (только вид)
-    this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)); // Х2/Х3 на ауре: шире
+    this.laserShimmer = !!m.auraLaser;
+    this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)) * (this.laserShimmer ? 1.2 : 1); // Х2/Х3 на ауре: шире
     const hybrid = !!m.gravity; // С Гравитацией Аура постоянна, но слабее и тикает реже
     const power = hybrid ? this.cfg.gravity.auraDamageMul : 1;
     const rate = hybrid ? this.cfg.gravity.auraTickRateMul : 1;
-    const dmg = (A.damage * (a.damage || 1) + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0)) * power;
+    const dmg = (A.damage * (a.damage || 1) + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0)) * power * (this.laserShimmer ? 1.25 : 1);
+    if (m.auraShot && this.pellets) {
+      this.shotTimer += dt;
+      if (this.shotTimer >= 4) {
+        this.shotTimer %= 4;
+        for (const e of this.enemies.items) {
+          if (!e.active || Math.hypot(e.x-this.hero.x,e.y-this.hero.y)>this.radius+e.radius)continue;
+          for(let j=0;j<4 && this.pellets.n<this.cfg.shot.capacity;j++) {
+            const angle=j*Math.PI/2 + this.rnd()*0.35;
+            this.pellets.add(e.x,e.y,Math.cos(angle)*this.cfg.shot.speed,Math.sin(angle)*this.cfg.shot.speed,this.cfg.shot.range,this.cfg.aura.damage*0.65);
+          }
+        }
+      }
+    } else this.shotTimer = 0;
     const interval = 1 / (A.ticks * (a.rate || 1) * rate);                    // Ускорение: больше тиков в секунду
     this.timer += dt;
     for (let guard = 0; this.timer >= interval && guard < 8; guard++) {
