@@ -6355,6 +6355,26 @@ export class Renderer {
       const fly = b.state === 'fly' || b.state === 'return';
       const gl = b.zap ? zapGlow[kd] : b.gen ? glows[4] : glows[kd];
       const pulse = 0.85 + 0.15 * Math.sin(t * 8 + i * 1.3);
+      if (b.kinetic && b.age < 0.24) {
+        const u = Math.min(1, b.age / 0.24), fade = 1 - u;
+        const ox = b.birthX ?? b.x, oy = b.birthY ?? b.y;
+        ctx.save();
+        ctx.strokeStyle = '#9cc5ff'; ctx.lineCap = 'round';
+        for (let j = 0; j < 5; j++) {
+          const angle = b.a + j * TAU / 5 + t * (j % 2 ? -5 : 4);
+          const d = 12 + 25 * fade;
+          ctx.globalAlpha = fade * (0.3 + 0.1 * j);
+          ctx.lineWidth = 1.2 + 3 * fade;
+          ctx.beginPath();
+          ctx.moveTo(ox + Math.cos(angle) * d, oy + Math.sin(angle) * d);
+          ctx.quadraticCurveTo(b.x - Math.sin(angle) * 9, b.y + Math.cos(angle) * 9, b.x, b.y);
+          ctx.stroke();
+        }
+        const sz = k * (1.5 - 0.75 * u);
+        ctx.globalAlpha = 0.85 * fade;
+        ctx.drawImage(gl, b.x - sz, b.y - sz, sz * 2, sz * 2);
+        ctx.restore();
+      }
       if (fly && !b.sphere && !b.zap) {
         const sc = (k * 0.5) / 14;
         ctx.save();
@@ -6378,6 +6398,21 @@ export class Renderer {
       const mc = b.zap ? cache.zapColors[b.kind | 0] : b.gen ? '#a577ff' : mainC[kd];
       const lc = b.zap ? '#fffbe0' : b.gen ? '#f0e4ff' : liteC[kd];
       ctx.globalAlpha = 1;
+      if (b.kinetic && b.age < 0.18) {
+        const u = Math.min(1, b.age / 0.18);
+        ctx.save();
+        ctx.translate(b.x, b.y); ctx.rotate(b.a);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = lc; ctx.lineWidth = 2.5 * (1 - u) + 0.7;
+        ctx.globalAlpha = (1 - u) * 0.85;
+        ctx.beginPath();
+        ctx.moveTo(-k * (2.4 - u), -k * (1.2 - u));
+        ctx.quadraticCurveTo(0, -k * (0.7 - 0.4 * u), k * 2.8, 0);
+        ctx.quadraticCurveTo(0, k * (0.7 - 0.4 * u), -k * (2.4 - u), k * (1.2 - u));
+        ctx.stroke();
+        ctx.restore();
+        ctx.globalAlpha = u;
+      }
       if (b.zap && !b.sphere) { // клинок-молния Зевса: ломаный разряд с ответвлениями
         this.drawZeusBlade(ctx, b, k, kd, i, t);
         continue;
