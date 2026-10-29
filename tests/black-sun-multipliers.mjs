@@ -119,6 +119,19 @@ test('Х2 на Гравитации увеличивает сопротивле�
   assert.equal(mods(extras.gravity).absorption.auraTargets,1);
 });
 
+test('Х3 на Ауре и Поглощении независимо усиливают радиус и число кастов',()=>{
+  const aura3=build([...base,['x3',4,4]]).modifiersFor('shield');
+  const absorption3=build([...base,['x3',3,6]]).modifiersFor('shield');
+  assert.equal(aura3.aura.mult,3);
+  assert.equal(aura3.absorption.auraTargets,1);
+  assert.equal(absorption3.aura.mult,1);
+  assert.equal(absorption3.absorption.auraTargets,3);
+  const s=mock(absorption3);
+  s.absorption.update(CONFIG.absorption.auraInterval+.05);
+  assert.equal(s.hits.length,3);
+  assert.equal(new Set(s.hits.map(h=>h.e)).size,3);
+});
+
 test('Все три усиления вместе действуют независимо; цепочки Х2→Х3 перемножаются',()=>{
   const all=mods(extras.all);
   assert.ok(all.blackSun);
