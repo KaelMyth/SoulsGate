@@ -194,6 +194,7 @@ export const CONFIG = {
       canLightning: true,
       canBlades: true,
       canLaser: true,
+      canShot: true,
       canGravity: true,
       multStat: 'incarnationCount',
       stats: [{ label: 'Урон Воплощения', key: 'damage' }, { label: 'Скорость Воплощения', key: 'rate' }],
