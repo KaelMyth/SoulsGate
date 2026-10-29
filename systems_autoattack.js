@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Автоатака: ближайший враг в радиусе, снаряд летит в него, перезарядка настраивается.
 // Цель ищется через сетку (spatial grid), если она передана: цена не растёт с размером орды.
 import { initProjectile } from './world_projectile.js';
@@ -147,7 +148,7 @@ export class AutoAttack {
     const fy = dy / len;
     const nx = -fy;
     const ny = fx;
-    const m = this.modifiers ? this.modifiers(this.cfg.attack.core) : null;
+    const m = forCarrier(this.modifiers ? this.modifiers(this.cfg.attack.core) : null, 'root');
     const count = projectileCount(this.cfg, m);
     const gap = this.cfg.attack.spread || 14;
     const pen = countPenalty(this.cfg, count); // чем больше снарядов, тем слабее каждый
@@ -178,6 +179,7 @@ export class AutoAttack {
 
   /** Дробь: каждый снаряд это веер из shot.base дробинок, снарядов больше значит дробинок больше; урон без штрафа за число. */
   fireShot(target, m) {
+    m = forCarrier(m, 'shot');
     const hero = this.hero;
     const S = this.cfg.shot;
     const P = this.pellets;
@@ -240,6 +242,7 @@ export class AutoAttack {
    * когда лучей больше, чем врагов, цели повторяются. Луч держится life секунд и бьёт тиками. Пробитие на лазер не действует.
    */
   fireLaser(target, m) {
+    m = forCarrier(m, 'laser');
     const hero = this.hero;
     const L = this.cfg.laser;
     const def = this.cfg.projectiles[this.cfg.attack.projectile];
@@ -289,6 +292,7 @@ export class AutoAttack {
 
   /** Один снаряд потока: небольшой разброс по ширине, глубине и углу. */
   fireStream(target, m, count) {
+    m = forCarrier(m, 'root');
     const hero = this.hero;
     const atk = this.cfg.attack;
     const def = this.cfg.projectiles[atk.projectile];
