@@ -522,6 +522,8 @@ export class Renderer {
     this.blades = deps.blades || [];
     this.incarnation = deps.incarnation || null;
     this.aura = deps.aura || null;
+    this.synergyCasts = o.synergyCasts || [];
+    this.synergyFlashes = o.synergyFlashes || [];
     this.absorption = deps.absorption || null;
     this.lightdash = deps.lightdash || null;
     this.zapBolts = deps.zapBolts || [];
@@ -743,6 +745,7 @@ export class Renderer {
       ctx.globalAlpha=0.35+0.4*Math.sin(this.clock*13)**2;
       ctx.lineWidth=3;ctx.beginPath();ctx.arc(c.enemy.x,c.enemy.y,c.enemy.radius+17+4*Math.sin(this.clock*9),0,TAU);ctx.stroke();ctx.restore();
     }
+    for(const f of this.synergyFlashes){ctx.save();ctx.globalAlpha=Math.max(0,f.time/f.maxTime);ctx.lineWidth=5;ctx.strokeStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,f.r+10*(1-f.time/f.maxTime),0,TAU);ctx.stroke();ctx.restore();}
     this.drawBolts(ctx);
     this.drawBlades(ctx);
 
