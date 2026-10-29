@@ -310,7 +310,7 @@ export const CONFIG = {
   laser: {
     tickFrac: 0.3,      // урон тика, доля урона снаряда
     duration: 1,        // с
-    interval: 0.25,     // с между тиками (4 тика за секунду)
+    interval: 1 / 3,     // с между тиками: 3 в секунду вместо 4 (4 тика за секунду)
     bigFrom: 9,         // от стольких снарядов лазер «большой»
     bigDuration: 2,     // с: длительность большого лазера
     width: 10,          // толщина луча при одном снаряде, единиц мира
@@ -1071,6 +1071,8 @@ export const CONFIG = {
 
   // Камни опыта. value: сколько опыта даёт. Красный (бык) даёт в 5 раз больше зелёного.
   gems: {
+    healDropChance: 0.02,
+    heal: { value: 0, heal: 20, radius: 7, color: '#f24e70', edge: '#ffc1cc' },
     green: { value: 1, radius: 4, color: '#4fd18b', edge: '#b9f5d4' },
     red: { value: 5, radius: 6, color: '#e5534b', edge: '#ffb3a8' },
   },
