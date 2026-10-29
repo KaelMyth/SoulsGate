@@ -253,7 +253,7 @@ export class Game {
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
-    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); });
+    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); else if (i === 1) this.castIncarnation(); });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
@@ -698,12 +698,30 @@ export class Game {
     return true;
   }
 
+  /** Воплощение: второй слот, на 5 с ускоряемся с инерцией и становимся неуязвимы. */
+  castIncarnation() {
+    const S = this.config.skills.incarnation;
+    const h = this.hero;
+    if (this.state !== 'playing' || !h.active || h.dashing || h.incarnationT > 0
+        || this.skillCd[1] > 0 || !this.build.secondaryId('incarnation')) return false;
+    h.incarnationT = Math.max(0.05, S.duration);
+    h.incarnationSpeedMul = Math.max(1, S.speedMul);
+    h.incarnationInertia = Math.max(0, S.inertia);
+    h.glideTime = 0;
+    this.skillCd[1] = Math.max(0.1, S.cooldown);
+    this.hud.slotFlash = 2;
+    return true;
+  }
+
   /** Перезарядки умений и время дождя на экране. */
   updateSkills(dt) {
     const sc = this.skillCd;
     for (let i = 0; i < 3; i++) if (sc[i] > 0) sc[i] = Math.max(0, sc[i] - dt);
     if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
     this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
+    this.hud.skillFrac1 = Math.max(0, Math.min(1, 1 - sc[1] / Math.max(0.1, this.config.skills.incarnation.cooldown)));
+    this.hud.incarnationOn = !!this.build.secondaryId('incarnation');
+    this.hud.incarnationT = this.hero.incarnationT;
     const rainId = this.build.secondaryId('rain');
     this.hud.rainOn = !!rainId; // слот занят, только если дождь стоит на поле билда
     if (rainId) {
@@ -1855,6 +1873,9 @@ export class Game {
     this.hud.rainT = 0;
     this.hud.rainMask = 0;
     this.hud.rainEquippedMask = 0;
+    this.hud.incarnationT = 0;
+    this.hud.incarnationOn = false;
+    this.hud.skillFrac1 = 1;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();

@@ -1,7 +1,7 @@
 // Все числа прототипа лежат здесь. Новый враг, деталь или параметр добавляются записью, а не логикой.
 // Отладочная панель меняет часть значений на лету (список в tunables.js).
 
-export const BUILD = 'этап 7 · обновление №132 (Магический дождь: 2 стака Горения, Мороза и Молнии, смешанные стихии)';
+export const BUILD = 'этап 7 · обновление №133 (Воплощение: второй слот, неуязвимая энергетическая комета на 5 с)';
 
 export const CONFIG = {
   // Поднимай номер, если меняешь стартовые значения ползунков: старые сохранённые
@@ -185,6 +185,12 @@ export const CONFIG = {
       canLightning: true,
       effect: { kind: 'rain', secondary: true },
     },
+    incarnation: {
+      name: 'Воплощение',
+      icon: 'incarnation',
+      description: 'Отдельное ядро умения, открывает второй слот. На 5 секунд персонаж превращается в неуязвимый парящий энергетический шар с кометным хвостом, движется быстрее, но с инерцией и заносом. Перезарядка 30 секунд.',
+      effect: { kind: 'incarnation', secondary: true },
+    },
     aura: {
       name: 'Смертельная аура',
       icon: 'aura',
@@ -311,6 +317,20 @@ export const CONFIG = {
   // Дробинки лежат в плоских массивах (systems/pellets.js), capacity это потолок дробинок на поле.
   // Умения (кнопки внизу). Первое: Магический дождь.
   skills: {
+    incarnation: {
+      duration: 5, // с: время неуязвимого энергетического воплощения
+      cooldown: 30, // с: перезарядка с момента активации
+      speedMul: 1.7, // быстрый полёт поверх обычной скорости и пассивов
+      inertia: 0.34, // с: инерция при поворотах и остановке, занос
+      coreRadius: 12, // размер светящегося энергетического ядра
+      tailLength: 45, // длина кометного хвоста
+      outerColor: '#856bff',
+      glowColor: '#9bc9ff',
+      coreColor: '#edffff',
+      tailColor: 'rgba(112,155,255,0.38)',
+      slotColor: '#a18dff',
+      slotLight: '#e3e2ff',
+    },
     rain: {
       cooldown: 15,       // с: перезарядка
       vulnerability: 0.2, // враг под дождём получает на 20% больше урона, пока не умрёт
@@ -1036,7 +1056,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 4, x3: 2, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, gravity: 1, kinetic: 1, rain: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, gravity: 1, kinetic: 1, rain: 1, incarnation: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
 

@@ -88,6 +88,11 @@ export const TUNABLES = [
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.godMode', label: 'Герой бессмертен (0 нет, 1 да)', min: 0, max: 1, step: 1 },
   { group: 'Краш-тест (волна 10)', path: 'waves.crash.fpsThreshold', label: 'Порог просадки FPS', min: 20, max: 59, step: 1 },
 
+  { group: 'Воплощение', path: 'skills.incarnation.duration', label: 'Длительность превращения, с', min: 1, max: 15, step: 0.5 },
+  { group: 'Воплощение', path: 'skills.incarnation.cooldown', label: 'Перезарядка, с', min: 5, max: 60, step: 1 },
+  { group: 'Воплощение', path: 'skills.incarnation.speedMul', label: 'Множитель скорости движения', min: 1, max: 3, step: 0.05 },
+  { group: 'Воплощение', path: 'skills.incarnation.inertia', label: 'Инерция и занос, с', min: 0.05, max: 0.8, step: 0.01 },
+  { group: 'Воплощение', path: 'skills.incarnation.tailLength', label: 'Длина кометного хвоста', min: 10, max: 120, step: 5 },
   { group: 'Магический дождь', path: 'skills.rain.cooldown', label: 'Перезарядка, с', min: 3, max: 40, step: 0.5 },
   { group: 'Магический дождь', path: 'skills.rain.stacksPerElement', label: 'Стаков каждой стихии за применение', min: 1, max: 5, step: 1 },
   { group: 'Магический дождь', path: 'skills.rain.burnTickDamage', label: 'Базовый урон тика огненного дождя', min: 1, max: 30, step: 1 },

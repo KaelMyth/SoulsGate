@@ -56,7 +56,7 @@ export class Combat {
    */
   damageHeroDot(amount, source) {
     const hero = this.hero;
-    if (!hero.active || amount <= 0) return false;
+    if (!hero.active || hero.incarnationT > 0 || amount <= 0) return false; // Воплощение защищает даже от горения мимо блока
     hero.hp = Math.max(0, hero.hp - amount);
     this.bus.emit('damage:dealt', { target: hero, targetKind: 'hero', amount, source, hp: hero.hp });
     if (hero.hp <= 0) {
@@ -69,7 +69,7 @@ export class Combat {
   /** Возвращает true, если удар состоялся: урон прошёл или его целиком впитал блок (парированный или отменённый удар: false). */
   damageHero(amount, source) {
     const hero = this.hero;
-    if (!hero.active || hero.invuln > 0) return false;
+    if (!hero.active || hero.incarnationT > 0 || hero.invuln > 0) return false;
     // parryable: источник можно парировать (снаряд стрелка); касание жуков парировать нельзя.
     const incoming = { amount, source, cancelled: false, parryable: !!(source && source.parryable) };
     this.bus.emit('hero:hit-incoming', incoming);

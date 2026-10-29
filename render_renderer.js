@@ -717,7 +717,8 @@ export class Renderer {
       this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.dashfx.frame(ctx, this.dt, hx, hy);
-      if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния: герой превращается в молнию
+      if (hero.incarnationT > 0) this.drawIncarnation(hx, hy); // вместо модели героя парящая энергетическая комета
+      else if (this.lightdash && this.lightdash.active) this.drawLightHero(ctx, hx, hy); // рывок-молния
       else this.drawHero(hx, hy, C);
       this.drawBlock(hx, hy, C);
       this.drawHeroArcs(hx, hy, C);
@@ -3648,6 +3649,58 @@ export class Renderer {
    * тёмный плащ с хвостом, посох с голубым кристаллом. Тело и посох повёрнуты по hero.facing (на цель),
    * хвост плаща и шлейф идут против реального движения. Всё состояние вида лежит в this.hs, игре ничего не пишем.
    */
+  /** Неуязвимое Воплощение: парящий шар с динамическим кометным шлейфом в направлении скорости. */
+  drawIncarnation(hx, hy) {
+    const ctx = this.ctx, hero = this.hero, S = this.cfg.skills.incarnation;
+    const speed = Math.hypot(hero.vx, hero.vy);
+    const angle = speed > 10 ? Math.atan2(hero.vy, hero.vx) : hero.facing;
+    const bob = Math.sin(this.clock * 6.5) * 2.4;
+    const r = Math.max(3, S.coreRadius);
+    const length = Math.max(8, S.tailLength) * (0.6 + 0.4 * Math.min(1.5, speed / Math.max(1, hero.cfg.speed)));
+    const pulse = 0.84 + 0.16 * Math.sin(this.clock * 9);
+    ctx.save();
+    ctx.translate(hx, hy + bob);
+    ctx.rotate(angle);
+    // Шлейф отклоняется по инерции и выглядит как несколько слоёв эфирного пламени.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = S.tailColor;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, -r * 0.8);
+    ctx.bezierCurveTo(-length * 0.33, -r * 1.3, -length * 0.7, -r * 0.3,
+      -length * (1 + 0.05 * Math.sin(this.clock * 12)), 0);
+    ctx.bezierCurveTo(-length * 0.65, r * 0.5, -length * 0.3, r * 1.25, r * 0.2, r * 0.8);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = S.outerColor;
+    ctx.globalAlpha = 0.52 * pulse;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.1, -r * 0.4);
+    ctx.quadraticCurveTo(-length * 0.46, -r * 0.55, -length * 0.78, 0);
+    ctx.quadraticCurveTo(-length * 0.37, r * 0.58, r * 0.1, r * 0.4);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.24 + 0.15 * pulse;
+    ctx.fillStyle = S.glowColor;
+    ctx.beginPath(); ctx.arc(0, 0, r * 2.3, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 0.5 * pulse;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = S.outerColor;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.12, 0, TAU); ctx.fill();
+    ctx.fillStyle = S.glowColor;
+    ctx.beginPath(); ctx.arc(r * 0.13, -r * 0.1, r * 0.79, 0, TAU); ctx.fill();
+    ctx.fillStyle = S.coreColor;
+    ctx.beginPath(); ctx.arc(r * 0.31, -r * 0.23, r * 0.43, 0, TAU); ctx.fill();
+    // Небольшие потоки энергии не требуют отдельных частиц или списков каждый кадр.
+    ctx.strokeStyle = S.coreColor;
+    ctx.lineWidth = 1.3;
+    ctx.globalAlpha = 0.62;
+    for (let i = 0; i < 3; i++) {
+      const x = -r - i * length * 0.23;
+      const y = Math.sin(this.clock * 7.5 + i * 2.5) * r * (0.55 + i * 0.17);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - r * 0.8, y * 1.12); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawHero(hx, hy, C) {
     const ctx = this.ctx;
     const hero = this.hero;
@@ -4517,7 +4570,12 @@ export class Renderer {
         U.slots[0] > 0.01, f0 >= 0.999 ? (mask & 4 ? 'gold' : 'blue') : undefined, U.slots[0]);
     }
     else this.drawAbility(cx - 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
-    this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
+    if (hud.incarnationOn) {
+      const S = this.cfg.skills.incarnation;
+      const f1 = hud.skillFrac1 === undefined ? 1 : hud.skillFrac1;
+      this.drawAbility(cx, rowY, f1, S.slotColor, S.slotLight, 4,
+        (hud.incarnationT || 0) > 0, f1 >= 0.999 ? 'blue' : undefined, U.slots[1]);
+    } else this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
     this.drawAbility(cx + 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
 
     // Повышение уровня: надпись плавно гаснет.
@@ -4643,7 +4701,7 @@ export class Renderer {
 
   /**
    * Ромб умения. frac: готовность 0..1 (заливка поднимается снизу), hot: умение сейчас действует, flash: вспышка нажатия.
-   * kind: 0 блок (сфера), 1 рывок (шевроны), 2 умение (кристалл), 3 дождь. glow: false или имя спрайта свечения.
+   * kind: 0 блок, 1 рывок, 2 кристалл, 3 дождь, 4 Воплощение (комета). glow: false или имя свечения.
    */
   drawAbility(cx, cy, frac, col, light, kind, hot, glow, flash, empty) {
     const ctx = this.ctx;
@@ -4704,6 +4762,14 @@ export class Renderer {
       ctx.arc(cx, cy, 10, 0.4, TAU - 0.5);
       ctx.arc(cx, cy, 5.5, TAU - 0.5, 0.9, true);
       ctx.stroke();
+    } else if (kind === 4) { // комета: энергетическое ядро и три струи
+      ctx.beginPath(); ctx.arc(cx + 4, cy - 3, 6.2, 0, TAU); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 7); ctx.lineTo(cx - 11, cy - 12);
+      ctx.moveTo(cx - 3, cy - 1); ctx.lineTo(cx - 14, cy - 3);
+      ctx.moveTo(cx, cy + 5); ctx.lineTo(cx - 11, cy + 11);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 6, cy - 5, 2.4, 0, TAU); ctx.fill();
     } else if (kind === 3) { // дождь: облако и капли
       ctx.beginPath();
       ctx.arc(cx - 5, cy - 3, 5, Math.PI * 0.9, Math.PI * 1.9);

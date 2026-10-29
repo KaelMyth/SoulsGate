@@ -145,7 +145,7 @@ export class HeroDefense {
   tryDash(dirX, dirY) {
     const d = this.cfg.dash;
     const len = Math.hypot(dirX, dirY);
-    if (!this.hero.active || this.dashCd > 0 || len < 1e-6) return false;
+    if (!this.hero.active || this.hero.incarnationT > 0 || this.dashCd > 0 || len < 1e-6) return false; // во время воплощения нет отдельного рывка
     const light = this.kinetic && !this.gravityDashEnabled && this.lightDash && this.lightning && !this.hero.dashing && this.lightning.plan(); // Гравитация имеет приоритет над цепным рывком
     const wasBlocking = this.state === 'block';
     if (!this.go('dash')) return false;
