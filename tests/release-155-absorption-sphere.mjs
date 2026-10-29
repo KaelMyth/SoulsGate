@@ -30,7 +30,7 @@ test('Two layers assemble around the target as the cast approaches completion',(
   v.absorptionSphereFront(c,55,70,20,.95,1.4,'blood',2);
   assert.ok(initial>10 && c.stops.length>10);
   const initialPeak=Math.max(...firstCenter.map(s=>parseFloat(s.match(/,([0-9.]+)\)$/)?.[1]||0)));
-  const finalPeak=Math.max(...c.stops.filter(s=>s.offset===0).map(s=>parseFloat(s.color.match(/,([0-9.]+)\)$/)?.[1]||0))));
+  const finalPeak=Math.max(...c.stops.filter(s=>s.offset===0).map(s=>parseFloat(s.color.match(/,([0-9.]+)\)$/)?.[1]||0)));
   assert.ok(finalPeak>initialPeak,'later sphere has stronger front coverage');
   assert.ok(c.history.some(x=>Array.isArray(x)&&x[0]==='arc'&&x[1]===55&&x[2]===70));
 });
