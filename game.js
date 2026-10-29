@@ -722,7 +722,8 @@ export class Game {
     if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0 || !this.build.secondaryId('rain')) return false; // умение открывает мод-ядро «Магический дождь»
     this.skillCd[0] = R.cooldown;
     this.hud.rainT = R.duration;
-    const mods = this.build.modifiersFor(this.build.secondaryId('rain'));
+    const rawMods = this.build.modifiersFor(this.build.secondaryId('rain'));
+    const mods = rawMods?.scopes ? {...rawMods,...rawMods.scopes.root} : rawMods;
     const mask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
     this.hud.rainBlades = !!mods.blades;
     this.hud.rainMask = mask; // фиксируем цвет на время дождя, даже если билд поменяли
@@ -754,7 +755,8 @@ export class Game {
     if (this.state !== 'playing' || !h.active || h.dashing || h.incarnationT > 0
         || this.skillCd[1] > 0 || !id) return false;
     const mods = this.build.modifiersFor(id);
-    h.incarnationMask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
+    const elements = mods.scopes?.root || mods;
+    h.incarnationMask = (elements.burn ? 1 : 0) | (elements.frost ? 2 : 0) | (elements.lightning ? 4 : 0);
     this.incarnation?.begin(mods);
     h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.gravity && !mods.blades ? S.gravityDuration : mods.blades ? this.incarnation.bladeQueue * this.incarnation.bladeGap + 0.1 : S.duration);
     h.incarnationSpeedMul = Math.max(1, S.speedMul) * this.incarnation.hasteMultiplier * (mods.gravity && !mods.laser && !mods.blades ? S.gravitySpeedMultiplier : 1);
