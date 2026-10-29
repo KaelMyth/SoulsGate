@@ -351,6 +351,38 @@ export class DashFx {
     ctx.save();
     ctx.translate(hx, hy);
     ctx.globalCompositeOperation = 'lighter';
+    if (r.lightdash?.laserMode) {
+      const ld = r.lightdash;
+      const target = ld.route[ld.idx];
+      const dx = (target?.x ?? hx) - ld.fromX, dy = (target?.y ?? hy) - ld.fromY;
+      const angle = Math.atan2(dy, dx);
+      const charging = ld.phase === 'charge';
+      const hop = ld.phase === 'hop';
+      const tension = charging ? Math.min(1, ld.t / Math.max(0.01, r.cfg.kinetic.beamTime)) : 1;
+      const elongation = hop ? 3.6 : charging ? 1 + tension * 1.8 : 1.3;
+      ctx.rotate(angle);
+      for (let layer = 0; layer < 3; layer++) {
+        ctx.globalAlpha = (layer ? 0.44 : 0.2) * (0.7 + 0.3 * Math.sin(t * 23 + layer));
+        ctx.fillStyle = layer === 0 ? MAIN[c] : layer === 1 ? '#8bdcff' : '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(-R0 * elongation * 0.65, 0, R0 * elongation * (layer ? 1.15 : 1.7), R0 * (layer === 2 ? 0.42 : 0.8), 0, 0, TAU);
+        ctx.fill();
+      }
+      for (let j = 0; j < 9; j++) {
+        const u = (t * (4 + j * 0.16) + j / 9) % 1;
+        const x = -R0 * (2.7 + elongation * u);
+        const y = Math.sin(j * 2.4 + t * 11) * R0 * (0.32 + u * 0.65);
+        ctx.globalAlpha = (1 - u) * (hop ? 0.85 : 0.5 * tension);
+        ctx.strokeStyle = j % 2 ? '#b3e8ff' : MAIN[c];
+        ctx.lineWidth = 1.2 + 2.7 * (1 - u);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + R0 * 1.1, y * 0.25, R0 * 0.7, 0); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.ellipse(0, 0, R0 * (hop ? 1.3 : 0.85), R0 * 0.45, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+      return;
+    }
     const s = R0 * (3.4 + 0.25 * Math.sin(t * 40));
     ctx.globalAlpha = 0.9;
     ctx.drawImage(g, -s, -s, s * 2, s * 2);
