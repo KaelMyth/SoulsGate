@@ -142,7 +142,7 @@ test('Умение отрабатывает ровно 5 секунд игров
 
 test('Неуязвимая комета не мешает обычной перезарядке рывка', () => {
   const g = fakeGame(); Game.prototype.castIncarnation.call(g);
-  const bus = { emit() {} };
+  const bus = { emit() {}, on() {} };
   const defense = new HeroDefense({ config: CONFIG, hero: g.hero, bus, stick: { active: true }, modifiers: () => null });
   const cd = defense.dashCd;
   assert.equal(defense.tryDash(1, 0), false, 'ускоренный полет исключает отдельный рывок');

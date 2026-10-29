@@ -40,7 +40,10 @@ export class Hero {
     this.prevY = this.y;
     if (this.invuln > 0) this.invuln -= dt;
     if (this.slowT > 0) this.slowT -= dt;
-    if (this.incarnationT > 0) this.incarnationT = Math.max(0, this.incarnationT - dt);
+    if (this.incarnationT > 0) {
+      this.incarnationT = Math.max(0, this.incarnationT - dt);
+      if (this.incarnationT < 0.000001) this.incarnationT = 0; // убираем хвост погрешности после пяти секунд
+    }
 
     if (this.dashing) {
       this.vx = this.dashVx;
