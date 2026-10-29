@@ -520,10 +520,11 @@ export class Renderer {
     this.clouds = deps.clouds || [];
     this.lasers = deps.lasers || [];
     this.blades = deps.blades || [];
+    this.kineticBlades = deps.kineticBlades || [];
     this.incarnation = deps.incarnation || null;
     this.aura = deps.aura || null;
-    this.synergyCasts = o.synergyCasts || [];
-    this.synergyFlashes = o.synergyFlashes || [];
+    this.synergyCasts = deps.synergyCasts || [];
+    this.synergyFlashes = deps.synergyFlashes || [];
     this.absorption = deps.absorption || null;
     this.lightdash = deps.lightdash || null;
     this.zapBolts = deps.zapBolts || [];
@@ -6206,7 +6207,7 @@ export class Renderer {
   }
 
   drawBlades(ctx) {
-    const bl = this.incarnation?.bladeItems?.length ? this.blades.concat(this.incarnation.bladeItems) : this.blades;
+    const bl = this.blades.concat(this.kineticBlades, this.incarnation?.bladeItems || []);
     if (!bl || !bl.length) return;
     const B = this.cfg.blades;
     const k = B.size * 0.8;
