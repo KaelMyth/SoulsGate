@@ -272,6 +272,7 @@ export class AutoAttack {
         off: split > 1 ? (i % split) - (split - 1) / 2 : 0, // тонкие лучи расходятся у героя и сходятся на цели
         width: split > 1 ? ls.width * L.splitWidth : ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0,
         tick: (split > 1 ? ls.tick * sdm / split : ls.tick) * grav, big: ls.big,
+        absorptionBeam: !!m.laserAbsorption, // #153 цвет самого луча наследует Поглощение
         gravityLaser: !!m.gravity, gravityChargeTime: charge, gravityChargeAge: 0,
         gravityOrigin: m.gravity ? this.cfg.gravity.laserOrigin : 0,
         burnDmg: burnDmg * grav,
