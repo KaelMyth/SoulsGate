@@ -117,20 +117,24 @@ export class Absorption {
   }
 
   /** Все варианты Поглощения используют единый урон, Вампиризм и стихии. */
-  strike(e, mods) {
+  strike(e, mods, damageScale = 1, suppressPhantom = false) {
     if (!e || !e.active || !this.hero.active) return false;
     const A = this.cfg.absorption;
+    const vampiric = !!mods.absorption.vampirism;
+    const element = (mods.absorption.burn ? 1 : 0) |
+      (mods.absorption.frost ? 2 : 0) | (mods.absorption.lightning ? 4 : 0);
+    const color = vampiric ? '255,50,75' : COLORS[element];
     this.flash = Math.max(0, A.flashTime);
-    this.flashVampiric = this.vampiric;
+    this.flashVampiric = vampiric;
     this.flashX = e.x;
     this.flashY = e.y;
     this.flashR = e.radius + A.ringPadding;
-    this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric: this.vampiric, color: this.color });
+    this.flashes.push({ x: e.x, y: e.y, r: this.flashR, time: this.flash, vampiric, color });
     const hpBefore = Math.max(0, e.hp);
-    const baseDamage = A.damage * (mods.absorption.damage || 1);
+    const baseDamage = A.damage * (mods.absorption.damage || 1) * damageScale;
     const damage = baseDamage + (mods.absorption.lightning
       ? this.cfg.shock.attackBonus * (mods.lightning ? mods.lightning.count : 1) : 0);
-    this.source.vampiric = this.vampiric;
+    this.source.vampiric = vampiric;
     const dealt = this.combat.damageEnemy(e, damage, this.source, null);
     if (dealt && mods.absorption.pierce) {
       const radius = A.pierceRadius || 52;
@@ -162,11 +166,11 @@ export class Absorption {
           this.zap(e, bd, bi, frost ? 1 : 0, steam, mods.lightning ? mods.lightning.mult : 1);
       }
     }
-    if (dealt && this.vampiric && this.hero.active) {
+    if (dealt && vampiric && this.hero.active) {
       const effective = Math.max(0, hpBefore - Math.max(0, e.hp));
       this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + effective * Math.max(0, A.lifesteal));
     }
-    if (dealt && mods.absorption.phantom && this.onPhantom) this.onPhantom(e,mods);
+    if (dealt && !suppressPhantom && mods.absorption.phantom && this.onPhantom) this.onPhantom(e,mods);
     return dealt;
   }
 
