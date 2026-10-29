@@ -31,6 +31,9 @@ export class Incarnation {
     this.laserLastTarget = null;
     this.laserLastGen = 0;
     this.laserPath = [];
+    this.gravityTime = 0;
+    this.afterimages = [];
+    this.afterimageTimer = 0;
   }
 
   begin(mods) {
@@ -43,6 +46,9 @@ export class Incarnation {
     this.laserHopTimer = 0;
     this.laserLastTarget = null;
     this.hero.incarnationLaser = !!this.mods.laser;
+    this.gravityTime = this.mods.gravity && !this.mods.laser && !this.mods.blades ? this.config.skills.incarnation.gravityDuration : 0;
+    this.afterimages.length = 0;
+    this.afterimageTimer = 0;
     const S = this.config.skills.incarnation;
     this.bladeQueue = this.mods.blades && !this.mods.laser ? Math.max(S.bladeBaseCount, Math.round(S.bladeBaseCount + S.bladeMultiplierBase * ((this.mods.blades.max || 1) - 1))) : 0;
     this.bladeGap = this.bladeQueue ? Math.min(S.bladeLaunchGap, S.duration / this.bladeQueue) : S.bladeLaunchGap;
@@ -61,14 +67,17 @@ export class Incarnation {
     this.laserTime = 0;
     this.laserPath.length = 0;
     this.hero.incarnationLaser = false;
+    this.gravityTime = 0;
+    this.afterimages.length = 0;
   }
 
   update(dt = 0) {
     const h = this.hero;
     if (!h.active) return;
     if (this.laserTime > 0) { this.updateLaser(dt); return; }
+    if (this.gravityTime > 0) { this.updateGravity(dt); return; }
     if (this.bladeQueue || this.bladeItems.length) this.updateBlades(dt);
-    if (!this.active || h.incarnationT <= 0 || this.bladeQueue || this.mods?.blades || this.mods?.laser) return;
+    if (!this.active || h.incarnationT <= 0 || this.bladeQueue || this.mods?.blades || this.mods?.laser || this.mods?.gravity) return;
     const S = this.config.skills.incarnation;
     const enemies = this.enemies.items;
     const radius = h.radius + Math.max(0, S.contactPadding);
@@ -83,6 +92,26 @@ export class Incarnation {
     }
   }
 
+
+  updateGravity(dt) {
+    const h = this.hero, S = this.config.skills.incarnation;
+    this.gravityTime = Math.max(0, this.gravityTime - dt);
+    this.afterimageTimer -= dt;
+    if (this.afterimageTimer <= 0 && Math.hypot(h.vx || 0, h.vy || 0) > 5) {
+      this.afterimageTimer += S.gravityAfterimageInterval;
+      this.afterimages.push({ x:h.x, y:h.y, facing:h.facing, life:0.3 });
+    }
+    for (let i = this.afterimages.length - 1; i >= 0; i--) {
+      this.afterimages[i].life -= dt;
+      if (this.afterimages[i].life <= 0) this.afterimages.splice(i,1);
+    }
+    if (this.gravityTime <= 0) {
+      h.incarnationT = 0;
+      h.incarnationSpeedMul = 1;
+      h.incarnationInertia = 0;
+      this.active = false;
+    }
+  }
 
   /** Лазерная форма: удары по всем живым врагам независимо от расстояния. */
   updateLaser(dt) {
