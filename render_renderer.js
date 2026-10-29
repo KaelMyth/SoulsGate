@@ -9,10 +9,10 @@ import { ApoFinaleFx } from './render_apofinale.js';
 
 const TAU = Math.PI * 2;
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
-const ZAP_RGB = ['255,225,70', '255,150,50', '110,205,255', '255,255,255'];
+const ZAP_RGB = ['255,225,70', '255,58,67', '110,205,255', '255,255,255'];
 const LASER_RGB = ['110,205,255', '255,140,50', '150,242,255', '236,242,252', '190,120,255']; // луч: синий, огонь, мороз, пар, фантом
 const LASER_CORE = ['232,248,255', '255,240,200', '240,252,255', '255,255,255', '248,232,255'];
-const ZAP_CORE = ['255,252,225', '255,236,200', '232,248,255', '255,255,255'];
+const ZAP_CORE = ['255,252,225', '255,210,198', '232,248,255', '255,255,255'];
 const SERIF = '"Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif'; // шрифт надписей интерфейса
 const EMPTY = { items: [] };
 
@@ -5287,7 +5287,25 @@ export class Renderer {
     for (let i = 0; i < n1 + zb.length; i++) {
       const b = i < n1 ? ld.bolts[i] : zb[i - n1];
       const k = Math.max(0, 1 - b.age / 0.25);
-      this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, 2.2, k, i, ZAP_RGB[b.k | 0], ZAP_CORE[b.k | 0]);
+      if (b.fireArc) {
+        const S = this.cfg.shock;
+        this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, S.fireArcWidth, k, i, S.fireArcRgb, S.fireArcCoreRgb);
+        // Красные боковые побеги от основного разряда, чисто визуальные.
+        const dx = b.x1 - b.x0, dy = b.y1 - b.y0;
+        const len = Math.hypot(dx, dy) || 1;
+        for (let j = 0; j < 2; j++) {
+          const t = 0.32 + j * 0.34;
+          const x = b.x0 + dx * t, y = b.y0 + dy * t;
+          const sign = j ? -1 : 1;
+          const out = 18 + 8 * Math.sin(this.clock * 20 + i * 7 + j);
+          this.drawZapArc(ctx, x, y, x + (dx / len * 0.35 - dy / len * sign) * out,
+            y + (dy / len * 0.35 + dx / len * sign) * out,
+            S.fireArcWidth * 0.48, k * 0.75, i * 3 + j + 19, S.fireArcRgb, S.fireArcCoreRgb);
+        }
+      } else if (b.sky) {
+        this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, this.cfg.frost.shockStrikeWidth, k, i,
+          '126,208,255', '246,252,255');
+      } else this.drawZapArc(ctx, b.x0, b.y0, b.x1, b.y1, 2.2, k, i, ZAP_RGB[b.k | 0], ZAP_CORE[b.k | 0]);
     }
     // Лучи Лазера на рывке: быстрый удар в точку прибытия.
     const bm = this.dashBeams;
