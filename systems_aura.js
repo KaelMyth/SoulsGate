@@ -28,6 +28,7 @@ export class Aura {
     this.shotTimer = 0;
     this.laserShimmer = false;
     this.pellets = null;
+    this.inspiration = null; // глобальное поле во время Воодушевления + Аура
     let big = 0;
     for (const k in this.cfg.enemies) big = Math.max(big, this.cfg.enemies[k].radius || 0);
     this.reach = big + 12;
@@ -51,6 +52,16 @@ export class Aura {
     this.lightning = !!m.lightning; // Молния на ауре: поле потрескивает разрядами (только вид)
     this.laserShimmer = !!m.auraLaser;
     this.radius = A.radius * (1 + A.radiusStep * ((a.mult || 1) - 1)) * (this.laserShimmer ? 1.2 : 1); // Х2/Х3 на ауре: шире
+    if(this.inspiration?.auraWhole){
+      const arena=this.inspiration.arena,hero=this.hero;
+      const far=arena?Math.max(
+        Math.hypot(hero.x-arena.left,hero.y-arena.top),
+        Math.hypot(hero.x-arena.right,hero.y-arena.top),
+        Math.hypot(hero.x-arena.left,hero.y-arena.bottom),
+        Math.hypot(hero.x-arena.right,hero.y-arena.bottom)
+      ):2500;
+      this.radius=Math.max(this.radius,far+100);
+    }
     const hybrid = !!(m.blackSun || (m.scopes ? (m.scopes.root?.gravity || m.scopes.aura?.gravity) : m.gravity)); // Тройка работает при любой ветке одного Щита
     const power = hybrid ? this.cfg.gravity.auraDamageMul : 1;
     const rate = hybrid ? this.cfg.gravity.auraTickRateMul : 1;
