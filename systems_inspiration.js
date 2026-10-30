@@ -72,7 +72,7 @@ export class Inspiration {
 
   gravityFactor(){
     const gravity=this.mods?.gravity;
-    return Math.max(1,gravity?.durationMult||1);
+    return Math.max(1,gravity?.forceMult||gravity?.durationMult||1);
   }
 
   /** Поглощение вытягивает по одной единице из нескольких РАЗНЫХ живых врагов.
@@ -256,7 +256,7 @@ export class Inspiration {
       for(const g of this.gems.items)if(g.active&&g.inspired){inflight=true;break;}
       if(!inflight){
         this.laserStarted=true;
-        this.laserCount=Math.ceil(this.absorbedUnits/3);
+        this.laserCount=Math.ceil(this.absorbedUnits/3)*Math.max(1,Math.floor(this.mods.laser?.countMultiplier||1));
         this.laserAge=0;
         this.laserAngle=0;
         this.laserTick=0;
