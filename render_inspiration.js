@@ -38,6 +38,24 @@ export class InspirationFx {
       ctx.globalAlpha=age*fade*(i%3?.1:.16);
       ctx.stroke();
     }
+    if(spell.auraWhole){
+      // Освещённая позолотой зона всей карты; граница больше видимого поля,
+      // поэтому через туман идут отдельные локальные волны с мягкими краями.
+      const R0=Math.max(300,Math.min(this.r.aura?.radius||1200,1100));
+      const mist=ctx.createRadialGradient(0,0,40,0,0,R0);
+      mist.addColorStop(0,'rgba(255,220,110,0.065)');
+      mist.addColorStop(.5,'rgba(226,171,74,0.09)');
+      mist.addColorStop(1,'rgba(240,205,142,0)');
+      ctx.globalAlpha=age*fade;
+      ctx.fillStyle=mist;ctx.beginPath();ctx.arc(0,0,R0,0,TAU);ctx.fill();
+      ctx.lineCap='round';
+      for(let i=0;i<6;i++){
+        const a=t*.28+i*TAU/6,rad=R0*(.44+.11*Math.sin(t*.65+i));
+        ctx.strokeStyle='#fce6aa';ctx.lineWidth=8;
+        ctx.globalAlpha=.075*age*fade;
+        ctx.beginPath();ctx.arc(0,0,rad,a,a+1.7);ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 
