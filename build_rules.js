@@ -28,7 +28,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
   if (carry === 'xroot') return parentAccepts(modDef, ownerCore || null, null); // Х2/Х3 на ядре: ветка, на неё вешают всё, что берёт ядро
   if (carry === 'dbl') return e.kind === 'double'; // Х2/Х3 на «Лазере»/«Дроби»: дальше только ещё множители
   if (e.kind === 'laser') return carry === 'blades' || carry === 'gravity' || (carry === 'aura' && ownerCore?.def.multStat === 'blockPower'); // Лазер после Гравитации тоже получает накопление
-  if (e.kind === 'shot') return carry === 'blades' || carry === 'laser' || (carry === 'aura' && ownerCore?.def.multStat === 'blockPower'); // «Дробь» к ядру снаряда или на «Клинки»
+  if (e.kind === 'shot') return carry === 'blades' || carry === 'laser' || (carry === 'gravity' && ownerCore?.def.canShot) || (carry === 'aura' && ownerCore?.def.multStat === 'blockPower'); // «Дробь» к ядру снаряда или на «Клинки»
   if (e.kind === 'phantom') return carry === 'blades' || carry === 'laser' || carry === 'absorption'; // «Фантом» к ядру снаряда или на «Клинки»
   if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot' || carry === 'absorption'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
   if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult' || (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower'); // Клинки под Поглощением: три попадания вызывают отдельный удар
