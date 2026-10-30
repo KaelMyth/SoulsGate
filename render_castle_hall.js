@@ -6,19 +6,64 @@ const TAU=Math.PI*2;
 function rnd(seed=89176){let n=seed>>>0;return()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};}
 function shape(c,pts,col,edge,width=1){c.beginPath();c.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)c.lineTo(pts[i],pts[i+1]);c.closePath();c.fillStyle=col;c.fill();if(edge){c.strokeStyle=edge;c.lineWidth=width;c.stroke();}}
 function trace(c,pts,col,w=1){c.beginPath();c.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)c.lineTo(pts[i],pts[i+1]);c.strokeStyle=col;c.lineWidth=w;c.stroke();}
-function glow(c,x,y,r,col){const g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');return g;}
-function lantern(c,x,y,t){
+// Склепы по обе стороны пути. Не просто надгробная плита: арочная ниша,
+ // саркофаг с рельефом, скульптурная фигура, глухие решётки и трещины.
+function crypt(c,x,y,side,index){
   c.save();c.translate(x,y);
-  c.fillStyle=glow(c,0,0,95,'rgba(250,167,64,.23)');
-  c.fillRect(-95,-95,190,190);
-  shape(c,[-16,-4,16,-4,12,10,-12,10], '#5c4b3b','#c5a26d',2);
-  const a=Math.sin(t*10+x*.01)*4,b=Math.sin(t*17+y*.02)*4;
-  shape(c,[-8,-5,-11,-20,a-3,-38,7,-21,8,-5],'#c46f3d');
-  shape(c,[-4,-5,-6,-15,b,-29,4,-17,4,-5],'#ffe0a1');
+  c.fillStyle='rgba(0,0,0,.55)';
+  c.beginPath();c.ellipse(0,15,70,99,0,0,TAU);c.fill();
+  shape(c,[-60,-78,-60,-23,-55,69,55,69,60,-22,60,-79,39,-106,-37,-106],
+    '#111822','#3d4552',3.4);
+  shape(c,[-49,-68,-45,56,45,56,49,-68,32,-92,-31,-92],
+    '#080e18','#5a5b5f',2);
+  for(let i=0;i<5;i++){
+    const xx=-36+i*18;
+    trace(c,[xx,-63,xx,-33],'rgba(102,105,113,.35)',2);
+  }
+  const stone=c.createLinearGradient(-52,-49,48,65);
+  stone.addColorStop(0,'#5a626d');stone.addColorStop(.43,'#373f4a');
+  stone.addColorStop(1,'#1e2734');
+  shape(c,[-51,-50,43,-50,51,-33,49,64,-47,64,-54,48],stone,'#101722',3);
+  shape(c,[-44,-48,35,-48,43,-27,39,51,-38,51,-45,32],
+    '#454d59','#8a8480',2);
+  shape(c,[-38,-39,28,-39,36,-20,32,43,-32,43,-39,24],
+    '#242e3b','#797780',1.2);
+  // Покойник-король, высеченный в крышке, в плаще и с тяжёлым клинком.
+  shape(c,[-13,-31,-9,-44,5,-44,14,-31,9,-20,-9,-20],'#737b87','#2b3542',1.5);
+  shape(c,[-19,-13,-9,-24,13,-24,22,-13,17,35,-17,35],
+    '#56616f','#28313f',2);
+  trace(c,[-3,-13,3,30],'#a69c8d',3);
+  shape(c,[-13,-2,-5,3,-2,14,-11,9],'#938878');
+  shape(c,[10,-3,20,5,13,13,9,6],'#938878');
+  for(const yy of [-27,2,27]){
+    trace(c,[-30,yy,-25,yy-3],'rgba(188,168,135,.48)',1.1);
+    trace(c,[21,yy,25,yy+3],'rgba(188,168,135,.48)',1.1);
+  }
+  // Латунная печать, даже в темноте виден слабый холодный блик.
+  const xx=side<0?36:-36;
+  c.strokeStyle='#88765c';c.lineWidth=2.2;
+  c.beginPath();c.arc(xx,-60,10,0,TAU);c.stroke();
+  trace(c,[xx,-68,xx,-51],'#a08c70',1.4);
+  c.fillStyle='rgba(8,13,21,.38)';
+  c.fillRect(-51,55,102,9);
+  // Неровные сколы, вековая пыль и паутина в дальнем углу.
+  const drift=(index%3)*3;
+  trace(c,[-48,-65,-23,-53+drift,-13,-67],'rgba(158,176,191,.22)',1);
+  trace(c,[-48,-65,-32,-82,-12,-68],'rgba(158,176,191,.16)',1);
+  trace(c,[42,34,35,17,42,8],'rgba(12,17,25,.55)',1.3);
+  c.restore();
+}
+function sconce(c,x,y){
+  c.save();c.translate(x,y);
+  shape(c,[-13,0,-10,-7,10,-7,13,0,9,6,-9,6],
+    '#262c34','#786b5e',1.3);
+  trace(c,[-8,-7,-5,-12,5,-12,8,-7],'#4e5158',2);
+  // Ни свечения, ни пламени: в чаше только тёмный холодный пепел.
+  shape(c,[-7,-8,-4,-12,3,-12,7,-8],'#0b111a');
   c.restore();
 }
 export class CastleHallArt {
-  constructor(arena){this.arena=arena;this.floor=null;this.torches=[];}
+  constructor(arena){this.arena=arena;this.floor=null;this.torches=[];this.columns=arena.hallColumns;this.columnSprite=null;this.opacity=new Map();}
   build(){
     const ar=this.arena,W=ar.width|0,H=ar.height|0;
     const cv=typeof OffscreenCanvas==='function'?new OffscreenCanvas(W,H):document.createElement('canvas');
@@ -27,14 +72,14 @@ export class CastleHallArt {
     c.translate(-ar.left,-ar.top);
     const L=ar.left,T=ar.top,R=ar.right,B=ar.bottom;
     const stone=c.createLinearGradient(L,T,R,B);
-    stone.addColorStop(0,'#17202c');stone.addColorStop(.38,'#232a36');
-    stone.addColorStop(.7,'#202633');stone.addColorStop(1,'#111b28');
+    stone.addColorStop(0,'#0d111a');stone.addColorStop(.38,'#171c27');
+    stone.addColorStop(.7,'#151b25');stone.addColorStop(1,'#0a0f18');
     c.fillStyle=stone;c.fillRect(L,T,W,H);
     // Паркет темного камня: неправильные плитки, потертые швы и редкие мраморные прожилки.
     const tile=70;
     for(let row=0;row<Math.ceil(H/tile);row++)for(let col=-1;col<Math.ceil(W/tile);col++){
       const y=T+row*tile,x=L+col*tile+((row%2)*tile*.5);
-      const bright=r(),tones=['#29313f','#333947','#222b38','#38404d','#262f3c'];
+      const bright=r(),tones=['#1b222e','#252a36','#171e29','#292e3b','#1b2531'];
       shape(c,[x+2,y+2,x+tile-3,y+3,x+tile-4,y+tile-2,x+2,y+tile-3],
         tones[Math.floor(bright*tones.length)],'rgba(8,14,21,.82)',2);
       if(bright>.32)trace(c,[x+7,y+12,x+tile*.43,y+9,x+tile*.74,y+5],
@@ -50,9 +95,9 @@ export class CastleHallArt {
     const cw=198;
     c.fillStyle='rgba(0,0,0,.4)';c.fillRect(-cw/2-8,T+140,cw+16,H-170);
     const carpet=c.createLinearGradient(-cw/2,0,cw/2,0);
-    carpet.addColorStop(0,'#261b26');carpet.addColorStop(.14,'#4a2431');
-    carpet.addColorStop(.52,'#65313b');carpet.addColorStop(.85,'#46232e');
-    carpet.addColorStop(1,'#231c27');
+    carpet.addColorStop(0,'#190f1b');carpet.addColorStop(.14,'#2d1824');
+    carpet.addColorStop(.52,'#401e2a');carpet.addColorStop(.85,'#2b1623');
+    carpet.addColorStop(1,'#150e17');
     c.fillStyle=carpet;c.fillRect(-cw/2,T+142,cw,H-175);
     for(const side of [-1,1]){
       const x=side*cw/2-side*11;
@@ -81,26 +126,22 @@ export class CastleHallArt {
       shape(c,[x,y-7,x+5,y,x,y+7,x-5,y],'rgba(194,157,93,.31)');
     }
     c.restore();
-    // Ряды колонн и глубокие ниши по обе стороны зала.
-    for(const side of [-1,1]){
-      const wallX=side*(W/2-35);
-      const dark=c.createLinearGradient(wallX-side*165,0,wallX,0);
-      dark.addColorStop(0,'rgba(5,8,14,0)');dark.addColorStop(1,'rgba(4,8,14,.66)');
-      c.fillStyle=dark;c.fillRect(side<0?L:R-165,T,165,H);
-      for(let i=0;i<6;i++){
-        const y=T+240+i*260;
-        const x=side*(W/2-98);
-        shape(c,[x-45,y-39,x+44,y-39,x+60,y-4,x+44,y+39,x-45,y+39,x-59,y-5],
-          '#1b2533','#5e6270',2);
-        const gradient=c.createLinearGradient(x-27,y-33,x+30,y+40);
-        gradient.addColorStop(0,'#77818d');gradient.addColorStop(.45,'#414a59');
-        gradient.addColorStop(1,'#151f2c');
-        shape(c,[x-30,y-31,x+30,y-31,x+35,y+33,x-34,y+33],gradient,'#1b2633',2);
-        shape(c,[x-38,y-37,x+40,y-37,x+47,y-22,x-47,y-22],
-          '#6c747d','#b2a58d',1.3);
-        trace(c,[x-23,y-15,x+20,y-15], 'rgba(198,167,116,.38)',2);
-        this.torches.push({x:side*(W/2-155),y:y-64});
-      }
+    // Теперь боковые ниши заняты родовыми захоронениями, а не каменными стойками.
+    for(const p of ar.hallCrypts){
+      const side=Math.sign(p.x);
+      crypt(c,p.x,p.y,side,Math.round((p.y+560)/315));
+    }
+    // Каменные фундаменты колонн видны под ногами, сами колонны отдельным
+    // передним слоем и становятся прозрачными, если закрывают героя.
+    for(const p of this.columns){
+      const g=c.createRadialGradient(p.x,p.y+6,0,p.x,p.y+6,62);
+      g.addColorStop(0,'rgba(0,0,0,.68)');
+      g.addColorStop(1,'rgba(0,0,0,0)');
+      c.fillStyle=g;c.beginPath();c.arc(p.x,p.y+6,62,0,TAU);c.fill();
+      shape(c,[p.x-36,p.y-24,p.x+36,p.y-24,p.x+42,p.y+24,p.x-42,p.y+24],
+        '#303947','#111823',2.4);
+      shape(c,[p.x-29,p.y-17,p.x+29,p.y-17,p.x+29,p.y+18,p.x-29,p.y+18],
+        '#454d5b','#6e6b68',1.6);
     }
     // Передняя стена: монументальный мраморный портал в глубину замка.
     const lintel=c.createLinearGradient(0,T,0,T+181);
@@ -158,13 +199,15 @@ export class CastleHallArt {
       shape(c,[x,T+26,x+15,T+41,x,T+56,x-15,T+41],
         '#7f7159','#c3a17b',1);
     }
-    // Старинные чаши с пламенем у решётки.
+    // Пустые погасшие чаши: никакого горящего факела в заброшенном зале.
     this.torches.push({x:-242,y:T+190},{x:242,y:T+190});
+    for(const p of this.torches)sconce(c,p.x,p.y);
     // Затемнение краёв усиливает глубину помещения, а не обесцвечивает игровой центр.
     const vignette=c.createRadialGradient(0,60,250,0,60,1120);
     vignette.addColorStop(0,'rgba(4,7,15,0)');
-    vignette.addColorStop(1,'rgba(2,5,11,.47)');
+    vignette.addColorStop(1,'rgba(2,5,11,.78)');
     c.fillStyle=vignette;c.fillRect(L,T,W,H);
+    c.fillStyle='rgba(4,7,14,.21)';c.fillRect(L,T,W,H);
     this.floor=cv;
   }
   drawFloor(ctx,x0,y0,x1,y1){
@@ -173,11 +216,6 @@ export class CastleHallArt {
     const l=Math.max(a.left,x0),r=Math.min(a.right,x1),t=Math.max(a.top,y0),b=Math.min(a.bottom,y1);
     if(l<r&&t<b)ctx.drawImage(this.floor,l-a.left,t-a.top,r-l,b-t,l,t,r-l,b-t);
   }
-  drawFlames(ctx,t,x0,x1,y0,y1){
-    if(!this.floor)this.build();
-    for(const p of this.torches){
-      if(p.x+120<x0||p.x-120>x1||p.y+120<y0||p.y-120>y1)continue;
-      lantern(ctx,p.x,p.y,t);
-    }
-  }
+  // Сохраняем совместимость с вызывавшимся методом, но факелы погасли.
+  drawFlames(){}
 }
