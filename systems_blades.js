@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Спектральные клинки (мод на щите): голубые треугольники копятся вокруг героя, а когда набралось максимум,
 // все летят во врагов. На одного врага не больше perTarget клинков, остальные выбирают других.
 // Клинок самонаводится на цель, при попадании бьёт и исчезает. Сам щит мод не меняет.
@@ -40,12 +41,15 @@ export class Blades {
     this.shotAngle = 0;               // куда направлен первый из четырёх разлётов; сдвигается с каждым попаданием // общий список лучей игры: сюда клинки-сферы выпускают лазеры
     this.ignite = o.ignite || null; // (враг, урон тика, интервал) от Горения на клинках
     this.chill = o.chill || null;   // (враг, пар, урон тика, интервал) от Мороза на клинках
+    this.onAbsorptionHit = o.onAbsorptionHit || null; // только клинки, установленные под Поглощением
     this.items = []; // { x, y, a (угол полёта или место на орбите), state: 'orbit' | 'fly', target, vx, vy, age }
     this.timer = 0;
     this.spin = 0;
     this.source = { blade: true, active: true };
-    this.cand = [];   // враги в зоне запуска, ближние первыми
+    this.cand = [];
+    this.candidateIndices = [];   // враги в зоне запуска, ближние первыми
     this.counts = new Map();
+    this.reset(); // счётчик слотов нужен уже при первом update, даже до начала забега
   }
 
   reset() {
@@ -57,6 +61,8 @@ export class Blades {
     this.wave = false;  // идёт запуск пачки: новые не копятся, клинки уходят по одному
     this.gap = 0;       // таймер между запусками
     this.dtNow = 0;
+    this.gravityMode = false;
+    this.gravitySpawned = 0; // сколько постоянных клинков создано: никогда не больше обычного максимума
   }
 
   orbiting() {
@@ -69,8 +75,8 @@ export class Blades {
   gather(range) {
     const en = this.enemies.items;
     const h = this.hero;
-    const n = this.grid.query(h.x, h.y, range);
-    const buf = this.grid.buf;
+    const buf = this.candidateIndices;
+    const n = this.grid.query(h.x, h.y, range, buf);
     const out = this.cand;
     out.length = 0;
     for (let k = 0; k < n; k++) {
@@ -118,18 +124,56 @@ export class Blades {
 
   update(dt) {
     const B = this.cfg.blades;
-    const m = this.modifiers ? this.modifiers(B.core) : null;
+    const raw = this.modifiers ? this.modifiers(B.core) : null;
+    const m = raw ? forCarrier(raw, 'blades') : null;
+    if (m?.scopes) {
+      const carrier = m.scopes.blades || {};
+      m.laser = carrier.laser ? raw.laser : null;
+      m.shot = carrier.shot ? raw.shot : null;
+      m.phantom = carrier.phantom ? {...raw.phantom, mult:carrier.phantom.mult} : null;
+      m.pierce = carrier.pierce ? {count:carrier.pierce.mult} : null;
+      m.gravity = m.scopes.root?.gravity || carrier.gravity ? raw.gravity : null;
+    }
     if (!m || !m.blades) {
       for (const b of this.items) b.state = 'gone'; // мод сняли: клинки и их лучи пропали
       if (this.items.length) this.items.length = 0;
       this.timer = 0;
+      this.gravityMode = false;
+      this.gravitySpawned = 0;
       return;
     }
     const hero = this.hero;
+    if (hero.incarnationT > 0) {
+      // Обычные клинки скрыты на всё время Воплощения и не продолжают стрелять.
+      this.items.length = 0;
+      this.timer = 0;
+      this.wave = false;
+      this.gravitySpawned = 0;
+      return;
+    }
     if (!hero.active) return;
     this.spin += B.spin * dt;
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
     const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
+    // В связке Гравитация + Клинки существующие клинки возвращаются вместо удаления.
+    // При активном Лазере сохраняем прежнее поведение сфер-лучей.
+    const gravityReturn = !!m.gravity && !m.laser;
+    if (gravityReturn !== this.gravityMode) {
+      this.gravityMode = gravityReturn;
+      if (gravityReturn) {
+        if (this.items.length > max) this.items.length = max;
+        this.gravitySpawned = this.items.length;
+        this.wave = false;
+        this.gap = 0;
+      } else {
+        this.gravitySpawned = 0;
+        for (const b of this.items) if (b.state === 'return' || b.state === 'gravityOrbit') b.state = 'orbit';
+      }
+    }
+    if (gravityReturn && this.items.length > max) {
+      this.items.length = max;
+      this.gravitySpawned = Math.min(this.gravitySpawned, max);
+    }
     const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
     const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                          // Мощь на клинках
 
@@ -138,14 +182,20 @@ export class Blades {
     let orbit = this.orbiting();
     this.dtNow = dt;
     if (this.wave && orbit === 0) { this.wave = false; this.slot = 0; } // пачка ушла целиком: можно копить заново
-    if (orbit < max) {
+    if (gravityReturn ? this.gravitySpawned < max && this.items.length < max : orbit < max) {
       this.timer += dt;
-      while (this.timer >= interval && orbit < max) {
+      while (this.timer >= interval && (gravityReturn ? this.gravitySpawned < max && this.items.length < max : orbit < max)) {
         this.timer -= interval;
         // Следующий клинок появляется на противоположной стороне от предыдущего (доли круга 0, 1/2, 1/4, 3/4, 1/8 ...).
-        const off = vdc(this.slot++) * TAU;
+        const slot = this.slot++;
+        const off = vdc(slot) * TAU;
         const a = this.spin + off;
-        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0 });
+        // Если несколько модов Клинков сидят на щите, только доля клинков из ветки
+        // Поглощения засчитывается в его тройку попаданий.
+        const linked = m.blades.linkedAbsorption || 0;
+        const isAbsorptionBlade = linked > 0 && slot % m.blades.count < linked;
+        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0, absorptionLinked: isAbsorptionBlade });
+        if (gravityReturn) this.gravitySpawned++;
         orbit++;
       }
     } else this.timer = 0;
@@ -180,6 +230,50 @@ export class Blades {
       b.y += (ty - b.y) * k;
     }
 
+    // Гравитационный цикл: путь обратно → целый оборот вокруг героя → новая цель.
+    // Ни один из этих этапов не создаёт новый клинок.
+    if (gravityReturn) {
+      const G = this.cfg.gravity;
+      const returnSpeed = B.speed * Math.max(0.1, G.bladeReturnSpeed);
+      const orbitSpeed = Math.max(0.1, G.bladeOrbitSpeed);
+      for (const b of this.items) {
+        if (b.state === 'return') {
+          const dx = hero.x - b.x, dy = hero.y - b.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > B.orbit) {
+            const step = Math.min(dist - B.orbit, returnSpeed * dt);
+            b.a = Math.atan2(dy, dx);
+            b.vx = Math.cos(b.a) * returnSpeed;
+            b.vy = Math.sin(b.a) * returnSpeed;
+            b.x += dx / dist * step;
+            b.y += dy / dist * step;
+          }
+          if (Math.hypot(hero.x - b.x, hero.y - b.y) <= B.orbit + 0.01) {
+            b.gravTheta = Math.atan2(b.y - hero.y, b.x - hero.x);
+            b.gravProgress = 0;
+            b.state = 'gravityOrbit';
+          }
+        } else if (b.state === 'gravityOrbit') {
+          const step = orbitSpeed * dt;
+          b.gravTheta += step;
+          b.gravProgress = Math.min(TAU, b.gravProgress + step);
+          b.x = hero.x + Math.cos(b.gravTheta) * B.orbit;
+          b.y = hero.y + Math.sin(b.gravTheta) * B.orbit;
+          b.a = b.gravTheta + Math.PI / 2;
+          if (b.gravProgress >= TAU) {
+            const target = this.nearest(hero.x, hero.y, B.range);
+            if (target) {
+              b.target = target;
+              b.age = 0;
+              b.pc = undefined;
+              b.a = Math.atan2(target.y - b.y, target.x - b.x);
+              b.state = 'fly';
+            }
+          }
+        }
+      }
+    }
+
     // Полёт: самонаведение, попадание, потеря цели.
     const items = this.items;
     for (let j = items.length - 1; j >= 0; j--) {
@@ -212,11 +306,18 @@ export class Blades {
           this.source.pierce = !m.laser && (b.pc === undefined ? (m.pierce ? m.pierce.count : 0) : b.pc) > 0; // клинок пройдёт дальше (только вид)
           this.source.dx = Math.cos(b.a);
           this.source.dy = Math.sin(b.a);
-          this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          const hit = this.combat.damageEnemy(t, bd, this.source, { knockback: B.knockback, dirX: Math.cos(b.a), dirY: Math.sin(b.a) });
+          if (hit && t.active && b.absorptionLinked && this.onAbsorptionHit) this.onAbsorptionHit(t);
           if (t.active) this.applyEffects(t, m, bd);
           if (m.lightning && t.active && this.zap) this.zap(t, m.burn ? bd * this.cfg.burn.damageFrac * m.burn.damage : 0, m.burn ? this.cfg.burn.interval / m.burn.rate : 0, m.frost ? 1 : 0, m.burn && m.frost && m.steam ? m.steam.damage : 0, m.lightning.mult);
           if (m.phantom && t.active) this.tryPhantomBlade(b, t, m);
           if (m.shot && this.pellets) this.scatter(t, b.a, m, dmg);
+          if (gravityReturn) {
+            b.state = 'return';
+            b.target = null;
+            b.age = 0;
+            continue;
+          }
           if (b.pc === undefined) b.pc = m.pierce ? m.pierce.count : 0;
           if (b.pc > 0 && !m.laser) { // Пробитие: клинок идёт дальше и ищет следующую цель
             b.pc--;
@@ -227,7 +328,10 @@ export class Blades {
           continue;
         }
       }
-      if (b.age >= B.life) items.splice(j, 1);
+      if (b.age >= B.life) {
+        if (gravityReturn) { b.state = 'return'; b.target = null; b.age = 0; }
+        else items.splice(j, 1);
+      }
     }
   }
 
@@ -238,30 +342,35 @@ export class Blades {
   tryPhantomBlade(b, t, m) {
     const F = this.cfg.phantom;
     const B = this.cfg.blades;
-    if (!this.arena || this.items.length >= B.maxAlive) return;
+    if ((m.gravity && !m.laser) || !this.arena || this.items.length >= B.maxAlive) return; // гравитационные клинки не размножаются
     if (!phantomRoll(F, this.rnd, Math.min(1, F.chance * m.phantom.mult), b.gen | 0)) return;
     const s = this.spot;
     if (!phantomSpot(this.arena, this.rnd, F, t, B.size, s)) return;
     this.items.push({
       x: s.x, y: s.y, a: Math.atan2(t.y - s.y, t.x - s.x), off: 0, state: 'fly', target: t,
       vx: 0, vy: 0, age: 0, gen: (b.gen | 0) + 1, mul: F.damageFrac * (m.phantom.damage || 1), sphere: false,
+      absorptionLinked: !!b.absorptionLinked,
     });
   }
 
   /** Луч из сферы b в цель t: те же правила, что у лазера снаряда, урон луча от урона клинка. */
   pushLaser(b, t, m, dmg, max) {
+    m = forCarrier(m, 'laser');
     const L = this.cfg.laser;
     if (this.lasers.length >= L.max) return false;
     const one = laserStats(this.cfg, m.laser, dmg, 1);   // урон тика без штрафа за число
     const big = laserStats(this.cfg, m.laser, dmg, max); // длительность и яркость от числа сфер
-    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage : 0;
+    const grav = m.gravity ? 1 + this.cfg.gravity.damageBonus * m.gravity.count : 1;
+    const bd = m.burn ? dmg * this.cfg.burn.damageFrac * m.burn.damage * grav : 0;
     const dx = t.x - b.x;
     const dy = t.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     this.lasers.push({
       x: b.x, y: b.y, dx: dx / len, dy: dy / len, len: Math.min(L.length, len),
       target: t, pierce: 0, anchor: b,
-      width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick, big: big.big,
+      width: one.width, age: 0, life: big.life, interval: big.interval, ticks: big.ticks, done: 0, tick: one.tick * grav, big: big.big,
+      gravityLaser: !!m.gravity, gravityChargeTime: m.gravity ? Math.max(0.05, this.cfg.gravity.laserCharge) : 0,
+      gravityChargeAge: 0, gravityOrigin: 0, // центр накопления — сфера клинка
       burnDmg: bd, burnInt: m.burn ? this.cfg.burn.interval / m.burn.rate : 0,
       frost: !!m.frost, steam: m.frost && m.steam && m.burn ? m.steam.damage : 0, pulse: 0,
       zap: m.lightning ? m.lightning.mult : 0,
@@ -275,6 +384,7 @@ export class Blades {
    * а каждое новое попадание поворачивает разлёт на shotShift. Половина дробинок несёт Горение и Мороз.
    */
   scatter(t, fromAngle, m, dmg) {
+    m = forCarrier(m, 'shot');
     const B = this.cfg.blades;
     const S = this.cfg.shot;
     const P = this.pellets;
@@ -307,8 +417,8 @@ export class Blades {
   /** Ближайший враг, кроме skip (для клинка с Пробитием). */
   nearestOther(x, y, range, skip) {
     const en = this.enemies.items;
-    const n = this.grid.query(x, y, range);
-    const buf = this.grid.buf;
+    const buf = this.candidateIndices;
+    const n = this.grid.query(x, y, range, buf);
     let best = null;
     let bd = range * range;
     for (let k = 0; k < n; k++) {

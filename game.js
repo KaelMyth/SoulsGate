@@ -1,15 +1,18 @@
 // Сборка игры: создаёт части и связывает их. Правила боя лежат в systems/, здесь только проводка.
 import { LightDash } from './systems_lightdash.js';
+import { forCarrier } from './build_scopes.js';
 import { Rewards } from './systems_rewards.js';
 import { LevelUpScreen } from './ui_levelup.js';
 import { Aura } from './systems_aura.js';
+import { Absorption } from './systems_absorption.js';
+import { BlackSun } from './systems_black_sun.js';
 import { phantomSpot, phantomRoll } from './systems_phantom.js';
 import { EventBus } from './core_events.js';
 import { FixedStepper, FpsMeter, GameLoop } from './core_loop.js';
 import { EntityPool } from './core_entity-pool.js';
 import { CollisionWorld, Layer } from './core_collision.js';
 import { Stick } from './input_stick.js';
-import { Arena } from './world_arena.js';
+import { Arena, pointInPoly } from './world_arena.js';
 import { Hero } from './world_hero.js';
 import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
@@ -21,6 +24,7 @@ import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
+import { GravityShield } from './systems_gravity_shield.js';
 import { RockBeetles } from './systems_rockbeetle.js';
 import { Apostles } from './systems_apostles.js';
 import { ApotheosisAI } from './systems_apotheosis.js';
@@ -44,6 +48,7 @@ import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
+import { Incarnation } from './systems_incarnation.js';
 import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -79,9 +84,14 @@ export class Game {
       bossTitle: '', bossTitleAlpha: 0, // имя босса при вступлении и его прозрачность 0..1
     };
     this.skillCd = [0, 0, 0]; // перезарядки умений (с)
+    this.kineticBlades = [];
+    this.kineticBladeTrail = null;
     this.dashBeams = [];   // лучи Лазера на рывке: { x0, y0, x1, y1, age, done, zap, kind }
+    this.gravityDash = { active: false, charging: false, x: 0, y: 0, ox: 0, oy: 0, t: 0, life: 0.45, charge: 0.28 };
+    this.laserDash = {active:false,x:0,y:0,seq:0};
     this.zapBolts = [];    // цепные молнии разряда для рисования: { x0, y0, x1, y1, age }
     this.shockSource = { shock: true, active: true };
+    this.frostShockSource = { shock: true, frostShock: true, active: true }; // отдельный небесный разряд от заморозки
     this.fires = [];       // костры огненного рывка: { x, y, age, tick }
     this.fireLast = null;  // где стоял последний костёр шлейфа
     this.steamClouds = []; // облака пара на земле: { x, y, age, tick, hit:Set, dmg, int }
@@ -106,6 +116,8 @@ export class Game {
       config, hero: this.hero, stick: this.stick, bus: this.bus,
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
+    this.gravityShield = new GravityShield({ config, hero: this.hero, defense: this.defense, arena: this.arena,
+      enemies: this.enemies, enemyShots: this.enemyShots, heroShots: this.heroShots });
     this.swipe = new SwipeDetector(this.bus, config.dash, (dx, dy) => {
       if (this.state === 'playing') this.defense.tryDash(dx, dy);
     });
@@ -119,11 +131,26 @@ export class Game {
     this.apotheosis = new ApotheosisAI({ config, hero: this.hero, arena: this.arena, apostles: this.apostles, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.rockBeetles = new RockBeetles({ config, camera: this.camera, hero: this.hero, arena: this.arena, nav: this.nav, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
     this.swarm = new Swarm(config.swarm, this.arena); // сетка соседей: нужна и стае, и автоатаке
+    this.incarnation = new Incarnation({
+      config, hero: this.hero, enemies: this.enemies, combat: this.combat, arena: this.arena,
+      igniteMax: (e, dmg, interval) => this.igniteMax(e, dmg, interval),
+      chill: (e, steam, dmg, interval) => this.chill(e, steam, dmg, interval),
+      zap: (e, dmg, interval, frost, steam, chain) => this.zap(e, dmg, interval, frost, steam, chain),
+    });
+    this.gravityShield.grid = this.swarm.grid;
+    this.gravityShield.combat = this.combat;
+    this.gravityShield.ignite = (e, dmg, interval) => this.ignite(e, dmg, interval);
+    this.gravityShield.chill = (e, steam, dmg, interval) => this.chill(e, steam, dmg, interval);
+    this.gravityShield.zap = (e, dmg, interval, frost, steam) => this.zap(e, dmg, interval, frost, steam);
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
     this.laserSource = { laser: true, active: true };
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
     this.rayT = [];
     this.pelletSource = { pellet: true, active: true };
+    this.shotCandidates = []; // отдельный буфер: эффекты попадания вызывают вложенные grid.query()
+    this.steamCandidates = [];
+    this.fireCandidates = [];
+    this.zapCandidates = [];
     this.pellets = new Pellets({
       config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
       onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp, pc, pp, pg) => {
@@ -149,7 +176,20 @@ export class Game {
       modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
     });
 
-    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd, onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
+    this.lightdash = new LightDash({ config, hero: this.hero, enemies: this.enemies, arena: this.arena, combat: this.combat, rnd: this.rnd,
+      onTelegraph: (x0,y0,x1,y1) => {
+        const beam = {x0,y0,x1,y1,age:0,done:false,telegraph:true,zap:false,kind:this.kineticEl('laser').kind};
+        this.dashBeams.push(beam);
+        return beam;
+      },
+      onLaserArrival: (beam) => {
+        // Каждый прыжок цепи Молнии завершается настоящим эффектом Лазера.
+        // Без повторной электрической анимации: электроурон наносит LightDash.
+        beam.done = true;
+        beam.age = Math.max(beam.age, this.config.kinetic.beamTime);
+        this.beamZone(beam);
+      },
+      onHit: (e) => { const el = this.kineticEl(); if (el.bd > 0) this.ignite(e, el.bd, el.bi); if (el.fr) this.chill(e, el.st, el.bd, el.bi); this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm); } });
     this.defense.lightning = this.lightdash;
     this.phSpot = { x: 0, y: 0, d: 0 }; // буфер точки появления фантома: без новых объектов в горячем цикле
     this.blades = new Blades({
@@ -160,6 +200,7 @@ export class Game {
       ignite: (e, d, i) => this.ignite(e, d, i),
       chill: (e, s, d, i) => this.chill(e, s, d, i),
       zap: (e, bd, bi, fr, st, cm) => this.zap(e, bd, bi, fr, st, cm),
+      onAbsorptionHit: (e) => this.absorption && this.absorption.recordBladeHit(e),
     });
 
     this.aura = new Aura({
@@ -171,6 +212,24 @@ export class Game {
       rnd: this.rnd,
     });
 
+    this.absorption = new Absorption({
+      config, hero: this.hero, enemies: this.enemies, camera: this.camera, combat: this.combat,
+      aura: this.aura, rnd: this.rnd,
+      modifiers: (id) => (this.build ? this.build.modifiersFor(id) : null),
+      ignite: (e, d, i) => this.ignite(e, d, i),
+      chill: (e, st, d, i) => this.chill(e, st, d, i),
+      zap: (e, d, i, fr, st, cm) => this.zap(e, d, i, fr, st, cm),
+    });
+
+    this.blackSun = new BlackSun({config,hero:this.hero,aura:this.aura,enemies:this.enemies,combat:this.combat,
+      modifiers:(id)=>this.build?.modifiersFor(id)});
+    this.aura.pellets = this.pellets;
+    this.synergyCasts = [];
+    this.synergyFlashes = [];
+    this.laserAbsorptionCooldowns = new WeakMap();
+    // Фантом Поглощения использует тот же шанс/затухание, что и другие фантомы.
+    this.absorption.onPhantom = (e, mods, generation = 0) =>
+      this.tryPhantomAbsorption(e, mods, generation);
     this.renderer = new Renderer(o.canvas, config, {
       arena: this.arena,
       hero: this.hero,
@@ -190,10 +249,17 @@ export class Game {
       boss: this.boss,
       clouds: this.steamClouds,
       blades: this.blades.items,
+      kineticBlades: this.kineticBlades,
+      incarnation: this.incarnation,
       aura: this.aura,
+      absorption: this.absorption,
+      blackSun: this.blackSun,
+      synergyCasts: this.synergyCasts,
+      synergyFlashes: this.synergyFlashes,
       lightdash: this.lightdash,
       zapBolts: this.zapBolts,
       dashBeams: this.dashBeams,
+      gravityDash: this.gravityDash,
       fires: this.fires,
       pellets: this.pellets,
       lasers: this.lasers,
@@ -229,7 +295,7 @@ export class Game {
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
-    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); });
+    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); else if (i === 1) this.castIncarnation(); });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
@@ -301,9 +367,10 @@ export class Game {
     // Реакции на события боя: счёт и вспышки. Подписчики добавляются без правки систем.
     const C = config.render.colors;
     this.bus.on('enemy:hit-incoming', (inc) => { // уязвимость от дождя: входящий урон больше
-      if (inc.enemy.vuln) inc.amount *= 1 + this.config.skills.rain.vulnerability;
+      if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
+      this.blackSun.onEnemyKilled(enemy);
       const vamp = this.build.passives().vamp; // пассив «Вампиризм»
       if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
       this.kills++;
@@ -311,11 +378,17 @@ export class Game {
       this.burst(enemy.x, enemy.y, 0.35, enemy.radius * 0.6, enemy.radius * 3, enemy.def.edge);
       this.deathFx(enemy, source);
     });
-    this.bus.on('dash:started', () => this.startDashBeam());
+    this.bus.on('dash:gravity-started', (event) => this.startGravityDash(event));
+    this.bus.on('dash:gravity-arrived', (event) => this.finishGravityDash(event));
+    this.bus.on('dash:laser-started', (event) => this.startLaserDash(event));
+    this.bus.on('dash:laser-arrived', (event) => this.finishLaserDash(event));
+    this.bus.on('dash:landed', () => this.kineticLanding(false));
+    this.bus.on('dash:started', () => { this.startDashBeam(); this.beginKineticBladeTrail(); });
     this.bus.on('damage:dealt', (e) => {
       if (e.targetKind === 'enemy') {
         if (e.source && e.source.burn) this.burst(e.target.x, e.target.y - e.target.radius * 0.4, 0.2, 2, 8, config.burn.color);
         else if (e.source && e.source.shock) this.burst(e.target.x, e.target.y, 0.2, 3, 14, config.shock.color);
+        else if (e.source && e.source.absorption) this.burst(e.target.x, e.target.y, 0.2, 3, 14, 'rgb(' + this.absorption.color + ')');
         else if (!this.hitFxFor(e)) this.burst(e.target.x, e.target.y, 0.15, 3, 12, '#ffffff');
       }
       else this.burst(e.target.x, e.target.y, 0.25, e.target.radius, e.target.radius * 2.4, C.hurt);
@@ -442,6 +515,13 @@ export class Game {
     else if (s.pellet) { kind = 'pellet'; el = s.el | 0; dx = s.dx; dy = s.dy; }
     else if (s.blade) { kind = 'blade'; el = s.gen > 0 ? 4 : s.kind | 0; dx = s.dx; dy = s.dy; }
     else if (s.aura) { kind = 'aura'; el = s.kind | 0; dx = 0; dy = -1; }
+    else if (s.incarnation) { // удар энергетической кометы: эффект попадания по выбранным стихиям
+      const mask = s.el | 0;
+      kind = mask === 4 ? 'zap' : 'bolt';
+      el = (mask & 3) === 3 ? 3 : (mask & 1) ? 2 : (mask & 2) ? 1 : (mask & 4) ? 4 : 0;
+      dx = this.hero.vx; dy = this.hero.vy;
+      power = 1;
+    }
     else if (s.shock || s.lightning) { kind = 'zap'; dx = t.x - this.hero.x; dy = t.y - this.hero.y; }
     else if (s.burn) { kind = 'burn'; el = 2; dx = 0; dy = -1; }
     else if (s.hits && typeof s.vx === 'number') { // снаряд героя
@@ -530,18 +610,32 @@ export class Game {
     const grid = this.swarm.grid;
     let big = 0;
     for (const k in this.config.enemies) big = Math.max(big, this.config.enemies[k].radius || 0);
-    const reach = big + 12; // самый крупный враг + запас на сдвиг врагов с момента сборки сетки
-    for (let i = 0; i < shots.length; i++) {
+    const reach = big + 12; // запас после движения врагов
+    const shotCount = shots.length; // фантомы, появившиеся от удара, обрабатываются со следующего шага
+    for (let i = 0; i < shotCount; i++) {
       const p = shots[i];
       if (!p.active) continue;
-      const n = grid.query(p.x, p.y, p.radius + reach);
-      const buf = grid.buf;
+      const candidates = this.shotCandidates;
+      // Гравитация разгоняет снаряд выше обычной скорости: проверяем весь отрезок кадра,
+      // иначе быстрые снаряды иногда пролетят сквозь маленького врага.
+      const sx = p.gravity ? p.x - p.prevX : 0;
+      const sy = p.gravity ? p.y - p.prevY : 0;
+      const stepSq = sx * sx + sy * sy;
+      const segment = p.gravity ? Math.sqrt(stepSq) : 0;
+      const qx = p.x - sx * 0.5;
+      const qy = p.y - sy * 0.5;
+      const n = grid.query(qx, qy, p.radius + reach + segment * 0.5, candidates);
       for (let k = 0; k < n; k++) {
-        const e = en[buf[k]];
+        const e = en[candidates[k]];
         if (!e.active) continue;
         this.collisions.checks++;
-        const dx = p.x - e.x;
-        const dy = p.y - e.y;
+        let dx = p.x - e.x;
+        let dy = p.y - e.y;
+        if (p.gravity && stepSq > 0) {
+          const t = Math.max(0, Math.min(1, ((e.x - p.prevX) * sx + (e.y - p.prevY) * sy) / stepSq));
+          dx = p.prevX + t * sx - e.x;
+          dy = p.prevY + t * sy - e.y;
+        }
         const r = p.radius + e.radius;
         if (dx * dx + dy * dy <= r * r) {
           this.onShotHitEnemy(p, e);
@@ -551,15 +645,27 @@ export class Game {
     }
   }
 
-  /** Поджечь врага: горит burn.duration секунд; повторное попадание обновляет время, берётся более сильный огонь. */
+  /** Горение: до трёх зарядов; каждый дополнительный +50% к БАЗОВОМУ тику.
+   * Повторное попадание обновляет время; более сильный огонь заменяет базовый урон,
+   * но бонус стаков не накапливается множителями. */
   ignite(e, dmg, interval) {
+    if (!e || !e.active || !(dmg > 0)) return;
     const b = this.config.burn;
-    if (e.burnT <= 0 || dmg >= e.burnDmg) {
+    const fresh = e.burnT <= 0;
+    if (fresh || dmg >= e.burnDmg) {
       e.burnDmg = dmg;
-      e.burnInt = Math.max(0.05, interval);
+      e.burnInt = Math.max(0.05, Number.isFinite(interval) ? interval : b.interval);
     }
-    if (e.burnT <= 0) e.burnTick = e.burnInt;
+    if (fresh) e.burnTick = e.burnInt;
+    e.burnStacks = Math.min(Math.max(1, b.maxStacks), (fresh ? 0 : e.burnStacks || 0) + 1);
     e.burnT = b.duration;
+  }
+
+  /** Насыщение огнём без повторных вызовов и лишних эффектов: для красных электрических дуг. */
+  igniteMax(e, dmg, interval) {
+    if (!e || !e.active || !(dmg > 0)) return;
+    this.ignite(e, dmg, interval);
+    if (e.active) e.burnStacks = Math.max(1, this.config.burn.maxStacks);
   }
 
   /**
@@ -584,21 +690,26 @@ export class Game {
   }
 
   /**
-   * Разряд: удар по врагу и цепная молния на 2–3 ближайших. С Горением молния оранжевая и поджигает, с Морозом синяя и морозит,
-   * со всеми тремя белая: электризует, поджигает, морозит и поднимает паровые взрывы. Цепь заряды электризации не копит.
+   * Разряд: при наличии Горения у источника или на враге выпускает красные широкие дуги,
+   * мгновенно насыщающие Горением всех поражённых (без рекурсивной электризации).
+   * С Морозом сохраняет обычную передачу зарядов, Пар остаётся приоритетной реакцией.
    */
   discharge(e, bd = 0, bi = 0, fr = 0, st = 0, cm = 1) {
     const S = this.config.shock;
-    const kind = (bd > 0 ? 1 : 0) | (fr ? 2 : 0);
-    const col = S.colors[kind];
+    const burnDmg = bd > 0 ? bd : e.burnT > 0 ? e.burnDmg : 0;
+    const burnInt = bd > 0 ? bi : e.burnInt;
+    const fireArc = burnDmg > 0;
+    const kind = (fireArc ? 1 : 0) | (fr ? 2 : 0);
+    const col = fireArc ? S.colors[1] : S.colors[kind];
     const grid = this.swarm.grid;
     const en = this.enemies.items;
     this.combat.damageEnemy(e, S.damage, this.shockSource, null);
+    if (fireArc && e.active) this.igniteMax(e, burnDmg, burnInt);
     this.burst(e.x, e.y, 0.3, e.radius, e.radius * 2.4, col);
     const want = Math.round((S.chainMin + Math.floor(this.rnd() * (S.chainMax - S.chainMin + 1))) * Math.max(1, cm)); // Х2/Х3 на Молнии множат число молний
     const range = S.chainRange * (this.autoattack.rangeMul || 1); // «Дальность атаки» растит и дальность цепи
-    const n = grid.query(e.x, e.y, range);
-    const buf = grid.buf;
+    const buf = this.zapCandidates;
+    const n = grid.query(e.x, e.y, range, buf);
     const bestE = this._zapE || (this._zapE = []);
     const bestD = this._zapD || (this._zapD = []);
     bestE.length = 0; bestD.length = 0;
@@ -616,12 +727,12 @@ export class Game {
     }
     for (let k = 0; k < bestE.length; k++) {
       const o = bestE[k];
-      this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0, k: kind });
-      this.combat.damageEnemy(o, S.damage * S.chainFrac, this.shockSource, null);
-      if (!o.active) continue;
+      this.zapBolts.push({ x0: e.x, y0: e.y, x1: o.x, y1: o.y, age: 0, k: kind, fireArc });
+      const hit = this.combat.damageEnemy(o, S.damage * S.chainFrac, this.shockSource, null);
+      if (!hit || !o.active) continue; // отменённый удар не передаёт статус
       this.burst(o.x, o.y, 0.2, 3, 12, col);
-      if (bd > 0) this.ignite(o, bd, bi);
-      if (fr) this.chill(o, st, bd, bi);
+      if (fireArc) this.igniteMax(o, burnDmg, burnInt); // красные дуги мгновенно накладывают максимальное Горение
+      if (fr && o.active) this.chill(o, st, burnDmg, burnInt); // ледяная часть реакции продолжает работать
     }
   }
 
@@ -631,7 +742,49 @@ export class Game {
     if (this.state !== 'playing' || !this.hero.active || this.skillCd[0] > 0 || !this.build.secondaryId('rain')) return false; // умение открывает мод-ядро «Магический дождь»
     this.skillCd[0] = R.cooldown;
     this.hud.rainT = R.duration;
-    for (const e of this.enemies.items) if (e.active) e.vuln = true;
+    const rawMods = this.build.modifiersFor(this.build.secondaryId('rain'));
+    const mods = forCarrier(rawMods, 'root');
+    const mask = (mods.burn ? 1 : 0) | (mods.frost ? 2 : 0) | (mods.lightning ? 4 : 0);
+    this.hud.rainBlades = !!mods.blades;
+    this.hud.rainGravity = !!mods.gravity;
+    this.hud.rainMask = mask; // фиксируем цвет на время дождя, даже если билд поменяли
+    const bd = mods.burn ? R.burnTickDamage * (mods.burn.damage || 1) : 0;
+    const bi = mods.burn ? this.config.burn.interval / Math.max(0.01, mods.burn.rate || 1) : 0;
+    const steam = mods.burn && mods.frost ? (mods.steam ? mods.steam.damage : 1) : 0;
+    const chain = mods.lightning ? Math.max(1, mods.lightning.mult || 1) : 1;
+    const stacks = Math.max(1, Math.round(R.stacksPerElement));
+    for (const e of this.enemies.items) {
+      if (!e.active) continue;
+      e.vuln = true; // обычная уязвимость остаётся постоянной до смерти
+      if (mods.gravity) e.rainGravityT = Math.max(e.rainGravityT || 0, 5);
+      if (mods.blades) this.combat.damageEnemy(e, 50, {active:true,rainBlade:true,ignoreRainVulnerability:true},null);
+      // Каждый стихией дождь попадает ровно два раза; реакции считают обычные системы статусов.
+      for (let i = 0; i < stacks && e.active; i++) {
+        if (mods.burn) this.ignite(e, bd, bi);
+        if (mods.frost && e.active) this.chill(e, steam, bd, bi);
+        if (mods.lightning && e.active) this.zap(e, bd, bi, mods.frost ? 1 : 0, steam, chain);
+      }
+    }
+    return true;
+  }
+
+  /** Воплощение: второй слот, на 5 с ускоряемся с инерцией и становимся неуязвимы. */
+  castIncarnation() {
+    const S = this.config.skills.incarnation;
+    const h = this.hero;
+    const id = this.build.secondaryId('incarnation');
+    if (this.state !== 'playing' || !h.active || h.dashing || h.incarnationT > 0
+        || this.skillCd[1] > 0 || !id) return false;
+    const mods = this.build.modifiersFor(id);
+    const elements = mods.scopes?.root || mods;
+    h.incarnationMask = (elements.burn ? 1 : 0) | (elements.frost ? 2 : 0) | (elements.lightning ? 4 : 0);
+    this.incarnation?.begin(mods);
+    h.incarnationT = Math.max(0.05, mods.laser ? S.laserDuration : mods.gravity && !mods.blades ? S.gravityDuration : mods.blades ? this.incarnation.bladeQueue * this.incarnation.bladeGap + 0.1 : S.duration);
+    h.incarnationSpeedMul = Math.max(1, S.speedMul) * this.incarnation.hasteMultiplier * (mods.gravity && !mods.laser && !mods.blades ? S.gravitySpeedMultiplier : 1);
+    h.incarnationInertia = Math.max(0, S.inertia);
+    h.glideTime = 0;
+    this.skillCd[1] = Math.max(0.1, S.cooldown);
+    this.hud.slotFlash = 2;
     return true;
   }
 
@@ -641,7 +794,20 @@ export class Game {
     for (let i = 0; i < 3; i++) if (sc[i] > 0) sc[i] = Math.max(0, sc[i] - dt);
     if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
     this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
-    this.hud.rainOn = !!this.build.secondaryId('rain'); // слот занят, только если дождь стоит на поле билда
+    this.hud.skillFrac1 = Math.max(0, Math.min(1, 1 - sc[1] / Math.max(0.1, this.config.skills.incarnation.cooldown)));
+    const incarnationId = this.build.secondaryId('incarnation');
+    this.hud.incarnationOn = !!incarnationId;
+    this.hud.incarnationT = this.hero.incarnationT;
+    if (incarnationId) {
+      const m = this.build.modifiersFor(incarnationId);
+      this.hud.incarnationEquippedMask = (m.burn ? 1 : 0) | (m.frost ? 2 : 0) | (m.lightning ? 4 : 0);
+    } else this.hud.incarnationEquippedMask = 0;
+    const rainId = this.build.secondaryId('rain');
+    this.hud.rainOn = !!rainId; // слот занят, только если дождь стоит на поле билда
+    if (rainId) {
+      const m = this.build.modifiersFor(rainId);
+      this.hud.rainEquippedMask = (m.burn ? 1 : 0) | (m.frost ? 2 : 0) | (m.lightning ? 4 : 0);
+    } else this.hud.rainEquippedMask = 0;
   }
 
   /** Заряды электризации тают, если давно не подновлялись; молнии разряда гаснут. */
@@ -684,6 +850,13 @@ export class Game {
       e.speedMul = 0;
       e.kbVx = e.kbVy = 0;
       this.burst(e.x, e.y, 0.35, e.radius, e.radius * 2.6, f.color);
+      // Только при РЕАЛЬНОЙ заморозке электризованного врага. Пар и иммунитет не запускают удар.
+      if (e.shockStacks > 0 && e.active) {
+        const F = this.config.frost;
+        this.zapBolts.push({ x0: e.x, y0: e.y - F.shockStrikeHeight, x1: e.x, y1: e.y,
+          age: 0, k: 2, sky: true });
+        this.combat.damageEnemy(e, F.shockStrikeDamage, this.frostShockSource || this.shockSource, null);
+      }
     } else if (!immune) {
       e.speedMul = 1 - e.frostStacks * f.slowPerStack;
     }
@@ -706,8 +879,8 @@ export class Game {
     const st = this.config.steam;
     const en = this.enemies.items;
     const grid = this.swarm.grid;
-    const n = grid.query(c.x, c.y, st.radius + 40);
-    const buf = grid.buf;
+    const buf = this.steamCandidates;
+    const n = grid.query(c.x, c.y, st.radius + 40, buf);
     for (let k = 0; k < n; k++) {
       const e = en[buf[k]];
       if (!e || !e.active) continue;
@@ -727,13 +900,52 @@ export class Game {
    * Луч растёт из героя, дальний конец следует за целью. Без Пробития он упирается в первого врага на пути,
    * с Пробитием проходит насквозь столько врагов, сколько дано. Скалы обрезают луч.
    */
+  /** Фантом Поглощения: шанс на каждом поколении вдвое ниже, до 10 копий по цепочке. */
+  tryPhantomAbsorption(e, mods, generation = 0) {
+    if (!e || !mods?.absorption?.phantom || !this.hero.active) return false;
+    const F = this.config.phantom;
+    const multiplier = Math.max(0, mods.absorption.phantomChanceMult || 0);
+    const chance = Math.min(1, F.chance * multiplier);
+    // Используется ОБЩАЯ логика фантома: chance * decay^generation.
+    if (!phantomRoll(F, this.rnd, chance, generation)) return false;
+    // Копия должна появиться возле предыдущей цели, а не от героя.
+    const nearby = this.enemies.items.filter(t =>
+      t && t.active && t !== e && Math.hypot(t.x - e.x, t.y - e.y) < 140);
+    if (!nearby.length) return false;
+    const t = nearby[Math.min(nearby.length - 1, Math.floor(this.rnd() * nearby.length))];
+    this.synergyCasts.push({
+      enemy: t, gen: t.gen, time: 0.45, maxTime: 0.45, mods, phantom: true,
+      phantomGeneration: generation + 1,
+    });
+    return true;
+  }
+
+  updateSynergyCasts(dt) {
+    for (let i=this.synergyFlashes.length-1;i>=0;i--){this.synergyFlashes[i].time-=dt;if(this.synergyFlashes[i].time<=0)this.synergyFlashes.splice(i,1);}
+    for(let i=this.synergyCasts.length-1;i>=0;i--){
+      const c=this.synergyCasts[i];
+      c.time-=dt;
+      if(c.time>0)continue;
+      this.synergyCasts.splice(i,1);
+      if(!c.enemy.active || c.enemy.gen!==c.gen)continue;
+      this.synergyFlashes.push({x:c.enemy.x,y:c.enemy.y,r:c.enemy.radius+this.config.absorption.ringPadding,time:this.config.absorption.flashTime,maxTime:this.config.absorption.flashTime,phantom:!!c.phantom});
+      // Фантомный каст наносит 50% урона и может породить следующую копию,
+      // но вероятность снижается вдвое с каждым поколением (лимит из config.phantom).
+      if (c.mods?.absorption)
+        this.absorption.strike(c.enemy, c.mods, c.phantom ? 0.5 : 1,
+          false, c.phantom ? (c.phantomGeneration || 1) : 0);
+    }
+  }
+
   updateLasers(dt) {
     const ls = this.lasers;
     for (let i = ls.length - 1; i >= 0; i--) {
       const l = ls[i];
       const an = l.anchor; // луч сферы клинка привязан к ней, остальные к герою
       if (an && an.state === 'gone') { ls.splice(i, 1); continue; }
-      if (!l.fixed) { // фантомный луч стоит на месте, остальные привязаны к герою или к сфере
+      // Все подвижные лучи перепривязываются КАЖДЫЙ КАДР к герою или клинку.
+      // fixed=true означает независимый фантомный луч со своей неподвижной точкой.
+      if (!l.fixed) {
         l.x = an ? an.x : this.hero.x;
         l.y = an ? an.y : this.hero.y;
       }
@@ -751,6 +963,23 @@ export class Game {
           const by = tg.y - l.y;
           const bd = Math.hypot(bx, by);
           if (bd > 1e-3) { l.dx = bx / bd; l.dy = by / bd; }
+        }
+      }
+      if (l.gravityLaser) {
+        // Перед лучом круг накапливает энергию впереди посоха. Он остаётся источником
+        // и после освобождения; обычные лазеры и сферы клинков не меняются.
+        if (!l.fixed) {
+          l.x += l.dx * l.gravityOrigin;
+          l.y += l.dy * l.gravityOrigin;
+          if (tg) {
+            const gx = tg.x - l.x, gy = tg.y - l.y;
+            const gd = Math.hypot(gx, gy);
+            if (gd > 1e-3) { l.dx = gx / gd; l.dy = gy / gd; }
+          }
+        }
+        if (l.gravityChargeAge < l.gravityChargeTime) {
+          l.gravityChargeAge = Math.min(l.gravityChargeTime, l.gravityChargeAge + dt);
+          if (l.gravityChargeAge < l.gravityChargeTime) continue; // во время заряда урона нет
         }
       }
       this.scanLaser(l);
@@ -772,7 +1001,8 @@ export class Game {
 
   /** Находит, докуда доходит луч и кого он задевает (rayE по порядку от героя); пишет длину в l.len. */
   scanLaser(l) {
-    const maxLen = this.config.laser.length;
+    // При движении героя/клинка лазер остаётся направленным в текущую цель.
+    const maxLen = l.target && !l.fixed ? Math.max(this.config.laser.length, Math.hypot(l.target.x-l.x,l.target.y-l.y) + l.target.radius + 5) : this.config.laser.length;
     let cut = maxLen;
     const pad = l.width * 0.3;
     const ex = l.x + l.dx * maxLen;
@@ -788,8 +1018,8 @@ export class Game {
     }
     const en = this.enemies.items;
     const grid = this.swarm.grid;
-    const n = grid.query(l.x + l.dx * cut * 0.5, l.y + l.dy * cut * 0.5, cut * 0.5 + l.width + 30);
-    const buf = grid.buf;
+    const buf = this._rayCandidates || (this._rayCandidates = []);
+    const n = grid.query(l.x + l.dx * cut * 0.5, l.y + l.dy * cut * 0.5, cut * 0.5 + l.width + 30, buf);
     const E = this.rayE;
     const T = this.rayT;
     E.length = 0;
@@ -816,7 +1046,8 @@ export class Game {
   laserTick(l) {
     l.pulse = 1;
     const E = this.rayE;
-    const hit = [];
+    const hit = this._laserHits || (this._laserHits = []);
+    hit.length = 0;
     for (let k = 0; k < l.hits; k++) hit.push(E[k]);
     // Бьём после поиска: убийство меняет пул врагов.
     for (let hi = 0; hi < hit.length; hi++) {
@@ -828,6 +1059,15 @@ export class Game {
       this.laserSource.dx = l.dx;
       this.laserSource.dy = l.dy;
       this.combat.damageEnemy(e, l.tick, this.laserSource, null);
+      const lm = this.build?.modifiersFor?.(this.config.attack.core);
+      if (e.active && lm?.laserAbsorption && !l.anchor && !l.gen) {
+        const old = this.laserAbsorptionCooldowns.get(e);
+        if (!old || old.gen !== e.gen || old.until <= this.runTime) {
+          const cooldown = this.config.absorption.interval / Math.max(0.01, lm.absorption?.rate || 1);
+          this.laserAbsorptionCooldowns.set(e, {gen:e.gen, until:this.runTime + cooldown});
+          this.synergyCasts.push({enemy:e, gen:e.gen, time:this.config.absorption.telegraph, maxTime:this.config.absorption.telegraph, mods:lm, phantom:false});
+        }
+      }
       if (!e.active) continue;
       if (l.burnDmg > 0) this.ignite(e, l.burnDmg, l.burnInt);
       if (l.frost) this.chill(e, l.steam, l.burnDmg, l.burnInt);
@@ -852,7 +1092,9 @@ export class Game {
       width: l.width, age: 0, life: l.life, interval: l.interval, ticks: l.ticks, done: 0, tick: l.tick * F.damageFrac * (l.phDmg || 1), phDmg: l.phDmg, big: l.big,
       burnDmg: l.burnDmg, burnInt: l.burnInt, frost: l.frost, steam: l.steam, pulse: 0,
       zap: l.zap,
-      gen: (l.gen | 0) + 1, phantom: l.phantom,
+      gravityLaser: !!l.gravityLaser, gravityChargeTime: l.gravityChargeTime || 0,
+      gravityChargeAge: 0, gravityOrigin: 0, // фантом заряжает круг на своей точке появления
+      gen: (l.gen | 0) + 1, phantom: l.phantom, absorptionBeam:!!l.absorptionBeam,
     });
     this.burst(s.x, s.y, 0.3, 4, 16, F.color);
   }
@@ -862,8 +1104,9 @@ export class Game {
    * С Горением на рывке отброшенные враги поджигаются (и остаётся огненный шлейф), с Морозом замедляются.
    */
   /** Стихии рывка из модов вторичного ядра: горение, мороз, пар и вид молнии (0 жёлтая, 1 огонь, 2 мороз, 3 все). */
-  kineticEl() {
-    const m = this.kineticMods;
+  kineticEl(carrier = 'root') {
+    // Стихии из дочерних веток не воздействуют на само умение и соседние моды.
+    const m = this.kineticMods?.scopes?.[carrier] || {};
     const K = this.config.kinetic;
     const el = this._kEl || (this._kEl = { bd: 0, bi: 0, fr: 0, st: 0, kind: 0, cm: 1 });
     el.bd = m && m.burn ? K.burnDamage * m.burn.damage : 0;
@@ -878,13 +1121,239 @@ export class Game {
   updateKinetic(dt) {
     const h = this.hero;
     this.updateBeams(dt);
+    if (this.gravityDash.active) {
+      this.gravityDash.t += dt;
+      if (!this.gravityDash.charging && this.gravityDash.t >= this.gravityDash.life) this.gravityDash.active = false;
+    }
+    this.updateKineticBlades(dt);
     if (!this.defense.kinetic) { this.shotLast = null; if (this.renderer) this.renderer.dashKinetic = false; return; }
     this.lightdash.kind = this.kineticEl().kind;
     if (this.renderer) { this.renderer.dashKind = this.lightdash.kind; this.renderer.dashKinetic = true; }
     const moving = h.dashing || h.glideTime > 0;
     if (moving && h.invuln < 0.1) h.invuln = 0.1; // таран: пока герой в рывке и скольжении, урон от врагов не проходит
-    if (h.dashing && !this.lightdash.active) this.kineticRam();
-    this.kineticShots();
+    if (h.dashing && !this.lightdash.active && !this.defense.gravityDashCharging) this.kineticRam();
+    if (!this.defense.gravityDashCharging) this.kineticShots();
+    this.spawnKineticBlades();
+  }
+
+  beginKineticBladeTrail() {
+    const m = this.kineticMods;
+    if (!m?.blades || !this.defense.kinetic || this.defense.gravityDashCharging) {
+      this.kineticBladeTrail = null;
+      return;
+    }
+    const mult = Math.max(1, Math.round(this.defense.kineticBladeDistanceMul));
+    const count = Math.min(120, 5 * mult);
+    let distance = this.config.dash.distance * this.config.kinetic.distanceScale *
+      this.defense.kineticBladeDistanceMul;
+    // Электрическая цепочка тоже является перемещением: клинки распределяются
+    // по всем её отрезкам, а не исчезают из-за режима Молнии.
+    if (this.lightdash.active && this.lightdash.route.length) {
+      let x = this.hero.x, y = this.hero.y;
+      distance = 0;
+      for (const e of this.lightdash.route) {
+        distance += Math.hypot(e.x - x, e.y - y);
+        x = e.x; y = e.y;
+      }
+    }
+    this.kineticBladeTrail = {
+      seq: this.defense.dashSeq, x: this.hero.x, y: this.hero.y,
+      walked: 0, spawned: 0, count, step: Math.max(1, distance / count),
+      dirX: this.defense.dashX, dirY: this.defense.dashY,
+      damage: this.config.blades.damage * (m.blades.damage || 1),
+      elements: m.scopes?.blades || {},
+    };
+  }
+
+  spawnKineticBlade(x, y, trail) {
+    const k = trail.spawned++;
+    // На каждые пять клинков: три слева, два справа; X2/X3 сохраняют пропорцию.
+    const side = (k % 5) < 3 ? 1 : -1;
+    const nx = -trail.dirY * side, ny = trail.dirX * side;
+    const speed = this.config.blades.speed;
+    const el = trail.elements;
+    const kind = (el.burn ? 2 : 0) | (el.frost ? 1 : 0);
+    const target = this.kineticBladeTarget(x, y);
+    this.kineticBlades.push({
+      x, y, a: Math.atan2(ny, nx),
+      vx: nx * speed, vy: ny * speed, target,
+      damage: trail.damage, state: 'fly', age: 0, life: this.config.blades.life,
+      kind, zap: el.lightning?.mult || 0, elements:el, kinetic: true, birthX: x, birthY: y,
+    });
+  }
+
+  spawnKineticBlades() {
+    const t = this.kineticBladeTrail, h = this.hero;
+    if (!t) return;
+    if (!this.defense.kinetic || !h.active || t.seq !== this.defense.dashSeq ||
+        this.defense.gravityDashCharging) {
+      this.kineticBladeTrail = null;
+      return;
+    }
+    const dx = h.x - t.x, dy = h.y - t.y;
+    const moved = Math.hypot(dx, dy);
+    // Равномерно распределяем клинки по ФАКТИЧЕСКИ пройденному пути.
+    while (t.spawned < t.count && moved > 0 &&
+           t.walked + moved >= t.step * (t.spawned + 1)) {
+      const fraction = Math.min(1, Math.max(0, (t.step * (t.spawned + 1) - t.walked) / moved));
+      this.spawnKineticBlade(t.x + dx * fraction, t.y + dy * fraction, t);
+    }
+    t.walked += moved;
+    t.x = h.x; t.y = h.y;
+    // У препятствия путь может оказаться короче планового: выпускаем остаток,
+    // не теряя оговорённые пять клинков (или кратное количество).
+    if (!h.dashing && h.glideTime <= 0) {
+      while (t.spawned < t.count) this.spawnKineticBlade(h.x, h.y, t);
+      this.kineticBladeTrail = null;
+    }
+  }
+
+  /** Общий для выпущенных рывком клинков поиск ближайшей цели (как у обычных клинков). */
+  kineticBladeTarget(x, y) {
+    let best = null, bestD = (this.config.blades.range * 1.5) ** 2;
+    for (const e of this.enemies.items) {
+      if (!e.active) continue;
+      const d = (e.x-x)**2 + (e.y-y)**2;
+      if (d < bestD) {bestD = d; best = e;}
+    }
+    return best;
+  }
+
+  updateKineticBlades(dt) {
+    const B = this.config.blades;
+    for (let i = this.kineticBlades.length-1; i>=0; i--) {
+      const b = this.kineticBlades[i], ox = b.x, oy = b.y;
+      b.age += dt;
+      if (b.age > b.life) {this.kineticBlades.splice(i,1);continue;}
+      if (!b.target?.active) b.target = this.kineticBladeTarget(b.x,b.y);
+      if (b.target) {
+        const wanted = Math.atan2(b.target.y-b.y,b.target.x-b.x);
+        const diff = Math.atan2(Math.sin(wanted-b.a),Math.cos(wanted-b.a));
+        b.a += Math.max(-B.turn*dt,Math.min(B.turn*dt,diff));
+      }
+      b.vx = Math.cos(b.a)*B.speed;
+      b.vy = Math.sin(b.a)*B.speed;
+      b.x += b.vx*dt; b.y += b.vy*dt;
+      if (this.arena.circleHitsRock(b.x,b.y,3)) {this.kineticBlades.splice(i,1);continue;}
+      const e = b.target;
+      if (!e?.active) continue;
+      const dx=b.x-ox, dy=b.y-oy, dd=dx*dx+dy*dy;
+      const t=dd?Math.max(0,Math.min(1,((e.x-ox)*dx+(e.y-oy)*dy)/dd)):0;
+      if (Math.hypot(ox+dx*t-e.x,oy+dy*t-e.y)>e.radius+B.size) continue;
+      const dealt = this.combat.damageEnemy(e,b.damage,{active:true,kineticBlade:true,kind:b.kind,dx:b.vx,dy:b.vy},null);
+      if (dealt && e.active) {
+        const el=b.elements;
+        const bd=el.burn?b.damage*this.config.burn.damageFrac*(el.burn.damage||1):0;
+        const bi=el.burn?this.config.burn.interval/(el.burn.rate||1):0;
+        if (el.burn) this.ignite(e,bd,bi);
+        if (el.frost && e.active) this.chill(e,el.steam?.damage||0,bd,bi);
+        if (el.lightning && e.active) this.zap(e,bd,bi,!!el.frost,el.steam?.damage||0,el.lightning.mult||1);
+      }
+      this.kineticBlades.splice(i,1);
+    }
+  }
+
+  /** Лазер на Рывке: заранее находим безопасный конец луча, не применяя Гравитацию. */
+  startLaserDash({dirX,dirY,distance,seq}) {
+    const h=this.hero, ar=this.arena;
+    let x=h.x,y=h.y;
+    const zone=ar.zone;
+    for(let traveled=6;traveled<=distance+6;traveled+=6) {
+      const d=Math.min(traveled,distance);
+      const nx=h.x+dirX*d,ny=h.y+dirY*d;
+      if(nx<ar.left+h.radius||nx>ar.right-h.radius||ny<ar.top+h.radius||ny>ar.bottom-h.radius||
+        (zone&&(nx<zone.left+h.radius||nx>zone.right-h.radius||
+          ny<zone.top+h.radius||ny>zone.bottom-h.radius||
+          (zone.poly&&!pointInPoly(zone.poly,nx,ny))))||
+        ar.circleHitsRock(nx,ny,h.radius))break;
+      x=nx;y=ny;
+    }
+    Object.assign(this.laserDash,{active:true,x,y,seq});
+  }
+
+  /** Перемещение случается после того, как луч прошёл путь. */
+  finishLaserDash({seq}) {
+    const ld=this.laserDash;
+    if(!ld.active||ld.seq!==seq)return;
+    ld.active=false;
+    this.hero.place(ld.x,ld.y);
+    this.arena.resolveCircle(this.hero);
+    this.hero.place(this.hero.x,this.hero.y);
+    this.hero.vx=this.hero.vy=0;
+    this.hero.glideTime=0;
+    this.hero.invuln=Math.max(this.hero.invuln||0,0.14);
+    // Клинки выходят ВДОЛЬ всей пройденной траектории, даже при мгновенном прыжке.
+    this.spawnKineticBlades();
+    this.bus.emit('dash:landed',{seq});
+  }
+
+  /** Безопасная точка пространственной аномалии: нельзя попасть внутрь стены или выйти из арены. */
+  startGravityDash({ dirX, dirY, distance, seq }) {
+    const hero = this.hero, ar = this.arena, K = this.config.kinetic;
+    const step = Math.max(2, K.gravityTravelStep);
+    const zone = ar.zone;
+    let ex = hero.x, ey = hero.y;
+    const steps = Math.ceil(distance / step);
+    for (let i = 1; i <= steps; i++) {
+      const dist = Math.min(distance, i * step);
+      const x = hero.x + dirX * dist, y = hero.y + dirY * dist;
+      if (x < ar.left + hero.radius || x > ar.right - hero.radius ||
+          y < ar.top + hero.radius || y > ar.bottom - hero.radius ||
+          (zone && (x < zone.left + hero.radius || x > zone.right - hero.radius ||
+                    y < zone.top + hero.radius || y > zone.bottom - hero.radius ||
+                    (zone.poly && !pointInPoly(zone.poly, x, y)))) ||
+          ar.circleHitsRock(x, y, hero.radius)) break;
+      ex = x; ey = y;
+    }
+    const g = this.gravityDash;
+    g.active = true; g.charging = true;
+    g.x = ex; g.y = ey; g.ox = hero.x; g.oy = hero.y;
+    g.seq = seq; g.t = 0; g.charge = Math.max(0.05, K.gravityCharge);
+  }
+
+  /** Телепортация без интерполяции: прямо перед ударной волной в безопасную точку. */
+  finishGravityDash({ seq }) {
+    const g = this.gravityDash;
+    if (!g.active || !g.charging || g.seq !== seq) return;
+    this.hero.place(g.x, g.y);
+    this.arena.resolveCircle(this.hero); // остров и скалы остаются твёрдыми
+    this.hero.place(this.hero.x, this.hero.y); // без интерполяции после разрешения коллизий
+    this.hero.vx = this.hero.vy = 0;
+    this.hero.glideTime = 0;
+    this.hero.invuln = Math.max(this.hero.invuln || 0, 0.14); // враги не успевают ударить в кадр возникновения волны
+    g.charging = false; g.t = 0;
+    this.kineticLanding(true);
+  }
+
+  /** Удар в точке прибытия: отталкивает всех в области, даже не задетых по пути. */
+  kineticLanding(gravity = false) {
+    if (!this.defense.kinetic || !this.hero.active) return;
+    const h = this.hero, K = this.config.kinetic, mods = this.kineticMods, el = this.kineticEl();
+    const wide = 1 + (mods && mods.bounces ? mods.bounces.percent / 200 : 0);
+    const radius = (gravity ? K.gravityPushRadius : K.pushRadius) * wide;
+    const knock = K.pushDistance * wide * (gravity ? K.gravityPushMul : 1);
+    const id = this.defense.dashSeq;
+    const en = this.enemies.items;
+    for (let i = 0; i < en.length; i++) {
+      const e = en[i];
+      if (!e.active || e.kineticLandId === id) continue;
+      const dx = e.x - h.x, dy = e.y - h.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > radius + e.radius) continue;
+      const nx = dist > 1e-5 ? dx / dist : this.defense.dashX || 1;
+      const ny = dist > 1e-5 ? dy / dist : this.defense.dashY || 0;
+      e.kineticLandId = id;
+      applyKnockback(e, nx, ny, knock, K.pushTime);
+      if (gravity) {
+        e.gravityDashSlowT = Math.max(e.gravityDashSlowT || 0, K.gravitySlowTime);
+        e.gravityDashSlowMul = Math.min(e.gravityDashSlowMul || 1, K.gravitySlowMul);
+      }
+      if (el.bd > 0) this.ignite(e, el.bd, el.bi);
+      if (el.fr) this.chill(e, el.st, el.bd, el.bi);
+      if (mods && mods.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
+    }
+    if (this.renderer?.dashfx) this.renderer.dashfx.land(h.x, h.y, this.renderer.dashKind || 0, radius);
+    if (gravity) this.burst(h.x, h.y, 0.4, 14, radius, K.gravityEdgeColor);
   }
 
   /** Кинетический рывок: каждый враг, которого герой задел в рывке, отлетает сразу в момент касания (один раз за рывок). */
@@ -913,7 +1382,7 @@ export class Game {
       else this.burst(e.x, e.y, 0.2, 3, 14, K.color);
       if (el.bd > 0) this.ignite(e, el.bd, el.bi);
       if (el.fr) this.chill(e, el.st, el.bd, el.bi);
-      if (m && m.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
+      if (m?.scopes?.root?.lightning) this.zap(e, el.bd, el.bi, el.fr, el.st, el.cm);
     }
   }
 
@@ -921,7 +1390,7 @@ export class Game {
   kineticShots() {
     const m = this.kineticMods;
     const h = this.hero;
-    if (!m || !m.shot || !h.active || !h.dashing || this.lightdash.active) { this.shotLast = null; return; }
+    if (!m?.scopes?.root?.shot || !h.active || !h.dashing) { this.shotLast = null; return; }
     const K = this.config.kinetic;
     const S = this.config.shot;
     const P = this.pellets;
@@ -930,11 +1399,11 @@ export class Game {
     const dy = h.y - last.y;
     const d = Math.hypot(dx, dy);
     if (d < K.shotStep) return;
-    const el = this.kineticEl();
+    const el = this.kineticEl('shot');
     const steps = Math.floor(d / K.shotStep);
     const pc = (k) => (m[k] ? m[k].percent / 100 : 0);
     const dmg = K.shotDamage * (m.shot.damage || 1) * (1 + pc('damage'));
-    const bd = el.bd > 0 ? dmg * this.config.burn.damageFrac * m.burn.damage : 0;
+    const bd = el.bd > 0 ? dmg * this.config.burn.damageFrac * (m.scopes?.shot?.burn?.damage || 1) : 0;
     const per = Math.max(2, Math.round(K.shotPerStep * (m.shotMul || 1)));
     const nx = -this.defense.dashY;
     const ny = this.defense.dashX;
@@ -948,7 +1417,7 @@ export class Game {
         const sp = S.speed * 0.8 * (0.8 + this.rnd() * 0.4);
         const fx = ((i >> 1) & 1) === 0; // половина несёт эффекты
         P.add(px, py, Math.cos(a) * sp, Math.sin(a) * sp, S.range * 0.6, dmg,
-          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.lightning ? el.cm : 0, 0);
+          fx ? bd : 0, fx ? el.bi : 0, fx && el.fr ? 1 : 0, fx ? el.st : 0, fx && m.scopes?.shot?.lightning ? el.cm : 0, 0);
       }
     }
     last.x += (dx / d) * K.shotStep * steps;
@@ -958,7 +1427,7 @@ export class Game {
   /** Лазер на рывке: в начале рывка в точку прибытия бьёт луч; когда он долетел, там срабатывает зона эффектов. */
   startDashBeam() {
     const m = this.kineticMods;
-    if (!this.defense.kinetic || !m || !m.laser || this.lightdash.active) return;
+    if (!this.defense.kinetic || !m?.scopes?.root?.laser || this.lightdash.active) return;
     const K = this.config.kinetic;
     const h = this.hero;
     const dist = this.config.dash.distance * K.distanceScale;
@@ -971,7 +1440,9 @@ export class Game {
       if (x < ar.left + 12 || x > ar.right - 12 || y < ar.top + 12 || y > ar.bottom - 12 || ar.circleHitsRock(x, y, h.radius)) break;
       ex = x; ey = y;
     }
-    this.dashBeams.push({ x0: h.x, y0: h.y, x1: ex, y1: ey, age: 0, done: false, zap: !!m.lightning, kind: this.kineticEl().kind });
+    if (this.defense.gravityDashCharging && this.gravityDash.active) { ex = this.gravityDash.x; ey = this.gravityDash.y; }
+    if (this.defense.laserDashCharging && this.laserDash.active) { ex = this.laserDash.x; ey = this.laserDash.y; }
+    this.dashBeams.push({ x0: h.x, y0: h.y, x1: ex, y1: ey, age: 0, done: false, zap: false, kind: this.kineticEl('laser').kind });
   }
 
   updateBeams(dt) {
@@ -981,8 +1452,8 @@ export class Game {
     for (let i = bm.length - 1; i >= 0; i--) {
       const b = bm[i];
       b.age += dt;
-      if (!b.done && b.age >= K.beamTime) { b.done = true; this.beamZone(b); }
-      if (b.age > K.beamTime + 0.25) bm.splice(i, 1);
+      if (!b.done && b.age >= K.beamTime && !b.telegraph) { b.done = true; this.beamZone(b); }
+      if (b.done && b.age > K.beamTime + 0.25) bm.splice(i, 1);
     }
   }
 
@@ -990,11 +1461,11 @@ export class Game {
   beamZone(b) {
     const K = this.config.kinetic;
     const m = this.kineticMods;
-    const el = this.kineticEl();
+    const el = this.kineticEl('laser');
     const en = this.enemies.items;
     const grid = this.swarm.grid;
-    const n = grid.query(b.x1, b.y1, K.laserZone + 40);
-    const buf = grid.buf;
+    const buf = this._zoneCandidates || (this._zoneCandidates = []);
+    const n = grid.query(b.x1, b.y1, K.laserZone + 40, buf);
     const pcd = m && m.damage ? 1 + m.damage.percent / 100 : 1;
     const dmg = K.laserDamage * pcd * (m && m.laser ? m.laser.damage || 1 : 1) + this.shockBonus(m);
     const hit = this._zoneHit || (this._zoneHit = []);
@@ -1029,7 +1500,7 @@ export class Game {
     const h = this.hero;
     const fires = this.fires;
     const km = this.kineticMods;
-    if (this.defense.kinetic && km && km.burn && h.active && (h.dashing || h.glideTime > 0)) { // шлейф только с Горением
+    if (this.defense.kinetic && km?.scopes?.root?.burn && h.active && (h.dashing || h.glideTime > 0)) { // шлейф только с Горением
       const last = this.fireLast || (this.fireLast = { x: h.x, y: h.y });
       const dx = h.x - last.x;
       const dy = h.y - last.y;
@@ -1037,7 +1508,7 @@ export class Game {
       if (d >= F.trailStep) {
         const n = Math.floor(d / F.trailStep);
         for (let k = 1; k <= n && fires.length < F.maxFires; k++) {
-          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0, bd: F.burnDamage * km.burn.damage, bi: this.config.burn.interval / km.burn.rate });
+          fires.push({ x: last.x + (dx / d) * F.trailStep * k, y: last.y + (dy / d) * F.trailStep * k, age: 0, tick: 0, bd: F.burnDamage * km.scopes.root.burn.damage, bi: this.config.burn.interval / km.scopes.root.burn.rate });
         }
         last.x += (dx / d) * F.trailStep * n;
         last.y += (dy / d) * F.trailStep * n;
@@ -1053,8 +1524,8 @@ export class Game {
       f.tick -= dt;
       if (f.tick > 0) continue;
       f.tick = F.fireTick;
-      const n = grid.query(f.x, f.y, F.fireRadius + 40);
-      const buf = grid.buf;
+      const buf = this.fireCandidates;
+      const n = grid.query(f.x, f.y, F.fireRadius + 40, buf);
       for (let k = 0; k < n; k++) {
         const e = en[buf[k]];
         if (!e || !e.active) continue;
@@ -1103,7 +1574,9 @@ export class Game {
       e.burnT -= dt;
       e.burnTick -= dt;
       while (e.burnTick <= 0 && e.active) {
-        this.combat.damageEnemy(e, e.burnDmg, this.burnSource, null);
+        const stacks = Math.min(Math.max(1, this.config.burn.maxStacks), Math.max(1, e.burnStacks || 1));
+        const damage = e.burnDmg * (1 + (stacks - 1) * this.config.burn.stackBonus);
+        this.combat.damageEnemy(e, damage, this.burnSource, null);
         e.burnTick += e.burnInt;
       }
       if (e.burnT <= 0) e.burnT = 0;
@@ -1186,6 +1659,12 @@ export class Game {
       q.glow = p.glow;
       q.phantom = p.phantom;
       q.zap = p.zap;
+      q.gravity = !!p.gravity;
+      q.gravityAge = 0; // фантом начинает собственный медленный старт
+      q.gravityStart = p.gravityStart;
+      q.gravityEnd = p.gravityEnd;
+      q.gravityRamp = p.gravityRamp;
+      q.gravityHold = p.gravityHold; // фантом тоже сначала преодолевает притяжение
       this.burst(x, y, 0.3, 4, 16, F.color);
       return;
     }
@@ -1261,6 +1740,11 @@ export class Game {
       return;
     }
     if (this.state === 'playing') {
+      const gravityActive = (this.incarnation?.gravityTime || 0) > 0;
+      const gcfg = this.config.skills.incarnation;
+      const worldDt = gravityActive ? dt * gcfg.gravityWorldScale : dt;
+      const incarnationHaste = this.hero.incarnationT > 0 ? (this.incarnation?.hasteMultiplier || 1) : 1;
+      const attackDt = (gravityActive ? dt * gcfg.gravityCastMultiplier : dt) * incarnationHaste;
       this.runTime += dt;
       const kid = this.build.secondaryId('kinetic'); // вторичное ядро рывка (если стоит): его моды считаются как у обычного ядра
       { // пассивы из угловых ячеек
@@ -1279,56 +1763,72 @@ export class Game {
       }
       this.defense.kinetic = !!kid;
       this.kineticMods = kid ? this.build.modifiersFor(kid) : null;
-      this.defense.lightDash = !!(this.kineticMods && this.kineticMods.lightning); // Молния на рывке: рикошеты по врагам
+      this.defense.lightDash = !!this.kineticMods?.scopes?.root?.lightning; // Молния на рывке: рикошеты по врагам
+      this.defense.gravityDashEnabled = !!this.kineticMods?.scopes?.root?.gravity;
+      // При наличии целей Молния перехватывает управление и прыгает по ним;
+      // без целей Лазер сохраняет обычный одиночный лазерный рывок.
+      this.defense.laserDashEnabled = !!this.kineticMods?.scopes?.root?.laser && !this.defense.gravityDashEnabled;
       { // моды рывка: Х2/Х3 (рикошеты, толчок), Мощь (урон), Ускорение (перезарядка)
         const km0 = this.kineticMods;
         const pc = (k) => (km0 && km0[k] ? km0[k].percent / 100 : 0);
         this.defense.dashCdMul = 1 / (1 + pc('rate'));
+      this.defense.kineticBladeDistanceMul = km0?.blades ? Math.max(1,1+pc('bounces')) * Math.max(1,km0.blades.max||1) : 1;
+        this.lightdash.laserMode = !!km0?.scopes?.root?.laser;
         this.lightdash.bounces = Math.max(1, Math.round(this.config.lightdash.bounces * (1 + pc('bounces'))));
         this.lightdash.damageMul = 1 + pc('damage');
         this.lightdash.bonus = this.shockBonus(km0);
       }
-      this.defense.update(dt);
+      this.defense.update(attackDt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
-      this.lightdash.update(dt);
-      this.updateKinetic(dt);
-      this.updateFires(dt);
+      this.lightdash.update(attackDt);
+      this.updateKinetic(attackDt);
+      this.updateFires(worldDt);
       this.camera.zoomTarget = Math.max(this.boss.cameraZoom(), this.arena.zone ? this.config.waves.finale.zoom : 1); // клинки и финальный бой отдаляют экран
       this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
       const en = this.enemies.items;
       this.swarm.rebuild(en);      // сетка по положениям с прошлого шага
-      this.autoattack.update(dt);  // цель ищется через сетку
+      this.incarnation.update(dt); // комета бьёт весь пройденный путь; реакции используют актуальную сетку врагов
+      this.autoattack.update(attackDt);  // цель ищется через сетку
       this.swarm.steer(en);        // стая: куда тянет жуков
-      this.guards.update(dt, en);  // охрана: куда идёт кольцо вокруг стрелка
-      this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
-      this.arch.update(dt);        // Пепельный Арх: залпы и рывки по микрофазам
-      this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
-      this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
-      this.apotheosis.update(dt);  // голова-солнце, умение «Руки», очерёдность умений босса
-      for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], dt, this.hero, this.arena, this.nav);
-      this.shooters.update(dt, en);
-      this.rockBeetles.update(dt, en); // замах и удар Горных жуков, полёт мошек
+      this.gravityShield.beginEnemyStep();
+      this.guards.update(worldDt, en);  // охрана: куда идёт кольцо вокруг стрелка
+      this.attacks.update(worldDt, en); // замахи, рывки и восстановление врагов с атакой
+      this.arch.update(worldDt);        // Пепельный Арх: залпы и рывки по микрофазам
+      this.boss.update(worldDt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
+      this.apostles.update(worldDt);    // финальный босс: призыв апостолов, их очерёдность умений
+      this.apotheosis.update(worldDt);  // голова-солнце, умение «Руки», очерёдность умений босса
+      for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], worldDt, this.hero, this.arena, this.nav);
+      this.shooters.update(worldDt, en);
+      this.rockBeetles.update(worldDt, en); // замах и удар Горных жуков, полёт мошек
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
-      this.moveShots(this.heroShots.items, dt);
-      this.moveShots(this.enemyShots.items, dt);
+      this.gravityShield.slowEnemies();
+      this.swarm.rebuild(en); // попадания используют актуальные позиции после движения и расталкивания
+      this.moveShots(this.heroShots.items, attackDt);
+      this.moveShots(this.enemyShots.items, worldDt);
+      // Вражеские снаряды только замедляются в moveShots, автоматического перехвата больше нет.
       this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
 
       this.xp.update(dt);
       this.collisions.detect();
+      this.gravityShield.hitEnemies();
+      this.gravityShield.applyElements(worldDt);
       this.hitEnemiesWithShots();
-      this.pellets.update(dt);
-      this.updateBurning(dt);
-      this.updateFrost(dt);
-      this.updateShock(dt);
-      this.updateSkills(dt);
-      this.updateSteam(dt);
-      this.updateLasers(dt);
-      this.blades.update(dt);
-      this.aura.update(dt);
+      this.pellets.update(attackDt);
+      this.updateBurning(worldDt);
+      this.updateFrost(worldDt);
+      this.updateShock(worldDt);
+      this.updateSkills(attackDt);
+      this.updateSteam(worldDt);
+      this.updateLasers(attackDt);
+      this.blades.update(attackDt);
+      this.aura.update(attackDt);
+      this.absorption.update(attackDt);
+      this.blackSun.update(attackDt);
+      this.updateSynergyCasts(attackDt);
       this.hitShotsOnBlock();
-      this.spawner.update(dt);
+      this.spawner.update(worldDt);
       this.syncWaveHud();
       this.watchCrash(dt);
     } else {
@@ -1496,13 +1996,15 @@ export class Game {
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (!p.active) continue;
-      if (updateProjectile(p, dt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
+      if (p.gravityOrbit) continue;
+      const flightDt = list === this.enemyShots.items ? this.gravityShield.enemyShotDt(p, dt) : dt;
+      if (updateProjectile(p, flightDt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
     }
   }
 
   /** Пока включён блок, снаряды врагов встречают сферу, а не тело героя: парируем у самой сферы. */
   hitShotsOnBlock() {
-    if (!this.defense.blocking || !this.hero.active) return;
+    if (!this.defense.blocking || !this.hero.active || this.defense.gravityActive) return;
     const R = this.defense.blockRadius;
     const list = this.enemyShots.items;
     for (let i = 0; i < list.length; i++) {
@@ -1609,7 +2111,7 @@ export class Game {
     const c = this.config;
     if (this.build.size !== Math.round(c.build.size)) this.build.resize(c.build.size);
     this.inventory.resize(c.build.storageSlots);
-    this.inventory.fill(c.mods, this.mode === 'game' ? [] : c.build.startMods); // в «Игре» инвентарь пуст: моды выдают награды за уровень
+    this.inventory.fill(c.mods, []); // и «Игра», и «Тестирование» начинают с пустого инвентаря
     layoutCores(this.build, c.cores, this.rnd, c.build.minCoreDistance);
   }
 
@@ -1666,13 +2168,32 @@ export class Game {
     this.effects.clear();
     this.steamClouds.length = 0;
     this.fires.length = 0;
+    // Отложенные эффекты прошлой игры не должны попадать в новых врагов из пула.
+    this.synergyCasts.length = 0;
+    this.synergyFlashes.length = 0;
+    this.laserAbsorptionCooldowns = new WeakMap();
+    this.kineticBlades.length = 0;
+    this.kineticBladeTrail = null;
     this.kPending = false;
     this.kineticMods = null;
     this.lightdash.reset();
+    this.incarnation.reset(); // новый забег: очищаем память уже задетых врагов
+    this.hero.incarnationMask = 0;
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
+    this.gravityDash.active = false;
+    this.gravityDash.charging = false;
+    this.laserDash.active = false;
     this.skillCd[0] = this.skillCd[1] = this.skillCd[2] = 0;
     this.hud.rainT = 0;
+    this.hud.rainMask = 0;
+    this.hud.rainBlades = false;
+    this.hud.rainGravity = false;
+    this.hud.rainEquippedMask = 0;
+    this.hud.incarnationT = 0;
+    this.hud.incarnationOn = false;
+    this.hud.incarnationEquippedMask = 0;
+    this.hud.skillFrac1 = 1;
     this.rewards.reset();
     this.pendingLevels = 0;
     this.levelUpScreen.hide();
@@ -1683,6 +2204,8 @@ export class Game {
     this.hero.reset();
     this.defense.reset();
     this.blades.reset();
+    this.absorption.reset();
+    this.blackSun.reset();
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();

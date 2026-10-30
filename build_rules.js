@@ -9,6 +9,7 @@
 export function parentAccepts(modDef, core, carry, ownerCore) {
   const e = modDef.effect;
   if (core) {
+    if (e.kind === 'passive') return false; // Вампиризм можно поставить на Поглощение, но не на ядро напрямую
     if (e.kind === 'double') return !!core.def.multStat;
     if (e.kind === 'burn') return !!core.def.canBurn;
     if (e.kind === 'frost') return !!core.def.canFrost;
@@ -16,24 +17,37 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
     if (e.kind === 'laser') return !!core.def.canLaser;
     if (e.kind === 'blades') return !!core.def.canBlades;
     if (e.kind === 'aura') return !!core.def.canAura;
+    if (e.kind === 'absorption') return !!core.def.canAbsorption;
     if (e.kind === 'lightning') return !!core.def.canLightning;
     if (e.kind === 'shot') return !!core.def.canShot;
     if (e.kind === 'phantom') return !!core.def.canPhantom;
+    if (e.kind === 'gravity') return !!core.def.canGravity;
     return (core.def.stats || []).some((s) => s.key === e.stat);
   }
   if (!carry) return false;
   if (carry === 'xroot') return parentAccepts(modDef, ownerCore || null, null); // Х2/Х3 на ядре: ветка, на неё вешают всё, что берёт ядро
   if (carry === 'dbl') return e.kind === 'double'; // Х2/Х3 на «Лазере»/«Дроби»: дальше только ещё множители
-  if (e.kind === 'laser') return carry === 'blades'; // «Лазер» к ядру снаряда или на «Клинки» (клинки становятся сферами с лучами)
-  if (e.kind === 'shot') return carry === 'blades'; // «Дробь» к ядру снаряда или на «Клинки»
-  if (e.kind === 'phantom') return carry === 'blades'; // «Фантом» к ядру снаряда или на «Клинки»
-  if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
-  if (e.kind === 'blades' || e.kind === 'aura') return false; // «Клинки» и «Аура» крепятся только к ядру
+  if (e.kind === 'laser') return carry === 'blades' || carry === 'gravity' || (carry === 'aura' && ownerCore?.def.multStat === 'blockPower'); // Лазер после Гравитации тоже получает накопление
+  if (e.kind === 'shot') return carry === 'blades' || carry === 'laser' || (carry === 'aura' && ownerCore?.def.multStat === 'blockPower'); // «Дробь» к ядру снаряда или на «Клинки»
+  if (e.kind === 'phantom') return carry === 'blades' || carry === 'laser' || carry === 'absorption'; // «Фантом» к ядру снаряда или на «Клинки»
+  if (e.kind === 'pierce') return carry === 'blades' || carry === 'shot' || carry === 'absorption'; // «Пробитие»: к ядру снаряда или на «Клинки» и «Дробь»
+  if (e.kind === 'blades') return carry === 'absorption' || carry === 'absorption:mult' || (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower'); // Клинки под Поглощением: три попадания вызывают отдельный удар
+  if (e.kind === 'gravity') return carry === 'absorption' || carry === 'laser' || ((carry === 'blades' || carry === 'aura') && ownerCore?.def.multStat === 'blockPower'); // растущий круг и усиленный луч, совместимо со стихиями
+  if (e.kind === 'absorption') return carry === 'aura' || carry === 'laser'; // Поглощение на Ауре: случайный удар внутри поля раз в 2 с
+  if (e.kind === 'aura') return carry === 'gravity' && ownerCore?.def.multStat === 'blockPower'; // Аура на Гравитации: постоянное ослабленное поле
+  if (carry === 'absorption:vamp') return false; // Вампиризм завершает ветку
+  if (carry === 'absorption' || carry === 'absorption:mult')
+    return e.kind === 'double' || (e.kind === 'passive' && e.passive === 'vamp')
+      || (e.kind === 'stat' && (e.stat === 'damage' || e.stat === 'rate'))
+      || e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning'; // стихии накладывают максимум стаков
+  if (carry === 'absorption:damage' || carry === 'absorption:rate')
+    return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
+  if (e.kind === 'stat' && e.stat === 'rate' && carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') return true;
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
-  // Связка: «Мороз» крепится к «Горению», а «Горение» к «Морозу». Больше они ни к чему, кроме ядра, не крепятся.
-  if (e.kind === 'lightning') return carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // «Молния»: к ядру снаряда, рывка или на Лазер, Клинки, Ауру
-  if (e.kind === 'frost') return carry === 'burn' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
-  if (e.kind === 'burn') return carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
+  // Стихии можно соединять в обоих направлениях; реакции считаются общей системой статусов.
+  if (e.kind === 'lightning') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // Горение/Мороз → Молния: один стак соответствующей стихии по цепи
+  if (e.kind === 'frost') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'lightning' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
+  if (e.kind === 'burn') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'frost' || carry === 'lightning' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot';
   if (carry === 'frost') return false; // одинокий «Мороз»: урон на нём ничего не усиливает
   if (carry === 'burn') return e.stat === 'damage' || e.stat === 'rate'; // к «Горению»: урон тика и частота тиков
   if (carry === 'aura') return e.stat === 'damage' || e.stat === 'rate'; // к «Ауре»: урон тика и число тиков
@@ -53,7 +67,7 @@ function secondaryFree(grid, x, y) {
 }
 
 export function canPlace(grid, modDef, x, y) {
-  if (modDef.effect && modDef.effect.kind === 'passive') return { ok: false, reason: 'passive' }; // пассивы ставятся только в угловые ячейки
+  if (modDef.effect && modDef.effect.kind === 'passive' && modDef.effect.passive !== 'vamp') return { ok: false, reason: 'passive' }; // только Вампиризм разрешён в основной сетке
   const c = grid.cell(x, y);
   if (!c) return { ok: false, reason: 'out' };
   if (c.core || c.mod) return { ok: false, reason: 'busy' };
@@ -95,7 +109,7 @@ export function canPlacePassive(grid, modDef, id) {
 
 export function highlight(grid, modDef) {
   const pt = grid.pcells.filter((p) => canPlacePassive(grid, modDef, p.id)).map((p) => p.id); // подсветка угловых ячеек
-  if (modDef.effect && modDef.effect.kind === 'passive') return { faces: [], targets: [], ptargets: pt };
+  if (modDef.effect && modDef.effect.kind === 'passive' && modDef.effect.passive !== 'vamp') return { faces: [], targets: [], ptargets: pt };
   const r = highlightMain(grid, modDef);
   r.ptargets = pt;
   return r;

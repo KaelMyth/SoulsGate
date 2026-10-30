@@ -1,3 +1,4 @@
+import { forCarrier } from './build_scopes.js';
 // Автоатака: ближайший враг в радиусе, снаряд летит в него, перезарядка настраивается.
 // Цель ищется через сетку (spatial grid), если она передана: цена не растёт с размером орды.
 import { initProjectile } from './world_projectile.js';
@@ -13,6 +14,19 @@ function setBurn(p, cfg, m) {
   p.burnDmg = p.damage * cfg.burn.damageFrac * m.burn.damage;
   p.burnInt = cfg.burn.interval / m.burn.rate;
   if (m.frost && m.steam) p.steam = m.steam.damage; // связка: на 5 зарядах взрыв пара вместо заморозки
+}
+
+/** Гравитация включается только для обычных летящих снарядов (не Дробь/Лазер). */
+function setGravity(p, cfg, m) {
+  if (!m || !m.gravity) return;
+  const G = cfg.gravity;
+  p.gravity = true;
+  p.gravityAge = 0;
+  p.gravityStart = G.startSpeed;
+  p.gravityEnd = G.maxSpeed;
+  p.gravityRamp = G.rampTime;
+  p.gravityHold = G.holdFraction;
+  p.damage *= 1 + G.damageBonus * m.gravity.count;
 }
 
 /**
@@ -63,6 +77,7 @@ export class AutoAttack {
     this.timer = 0;
     this.acc = 1;       // поток (больше streamFrom снарядов): накопленные к выпуску снаряды
     this.target = null; // нужна отрисовке: метка на цели
+    this.candidates = [];
   }
 
   reset() {
@@ -133,7 +148,7 @@ export class AutoAttack {
     const fy = dy / len;
     const nx = -fy;
     const ny = fx;
-    const m = this.modifiers ? this.modifiers(this.cfg.attack.core) : null;
+    const m = forCarrier(this.modifiers ? this.modifiers(this.cfg.attack.core) : null, 'root');
     const count = projectileCount(this.cfg, m);
     const gap = this.cfg.attack.spread || 14;
     const pen = countPenalty(this.cfg, count); // чем больше снарядов, тем слабее каждый
@@ -145,10 +160,12 @@ export class AutoAttack {
       for (let j = 0; j < n; j++) {
         const side = (j - (n - 1) / 2) * gap;
         const back = -r * gap;
+        if (this.cfg.limits && this.shots.count >= this.cfg.limits.maxShots) break;
         const p = this.shots.spawn();
         if (!p) break; // потолок снарядов
         initProjectile(p, def, hero.x + nx * side + fx * back, hero.y + ny * side + fy * back, dx, dy, hero);
         p.damage = applyMod(p.damage, m && m.damage) * pen;
+        setGravity(p, this.cfg, m);
         p.glow = countGlow(count);
         p.range *= this.rangeMul;
         setBurn(p, this.cfg, m);
@@ -162,6 +179,7 @@ export class AutoAttack {
 
   /** Дробь: каждый снаряд это веер из shot.base дробинок, снарядов больше значит дробинок больше; урон без штрафа за число. */
   fireShot(target, m) {
+    m = forCarrier(m, 'shot');
     const hero = this.hero;
     const S = this.cfg.shot;
     const P = this.pellets;
@@ -172,7 +190,8 @@ export class AutoAttack {
     const want = Math.round(S.base * projectileCount(this.cfg, m));
     const n = Math.min(want, P.free()); // места нет: стреляем тем, что влезает
     const sd = m.shot && m.shot.damage ? m.shot.damage : 1; // Мощь на Дроби
-    const dmg = applyMod(def.damage, m.damage) * S.damageFrac * sd;
+    const gravityBonus = m.gravity ? 1 + this.cfg.gravity.damageBonus * m.gravity.count : 1;
+    const dmg = applyMod(def.damage, m.damage) * S.damageFrac * sd * gravityBonus;
     const half = (S.spread * Math.PI) / 360;
     // Горение и Мороз: несут только каждая вторая дробинка, иначе заряды Мороза набирались бы за один залп.
     const full = applyMod(def.damage, m.damage) * sd;
@@ -186,9 +205,11 @@ export class AutoAttack {
       const t = n > 1 ? (i + this.rnd() * 0.8) / n : 0.5;
       const a = base + (t * 2 - 1) * half;
       const sp = S.speed * (1 + (this.rnd() * 2 - 1) * S.speedJitter);
+      // Дробь наследует гравитационный разгон без подмены отдельной системой снарядов.
+      const gravitySpeed = 1;
       const fx = (i & 1) === 0; // половина несёт эффекты
-      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp, Math.sin(a) * sp, S.range * this.rangeMul, dmg,
-        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0, pc, (i & 3) === 0 ? ph : 0, 0);
+      P.add(hero.x + Math.cos(a) * 10, hero.y + Math.sin(a) * 10, Math.cos(a) * sp * gravitySpeed, Math.sin(a) * sp * gravitySpeed, S.range * this.rangeMul, dmg,
+        fx ? bd : 0, fx ? bi : 0, fx && m.frost ? 1 : 0, fx ? st : 0, fx && m.lightning ? m.lightning.mult : 0, pc, (i & 3) === 0 ? ph : 0, 0, !!m.gravity);
     }
     hero.facing = base;
     this.bus.emit('projectile:fired', { projectile: null, target, count: n });
@@ -201,8 +222,9 @@ export class AutoAttack {
     const en = this.enemies.items;
     const out = this.cand || (this.cand = []);
     out.length = 0;
-    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius * this.rangeMul) : en.length;
-    const buf = this.grid ? this.grid.buf : null;
+    const indices = this.candidates;
+    const n = this.grid ? this.grid.query(hero.x, hero.y, atk.radius * this.rangeMul, indices) : en.length;
+    const buf = this.grid ? indices : null;
     for (let k = 0; k < n; k++) {
       const e = en[buf ? buf[k] : k];
       if (!e || !e.active) continue;
@@ -220,6 +242,7 @@ export class AutoAttack {
    * когда лучей больше, чем врагов, цели повторяются. Луч держится life секунд и бьёт тиками. Пробитие на лазер не действует.
    */
   fireLaser(target, m) {
+    m = forCarrier(m, 'laser');
     const hero = this.hero;
     const L = this.cfg.laser;
     const def = this.cfg.projectiles[this.cfg.attack.projectile];
@@ -227,6 +250,8 @@ export class AutoAttack {
     const dmg = applyMod(def.damage, m.damage); // урон снаряда с модами
     const ls = laserStats(this.cfg, m.laser, dmg, count);
     const b = m.burn;
+    const grav = m.gravity ? 1 + this.cfg.gravity.damageBonus * m.gravity.count : 1;
+    const charge = m.gravity ? Math.max(0.05, this.cfg.gravity.laserCharge) : 0;
     const list = this.targetsByDistance();
     if (!list.length) list.push({ e: target, d: Math.hypot(target.x - hero.x, target.y - hero.y) });
     const burnDmg = b ? dmg * countPenalty(this.cfg, count) * this.cfg.burn.damageFrac * b.damage : 0;
@@ -246,8 +271,11 @@ export class AutoAttack {
         target: t, pierce: 0, // конец луча следует за целью и упирается в первого врага на пути
         off: split > 1 ? (i % split) - (split - 1) / 2 : 0, // тонкие лучи расходятся у героя и сходятся на цели
         width: split > 1 ? ls.width * L.splitWidth : ls.width, age: 0, life: ls.life, interval: ls.interval, ticks: ls.ticks, done: 0,
-        tick: split > 1 ? ls.tick * sdm / split : ls.tick, big: ls.big,
-        burnDmg,
+        tick: (split > 1 ? ls.tick * sdm / split : ls.tick) * grav, big: ls.big,
+        absorptionBeam: !!m.laserAbsorption, // #153 цвет самого луча наследует Поглощение
+        gravityLaser: !!m.gravity, gravityChargeTime: charge, gravityChargeAge: 0,
+        gravityOrigin: m.gravity ? this.cfg.gravity.laserOrigin : 0,
+        burnDmg: burnDmg * grav,
         burnInt: b ? this.cfg.burn.interval / b.rate : 0,
         frost: !!m.frost,
         steam: m.frost && m.steam && b ? m.steam.damage : 0,
@@ -265,6 +293,7 @@ export class AutoAttack {
 
   /** Один снаряд потока: небольшой разброс по ширине, глубине и углу. */
   fireStream(target, m, count) {
+    m = forCarrier(m, 'root');
     const hero = this.hero;
     const atk = this.cfg.attack;
     const def = this.cfg.projectiles[atk.projectile];
@@ -285,6 +314,7 @@ export class AutoAttack {
     p.glow = countGlow(count);
     p.range *= this.rangeMul;
     p.damage = applyMod(p.damage, m && m.damage) * countPenalty(this.cfg, count);
+    setGravity(p, this.cfg, m);
     setBurn(p, this.cfg, m);
     hero.facing = Math.atan2(dy, dx);
     this.bus.emit('projectile:fired', { projectile: p, target, count: 1 });

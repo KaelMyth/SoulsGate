@@ -29,11 +29,13 @@ export function createEnemy() {
     aimTotal: 1,
     fireTimer: 0,     // стрелок: до следующего прицеливания
     speedMul: 1,      // множитель скорости (мороз замедляет)
+    gravityDashSlowT: 0, gravityDashSlowMul: 1, absorptionGravity: false, // отдельное замедление после гравитационного телепорта
     pushId: 0, // номер рывка, который уже оттолкнул этого врага
+    rainGravityT: 0, // временное замедление от Дождя + Гравитации
     vuln: false, // уязвимость от Магического дождя: до смерти, +урон
     shockStacks: 0, shockT: 0, // электризация: заряды и время до угасания
     frostStacks: 0, frostT: 0, freezeT: 0, // мороз: заряды замедления, до таяния, заморозка (с)
-    burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, // горение: осталось, до тика, урон тика, интервал
+    burnT: 0, burnTick: 0, burnDmg: 0, burnInt: 0.5, burnStacks: 0, // горение: длительность, таймер, базовый урон, интервал, заряды
   };
 }
 
@@ -58,11 +60,17 @@ export function initEnemy(e, def, x, y) {
   e.burnT = 0;
   e.burnTick = 0;
   e.burnDmg = 0;
+  e.burnStacks = 0;
+  e.burnInt = 0.5;
   e.frostStacks = 0;
   e.shockStacks = 0;
   e.shockT = 0;
   e.vuln = false;
+  e.rainGravityT = 0;
   e.speedMul = 1;
+  e.absorptionGravity = false;
+  e.gravityDashSlowT = 0;
+  e.gravityDashSlowMul = 1;
   e.frostT = 0;
   e.freezeT = 0;
   e.kbVx = e.kbVy = 0;
@@ -103,10 +111,15 @@ export function applyKnockback(e, dirX, dirY, distance, tau, ignoreScale) {
 
 /** nav: необязательное поле навигации (NavGrid); без него враг идёт напрямую. */
 export function updateEnemy(e, dt, hero, arena, nav) {
+  if (e.rainGravityT > 0) e.rainGravityT = Math.max(0,e.rainGravityT-dt);
   e.prevX = e.x;
   e.prevY = e.y;
   if (e.touchTimer > 0) e.touchTimer -= dt;
   if (e.flash > 0) e.flash -= dt;
+  if (e.gravityDashSlowT > 0) {
+    e.gravityDashSlowT = Math.max(0, e.gravityDashSlowT - dt);
+    if (e.gravityDashSlowT === 0) e.gravityDashSlowMul = 1;
+  }
   if (e.freezeT > 0) { // заморожен: стоит как вкопанный, ни ходьбы, ни откидывания
     e.hx = e.hy = 0;
     e.kbVx = e.kbVy = 0;
@@ -150,7 +163,7 @@ export function updateEnemy(e, dt, hero, arena, nav) {
         my /= ml;
       }
     }
-    let step = e.def.speed * dt * e.speedMul;
+    let step = e.def.speed * dt * e.speedMul * (e.rainGravityT > 0 ? 0.75 : 1) * (e.gravityDashSlowT > 0 ? e.gravityDashSlowMul : 1) * (e.absorptionGravity ? 0.25 : 1);
     if (direct && step > gap) step = gap; // не вдавливаемся в героя
     e.x += mx * step;
     e.y += my * step;

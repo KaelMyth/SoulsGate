@@ -26,7 +26,8 @@ html, body {
 body {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  touch-action: none;
+  /* Панельные окна могут прокручиваться; жесты игрового canvas по-прежнему отключены через #game. */
+  touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -528,7 +529,7 @@ body { font-family: var(--serif); }
 #pause-screen .pcell.selected::before { content: ''; position: absolute; inset: -3px; z-index: 4; border: 2px solid var(--accent); border-radius: 4px; pointer-events: none; box-shadow: 0 0 12px rgba(255, 177, 74, 0.85), inset 0 0 8px rgba(255, 177, 74, 0.5); }
 
 /* Настройки из главного меню: список модов с числом в пуле наград (временный экран). */
-#settings-screen { position: fixed; inset: 0; z-index: 45; display: flex; overflow-y: auto; background: rgba(6, 10, 22, 0.92); }
+#settings-screen { position: fixed; inset: 0; z-index: 45; display: flex; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; background: rgba(6, 10, 22, 0.92); }
 #settings-screen[hidden] { display: none; }
 #settings-screen .card { width: min(94vw, 420px); margin: auto; padding: 16px 12px 20px; }
 #settings-screen h2 { margin: 0 0 4px; font-size: 24px; font-weight: 500; }
@@ -542,7 +543,7 @@ body { font-family: var(--serif); }
 #settings-screen .row button { border: 1px solid var(--line); border-radius: 10px; background: rgba(20, 30, 52, 0.9); color: var(--ink); font-size: 16px; }
 
 /* ---------- Оракл (временно, ui_oracle.js) ---------- */
-#oracle-screen { position: fixed; inset: 0; z-index: 46; display: flex; overflow-y: auto; background: rgba(6, 10, 22, 0.95); }
+#oracle-screen { position: fixed; inset: 0; z-index: 46; display: flex; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; background: rgba(6, 10, 22, 0.95); }
 #oracle-screen[hidden] { display: none; }
 #oracle-screen .card { width: min(96vw, 460px); margin: auto; padding: 14px 10px 18px; }
 #oracle-screen h2 { margin: 0 0 8px; font-size: 24px; font-weight: 500; }

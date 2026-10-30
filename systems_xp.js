@@ -59,7 +59,7 @@ export class Xp {
 
   /** Выпал камень из врага: кладём рядом с местом гибели. */
   drop(enemy) {
-    const kind = enemy.def.drop;
+    const kind = this.rnd() < (this.cfg.gems.healDropChance || 0) ? 'heal' : enemy.def.drop;
     const def = kind && this.cfg.gems[kind];
     if (!def) return null;
     // Потолок камней: если их слишком много, самый старый сразу засчитывается герою, опыт не пропадает.
@@ -93,6 +93,11 @@ export class Xp {
 
   collect(g) {
     g.active = false;
+    if (g.def.heal) {
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + g.def.heal);
+      this.bus.emit('hero:healed', { x:g.x, y:g.y, amount:g.def.heal });
+      return;
+    }
     const value = g.def.value;
     this.bus.emit('gem:collected', { gem: g, value });
     this.add(value);

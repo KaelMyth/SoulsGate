@@ -37,6 +37,8 @@ export class DashFx {
     this.glows = [];
     this.wasDash = false;
     this.wasLight = false;
+    this.lightHop = -1;
+    this.lightPhase = '';
     this.acc = 0;
     this.lx = 0;
     this.ly = 0;
@@ -49,6 +51,8 @@ export class DashFx {
     for (const q of this.p) q.on = false;
     this.wasDash = false;
     this.wasLight = false;
+    this.lightHop = -1;
+    this.lightPhase = '';
   }
 
   add(type, c, x, y, vx, vy, life, size, o) {
@@ -119,7 +123,7 @@ export class DashFx {
     const r = this.r;
     const hero = r.hero;
     const light = !!(r.lightdash && r.lightdash.active);
-    const dashing = !!hero.dashing && !light;
+    const dashing = !!hero.dashing && !light && !r.gravityDash?.charging;
     const kinetic = !!r.dashKinetic;
     const kind = light ? (r.lightdash.kind | 0) : (kinetic ? r.dashKind | 0 : 0);
     const R = this.rnd;
@@ -137,10 +141,39 @@ export class DashFx {
         this.ly = hy;
         this.acc = 0;
       }
-      if (!dashing && this.wasDash && kinetic) this.land(hx, hy, this.kind, this.r.cfg.kinetic.pushRadius);
+      // Приземление генерируется игровым событием, одновременно с реальным импульсом по врагам.
       if (light && !this.wasLight) { this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.25, 34); this.add(T_RING, kind + 4, hx, hy + 6, 0, 0, 0.3, 36, { ex: 0.5 }); }
       if (!light && this.wasLight) { this.add(T_FLASH, this.kind + 4, hx, hy, 0, 0, 0.3, 40); this.add(T_RING, this.kind + 4, hx, hy + 6, 0, 0, 0.4, 60, { ex: 0.5 }); for (let i = 0; i < 8; i++) { const a = R() * TAU; this.add(T_SPARK, this.kind + 4, hx, hy, Math.cos(a) * 200, Math.sin(a) * 200, 0.3, 10, { drag: 5 }); } }
-      if (light) this.kind = kind;
+      if (light) {
+        this.kind = kind;
+        const ld = r.lightdash;
+        if (ld.laserMode) {
+          // Каждый переход цепи — отдельная вспышка: цель считывается как следующий узел переноса.
+          if (this.lightHop !== ld.idx || this.lightPhase !== ld.phase) {
+            if (ld.phase === 'charge') {
+              this.add(T_RING, kind + 4, hx, hy, 0, 0, 0.24, 19, { ex: 0.65 });
+              this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.18, 24);
+            } else if (ld.phase === 'hop') {
+              this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.16, 34);
+              const tx = ld.route[ld.idx]?.x ?? hx, ty = ld.route[ld.idx]?.y ?? hy;
+              const a = Math.atan2(ty - hy, tx - hx);
+              for (let j = 0; j < 7; j++) {
+                const ang = a + (R() - 0.5) * 0.75;
+                this.add(T_LINE, kind + 4, hx, hy, Math.cos(ang) * 95, Math.sin(ang) * 95,
+                  0.23, 34 + R() * 24, { rot: ang, drag: 2 });
+              }
+            } else if (ld.phase === 'wait') {
+              this.add(T_RING, kind + 4, hx, hy, 0, 0, 0.3, 40, { ex: 0.6 });
+              this.add(T_FLASH, kind + 4, hx, hy, 0, 0, 0.2, 29);
+            }
+            this.lightHop = ld.idx;
+            this.lightPhase = ld.phase;
+          }
+        }
+      } else {
+        this.lightHop = -1;
+        this.lightPhase = '';
+      }
       this.wasDash = dashing;
       this.wasLight = light;
       // Удары молнии по врагам: вспышка и искры в точке попадания.
@@ -164,6 +197,13 @@ export class DashFx {
         this.acc += d;
         if (this.acc > 10) { this.acc = 0; this.add(T_AFTER, kind + 4, hx, hy, 0, 0, 0.28, 15); }
         if (R() < dt * 55) { const a = R() * TAU; this.add(T_SPARK, kind + 4, hx + Math.cos(a) * 8, hy + Math.sin(a) * 8, Math.cos(a) * 120, Math.sin(a) * 120, 0.2, 8, { drag: 4 }); }
+        if (r.lightdash.laserMode && r.lightdash.phase === 'hop' && R() < dt * 85) {
+          const a = Math.atan2(hy - this.ly, hx - this.lx);
+          const sideways = a + Math.PI / 2;
+          const off = (R() - 0.5) * hero.radius * 2.4;
+          this.add(T_LINE, kind + 4, hx + Math.cos(sideways) * off, hy + Math.sin(sideways) * off,
+            -Math.cos(a) * 80, -Math.sin(a) * 80, 0.21, 23 + R() * 18, { rot: a, drag: 1.8 });
+        }
       } else if (moving) {
         const pw = kinetic ? 1 : 0.55;
         const rate = (kinetic ? 70 : 38) * dt;
@@ -351,6 +391,38 @@ export class DashFx {
     ctx.save();
     ctx.translate(hx, hy);
     ctx.globalCompositeOperation = 'lighter';
+    if (r.lightdash?.laserMode) {
+      const ld = r.lightdash;
+      const target = ld.route[ld.idx];
+      const dx = (target?.x ?? hx) - ld.fromX, dy = (target?.y ?? hy) - ld.fromY;
+      const angle = Math.atan2(dy, dx);
+      const charging = ld.phase === 'charge';
+      const hop = ld.phase === 'hop';
+      const tension = charging ? Math.min(1, ld.t / Math.max(0.01, r.cfg.kinetic.beamTime)) : 1;
+      const elongation = hop ? 3.6 : charging ? 1 + tension * 1.8 : 1.3;
+      ctx.rotate(angle);
+      for (let layer = 0; layer < 3; layer++) {
+        ctx.globalAlpha = (layer ? 0.44 : 0.2) * (0.7 + 0.3 * Math.sin(t * 23 + layer));
+        ctx.fillStyle = layer === 0 ? MAIN[c] : layer === 1 ? '#8bdcff' : '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(-R0 * elongation * 0.65, 0, R0 * elongation * (layer ? 1.15 : 1.7), R0 * (layer === 2 ? 0.42 : 0.8), 0, 0, TAU);
+        ctx.fill();
+      }
+      for (let j = 0; j < 9; j++) {
+        const u = (t * (4 + j * 0.16) + j / 9) % 1;
+        const x = -R0 * (2.7 + elongation * u);
+        const y = Math.sin(j * 2.4 + t * 11) * R0 * (0.32 + u * 0.65);
+        ctx.globalAlpha = (1 - u) * (hop ? 0.85 : 0.5 * tension);
+        ctx.strokeStyle = j % 2 ? '#b3e8ff' : MAIN[c];
+        ctx.lineWidth = 1.2 + 2.7 * (1 - u);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + R0 * 1.1, y * 0.25, R0 * 0.7, 0); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.ellipse(0, 0, R0 * (hop ? 1.3 : 0.85), R0 * 0.45, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+      return;
+    }
     const s = R0 * (3.4 + 0.25 * Math.sin(t * 40));
     ctx.globalAlpha = 0.9;
     ctx.drawImage(g, -s, -s, s * 2, s * 2);

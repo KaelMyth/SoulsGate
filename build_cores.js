@@ -67,6 +67,7 @@ export function burnStats(config, burn, dmg) {
   const interval = b.interval / burn.rate;
   return {
     tick,
+    maxTick: tick * (1 + (b.maxStacks - 1) * b.stackBonus),
     interval,
     ticks: Math.floor(b.duration / interval + 1e-9),
   };
@@ -91,11 +92,56 @@ export function coreStats(core, config, mods) {
     }
     return { label: s.label, key: s.key, value: v, text: formatStat(s, v), bonus };
   });
+  if (core.def.effect?.kind === 'incarnation') {
+    const S = config.skills.incarnation;
+    rows.push({ label: 'Воплощение: время и откат', text: S.duration + ' / ' + S.cooldown + ' с', bonus: '2-й слот' });
+    rows.push({ label: 'Воплощение: урон', text: S.contactDamage + '', bonus: 'один раз каждому врагу за превращение' });
+    const names = [mods?.burn ? 'Горение' : '', mods?.frost ? 'Мороз' : '', mods?.lightning ? 'Молния' : ''].filter(Boolean);
+    if (names.length) rows.push({ label: 'Воплощение: стихии', text: names.join(' + '), bonus: 'максимум стаков при касании' });
+    if (mods?.burn && mods?.frost) rows.push({ label: 'Воплощение: Пар', text: 'активен', bonus: 'при заполнении Мороза' });
+    if (mods?.frost && mods?.lightning && !mods?.burn) rows.push({ label: 'Воплощение: небесный разряд', text: config.frost.shockStrikeDamage + ' урона', bonus: 'при заморозке электризованного' });
+    if (mods?.burn && mods?.lightning) rows.push({ label: 'Воплощение: огненные дуги', text: 'красные молнии', bonus: 'максимальное Горение по цепи' });
+  }
+  if (core.def.effect?.kind === 'rain') {
+    const rain = config.skills.rain;
+    rows.push({ label: 'Дождь: перезарядка', text: rain.cooldown + ' с', bonus: '1-й слот' });
+    rows.push({ label: 'Дождь: уязвимость', text: '+' + Math.round(rain.vulnerability * 100) + '%', bonus: 'до смерти врага' });
+    if (mods?.burn || mods?.frost || mods?.lightning) {
+      const elements = [mods.burn ? 'Горение' : '', mods.frost ? 'Мороз' : '', mods.lightning ? 'Молния' : ''].filter(Boolean);
+      rows.push({ label: 'Дождь: стихии', text: elements.join(' + '), bonus: '+' + rain.stacksPerElement + ' стака каждой' });
+      if (mods.burn) rows.push({ label: 'Дождь: базовый тик Горения', text: String(Math.round(rain.burnTickDamage * (mods.burn.damage || 1) * 100) / 100), bonus: 'до ' + config.burn.maxStacks + ' стаков' });
+      if (mods.burn && mods.frost) rows.push({ label: 'Дождь: Пар', text: 'активен', bonus: 'реакция на максимуме Мороза' });
+      if (mods.lightning) rows.push({ label: 'Дождь: цепная Молния', text: 'активна', bonus: 'разряд на ' + config.shock.maxStacks + '-м стаке' });
+    }
+  }
+  if (core.def.canGravity && mods && mods.gravity) {
+    const G = config.gravity;
+    if (core.def.multStat === 'blockPower') {
+      const hybrid = !!mods.aura;
+      const auraR = hybrid ? config.aura.radius * (1 + config.aura.radiusStep * ((mods.aura.mult || 1) - 1)) : G.shieldRadius;
+      rows.push({ label: 'Гравитация: горизонт', text: Math.round(auraR * 10) / 10 + '', bonus: hybrid ? 'постоянно, радиус Ауры' : 'замедляет, но пропускает' });
+      rows.push({ label: 'Гравитация: скорость врагов', text: Math.round((hybrid ? G.auraEnemySpeed : G.shieldEnemySpeed) * 100) + '%', bonus: 'остаточная скорость в зоне' });
+      rows.push({ label: 'Гравитация: скорость снарядов', text: Math.round((hybrid ? G.auraProjectileSpeed : G.shieldProjectileSpeed) * 100) + '%', bonus: 'остаточная скорость в зоне' });
+      if (hybrid) {
+        rows.push({ label: 'Гравитация + Аура', text: 'постоянно', bonus: 'без перезарядки Гравитации' });
+        rows.push({ label: 'Гравитация + Аура: тики', text: Math.round(config.aura.ticks * (mods.aura.rate || 1) * G.auraTickRateMul * 100) / 100 + '/с', bonus: 'урон ×' + G.auraDamageMul });
+      } else {
+        rows.push({ label: 'Гравитация: длительность', text: Math.round(G.shieldDuration * (mods.gravity.durationMult || 1) * 100) / 100 + ' с', bonus: '×' + (mods.gravity.durationMult || 1) + ', действует при движении' });
+        rows.push({ label: 'Гравитация: перезарядка', text: Math.round(G.shieldCooldown / (mods.gravity.cooldownRate || 1) * 100) / 100 + ' с', bonus: 'после поля, Ускорение ×' + Math.round((mods.gravity.cooldownRate || 1) * 100) / 100 });
+      }
+      rows.push({ label: 'Гравитация: искривление', text: G.shieldBend + ' рад/с', bonus: 'скользящие снаряды возвращаются' });
+      if (mods.gravity.elements?.mask) rows.push({ label: 'Гравитация: стихии', text: [(mods.gravity.elements.mask & 1) ? 'Огонь' : '', (mods.gravity.elements.mask & 2) ? 'Мороз' : '', (mods.gravity.elements.mask & 4) ? 'Молния' : ''].filter(Boolean).join(' + '), bonus: 'стаки каждые ' + G.shieldElementInterval * (hybrid ? G.auraElementIntervalMul : 1) + ' с' });
+    } else {
+      rows.push({ label: 'Гравитация: урон', text: '+' + Math.round(G.damageBonus * 100 * mods.gravity.count) + '%', bonus: 'отдельно от Мощи' });
+      rows.push({ label: 'Гравитация: скорость', text: Math.round(G.startSpeed * 100) + '% → ' + Math.round(G.maxSpeed * 100) + '%', bonus: 'удержание ' + (Math.round(G.rampTime * G.holdFraction * 100) / 100) + ' с, затем рывок' });
+    }
+  }
   if (core.def.canBurn && mods && mods.burn) {
     const dmgRow = rows.find((r) => r.key === 'damage');
     const base = dmgRow ? dmgRow.value : 0;
     const bs = burnStats(config, mods.burn, base);
-    rows.push({ label: 'Горение: урон тика', text: String(Math.round(bs.tick * 100) / 100), bonus: '' });
+    rows.push({ label: 'Горение: урон тика (1 заряд)', text: String(Math.round(bs.tick * 100) / 100), bonus: '' });
+    rows.push({ label: 'Горение: урон тика (' + config.burn.maxStacks + ' заряда)', text: String(Math.round(bs.maxTick * 100) / 100), bonus: '+' + Math.round((config.burn.maxStacks - 1) * config.burn.stackBonus * 100) + '% к базе' });
     rows.push({ label: 'Горение: тиков за ' + config.burn.duration + ' с', text: String(bs.ticks), bonus: '' });
   }
   if (core.def.canLaser && mods && mods.laser) {
@@ -104,7 +150,9 @@ export function coreStats(core, config, mods) {
     // dmgRow.value уже со штрафом за число снарядов: возвращаем его, чтобы не считать штраф дважды
     const base = dmgRow ? dmgRow.value / countPenalty(config, cnt) : 0;
     const ls = laserStats(config, mods.laser, base, cnt);
-    rows.push({ label: 'Лазер: урон тика', text: String(Math.round(ls.tick * 100) / 100), bonus: '' });
+    const grav = mods.gravity ? 1 + config.gravity.damageBonus * mods.gravity.count : 1;
+    rows.push({ label: 'Лазер: урон тика', text: String(Math.round(ls.tick * grav * 100) / 100), bonus: grav !== 1 ? '+' + Math.round((grav - 1) * 100) + '% Гравитации' : '' });
+    if (grav !== 1) rows.push({ label: 'Лазер: зарядка Гравитации', text: config.gravity.laserCharge + ' с', bonus: 'растущий круг перед лучом' });
     rows.push({ label: 'Лазер: тиков за ' + ls.life + ' с', text: String(ls.ticks), bonus: ls.big ? 'большой' : '' });
     rows.push({ label: 'Лазер: одновременно', text: String(cnt), bonus: '' });
   }
@@ -117,8 +165,25 @@ export function coreStats(core, config, mods) {
     rows.push({ label: 'Аура: обычный блок', text: 'снят', bonus: 'парирование остаётся' });
     if (mods.burn || mods.frost) rows.push({ label: 'Аура: огонь и мороз', text: 'каждый ' + A.effectEvery + '-й тик', bonus: '' });
   }
+  if (core.def.canAbsorption && mods && mods.absorption) {
+    const a = config.absorption;
+    const dmg = mods.absorption.damage || 1;
+    const rate = Math.max(0.01, mods.absorption.rate || 1);
+    rows.push({ label: 'Поглощение: урон каждой цели', text: String(Math.round(a.damage * dmg * 100) / 100), bonus: dmg !== 1 ? '+' + Math.round((dmg - 1) * 100) + '%' : '' });
+    rows.push({ label: 'Поглощение: целей одновременно', text: String(Math.min(a.maxTargets, mods.absorption.targets || mods.absorption.count)), bonus: 'Х2/Х3 перемножаются' });
+    if (mods.absorption.standaloneCount) rows.push({ label: 'Поглощение: каждые', text: Math.round(a.interval / rate * 100) / 100 + ' с', bonus: rate !== 1 ? '+' + Math.round((rate - 1) * 100) + '% скорости' : '' });
+    if (mods.absorption.auraCount) rows.push({ label: 'Аура + Поглощение', text: Math.round(a.auraInterval / rate * 100) / 100 + ' с', bonus: 'случайные цели в поле, ×' + Math.min(a.maxTargets, mods.absorption.auraTargets || 1) });
+    if (mods.absorption.standaloneCount) rows.push({ label: 'Поглощение: время каста', text: Math.round(a.telegraph / rate * 100) / 100 + ' с', bonus: '' });
+    if (mods.absorption.blades) rows.push({ label: 'Поглощение + Клинки', text: a.bladeHits + ' попадания → удар через ' + a.bladeDelay + ' с', bonus: 'все стихии Поглощения' });
+    if (mods.absorption.vampirism) rows.push({ label: 'Поглощение + Вампиризм', text: Math.round(a.lifesteal * 100) + '% урона → здоровье', bonus: 'красный круг' });
+    if (mods.absorption.burn) rows.push({ label: 'Поглощение + Горение', text: config.burn.maxStacks + ' заряда сразу', bonus: 'огонь' });
+    if (mods.absorption.frost) rows.push({ label: 'Поглощение + Мороз', text: config.frost.maxStacks + ' зарядов сразу', bonus: 'заморозка / пар' });
+    if (mods.absorption.lightning) rows.push({ label: 'Поглощение + Молния', text: config.shock.maxStacks + ' заряда сразу', bonus: 'цепной разряд' });
+    if (mods.absorption.standaloneCount) rows.push({ label: 'Поглощение: выбор целей', text: 'самые дальние', bonus: 'в пределах экрана' });
+  }
   if (core.def.canBlades && mods && mods.blades) {
     const bm = mods.blades;
+    if (core.def.multStat === 'blockPower' && mods.gravity) rows.push({ label: 'Гравитация + Клинки', text: 'возвращаются', bonus: 'лимит сохраняется, полный облёт перед новой атакой' });
     const bdmg = config.blades.damage * bm.damage;
     rows.push({ label: 'Клинки: до залпа', text: String(Math.round(config.blades.max * bm.max)), bonus: bm.max !== 1 ? '×' + Math.round(bm.max * 100) / 100 : '' });
     rows.push({ label: 'Клинки: новый раз в', text: Math.round(bladeInterval(config, Math.round(config.blades.max * bm.max)) / bm.rate * 100) / 100 + ' с', bonus: '' });
@@ -156,6 +221,17 @@ export function coreStats(core, config, mods) {
     } else {
       rows.push({ label: 'Мороз: заморозка', text: f.maxStacks + ' попаданий → ' + f.freezeTime + ' с', bonus: '' });
     }
+  }
+  // Все источники используют те же реакции; показ соответствует реально собранным стихиям.
+  if (mods) {
+    const mask = mods.gravity?.elements?.mask || 0;
+    const fire = !!mods.burn || !!mods.absorption?.burn || !!(mask & 1);
+    const ice = !!mods.frost || !!mods.absorption?.frost || !!(mask & 2);
+    const shock = !!mods.lightning || !!mods.absorption?.lightning || !!(mask & 4);
+    if (ice && shock) rows.push({ label: 'Мороз + Электризация', text: config.frost.shockStrikeDamage + ' урона',
+      bonus: 'молния сверху при заморозке электризованного врага' });
+    if (fire && shock) rows.push({ label: 'Горение + Электризация', text: 'красные дуги',
+      bonus: 'мгновенно ' + config.burn.maxStacks + ' стака Горения при разряде' });
   }
   return rows;
 }

@@ -228,13 +228,17 @@ export class BuildGrid {
       const pcore = p < 0 ? this.coreById(owner.get(ci)) : null;
       const e = c.mod.def.effect;
       // Х2/Х3 на ядре: корень ветки, под него можно вешать любые моды (как на само ядро), а сам он множит только ядро.
-      if (e.kind === 'double') carry.set(ci, pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'lightning' || pc === 'dbl' ? 'dbl' : pc);
+      if (e.kind === 'double') carry.set(ci, pc === 'absorption' || pc === 'absorption:mult' ? 'absorption:mult' : pcore || pc === 'xroot' ? 'xroot' : pc === 'laser' || pc === 'shot' || pc === 'phantom' || pc === 'aura' || pc === 'lightning' || pc === 'dbl' ? 'dbl' : pc);
       else if (e.kind === 'frost') carry.set(ci, linked.has(ci) ? 'steam' : 'frost'); // в связке с огнём: «пар»
       else if (e.kind === 'shot') carry.set(ci, 'shot'); // «Дробь»: ничего не вешается, число дробинок множит Х2/Х3 на ядре
       else if (e.kind === 'blades') carry.set(ci, 'blades'); // корень ветки клинков: Мощь, Ускорение, множители, Горение, Мороз
       else if (e.kind === 'laser') carry.set(ci, 'laser'); // корень ветки лазера: Мощь, Ускорение, Мороз, Горение
       else if (e.kind === 'lightning') carry.set(ci, 'lightning'); // «Молния»: ничего не вешается
-      else if (e.kind === 'aura') carry.set(ci, 'aura'); // корень ветки ауры: Мощь, Ускорение, множители радиуса, Горение, Мороз
+      else if (e.kind === 'aura') carry.set(ci, 'aura'); // корень ветки ауры: усилители и стихии
+      else if (e.kind === 'absorption') carry.set(ci, 'absorption'); // мод щита: число целей, урон, скорость, Вампиризм
+      else if (e.kind === 'passive' && e.passive === 'vamp') carry.set(ci, 'absorption:vamp'); // Вампиризм на Поглощении, не угловой пассив
+      else if (e.kind === 'stat' && (pc === 'absorption' || pc === 'absorption:mult' || pc === 'absorption:damage' || pc === 'absorption:rate')) carry.set(ci, 'absorption:' + e.stat);
+      else if (e.kind === 'gravity') carry.set(ci, 'gravity'); // гравитационный разгон — отдельный мод снаряда
       else if (e.kind === 'phantom') carry.set(ci, 'phantom'); // корень ветки фантома: на нём только множители шанса
       else if (e.kind === 'pierce') carry.set(ci, 'pierce'); // корень ветки пробития: на нём только множители
       else if (e.kind === 'burn') carry.set(ci, 'burn'); // корень ветки горения: к нему крепятся Мощь и Ускорение огня
@@ -248,6 +252,79 @@ export class BuildGrid {
       else carry.set(ci, e.stat);
     }
     return { owner, parent, carry };
+  }
+
+  /**
+   * Единое правило наследования свойств.
+   * Стихия принадлежит БЛИЖАЙШЕМУ механическому предку, а не всему ядру.
+   * Например: Кинетический рывок → Клинки → Горение = горящие клинки,
+   * а отдельная Молния на корне остаётся свойством самого рывка.
+   * Вложенные цепочки Горение → Мороз → Молния остаются в одном scope.
+   * Вызывающие системы получают одну и ту же структуру на всех ядрах.
+   */
+  effectScopes(coreId) {
+    const {owner, parent} = this.tree();
+    const scopes = {root: {}};
+    const mechanical = new Set(['blades', 'laser', 'shot', 'aura', 'absorption', 'gravity', 'phantom', 'pierce']);
+    const parentCarrier = (i) => {
+      let p = parent.get(i);
+      while (p >= 0) {
+        const kind = this.cells[p].mod?.def.effect.kind;
+        if (mechanical.has(kind)) return kind;
+        p = parent.get(p);
+      }
+      return 'root';
+    };
+    for (let i = 0; i < this.cells.length; i++) {
+      const cell = this.cells[i];
+      if (!cell.mod || owner.get(i) !== coreId || cell.mod.def.effect.secondary) continue;
+      const kind = cell.mod.def.effect.kind;
+      if (mechanical.has(kind)) {
+        const carrier = parentCarrier(i);
+        const scope = scopes[carrier] || (scopes[carrier] = {});
+        const k = scope[kind] || (scope[kind] = {count:0});
+        k.count++;
+        if (kind === 'phantom' || kind === 'pierce') {
+          // Х2/Х3 прикреплённые к Фантому или Пробитию остаются на нём.
+          const factor = (idx) => {
+            const node = this.cells[idx].mod?.def.effect;
+            if (node?.kind !== 'double') return 1;
+            let n = node.value;
+            for (let j=0;j<this.cells.length;j++)
+              if (parent.get(j)===idx && this.cells[j].mod?.def.effect.kind==='double') n *= factor(j);
+            return n;
+          };
+          let bonus = 1;
+          for (let j=0;j<this.cells.length;j++) {
+            if (parent.get(j)!==i || this.cells[j].mod?.def.effect.kind!=='double') continue;
+            bonus += factor(j)-1;
+          }
+          k.mult = (k.mult || 0) + bonus;
+        }
+        continue;
+      }
+      if (kind !== 'burn' && kind !== 'frost' && kind !== 'lightning') continue;
+      const carrier = parentCarrier(i);
+      const scope = scopes[carrier] || (scopes[carrier] = {});
+      const entry = scope[kind] || (scope[kind] = {count:0, damage:0, rate:0, mult:0});
+      entry.count++;
+      entry.damage++;
+      entry.rate++;
+      // Множители на самой стихии усиливают её, а не скорость/дальность родителя.
+      let multiplier = 1;
+      for (let j = 0; j < this.cells.length; j++) {
+        if (owner.get(j) !== coreId || parent.get(j) !== i) continue;
+        const effect = this.cells[j].mod?.def.effect;
+        if (effect?.kind === 'double') multiplier += effect.value - 1;
+        if (effect?.kind === 'stat' && effect.stat === 'damage') entry.damage += effect.value / 100;
+        if (effect?.kind === 'stat' && effect.stat === 'rate') entry.rate += effect.value / 100;
+      }
+      entry.mult += multiplier;
+    }
+    for (const scope of Object.values(scopes)) {
+      if (scope.burn && scope.frost) scope.steam = {damage:1, count:1};
+    }
+    return scopes;
   }
 
   /** Ветки: Map индекс клетки → id ядра (ядра и связанные с ними моды). */
@@ -320,6 +397,55 @@ export class BuildGrid {
       return total;
     };
     const res = {};
+    const gravityNodes = [];
+    const gravityElementNodes = new Set(); // стихии ветки Гравитации не усиливают соседние Клинки и Ауру
+    for (let i = 0; i < this.cells.length; i++)
+      if (this.cells[i].mod && this.cells[i].mod.def.effect.kind === 'gravity' && owner.get(i) === coreId) gravityNodes.push(i);
+    if (gravityNodes.length) {
+      res.gravity = { count: gravityNodes.length };
+      // Только щит: Х2/Х3 на Гравитации продлевают горизонт; Х2/Х3 на ядре тоже действуют.
+      // Отдельные ветки складывают прибавки, цепочки множителей перемножаются, как и в остальном билде.
+      if (this.coreById(coreId)?.def?.multStat === 'blockPower') {
+        const doubles = (nodes) => {
+          let factor = 1;
+          for (const i of nodes) if (this.cells[i].mod.def.effect.kind === 'double') factor += mult(i) - 1;
+          return factor;
+        };
+        let gravityFactor = 1;
+        for (const i of gravityNodes) gravityFactor += doubles(kids.get(i) || []) - 1;
+        res.gravity.durationMult = doubles(kids.get(-1) || []) * gravityFactor;
+        // В тройке Чёрного солнца Х2/Х3 на Гравитации усиливают давление,
+        // а не влияют на радиус Ауры или число ударов Поглощения.
+        res.gravity.pressureMult = gravityFactor;
+        // Ускорение только из ветки Гравитации — на обычный щит и Клинки не влияет.
+        const gravityHaste = (node) => {
+          let boost = 0;
+          for (const child of kids.get(node) || []) {
+            const e = this.cells[child].mod.def.effect;
+            if (e.kind === 'double') boost += gravityHaste(child);
+            else if (e.kind === 'stat' && e.stat === 'rate') boost += walk(child, 0);
+          }
+          return boost;
+        };
+        let haste = 0;
+        for (const i of gravityNodes) haste += gravityHaste(i);
+        res.gravity.cooldownRate = Math.max(1, 1 + haste * 3);
+        // Стихии берём только из ветвей самой Гравитации, а не с Клинков и Ауры того же щита.
+        let mask = 0;
+        for (let i = 0; i < this.cells.length; i++) {
+          const node = this.cells[i].mod;
+          if (!node || owner.get(i) !== coreId) continue;
+          const bit = node.def.effect.kind === 'burn' ? 1 : node.def.effect.kind === 'frost' ? 2 : node.def.effect.kind === 'lightning' ? 4 : 0;
+          if (!bit) continue;
+          let p = parent.get(i);
+          while (p >= 0) {
+            if (gravityNodes.includes(p)) { mask |= bit; gravityElementNodes.add(i); break; }
+            p = parent.get(p);
+          }
+        }
+        res.gravity.elements = { mask };
+      }
+    }
     let extraCount = 0;
     // Горение: у каждого мода «Горение» своя ветка. Мощь в ней усиливает урон тика, Ускорение учащает тики.
     // Несколько «Горений» складывают урон тика и усредняют частоту.
@@ -330,6 +456,7 @@ export class BuildGrid {
     let steams = 0;
     let sDmg = 0;
     for (const [i, kind] of this.cells.map((c, idx) => [idx, c.mod && owner.get(idx) === coreId ? c.mod.def.effect.kind : null])) {
+      if (gravityElementNodes.has(i)) continue;
       if (kind === 'burn') {
         let d = 0;
         let r = 0;
@@ -369,7 +496,7 @@ export class BuildGrid {
     let zapMul = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
-      if (!c.mod || c.mod.def.effect.kind !== 'lightning' || owner.get(i) !== coreId) continue;
+      if (!c.mod || c.mod.def.effect.kind !== 'lightning' || owner.get(i) !== coreId || gravityElementNodes.has(i)) continue;
       let f = 1;
       for (const k of kids.get(i) || []) if (this.cells[k].mod.def.effect.kind === 'double') f += mult(k) - 1;
       zaps++;
@@ -382,6 +509,7 @@ export class BuildGrid {
     // Фантомный выстрел: Х2/Х3 на нём умножают шанс; несколько фантомов складывают шанс.
     let ph = 0;
     let phMul = 0;
+    let phAbsorptionMult = 0;
     let phDmg = 0;
     for (let i = 0; i < this.cells.length; i++) {
       const c = this.cells[i];
@@ -395,7 +523,19 @@ export class BuildGrid {
         else if (carry.get(k) === 'phantom:rate') r += walk(k, 0);
       }
       ph++;
-      phMul += f * (1 + r); // Ускорение на Фантоме тоже повышает шанс
+      const chanceMult = f * (1 + r); // Х2/Х3 и Ускорение повышают шанс
+      phMul += chanceMult;
+      // Только фантомы именно под Поглощением влияют на шанс копий Поглощения.
+      // Фантомы на параллельных ветках Клинков не должны его усиливать.
+      let ancestor = parent.get(i);
+      while (ancestor >= 0) {
+        const node = this.cells[ancestor].mod;
+        if (node?.def.effect.kind === 'absorption') {
+          phAbsorptionMult += chanceMult;
+          break;
+        }
+        ancestor = parent.get(ancestor);
+      }
       phDmg += 1 + d;
     }
     if (ph) res.phantom = { count: ph, mult: phMul, damage: phDmg / ph };
@@ -417,6 +557,21 @@ export class BuildGrid {
       lRate += 1 + r;
     }
     if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    // Сочетания срабатывают только внутри одной связанной ветви.
+    const linked = (child, ancestor) => this.cells.some((cell,i) => {
+      if (!cell.mod || owner.get(i)!==coreId || cell.mod.def.effect.kind!==child) return false;
+      let p=parent.get(i);
+      while(p>=0){if(this.cells[p].mod?.def.effect.kind===ancestor)return true;p=parent.get(p);}
+      return false;
+    });
+    const laserAbsorption = linked('absorption','laser');
+    const auraLaser = linked('laser','aura');
+    const auraShot = linked('shot','aura');
+    const absorptionPhantom = linked('phantom','absorption');
+    if(laserAbsorption)res.laserAbsorption=true;
+    if(auraLaser)res.auraLaser=true;
+    if(auraShot)res.auraShot=true;
+    if(absorptionPhantom)res.absorptionPhantom=true;
     // Смертельная аура: Х2/Х3 на ней расширяют поле, Мощь усиливает тик, Ускорение учащает тики.
     let auras = 0;
     let aMul = 0;
@@ -439,8 +594,79 @@ export class BuildGrid {
       aRate += 1 + r;
     }
     if (auras) res.aura = { count: auras, mult: aMul / auras, damage: aDam / auras, rate: aRate / auras };
+    // Поглощение: число целей умножается всеми Х2/Х3 в каждой ветке.
+    // Вложенные Х2→Х3 перемножаются, разные ветви от одного Поглощения — тоже.
+    // Несколько отдельных модов Поглощения суммируют получившиеся количества целей.
+    let absorptionCount = 0;
+    let absorptionStandaloneCount = 0;
+    let absorptionAuraCount = 0;
+    let absorptionTargets = 0;
+    let absorptionAuraTargets = 0;
+    let absorptionStandaloneTargets = 0;
+    let absorptionVamp = false;
+    let absorptionGravity = false;
+    let absorptionPierce = false;
+    let absorptionBlades = false;
+    let absorptionBurn = false;
+    let absorptionFrost = false;
+    let absorptionLightning = false;
+    let absorptionDamageBonus = 0;
+    let absorptionRateBonus = 0;
+    const absorptionBranch = (i, inElement = false) => {
+      let factor = 1;
+      for (const k of kids.get(i) || []) {
+        const e = this.cells[k].mod.def.effect;
+        if (e.kind === 'gravity') { absorptionGravity = true; }
+        else if (e.kind === 'pierce') { absorptionPierce = true; }
+        else if (e.kind === 'blades') {
+          absorptionBlades = true;
+          absorptionBranch(k, true); // усиления самих Клинков не усиливают Поглощение
+        } else if (e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning') {
+          if (e.kind === 'burn') absorptionBurn = true;
+          if (e.kind === 'frost') absorptionFrost = true;
+          if (e.kind === 'lightning') absorptionLightning = true;
+          // Усиления под стихией принадлежат стихии, а не урону/числу целей Поглощения.
+          absorptionBranch(k, true);
+        } else if (inElement) {
+          // Х2/Х3 под Молнией усиливают её цепь, не количество целей Поглощения.
+          continue;
+        } else if (e.kind === 'double') factor *= e.value * absorptionBranch(k);
+        else if (e.kind === 'passive' && e.passive === 'vamp') absorptionVamp = true;
+        else if (e.kind === 'stat' && e.stat === 'damage') absorptionDamageBonus += walk(k, 0);
+        else if (e.kind === 'stat' && e.stat === 'rate') absorptionRateBonus += walk(k, 0);
+      }
+      return factor;
+    };
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i];
+      if (!c.mod || c.mod.def.effect.kind !== 'absorption' || owner.get(i) !== coreId) continue;
+      absorptionCount++;
+      // Прямой мод Поглощения оставляет обычный 3-секундный цикл.
+      // Если мод прикреплён под Аурой, он даёт отдельный удар внутри ауры каждые 2 с.
+      let ancestor = parent.get(i);
+      let onAura = false;
+      while (ancestor >= 0) {
+        const prev = this.cells[ancestor].mod;
+        if (prev && prev.def.effect.kind === 'aura') { onAura = true; break; }
+        ancestor = parent.get(ancestor);
+      }
+      const count = absorptionBranch(i);
+      if (onAura) { absorptionAuraCount++; absorptionAuraTargets += count; }
+      else { absorptionStandaloneCount++; absorptionStandaloneTargets += count; }
+      absorptionTargets += count;
+    }
+    if (absorptionCount) res.absorption = {
+      count: absorptionCount, standaloneCount: absorptionStandaloneCount, auraCount: absorptionAuraCount,
+      targets: absorptionTargets, standaloneTargets: absorptionStandaloneTargets, auraTargets: absorptionAuraTargets,
+      vampirism: absorptionVamp, gravity: absorptionGravity, pierce: absorptionPierce,
+      phantom: absorptionPhantom, phantomChanceMult: phAbsorptionMult,
+      blades: absorptionBlades,
+      burn: absorptionBurn, frost: absorptionFrost, lightning: absorptionLightning,
+      damage: 1 + absorptionDamageBonus, rate: 1 + absorptionRateBonus,
+    };
     // Клинки: Х2/Х3 на них множат число клинков, Мощь усиливает урон, Ускорение учащает появление.
     let blades = 0;
+    let absorptionLinkedBlades = 0;
     let kMax = 0;
     let kDam = 0;
     let kRate = 0;
@@ -456,11 +682,17 @@ export class BuildGrid {
         else if (carry.get(k) === 'blades:rate') r += walk(k, 0);
       }
       blades++;
+      let anc = parent.get(i);
+      while (anc >= 0) {
+        const mod = this.cells[anc].mod;
+        if (mod && mod.def.effect.kind === 'absorption') { absorptionLinkedBlades++; break; }
+        anc = parent.get(anc);
+      }
       kMax += f;
       kDam += 1 + d;
       kRate += 1 + r;
     }
-    if (blades) res.blades = { count: blades, max: kMax / blades, damage: kDam / blades, rate: kRate / blades };
+    if (blades) res.blades = { count: blades, linkedAbsorption: absorptionLinkedBlades, max: kMax / blades, damage: kDam / blades, rate: kRate / blades };
     // Х2/Х3 поверх «Лазера» и «Дроби» (на ядре снаряда) увеличивают число снарядов так же, как Х2 на самом ядре.
     let extra = 0;
     for (let i = 0; i < this.cells.length; i++) {
@@ -483,7 +715,8 @@ export class BuildGrid {
     const cc = this.coreById(coreId);
     if (extra && cc && cc.def.multStat === 'count') extraCount = extra;
     if (extra && res.shot) res.shotMul = 1 + extra; // Х2/Х3 на Дроби (для Дроби на рывке)
-    if (steams && burns) res.steam = { count: steams, damage: sDmg / steams };
+    // Пар существует при любой комбинации Горения и Мороза на ядре, в том числе через Молнию.
+    if (burns && frosts) res.steam = { count: steams || 1, damage: steams ? sDmg / steams : 1 };
     // Что стоит «на ядре»: моды прямо на нём и моды под множителями Х2/Х3, которые сидят на ядре (они только ветка).
     const rootStat = [];
     const rootDoubles = [];
@@ -498,7 +731,7 @@ export class BuildGrid {
     gather(-1, true);
     for (const i of rootStat) {
       const stat = carry.get(i);
-      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'lightning') continue;
+      if (!stat || stat === 'burn' || stat === 'frost' || stat === 'steam' || stat === 'pierce' || stat === 'laser' || stat === 'blades' || stat === 'shot' || stat === 'phantom' || stat === 'aura' || stat === 'gravity' || stat === 'absorption' || stat === 'absorption:vamp' || stat === 'absorption:mult' || stat === 'absorption:damage' || stat === 'absorption:rate' || stat === 'lightning') continue;
       const m = res[stat] || (res[stat] = { percent: 0, flat: 0 });
       m.percent += walk(i, 0) * 100;
     }
@@ -516,6 +749,11 @@ export class BuildGrid {
       const m = res.count || (res.count = { percent: 0, flat: 0 });
       m.percent += extraCount * 100;
     }
+    // Только все три мода одного Щита. Ветки могут быть раздельными или вложенными.
+    // Дочерние Х2/Х3 сохраняют собственное назначение каждого мода.
+    if (cc?.def?.multStat === 'blockPower' && res.aura && res.gravity && res.absorption)
+      res.blackSun = { pressureMult: res.gravity.pressureMult || 1 };
+    res.scopes = this.effectScopes(coreId);
     return res;
   }
 }

@@ -28,6 +28,14 @@ const ICONS = {
     ['path', S({ d: 'M16 7V25', 'stroke-width': 1.6, opacity: 0.55, style: 'stroke:var(--dark,#1a2236)' })],
     spark(16, 14, 3.4),
   ],
+  // Гравитация: центральное ядро и уходящие наружу орбиты / линии ускорения.
+  gravity: [
+    ['circle', S({ cx: 13, cy: 16, r: 5.2, 'stroke-width': 2 })],
+    ['circle', Object.assign({ cx: 13, cy: 16, r: 2.6 }, HI)],
+    ['path', S({ d: 'M2 11C11 2 24 5 29 12M3 22C12 31 26 27 30 18', 'stroke-width': 2 })],
+    ['path', Object.assign({ d: 'M22 10L29 12L27 5M23 24L30 18L25 16', 'stroke-width': 2 }, HIS)],
+    ['path', S({ d: 'M2 16H6M22 16H30', 'stroke-width': 1.5, opacity: 0.6 })],
+  ],
   // Мощь: три шеврона, растущие вверх.
   power: [
     ['path', S({ d: 'M6 27L16 17L26 27', 'stroke-width': 3.2, opacity: 0.45 })],
@@ -90,6 +98,14 @@ const ICONS = {
     ['path', S({ d: 'M9 17C5 17 3 14 3 11.5C3 8.5 5.5 6.5 8.5 7C9.5 3.5 13 2 16 2.5C19.5 3 21.5 5.5 22 8C25 8 28 10 28 13C28 15.5 26 17 23 17Z', 'stroke-width': 2.2 })],
     ['path', S({ d: 'M9 22L7 28M16 22L14 28M23 22L21 28', 'stroke-width': 2.4, opacity: 0.85 })],
   ],
+  // Воплощение: парящая комета с тремя слоями хвоста и светлым ядром.
+  incarnation: [
+    ['path', { d: 'M2 27L12 14L15 21Z', fill: 'currentColor', opacity: 0.42 }],
+    ['path', S({ d: 'M2.5 18L12 14M5 29L17 22M9 25L20 20', 'stroke-width': 1.8, opacity: 0.7 })],
+    ['path', { d: 'M12 16C12 8.8 17 5 23 5C28 5 30 9 30 14C30 21 25 25 20 25C15 25 12 21 12 16Z', fill: 'currentColor' }],
+    ['circle', Object.assign({ cx: 20, cy: 13, r: 4.5 }, HI)],
+    spark(7, 7, 2.2),
+  ],
   // Молния: зигзаг и искры.
   lightning: [
     ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
@@ -134,6 +150,13 @@ const ICONS = {
     ['circle', S({ cx: 16, cy: 16, r: 8, 'stroke-width': 2.2 })],
     ['circle', S({ cx: 16, cy: 16, r: 13, 'stroke-width': 1.6, 'stroke-dasharray': '2.5 3.2' })],
     ['path', Object.assign({ d: 'M16 1.5L18 4L16 6.5L14 4ZM30.5 16L28 18L25.5 16L28 14ZM16 30.5L14 28L16 25.5L18 28ZM1.5 16L4 14L6.5 16L4 18Z' }, HI)],
+  ],
+  // Поглощение: временный значок прицела с нарастающим кругом.
+  absorption: [
+    ['circle', S({ cx: 16, cy: 16, r: 11.5, 'stroke-width': 2 })],
+    ['circle', S({ cx: 16, cy: 16, r: 6.5, 'stroke-width': 2, opacity: 0.7 })],
+    ['circle', { cx: 16, cy: 16, r: 2.5, fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M16 1V5M16 27V31M1 16H5M27 16H31', 'stroke-width': 2 }, HIS)],
   ],
   // Фантомный выстрел: призрак и его бледная копия.
   phantom: [

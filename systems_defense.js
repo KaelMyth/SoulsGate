@@ -31,8 +31,12 @@ export class HeroDefense {
     this.dashCdMul = 1;     // множитель перезарядки рывка (Ускорение на Кинетическом рывке)
     this.lightDash = false; // Молния на рывке: цепочка рикошетов
     this.lightning = null;  // система рывка-молнии (задаёт игра)
+    this.kineticBladeDistanceMul = 1;
     this.kinetic = false; // стоит «Кинетический рывок»: рывок длиннее
     this.auraOn = false;  // стоит «Смертельная аура»: обычного блока нет, остаётся только окно парирования
+    this.gravityOn = false;
+    this.gravityElements = null; // битовая маска стихий ветки Гравитации: 1 Огонь, 2 Мороз, 4 Молния
+    this.blackSunPressure = 1;
     this.reset();
     this.bus.on('hero:hit-incoming', (inc) => this.onHit(inc));
     // Блок ставится один раз за остановку: новый блок только после нового касания стика.
@@ -46,6 +50,17 @@ export class HeroDefense {
     this.dashElapsed = 0;  // сколько идёт рывок
     this.dashV0 = 0;       // начальная скорость рывка
     this.blockTime = 0;    // сколько идёт блок
+    this.gravityTime = 0;  // отдельный таймер горизонта событий: не прерывается движением
+    this.gravityDurationMax = 0;
+    this.gravityCooldownRate = 1;
+    this.gravityDashCharging = false;
+    this.gravityDashEnabled = false;
+    this.gravityAuraRadius = 0; // радиус Ауры с Х2/Х3: общая область ослабленной Гравитации
+    this.blackSunPressure = 1;
+    this.gravityDashEnabled = false;
+    this.gravityDashCharging = false;
+    this.laserDashEnabled = false;
+    this.laserDashCharging = false;
     this.blockCd = 0;      // осталось до нового блока
     this.blockCdMax = 1;   // с какого значения шла перезарядка (для индикатора)
     this.dashTime = 0;     // сколько осталось рывка
@@ -67,6 +82,15 @@ export class HeroDefense {
 
   get blocking() {
     return this.state === 'block';
+  }
+
+  /** Аура + Гравитация постоянно активны; без Ауры используется прежний таймер. */
+  get gravityAuraMode() {
+    return this.hero.active && this.gravityOn && this.auraOn;
+  }
+
+  get gravityActive() {
+    return this.hero.active && this.gravityOn && (this.auraOn || this.gravityTime > 0);
   }
 
   /** Окно парирования: первые parryWindow секунд блока. */
@@ -105,9 +129,20 @@ export class HeroDefense {
     return Math.min(this.cfg.block.maxReduction, Math.max(0, r));
   }
 
+  /** Отдельная перезарядка Гравитации начинается только после исчезновения поля. */
+  startBlockCooldown(cancelled) {
+    if (this.gravityOn && !this.auraOn && this.gravityDurationMax > 0) {
+      const cooldown = this.cfg.gravity.shieldCooldown / Math.max(1, this.gravityCooldownRate);
+      this.startCooldown(this.gravityTime + cooldown);
+      this.blockCdMax = Math.max(0.001, cooldown);
+    } else {
+      this.startCooldown(cancelled ? this.cfg.block.cancelCooldown : this.cfg.block.cooldown);
+    }
+  }
+
   endBlock(cancelled) {
     if (!this.go('unblock')) return;
-    this.startCooldown(cancelled ? this.cfg.block.cancelCooldown : this.cfg.block.cooldown);
+    this.startBlockCooldown(cancelled);
     this.bus.emit('block:ended', { cancelled });
   }
 
@@ -115,17 +150,34 @@ export class HeroDefense {
   tryDash(dirX, dirY) {
     const d = this.cfg.dash;
     const len = Math.hypot(dirX, dirY);
-    if (!this.hero.active || this.dashCd > 0 || len < 1e-6) return false;
-    const light = this.kinetic && this.lightDash && this.lightning && !this.hero.dashing && this.lightning.plan(); // есть кого бить
+    if (!this.hero.active || this.hero.incarnationT > 0 || this.dashCd > 0 || len < 1e-6) return false; // во время воплощения нет отдельного рывка
+    const light = this.kinetic && !this.gravityDashEnabled && this.lightDash && this.lightning && !this.hero.dashing && this.lightning.plan(); // Гравитация имеет приоритет над цепным рывком
     const wasBlocking = this.state === 'block';
     if (!this.go('dash')) return false;
     if (wasBlocking) {
-      this.startCooldown(this.cfg.block.cancelCooldown);
+      this.startBlockCooldown(true);
       this.bus.emit('block:ended', { cancelled: true });
     }
-    const dist = d.distance * (this.kinetic ? this.cfg.kinetic.distanceScale : 1); // кинетический рывок длиннее
+    const dist = d.distance * (this.kinetic ? this.cfg.kinetic.distanceScale * this.kineticBladeDistanceMul : 1); // кинетический рывок длиннее
     this.dashX = dirX / len;
     this.dashY = dirY / len;
+    if (this.kinetic && this.gravityDashEnabled) { // аномалия собирается до телепорта: нет движения через врагов или скалы
+      const K = this.cfg.kinetic;
+      this.gravityDashCharging = true;
+      this.dashT = Math.max(0.05, K.gravityCharge);
+      this.dashTime = this.dashT;
+      this.dashElapsed = 0;
+      this.dashV0 = 0;
+      this.dashCd = d.cooldown * this.dashCdMul;
+      this.dashCdMax = Math.max(0.001, this.dashCd);
+      this.hero.dashing = true;
+      this.hero.dashVx = this.hero.dashVy = 0;
+      this.hero.facing = Math.atan2(this.dashY, this.dashX);
+      this.dashSeq++;
+      this.bus.emit('dash:gravity-started', { dirX: this.dashX, dirY: this.dashY, distance: dist * K.gravityDistanceMul, seq: this.dashSeq });
+      this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY }); // Дробь/Лазер сохраняют работу с Кинетическим рывком
+      return true;
+    }
     if (light) { // героя двигает цепочка рикошетов, обычной скорости нет
       this.dashTime = this.lightning.duration;
       this.dashT = Math.max(0.02, this.lightning.duration);
@@ -137,7 +189,25 @@ export class HeroDefense {
       this.hero.dashVx = 0;
       this.hero.dashVy = 0;
       this.lightning.begin();
+      this.dashSeq++;
       this.bus.emit('dash:started', { dirX: this.dashX, dirY: this.dashY });
+      return true;
+    }
+    if (this.kinetic && this.laserDashEnabled) {
+      // Лазер без молнии: сначала световой путь, затем один быстрый прыжок.
+      this.laserDashCharging = true;
+      this.dashT = Math.max(0.05, this.cfg.kinetic.beamTime);
+      this.dashTime = this.dashT;
+      this.dashElapsed = 0;
+      this.dashV0 = 0;
+      this.dashCd = d.cooldown * this.dashCdMul;
+      this.dashCdMax = Math.max(0.001,this.dashCd);
+      this.hero.dashing = true;
+      this.hero.dashVx = this.hero.dashVy = 0;
+      this.hero.facing = Math.atan2(this.dashY,this.dashX);
+      this.dashSeq++;
+      this.bus.emit('dash:laser-started',{dirX:this.dashX,dirY:this.dashY,distance:dist,seq:this.dashSeq});
+      this.bus.emit('dash:started',{dirX:this.dashX,dirY:this.dashY});
       return true;
     }
     this.dashTime = d.duration;
@@ -173,6 +243,18 @@ export class HeroDefense {
     if (this.blockCd > 0) this.blockCd -= dt;
     const am = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
     this.auraOn = !!(am && am.aura);
+    this.gravityOn = !!(am && am.gravity);
+    this.gravityElements = this.gravityOn ? am.gravity.elements || null : null;
+    this.gravityCooldownRate = this.gravityOn ? am.gravity.cooldownRate || 1 : 1;
+    this.blackSunPressure = this.hero.active && am?.blackSun ? Math.max(1, am.blackSun.pressureMult || 1) : 1;
+    this.gravityAuraRadius = this.gravityOn && this.auraOn
+      ? this.cfg.aura.radius * (1 + this.cfg.aura.radiusStep * ((am.aura.mult || 1) - 1))
+      : 0;
+    if (this.auraOn) {
+      this.gravityTime = 0;
+      this.gravityDurationMax = 0;
+    }
+    if (this.gravityTime > 0) this.gravityTime = Math.max(0, this.gravityTime - dt);
     if (this.dashCd > 0) this.dashCd -= dt;
     if (!this.hero.active) return;
     const stickUp = !this.stick.active;
@@ -180,6 +262,32 @@ export class HeroDefense {
     if (!stickUp) this.armed = true;
 
     if (this.state === 'dash') {
+      if (this.laserDashCharging) {
+        this.dashElapsed += dt;
+        if (this.dashElapsed >= this.dashT) {
+          this.laserDashCharging = false;
+          this.go('end');
+          this.hero.dashing = false;
+          this.hero.dashVx = this.hero.dashVy = 0;
+          this.hero.vx = this.hero.vy = 0;
+          this.hero.glideTime = 0;
+          this.bus.emit('dash:laser-arrived',{seq:this.dashSeq});
+        }
+        return;
+      }
+      if (this.gravityDashCharging) {
+        this.dashElapsed += dt;
+        if (this.dashElapsed >= this.dashT) {
+          this.gravityDashCharging = false;
+          this.go('end');
+          this.hero.dashing = false;
+          this.hero.dashVx = this.hero.dashVy = 0;
+          this.hero.vx = this.hero.vy = 0;
+          this.hero.glideTime = 0;
+          this.bus.emit('dash:gravity-arrived', { seq: this.dashSeq });
+        }
+        return;
+      }
       if (this.dashElapsed >= this.dashT) {
         // Рывок закончился: остаток скорости остаётся у героя и гаснет плавно, а не обрывается.
         this.go('end');
@@ -189,6 +297,7 @@ export class HeroDefense {
         this.hero.vy = this.dashY * this.dashV0 * k;
         this.hero.glideTime = this.cfg.dash.glide * 2.5;
         this.hero.glideAccel = this.cfg.dash.glide;
+        if (this.kinetic) this.bus.emit('dash:landed', { seq: this.dashSeq });
       } else {
         // Скорость на этот шаг: среднее экспоненты за шаг (так сумма шагов равна интегралу, дальность точная).
         const k = this.avgDecay(this.dashElapsed, dt);
@@ -201,17 +310,26 @@ export class HeroDefense {
       if (stickUp && this.armed && this.upTime >= this.cfg.block.startDelay && this.blockCd <= 0 && this.go('block')) {
         this.armed = false; // один блок за остановку
         this.blockTime = 0;
+        if (this.gravityOn && !this.auraOn) {
+          const mul = Math.max(1, am.gravity.durationMult || 1);
+          this.gravityDurationMax = Math.max(0.05, this.cfg.gravity.shieldDuration * mul);
+          this.gravityTime = this.gravityDurationMax;
+        } else {
+          this.gravityTime = 0;
+          this.gravityDurationMax = 0;
+        }
         this.bus.emit('block:started', {});
       }
     } else if (this.state === 'block') {
       this.blockTime += dt;
       if (!stickUp) this.endBlock(true); // взялся за стик: блок снят
-      else if (this.blockTime >= this.blockDuration) this.endBlock(false);
+      else if (this.blockTime >= this.blockDuration || (this.gravityOn && !this.auraOn && this.gravityTime <= 0)) this.endBlock(false);
     }
   }
 
   onHit(inc) {
-    if (this.state !== 'block' || inc.cancelled) return;
+    // После движения гравитационное поле лишь замедляет противников, не даёт дополнительную защиту от урона.
+    if (!this.blocking || inc.cancelled) return;
     if (inc.parryable && this.parrying) {
       inc.cancelled = true; // удар полностью проигнорирован
       const src = inc.source;
