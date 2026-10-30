@@ -342,6 +342,9 @@ export class Game {
       storage: o.storage,
       storageKey: o.storageKey,
       actions: [
+        { group: 'Локации', label: '1 · Снежный двор', run: () => this.jumpToWave(1) },
+        { group: 'Локации', label: '2 · Тёмный холл', run: () => this.jumpToWave(6) },
+        { group: 'Локации', label: '3 · Тронный зал', run: () => this.jumpToWave(11) },
         { group: 'Боссы', label: 'К боссу: Пепельный Арх (волна 5)', run: () => this.skipToBoss('arch') },
         { group: 'Боссы', label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
         { group: 'Боссы', label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },

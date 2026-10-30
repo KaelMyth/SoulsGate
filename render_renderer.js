@@ -793,6 +793,7 @@ export class Renderer {
     this.drawAbsorptionFlash(ctx); // #153 дымка, частицы и анимированная вспышка
 
     if (hero.active) {
+      if(arena.location==='sanctum')this.drawHeroSigils(ctx,hx,hy);
       this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.blackSunFx.drawBack(ctx,hx,hy);
@@ -871,6 +872,7 @@ export class Renderer {
     // Единственная низкоразрешённая маска тьмы: после мировых эффектов
     // и колонн, перед HUD. Посох, навыки и летящие снаряды пробивают свет.
     this.hallVision.draw(ctx,this,alpha);
+    if(arena.location==='hall')this.drawHallLights(ctx,arena);
     if(arena.location==='courtyard')this.drawBlizzard(ctx,w,h,dpr,camX,camY,s);
     if(arena.location==='sanctum')this.drawSanctumMotes(ctx,arena,viewL,viewR,viewT,viewB);
 
@@ -2850,6 +2852,7 @@ export class Renderer {
     ctx.ellipse(x, y + r * 0.6, r * 1.05, r * 0.55, 0, 0, TAU);
     ctx.fill();
 
+    if(e.def.spectral)this.drawSpiritTrail(e,x,y);
     const aiming = e.aim > 0;
     if (e.def === this.cfg.enemies.beetle) {
       // Жук: пламенный жук с светящимися глазами (отдельная отрисовка).
@@ -5355,85 +5358,134 @@ export class Renderer {
   }
 
   /** Снежная буря привязана к мировым координатам, не к экрану камеры. */
+  drawSpiritTrail(e,x,y){
+    const c=this.ctx,t=this.clock;
+    if(!e._spiritTrail||e._spiritTrailGen!==e.gen){
+      e._spiritTrail=[];e._spiritTrailGen=e.gen;e._spiritTrailAt=0;
+    }
+    if(t-e._spiritTrailAt>.055){
+      e._spiritTrailAt=t;
+      e._spiritTrail.push({x,y,t});
+      if(e._spiritTrail.length>20)e._spiritTrail.shift();
+    }
+    c.save();c.globalCompositeOperation='screen';
+    for(const p of e._spiritTrail){
+      const age=t-p.t;if(age>1.25)continue;
+      const a=1-age/1.25,r=e.radius*(.6+age*.8);
+      const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,r*2.1);
+      g.addColorStop(0,'rgba(137,210,255,'+(a*.19)+')');
+      g.addColorStop(1,'rgba(108,158,248,0)');
+      c.fillStyle=g;c.beginPath();c.arc(p.x,p.y,r*2.1,0,TAU);c.fill();
+    }
+    c.restore();
+  }
+
   drawSpectralSerpent(e,x,y,hit){
     const c=this.ctx,t=this.clock,angle=Math.atan2(e.hy||0,e.hx||1);
     c.save();c.translate(x,y);c.rotate(angle);
-    c.globalCompositeOperation='screen';
-    const sway=t*9+e.gen;
-    for(let j=10;j>=0;j--){
-      const u=j/10,px=-j*11,py=Math.sin(sway-j*.78)*12*u;
-      const r=(1-u)*14+2;
-      c.globalAlpha=(hit?.94:.63)*(1-u*.65);
-      c.fillStyle=j%2?'#7da7ed':'#b4eaff';
-      c.beginPath();c.ellipse(px,py,r,r*.82,0,0,Math.PI*2);c.fill();
-      c.strokeStyle='rgba(235,255,255,.65)';c.lineWidth=1;
-      c.beginPath();c.arc(px,py,r*.72,Math.PI*.22,Math.PI*1.78);c.stroke();
+    c.globalAlpha=hit?.95:.78;c.shadowColor='#78c9ff';c.shadowBlur=10;
+    const sway=t*7+e.gen;
+    // Длинное чешуйчатое тело, сегменты с плавной линией хребта.
+    for(let j=13;j>=0;j--){
+      const u=j/13,px=-j*8,py=Math.sin(sway-j*.54)*10*u;
+      const r=(1-u)*13+1.3;
+      c.fillStyle=j%3?'#547aa4':'#82b7d7';
+      c.beginPath();c.ellipse(px,py,r*1.15,r*.82,-.12,0,TAU);c.fill();
+      c.fillStyle='rgba(191,234,255,.48)';
+      c.beginPath();c.ellipse(px-2,py-r*.27,r*.7,r*.24,0,0,TAU);c.fill();
+      if(j>2 && j%2===0){
+        c.fillStyle='#c4e9f3';c.beginPath();
+        c.moveTo(px-5,py-r*.55);c.lineTo(px-9,py-r*1.6);
+        c.lineTo(px+4,py-r*.5);c.closePath();c.fill();
+      }
+      if(j===13){c.fillStyle='#b4d9ee';c.beginPath();
+        c.moveTo(px-2,py);c.lineTo(px-22,py-12);c.lineTo(px-17,py+8);c.fill();}
     }
-    c.globalAlpha=.92;c.fillStyle=hit?'#ffffff':'#b9eaff';
-    c.beginPath();c.ellipse(8,0,24,16,0,0,Math.PI*2);c.fill();
-    c.fillStyle='#284a83';c.beginPath();
-    c.ellipse(16,-7,3.5,4,0,0,Math.PI*2);
-    c.ellipse(16,7,3.5,4,0,0,Math.PI*2);c.fill();
-    c.strokeStyle='#e5faff';c.lineWidth=2;
-    c.beginPath();c.moveTo(24,0);c.lineTo(34,-5);c.moveTo(24,0);c.lineTo(34,5);c.stroke();
+    // Костяные плавники и пара загнутых ледяных рогов.
+    c.fillStyle='#7ca9c9';c.beginPath();c.moveTo(-13,-8);
+    c.lineTo(-32,-35);c.lineTo(-5,-20);c.lineTo(0,-10);c.fill();
+    c.beginPath();c.moveTo(-13,8);c.lineTo(-30,32);
+    c.lineTo(-4,20);c.lineTo(0,10);c.fill();
+    c.fillStyle=hit?'#fff':'#8ebbd7';
+    c.beginPath();c.moveTo(-12,-13);c.lineTo(11,-17);c.lineTo(31,-8);
+    c.lineTo(39,0);c.lineTo(29,12);c.lineTo(10,17);c.lineTo(-13,11);
+    c.closePath();c.fill();
+    c.fillStyle='#cdebf4';c.beginPath();c.moveTo(3,-12);
+    c.lineTo(-5,-29);c.lineTo(15,-19);c.lineTo(19,-11);c.fill();
+    c.beginPath();c.moveTo(3,12);c.lineTo(-5,29);
+    c.lineTo(15,19);c.lineTo(19,11);c.fill();
+    c.fillStyle='#193c65';c.beginPath();c.ellipse(21,-9,4,3,0,0,TAU);
+    c.ellipse(21,9,4,3,0,0,TAU);c.fill();
+    c.strokeStyle='#e2faff';c.lineWidth=1.8;
+    c.beginPath();c.moveTo(26,-2);c.lineTo(39,0);c.lineTo(26,4);c.stroke();
     c.restore();
   }
 
   drawElderSpirit(e,x,y,hit){
-    const c=this.ctx,t=this.clock,phase=t*1.25+e.gen;
-    c.save();c.translate(x,y+Math.sin(phase)*5);
-    c.globalCompositeOperation='screen';
-    const aura=c.createRadialGradient(0,-20,6,0,-20,77);
-    aura.addColorStop(0,'rgba(221,237,255,.5)');
-    aura.addColorStop(.55,'rgba(136,167,255,.22)');
-    aura.addColorStop(1,'rgba(95,108,230,0)');
-    c.fillStyle=aura;c.fillRect(-82,-100,164,160);
-    c.globalCompositeOperation='source-over';
-    c.globalAlpha=.83;
-    c.fillStyle=hit?'#ffffff':'#8e9bd3';
-    c.beginPath();c.moveTo(-36,17);
-    c.bezierCurveTo(-47,-26,-35,-70,0,-74);
-    c.bezierCurveTo(35,-70,47,-26,36,17);
-    c.quadraticCurveTo(28,40,18,26);
-    c.quadraticCurveTo(7,49,0,29);
-    c.quadraticCurveTo(-13,47,-20,25);
-    c.quadraticCurveTo(-32,36,-36,17);c.fill();
-    c.strokeStyle='#d7e5ff';c.lineWidth=2;
-    c.beginPath();c.moveTo(-27,-39);c.quadraticCurveTo(0,-88,27,-39);c.stroke();
-    c.fillStyle='#f1f9ff';c.beginPath();
-    c.ellipse(-13,-39,7,10,-.1,0,Math.PI*2);
-    c.ellipse(13,-39,7,10,.1,0,Math.PI*2);c.fill();
-    c.strokeStyle='rgba(183,207,255,.6)';c.lineWidth=2;
-    for(let j=0;j<3;j++){
-      const a=phase+j*Math.PI*2/3;
-      c.beginPath();c.arc(Math.cos(a)*48,Math.sin(a)*20-20,4,0,Math.PI*2);c.stroke();
+    const c=this.ctx,t=this.clock;
+    c.save();c.globalAlpha=.76;
+    c.shadowColor='#a0baff';c.shadowBlur=17;
+    this.drawBattleMage(e,x,y,hit);
+    c.shadowBlur=0;
+    // Ритуальный нимб из фрагментов рунической печати.
+    c.translate(x,y);
+    const phase=t*.65+e.gen;
+    c.strokeStyle='rgba(183,216,255,.7)';c.lineWidth=1.7;
+    for(let j=0;j<9;j++){
+      const a=phase+j*TAU/9,r=49+Math.sin(t*2+j)*3;
+      c.beginPath();c.arc(0,0,r,a,a+.24);c.stroke();
+      c.beginPath();c.moveTo(Math.cos(a)*r,Math.sin(a)*r);
+      c.lineTo(Math.cos(a+.13)*(r+8),Math.sin(a+.13)*(r+8));c.stroke();
     }
     c.restore();
   }
 
   drawSpirit(e,x,y,hit){
-    const c=this.ctx,t=this.clock,wait=e.spectralWait>0;
-    const bob=Math.sin(t*3+e.gen)*3;
-    const a=wait?.45+(.85-e.spectralWait)*.55:.82;
-    c.save();c.translate(x,y+bob);c.globalAlpha=Math.min(.9,a);
-    const glow=c.createRadialGradient(0,-10,1,0,-8,35);
-    glow.addColorStop(0,'rgba(192,242,255,.5)');
-    glow.addColorStop(1,'rgba(104,185,248,0)');
-    c.fillStyle=glow;c.fillRect(-38,-49,76,77);
-    c.fillStyle=hit?'#ffffff':'#a8dcf3';
-    c.beginPath();c.moveTo(-17,1);
-    c.bezierCurveTo(-25,-20,-17,-38,0,-40);
-    c.bezierCurveTo(18,-38,25,-21,18,1);
-    c.quadraticCurveTo(14,14,9,9);
-    c.quadraticCurveTo(3,19,-3,9);
-    c.quadraticCurveTo(-10,16,-17,1);
-    c.fill();
-    c.fillStyle='#dff9ff';c.globalAlpha*=.75;
-    c.beginPath();c.ellipse(-6,-24,3,5,-.12,0,Math.PI*2);
-    c.ellipse(7,-24,3,5,.12,0,Math.PI*2);c.fill();
-    c.strokeStyle='rgba(245,255,255,.85)';c.lineWidth=1;
-    c.beginPath();c.moveTo(-12,-10);c.quadraticCurveTo(0,-6,12,-10);c.stroke();
+    const c=this.ctx;
+    c.save();c.globalAlpha=.67;
+    c.shadowColor='#72c9ff';c.shadowBlur=12;
+    this.drawFrozenTroop(e,x,y,hit,'soldier');
+    c.shadowBlur=0;
+    // Призрачные парадные доспехи: высокий воротник и холодная геральдика.
+    const a=Math.atan2(e.hy||0,e.hx||1);
+    c.translate(x,y+Math.sin(this.clock*3+e.gen)*2);c.rotate(a);
+    c.strokeStyle='rgba(198,238,255,.8)';c.lineWidth=1.5;
+    c.beginPath();c.moveTo(-7,-14);c.lineTo(-11,-8);c.lineTo(-6,-3);
+    c.moveTo(-7,14);c.lineTo(-11,8);c.lineTo(-6,3);c.stroke();
+    c.fillStyle='rgba(177,228,255,.7)';
+    c.beginPath();c.moveTo(0,-6);c.lineTo(6,0);c.lineTo(0,6);c.lineTo(-5,0);c.fill();
     c.restore();
+  }
+
+  drawHallLights(ctx,arena){
+    const boss=this.boss?.enemy;
+    if(boss?.active && boss.def===this.cfg.enemies.tartas){
+      ctx.save();ctx.globalCompositeOperation='screen';
+      for(const p of this.castleHall.torches){
+        const f=.85+.15*Math.sin(this.clock*13+p.x);
+        const g=ctx.createRadialGradient(p.x,p.y-18,3,p.x,p.y-18,100);
+        g.addColorStop(0,'rgba(255,188,95,'+(.36*f)+')');
+        g.addColorStop(.45,'rgba(245,111,36,'+(.15*f)+')');
+        g.addColorStop(1,'rgba(244,91,27,0)');
+        ctx.fillStyle=g;ctx.fillRect(p.x-100,p.y-118,200,200);
+        ctx.fillStyle='#ff9b35';ctx.beginPath();ctx.moveTo(p.x-7,p.y-8);
+        ctx.bezierCurveTo(p.x-17,p.y-25,p.x+6,p.y-47,p.x+2,p.y-24);
+        ctx.quadraticCurveTo(p.x+15,p.y-22,p.x+6,p.y-8);ctx.fill();
+        ctx.fillStyle='#fff1b2';ctx.beginPath();ctx.ellipse(p.x,p.y-17,3,8,0,0,TAU);ctx.fill();
+      }
+      ctx.restore();
+    }
+    const open=this.sanctumGate?.open||0;
+    if(open>.01){
+      const y=arena.walkTop, strength=Math.min(1,open*2);
+      ctx.save();ctx.globalCompositeOperation='screen';
+      const g=ctx.createRadialGradient(0,y-4,10,0,y+35,220);
+      g.addColorStop(0,'rgba(208,223,255,'+(.5*strength)+')');
+      g.addColorStop(.5,'rgba(167,191,242,'+(.19*strength)+')');
+      g.addColorStop(1,'rgba(134,170,237,0)');
+      ctx.fillStyle=g;ctx.fillRect(-230,y-170,460,440);
+      ctx.restore();
+    }
   }
 
   drawHallPortcullis(ctx,arena,open){
@@ -5454,44 +5506,141 @@ export class Renderer {
   }
 
   drawSanctum(ctx,arena){
-    const {left:L,right:R,top:T,bottom:B}=arena;
-    ctx.save();
-    ctx.fillStyle='#c5c4d1';ctx.fillRect(L,T,arena.width,arena.height);
-    const tile=90;
-    for(let y=T;y<B;y+=tile)for(let x=L;x<R;x+=tile){
-      const k=((Math.floor((x-L)/tile)+Math.floor((y-T)/tile))&1);
-      ctx.fillStyle=k?'#e9e7ee':'#d5d4df';ctx.fillRect(x+1,y+1,tile-2,tile-2);
-      ctx.strokeStyle='rgba(108,106,138,.25)';ctx.lineWidth=1.5;ctx.strokeRect(x,y,tile,tile);
-      ctx.strokeStyle='rgba(143,143,170,.19)';ctx.beginPath();
-      ctx.moveTo(x+12,y+20);ctx.bezierCurveTo(x+36,y+10,x+50,y+64,x+tile-12,y+tile-14);ctx.stroke();
+    if(!this.sanctumFloor){
+      const cv=typeof OffscreenCanvas==='function'?new OffscreenCanvas(arena.width,arena.height):document.createElement('canvas');
+      cv.width=arena.width;cv.height=arena.height;
+      const c=cv.getContext('2d');c.translate(-arena.left,-arena.top);
+      this.paintSanctum(c,arena);this.sanctumFloor=cv;
     }
-    ctx.fillStyle='#d4d0e0';ctx.fillRect(L,T,arena.width,142);
-    ctx.fillStyle='#f2e8d4';ctx.fillRect(L,T+116,arena.width,10);
-    ctx.strokeStyle='#aa9db2';ctx.lineWidth=5;ctx.strokeRect(L+12,T+12,arena.width-24,108);
-    const colors=['#f4ae58','#8fcbff','#bca1f8','#83e1c8','#f5a5cc'];
+    ctx.drawImage(this.sanctumFloor,arena.left,arena.top);
+  }
+
+  paintSanctum(ctx,arena){
+    const {left:L,right:R,top:T,bottom:B}=arena,c=ctx;
+    c.save();
+    const stone=c.createLinearGradient(L,T,R,B);
+    stone.addColorStop(0,'#292b3e');stone.addColorStop(.48,'#343446');stone.addColorStop(1,'#1b2232');
+    c.fillStyle=stone;c.fillRect(L,T,arena.width,arena.height);
+    // Старинная мраморная кладка, швы смещены, поверхность неоднородна.
+    for(let row=0,y=T;y<B;row++,y+=88)for(let col=0,x=L-44*(row%2);x<R;col++,x+=88){
+      const v=Math.sin(row*17.3+col*9.7);
+      c.fillStyle=v>0?'rgba(155,157,177,.055)':'rgba(9,13,26,.085)';
+      c.fillRect(x+2,y+2,84,84);
+      c.strokeStyle='rgba(142,149,177,.14)';c.lineWidth=1;
+      c.strokeRect(x+1,y+1,86,86);
+      c.strokeStyle='rgba(180,183,205,.085)';c.beginPath();
+      c.moveTo(x+8,y+19);c.bezierCurveTo(x+28,y+8,x+38,y+56,x+79,y+70);c.stroke();
+    }
+    // Каменные инкрустации: потертые кольца и орнаменты на центральной оси.
+    c.strokeStyle='rgba(183,161,138,.18)';c.lineWidth=4;
+    for(let y=T+360;y<B;y+=540){
+      c.beginPath();c.ellipse(0,y,138,91,0,0,TAU);c.stroke();
+      c.beginPath();c.ellipse(0,y,112,73,0,0,TAU);c.stroke();
+      for(let j=0;j<12;j++){const a=j*TAU/12;
+        c.beginPath();c.moveTo(Math.cos(a)*113,y+Math.sin(a)*74);
+        c.lineTo(Math.cos(a)*130,y+Math.sin(a)*85);c.stroke();}
+    }
+    // Стена с глубоко посаженными стрельчатыми витражами и каменной резьбой.
+    const wall=c.createLinearGradient(0,T,0,T+155);
+    wall.addColorStop(0,'#151a2a');wall.addColorStop(1,'#44445a');
+    c.fillStyle=wall;c.fillRect(L,T,arena.width,150);
+    c.fillStyle='#777184';c.fillRect(L,T+142,arena.width,6);
+    const cols=['#e0a56d','#80bbdc','#a99bd8','#7fbfb3','#ce90b7'];
     for(let i=0;i<5;i++){
-      const x=(i-2)*205;
-      ctx.fillStyle='#55576d';ctx.beginPath();ctx.moveTo(x-66,T+98);ctx.lineTo(x-66,T+48);
-      ctx.quadraticCurveTo(x,T-6,x+66,T+48);ctx.lineTo(x+66,T+98);ctx.closePath();ctx.fill();
-      ctx.fillStyle=colors[i];ctx.globalAlpha=.8;
-      ctx.beginPath();ctx.moveTo(x-56,T+89);ctx.lineTo(x-56,T+48);
-      ctx.quadraticCurveTo(x,T+7,x+56,T+48);ctx.lineTo(x+56,T+89);ctx.closePath();ctx.fill();
-      ctx.globalAlpha=.23;ctx.fillStyle=colors[i];
-      ctx.beginPath();ctx.moveTo(x-52,T+103);ctx.lineTo(x+52,T+103);
-      ctx.lineTo(x+175,T+580);ctx.lineTo(x-180,T+580);ctx.closePath();ctx.fill();
-      ctx.globalAlpha=1;ctx.strokeStyle='#d7d1df';ctx.lineWidth=4;
-      ctx.beginPath();ctx.moveTo(x,T+24);ctx.lineTo(x,T+95);ctx.moveTo(x-55,T+68);ctx.lineTo(x+55,T+68);ctx.stroke();
+      const x=(i-2)*205,cy=T+76,col=cols[i];
+      c.save();c.translate(x,cy);
+      c.fillStyle='#101727';c.beginPath();c.moveTo(-63,57);c.lineTo(-63,-15);
+      c.quadraticCurveTo(-55,-44,0,-63);c.quadraticCurveTo(55,-44,63,-15);
+      c.lineTo(63,57);c.closePath();c.fill();
+      c.clip();
+      const glass=c.createLinearGradient(-50,-50,50,55);
+      glass.addColorStop(0,'#293c59');glass.addColorStop(.5,col);glass.addColorStop(1,'#263d55');
+      c.globalAlpha=.85;c.fillStyle=glass;c.fillRect(-58,-58,116,116);
+      c.strokeStyle='rgba(17,23,41,.9)';c.lineWidth=5;
+      c.beginPath();c.moveTo(0,-62);c.lineTo(0,58);
+      c.moveTo(-62,10);c.quadraticCurveTo(0,-14,62,10);
+      c.moveTo(-62,37);c.quadraticCurveTo(0,18,62,37);c.stroke();
+      c.strokeStyle='rgba(244,223,201,.6)';c.lineWidth=2;
+      c.beginPath();c.arc(0,-15,17,0,TAU);c.stroke();
+      c.restore();
+      // Рассеянный цвет на полу: несколько пересекающихся мягких пятен без границ.
+      for(let j=0;j<4;j++){
+        const yy=T+235+j*118,xx=x+(j-1.5)*26;
+        const rad=145+j*42;
+        const g=c.createRadialGradient(xx,yy,0,xx,yy,rad);
+        g.addColorStop(0,col+'35');g.addColorStop(.52,col+'16');g.addColorStop(1,col+'00');
+        c.fillStyle=g;c.fillRect(xx-rad,yy-rad,rad*2,rad*2);
+      }
+      // Резные пилястры между окнами.
+      c.fillStyle='#49485b';c.fillRect(x+89,T+9,14,137);
+      c.fillStyle='#827c8d';c.fillRect(x+90,T+15,3,122);
     }
-    // Трон у северной стены: спинка, резьба, сиденье и широкие подлокотники.
-    const ty=T+150;
-    ctx.fillStyle='rgba(54,41,80,.25)';ctx.beginPath();ctx.ellipse(0,ty+35,125,35,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#665d87';ctx.fillRect(-67,ty-67,134,95);
-    ctx.fillStyle='#9d83b3';ctx.fillRect(-52,ty-57,104,77);
-    ctx.fillStyle='#e9ca87';ctx.fillRect(-72,ty-74,144,12);
-    ctx.fillStyle='#d6b77b';ctx.fillRect(-91,ty-2,32,52);ctx.fillRect(59,ty-2,32,52);
-    ctx.fillStyle='#59466d';ctx.fillRect(-59,ty+16,118,27);
-    ctx.fillStyle='#f8e5a7';ctx.beginPath();ctx.moveTo(0,ty-89);ctx.lineTo(18,ty-65);ctx.lineTo(0,ty-43);ctx.lineTo(-18,ty-65);ctx.closePath();ctx.fill();
-    ctx.restore();
+    // Боковые усыпальницы, арки, потемневшие статуи и следы вековой пыли.
+    for(const side of [-1,1])for(let i=0;i<5;i++){
+      const x=side*(arena.width*.5-77),y=T+265+i*292;
+      c.save();c.translate(x,y);
+      c.fillStyle='rgba(10,13,28,.32)';c.beginPath();c.ellipse(0,0,70,96,0,0,TAU);c.fill();
+      c.fillStyle='#22283b';c.beginPath();c.moveTo(-43,55);c.lineTo(-43,-32);
+      c.quadraticCurveTo(0,-93,43,-32);c.lineTo(43,55);c.closePath();c.fill();
+      c.strokeStyle='#747388';c.lineWidth=5;c.stroke();
+      c.fillStyle='#55596e';c.beginPath();c.ellipse(0,-28,13,17,0,0,TAU);c.fill();
+      c.beginPath();c.moveTo(-19,-10);c.quadraticCurveTo(0,-24,19,-10);
+      c.lineTo(25,40);c.lineTo(-25,40);c.closePath();c.fill();
+      c.strokeStyle='rgba(175,177,193,.3)';c.lineWidth=2;
+      c.beginPath();c.moveTo(-12,-7);c.lineTo(-17,34);
+      c.moveTo(12,-7);c.lineTo(17,34);c.stroke();
+      c.fillStyle='#80798a';c.beginPath();c.ellipse(0,53,47,13,0,0,TAU);c.fill();
+      c.restore();
+    }
+    // Небольшой трон с высокой стрельчатой спинкой, резьбой и ступенями.
+    const ty=T+195;
+    c.fillStyle='rgba(4,7,18,.4)';c.beginPath();c.ellipse(0,ty+35,93,33,0,0,TAU);c.fill();
+    for(let i=2;i>=0;i--){c.fillStyle=['#3b3549','#585066','#787086'][i];
+      c.beginPath();c.ellipse(0,ty+20+i*9,78+i*9,17+i*3,0,0,TAU);c.fill();}
+    c.fillStyle='#2c2a40';c.beginPath();c.moveTo(-35,ty+15);c.lineTo(-35,ty-61);
+    c.quadraticCurveTo(-29,ty-88,0,ty-105);c.quadraticCurveTo(29,ty-88,35,ty-61);
+    c.lineTo(35,ty+15);c.closePath();c.fill();
+    c.strokeStyle='#a79785';c.lineWidth=4;c.stroke();
+    c.fillStyle='#655475';c.beginPath();c.moveTo(-25,ty+9);c.lineTo(-25,ty-58);
+    c.quadraticCurveTo(0,ty-83,25,ty-58);c.lineTo(25,ty+9);c.fill();
+    c.strokeStyle='rgba(228,198,151,.7)';c.lineWidth=1.5;
+    for(let j=-1;j<=1;j++){c.beginPath();c.moveTo(j*9,ty-55);c.lineTo(j*9,ty-4);c.stroke();}
+    c.fillStyle='#a18a77';c.fillRect(-43,ty-4,16,35);c.fillRect(27,ty-4,16,35);
+    c.fillStyle='#372e46';c.fillRect(-29,ty+9,58,18);
+    c.fillStyle='#e5c991';c.beginPath();c.moveTo(0,ty-94);c.lineTo(7,ty-82);
+    c.lineTo(0,ty-73);c.lineTo(-7,ty-82);c.closePath();c.fill();
+    c.restore();
+  }
+
+  drawHeroSigils(ctx,x,y){
+    const t=this.clock;
+    if(!this.heroSigils)this.heroSigils=[];
+    if(this.heroSigilGen!==this.arena.location){
+      this.heroSigils.length=0;this.heroSigilGen=this.arena.location;
+    }
+    const prev=this.heroSigilLast;
+    if(prev&&Math.hypot(x-prev.x,y-prev.y)>7 && t-(this.heroSigilAt||0)>.11){
+      this.heroSigils.push({x:prev.x,y:prev.y,t,seed:this.heroSigils.length%7});
+      if(this.heroSigils.length>26)this.heroSigils.shift();
+      this.heroSigilAt=t;
+    }
+    this.heroSigilLast={x,y};
+    const c=ctx;c.save();c.globalCompositeOperation='screen';
+    for(const p of this.heroSigils){
+      const age=t-p.t;if(age>2)continue;
+      const a=(1-age/2)*.65,r=11+age*5;
+      c.save();c.translate(p.x,p.y-10-age*8);
+      c.rotate(age*.4+p.seed*.6);c.strokeStyle='rgba(161,211,255,'+a+')';
+      c.lineWidth=1.3;c.beginPath();c.arc(0,0,r,p.seed*.3,p.seed*.3+Math.PI*1.45);c.stroke();
+      for(let j=0;j<4;j++){
+        const ang=j*TAU/4+p.seed*.25;
+        c.beginPath();c.moveTo(Math.cos(ang)*(r-5),Math.sin(ang)*(r-5));
+        c.lineTo(Math.cos(ang)*r,Math.sin(ang)*r);
+        c.lineTo(Math.cos(ang+.19)*(r+4),Math.sin(ang+.19)*(r+4));c.stroke();
+      }
+      c.restore();
+    }
+    c.restore();
   }
 
   drawSanctumMotes(ctx,arena,l,r,t,b){

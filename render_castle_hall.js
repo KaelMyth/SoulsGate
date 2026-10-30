@@ -63,7 +63,7 @@ function sconce(c,x,y){
   c.restore();
 }
 export class CastleHallArt {
-  constructor(arena){this.arena=arena;this.floor=null;this.torches=[{x:-242,y:arena.top+190},{x:242,y:arena.top+190}];this.columns=arena.hallColumns;this.columnSprite=null;this.opacity=new Map();}
+  constructor(arena){this.arena=arena;this.floor=null;this.torches=[-470,-150,170,490].flatMap(y=>[{x:-242,y},{x:242,y}]);this.columns=arena.hallColumns;this.columnSprite=null;this.opacity=new Map();}
   build(){
     const ar=this.arena,W=ar.width|0,H=ar.height|0;
     const cv=typeof OffscreenCanvas==='function'?new OffscreenCanvas(W,H):document.createElement('canvas');
