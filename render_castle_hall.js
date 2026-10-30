@@ -216,6 +216,80 @@ export class CastleHallArt {
     const l=Math.max(a.left,x0),r=Math.min(a.right,x1),t=Math.max(a.top,y0),b=Math.min(a.bottom,y1);
     if(l<r&&t<b)ctx.drawImage(this.floor,l-a.left,t-a.top,r-l,b-t,l,t,r-l,b-t);
   }
+  /** Одна детальная мраморная колонна в кэшированном спрайте (не 20 раз в кадр). */
+  buildColumn(){
+    const cv=typeof OffscreenCanvas==='function'?new OffscreenCanvas(136,208):document.createElement('canvas');
+    cv.width=136;cv.height=208;
+    const c=cv.getContext('2d');
+    c.translate(68,174);
+    // Капитель и длинный холодный силуэт; тень не перекрывает живого героя.
+    const shade=c.createLinearGradient(-39,-135,39,17);
+    shade.addColorStop(0,'#667280');
+    shade.addColorStop(.36,'#374354');
+    shade.addColorStop(.78,'#222c3b');
+    shade.addColorStop(1,'#131c29');
+    shape(c,[-31,-142,-27,-156,29,-156,34,-142,32,8,37,21,-37,21,-32,8],
+      '#1c2532','#141b27',2.5);
+    shape(c,[-24,-142,24,-142,26,7,29,19,-29,19,-26,7],
+      shade,'#596576',2);
+    shape(c,[-23,-141,-10,-148,-10,6,-22,11],
+      'rgba(151,162,171,.22)');
+    shape(c,[9,-143,25,-139,27,13,14,10],
+      'rgba(2,7,17,.34)');
+    for(const x of [-14,-6,5,14]){
+      trace(c,[x,-138,x-1,9],x%2?'rgba(12,22,32,.39)':'rgba(155,162,168,.14)',1.8);
+    }
+    // Концы колонн выглядят как тяжёлый резной камень с металлическими связками.
+    for(const y of [-138,-107,-48,7]){
+      shape(c,[-33,y-7,33,y-7,37,y+4,-37,y+4],
+        y===-138?'#55606e':'#2a3545','#151f2c',1.8);
+      trace(c,[-27,y-5,27,y-5],'rgba(158,163,170,.32)',1.3);
+      trace(c,[-26,y+1,26,y+1],'rgba(132,109,78,.35)',1.2);
+    }
+    shape(c,[-39,-154,-31,-173,30,-173,41,-154,37,-143,-37,-143],
+      '#465261','#17212e',2.5);
+    shape(c,[-31,-168,29,-168,33,-158,-34,-158],
+      '#718092','#384556',1.3);
+    for(const x of [-24,-10,4,18]){
+      trace(c,[x,-162,x+5,-160],'rgba(180,164,136,.35)',1.1);
+    }
+    shape(c,[-38,8,38,8,43,22,-43,22],
+      '#46505d','#151d29',2.5);
+    shape(c,[-29,10,29,10,33,19,-33,19],
+      '#343d4b','#9a8b73',1);
+    // Не регулярная сетка: старые трещины, высеченные листья и потёртая резьба.
+    trace(c,[-23,-117,-13,-104,-21,-89,-17,-65],
+      'rgba(12,19,28,.42)',1.7);
+    trace(c,[23,-97,18,-87,22,-78,15,-62],
+      'rgba(141,151,163,.16)',1.3);
+    for(const y of [-126,-86,-28]){
+      shape(c,[-5,y,0,y-8,5,y,0,y+8],
+        'rgba(164,145,106,.19)','rgba(183,171,140,.17)',.9);
+    }
+    this.columnSprite=cv;
+  }
+
+  /** Передний план: если колонна скрывает персонажа, просвечивает только её
+   * объёмный верхний слой; каменный цоколь остаётся на полу. */
+  drawColumns(ctx,hero,dt,viewL,viewR,viewT,viewB){
+    if(!this.columnSprite)this.buildColumn();
+    const k=1-Math.exp(-Math.max(0,Math.min(.1,dt||0))*9);
+    for(let i=0;i<this.columns.length;i++){
+      const p=this.columns[i];
+      if(p.x+75<viewL||p.x-75>viewR||p.y+34<viewT||p.y-183>viewB)continue;
+      const overlaps=hero?.active!==false&&
+        Math.abs(hero.x-p.x)<49+(hero.radius||12) &&
+        hero.y>p.y-174-(hero.radius||12)&&hero.y<p.y+22+(hero.radius||12);
+      const target=overlaps?.19:1;
+      const alpha=(this.opacity.get(i)??1)+
+        (target-(this.opacity.get(i)??1))*k;
+      this.opacity.set(i,alpha);
+      ctx.save();ctx.globalAlpha=alpha;
+      ctx.drawImage(this.columnSprite,p.x-68,p.y-174,136,208);
+      ctx.restore();
+    }
+  }
+
   // Сохраняем совместимость с вызывавшимся методом, но факелы погасли.
   drawFlames(){}
 }
