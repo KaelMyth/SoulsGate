@@ -81,7 +81,7 @@ export class NorthGateArt {
     this.arena=arena;
     this.cached=null;
     this.start=-32; // чуть выше северной кромки; стена видна из камеры
-    this.height=330;
+    this.height=430;
   }
   build() {
     const ar=this.arena,W=Math.ceil(ar.width),H=this.height;
@@ -89,7 +89,7 @@ export class NorthGateArt {
     cv.width=W;cv.height=H;
     const c=cv.getContext('2d');
     const rnd=rand();
-    c.translate(W/2,-this.start); // локальный x=0 и y=0 на северной кромке
+    c.translate(W/2,-this.start+70); // всё монументальное укрепление видно внутри северной кромки
     // На переднем плане морозная дорога к центральным воротам.
     c.save();
     const approach=c.createLinearGradient(0,100,0,300);
