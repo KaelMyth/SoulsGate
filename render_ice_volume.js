@@ -339,7 +339,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     const attack=st.attack;
     const cast=boss&&['bladeIn','bladeWave','bladeGap','squadCast','blastTele'].includes(bs);
     const dash=boss&&(bs==='dash'||bs==='tele');
-    const hand=[13,this.near*(boss?18:14),boss?24:19];
+    const hand=[13,boss?18:14,boss?24:19]; // правая рука, не переключается при развороте
     const w=this.p(...hand);
     const length=boss?51:30;
     const tilt=cast?.97:dash?.23: attack>.28?.7:-.12;
@@ -367,7 +367,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     }
   }
   bow(c,st,aim){
-    const r=this.near*14,z=25,u=13;
+    const r=14,z=25,u=13; // лук всегда в правой руке
     const tension=clamp(aim,0,1),tipTop=this.p(u+8,r,z+23),tipBottom=this.p(u+8,r,z-17);
     const center=this.p(u+18,r,z+4),hand=this.p(u+1-tension*7,r,z+4);
     // Две боковые кромки делают лук толще плоской дуги.
@@ -396,7 +396,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
   }
   ram(c,st){
     const attack=st.attack;
-    const r=this.near*12,z=23,u=11;
+    const r=0,z=23,u=11; // таран всегда на оси груди
     const tip=[u+34+attack*5,0,z+4],baseA=[u+5,-8,z+7],baseB=[u+5,8,z+7];
     const baseC=[u+5,8,z-5],baseD=[u+5,-8,z-5];
     this.facet(c,[baseA,baseB,tip],'#7189a8',INK,1.4);
@@ -505,6 +505,13 @@ export class IceVolumeArt extends IsometricIceEnemies {
     }
     this.arm(ctx,-this.near,st,boss,strike);
     this.pauldron(ctx,-this.near,boss);
+    // Оружие закреплено за правой (+r) рукой. Если она с дальнего бока,
+    // клинок и лук скрываются корпусом, а не перепрыгивают на другую сторону.
+    if(this.near===-1 && kind!=='ram'){
+      if(kind==='archer')this.bow(ctx,st,
+        e.aim>0?1-e.aim/Math.max(.01,e.aimTotal):0);
+      else this.sword(ctx,st,boss,bs);
+    }
     this.body(ctx,boss,!backVisible);
     // Затылочный шов всегда геометрически сзади, не нарисован поверх лица.
     if(backVisible)this.mantle(ctx,st,boss,true);
@@ -514,10 +521,12 @@ export class IceVolumeArt extends IsometricIceEnemies {
       if(-1===this.near)this.shield(ctx,st,boss);
     }
     this.helmet(ctx,boss,st);
-    if(kind==='archer')this.bow(ctx,st,
-      e.aim>0?1-e.aim/Math.max(.01,e.aimTotal):0);
-    else if(kind==='ram')this.ram(ctx,st);
-    else this.sword(ctx,st,boss,bs);
+    if(kind==='ram')this.ram(ctx,st);
+    else if(this.near===1){
+      if(kind==='archer')this.bow(ctx,st,
+        e.aim>0?1-e.aim/Math.max(.01,e.aimTotal):0);
+      else this.sword(ctx,st,boss,bs);
+    }
     if(frozen){
       ctx.globalAlpha=deathAlpha*.55;
       for(let i=0;i<3;i++)
