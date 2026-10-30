@@ -754,7 +754,12 @@ export class Renderer {
       const ex = e.prevX + (e.x - e.prevX) * alpha;
       const ey = e.prevY + (e.y - e.prevY) * alpha;
       const r = e.radius;
-      if (ex + r < viewL || ex - r > viewR || ey + r < viewT || ey - r > viewB) continue;
+      // Изометрические шлемы, шипы и плащи выше точки-опоры на земле.
+      // Учитываем высоту силуэта, чтобы он не пропадал на краю камеры.
+      const iso = this.isoEnemies.enabled && this.isoEnemies.kind(e);
+      const margin = iso ? r * (iso === 'tartas' ? 3.6 : 3.3) : r;
+      if (ex + margin < viewL || ex - margin > viewR ||
+          ey + r * 1.5 < viewT || ey - margin > viewB) continue;
       this.drawEnemy(e, ex, ey, C);
     }
 
