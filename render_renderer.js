@@ -10,6 +10,7 @@ import { BlackSunFx } from './render_blacksun.js';
 import { NorthGateArt } from './render_northgate.js';
 import { CastleHallArt } from './render_castle_hall.js';
 import { HallVision } from './render_hall_vision.js';
+import { IsometricIceEnemies } from './render_isometric_enemies.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
@@ -529,6 +530,8 @@ export class Renderer {
     this.northGate = this.arena.northWall ? new NorthGateArt(this.arena) : null;
     this.castleHall=new CastleHallArt(this.arena);
     this.hallVision=new HallVision(cfg);
+    this.isoEnemies=new IsometricIceEnemies(this);
+    this.isoEnemies.enabled=cfg.render.isometricIceEnemies!==false;
     this.castleTransition=null;
     this.hero = deps.hero;
     this.camera = deps.camera;
@@ -740,6 +743,9 @@ export class Renderer {
     this.updateTargetGlow(target && target.active ? target : null, this.dt);
     this.drawTargetGlow(alpha, false);
 
+    // Убитые рыцари и Тартас оседают на землю, а не пропадают в том же кадре.
+    this.isoEnemies.drawDeaths(ctx,this.dt,viewL,viewR,viewT,viewB);
+
     // Враги.
     const en = this.enemies.items;
     for (let i = 0; i < en.length; i++) {
@@ -748,7 +754,12 @@ export class Renderer {
       const ex = e.prevX + (e.x - e.prevX) * alpha;
       const ey = e.prevY + (e.y - e.prevY) * alpha;
       const r = e.radius;
-      if (ex + r < viewL || ex - r > viewR || ey + r < viewT || ey - r > viewB) continue;
+      // Изометрические шлемы, шипы и плащи выше точки-опоры на земле.
+      // Учитываем высоту силуэта, чтобы он не пропадал на краю камеры.
+      const iso = this.isoEnemies.enabled && this.isoEnemies.kind(e);
+      const margin = iso ? r * (iso === 'tartas' ? 3.6 : 3.3) : r;
+      if (ex + margin < viewL || ex - margin > viewR ||
+          ey + r * 1.5 < viewT || ey - margin > viewB) continue;
       this.drawEnemy(e, ex, ey, C);
     }
 
@@ -2336,6 +2347,10 @@ export class Renderer {
   }
 
   drawTartas(e, x, y, hit) {
+    if(this.isoEnemies.enabled){
+      this.isoEnemies.draw(this.ctx,e,x,y,'tartas',hit);
+      return;
+    }
     const ctx = this.ctx;
     const C = this.cfg.render.colors;
     const t = this.clock;
@@ -2614,6 +2629,10 @@ export class Renderer {
    * kind: 'soldier' (меч), 'archer' (лук: при прицеливании тетива натянута, наконечник светится), 'ram' (таран-голова, рывок).
    */
   drawFrozenTroop(e, x, y, hit, kind) {
+    if(this.isoEnemies.enabled){
+      this.isoEnemies.draw(this.ctx,e,x,y,kind,hit);
+      return;
+    }
     const ctx = this.ctx;
     const C = this.cfg.render.colors;
     const t = this.clock;

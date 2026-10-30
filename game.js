@@ -387,6 +387,7 @@ export class Game {
       if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
+      this.renderer.isoEnemies.onDeath(enemy); // изометрические падения (без влияния на выпадение опыта)
       // Запускаем открытие прямо в кадре последнего удара по Арху.
       if(enemy.def===this.config.enemies.ashenArch && this.spawner.wave===this.config.waves.boss.wave)
         this.castleTransition.bossDefeated(this.spawner.wave);
@@ -2118,6 +2119,7 @@ export class Game {
     const def = B && this.config.enemies[B.enemy];
     if (!def) return;
     this.enemies.clear();
+    this.renderer.isoEnemies?.reset();
     this.heroShots.clear();
     this.enemyShots.clear();
     this.pellets.clear();
@@ -2159,6 +2161,7 @@ export class Game {
     if(this.arena.location==='hall')return false;
     this.arena.setLocation('hall');
     this.enemies.clear();
+    this.renderer.isoEnemies?.reset();
     this.heroShots.clear();
     this.enemyShots.clear();
     this.gems.clear();
@@ -2243,6 +2246,7 @@ export class Game {
     this.nav.source = -1;
     this.stepper.reset();
     this.enemies.clear();
+    this.renderer.isoEnemies?.reset();
     this.heroShots.clear();
     this.pellets.clear();
     this.enemyShots.clear();
