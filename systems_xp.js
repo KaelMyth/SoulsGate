@@ -62,8 +62,10 @@ export class Xp {
   }
 
   /** Выпал камень из врага: кладём рядом с местом гибели. */
-  drop(enemy) {
-    const kind = this.rnd() < (this.cfg.gems.healDropChance || 0) ? 'heal' : enemy.def.drop;
+  drop(enemy,forcedKind=null,extracting=false) {
+    // Враг уже лишился своего единственного камня при Воодушевлении + Поглощение.
+    if(enemy.inspirationDrained&&!extracting)return null;
+    const kind=forcedKind||(this.rnd() < (this.cfg.gems.healDropChance || 0) ? 'heal' : enemy.def.drop);
     const def = kind && this.cfg.gems[kind];
     if (!def) return null;
     // Потолок камней: если их слишком много, самый старый сразу засчитывается герою, опыт не пропадает.
