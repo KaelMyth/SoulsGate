@@ -339,7 +339,7 @@ export class Spawner {
   /** Тип нового врага: по весам рисунка волны (pat.mix), иначе по долям из config.spawn. */
   pickKind(pat) {
     const sp = this.cfg.spawn;
-    // Замёрзшие появляются уже в пятой волне, включая рисунки волн с жучьим mix.
+    // Замёрзшие приходят с шестой волны (после ворот), перекрывая рисунки с жучьим mix.
     // Боссы, призывы и другие отдельные системы это правило не меняет.
     const fz = sp.frozen;
     if (fz && this.wave >= fz.fromWave) return this.pickSkeleton(fz.weights) || sp.enemy;
