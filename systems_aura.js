@@ -36,7 +36,9 @@ export class Aura {
 
   update(dt) {
     const raw = this.modifiers ? this.modifiers(this.cfg.block.core) : null;
-    const m = forCarrier(raw, 'aura');
+    // Внутри третьего умения Аура работает даже без мода на Щите.
+    const inspired=this.inspiration?.auraWhole ? this.inspiration.mods : null;
+    const m = forCarrier(inspired?.aura ? inspired : raw, 'aura');
     const a = m && m.aura;
     this.pulse = Math.max(0, this.pulse - dt * 5);
     if (!a || !this.hero.active) {
