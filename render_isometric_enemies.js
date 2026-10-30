@@ -307,7 +307,7 @@ export class IsometricIceEnemies {
     this.angle=st.dir; // используется только пока синхронно рисуется один персонаж
     ctx.save();ctx.translate(x,y);
     // Силуэт вырастает из точки на полу, а не вращается плоской медалькой.
-    const fall=clamp(dx,0,1);
+    const fall=clamp(dx,0,1),deathAlpha=1-fall*.98;
     if(fall>0){
       ctx.globalAlpha=(1-fall*.98);
       ctx.translate(0,fall*8);
@@ -341,15 +341,15 @@ export class IsometricIceEnemies {
     // Заморозка не перекрашивает силуэт целиком: появляются дополнительные
     // грани инея, а ходьба застывает вместе с логикой моба.
     if(frozen){
-      ctx.globalAlpha=.56;
+      ctx.globalAlpha=deathAlpha*.56;
       for(let i=0;i<4;i++)this.crystal(ctx,-3,i*4-6,20+i*5,2,2,7,1.7);
-      ctx.globalAlpha=1;
+      ctx.globalAlpha=deathAlpha;
     }
     if(hit||st.hit>.14){
-      ctx.globalAlpha=clamp(hit?.37:st.hit*.33,0,.44);
+      ctx.globalAlpha=deathAlpha*clamp(hit?.37:st.hit*.33,0,.44);
       this.mesh(ctx,[[10,-8,18],[10,8,18],[10,8,33],[10,-8,33]],
         '#ffffff',null);
-      ctx.globalAlpha=1;
+      ctx.globalAlpha=deathAlpha;
     }
     ctx.restore();
     return true;
@@ -359,7 +359,7 @@ export class IsometricIceEnemies {
     const kind=this.kind(e);
     if(!kind)return;
     const st=this.states.get(e);
-    const state=st&&st.gen===e.gen?{...st}:{gen:e.gen,dir:0,walk:0,weight:0,hit:0,attack:0,seed:0};
+    const state=st&&st.gen===e.gen?{...st}:{gen:e.gen,dir:Math.atan2(this.renderer.hero.y-e.y,this.renderer.hero.x-e.x),walk:0,weight:0,hit:0,attack:0,seed:0};
     this.corpses.push({x:e.x,y:e.y,radius:e.radius,kind,freezeT:e.freezeT,
       aim:0,aimTotal:1,atk:{state:'idle'},gen:e.gen,
       state,age:0,life:kind==='tartas'?1.6:.95});
