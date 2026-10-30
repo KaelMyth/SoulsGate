@@ -12,7 +12,7 @@ export function createGem() {
   return {
     active: false, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0,
     radius: 4, value: 1, kind: 'green', def: null, age: 0, pull: 0, speed: 0,
-    inspired: false, inspireT: 0, inspireX: 0, inspireY: 0, inspireSeed: 0,
+    inspired: false, inspireT: 0, inspireX: 0, inspireY: 0, inspireSeed: 0, inspireDuration: 0,
   };
 }
 
@@ -21,6 +21,7 @@ export function resetGem(g) {
   g.def = null;
   g.inspired = false;
   g.inspireT = 0;
+  g.inspireDuration = 0;
 }
 
 export class Xp {
@@ -85,6 +86,7 @@ export class Xp {
     g.speed = 0;
     g.inspired = false;
     g.inspireT = 0;
+    g.inspireDuration = 0;
     this.bus.emit('gem:dropped', { gem: g });
     return g;
   }
