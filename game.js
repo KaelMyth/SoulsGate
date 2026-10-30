@@ -2119,7 +2119,7 @@ export class Game {
     const def = B && this.config.enemies[B.enemy];
     if (!def) return;
     this.enemies.clear();
-    this.renderer.isoEnemies.reset();
+    this.renderer.isoEnemies?.reset();
     this.heroShots.clear();
     this.enemyShots.clear();
     this.pellets.clear();
@@ -2161,7 +2161,7 @@ export class Game {
     if(this.arena.location==='hall')return false;
     this.arena.setLocation('hall');
     this.enemies.clear();
-    this.renderer.isoEnemies.reset();
+    this.renderer.isoEnemies?.reset();
     this.heroShots.clear();
     this.enemyShots.clear();
     this.gems.clear();
@@ -2246,7 +2246,7 @@ export class Game {
     this.nav.source = -1;
     this.stepper.reset();
     this.enemies.clear();
-    this.renderer.isoEnemies.reset();
+    this.renderer.isoEnemies?.reset();
     this.heroShots.clear();
     this.pellets.clear();
     this.enemyShots.clear();
