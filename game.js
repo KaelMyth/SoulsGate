@@ -1832,9 +1832,9 @@ export class Game {
       this.defense.update(attackDt);
       if(this.introWalk){
         const intro=this.introWalk;
-        const step=Math.min(intro.targetY-this.hero.y,intro.speed*dt);
-        if(step>0){this.hero.place(this.hero.x,this.hero.y+step);this.hero.facing=-Math.PI/2;}
-        if(this.hero.y>=intro.targetY-.01){this.hero.place(0,intro.targetY);this.introWalk=null;this.spawner.timer=this.config.waves.intermission;}
+        const step=Math.min(this.hero.y-intro.targetY,intro.speed*dt);
+        if(step>0){this.hero.place(this.hero.x,this.hero.y-step);this.hero.facing=-Math.PI/2;}
+        if(this.hero.y<=intro.targetY+.01){this.hero.place(0,intro.targetY);this.introWalk=null;this.spawner.timer=this.config.waves.intermission;}
       }else this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.barriers.blockHero(this.hero);
       this.castleTransition.update(dt);
