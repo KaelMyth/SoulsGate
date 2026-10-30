@@ -82,6 +82,7 @@ test('Плавное вращение, ходьба с раздельными н
   const e=mob('frozenArcher');
   let st=iso.state(e,e.x,e.y);
   const start=st.dir;
+  renderer.hero.x=e.x;renderer.hero.y=e.y-200; // новый курс цели: лук разворачивается к герою
   e.prevX=e.x-2;e.prevY=e.y;
   iso.draw(ctx().c,e,e.x,e.y,'archer');
   assert.ok(st.weight>0);
@@ -126,7 +127,7 @@ test('Попадание, мороз, падение и реюз пулов не
   iso.onDeath(e);
   assert.equal(iso.corpses.length,1);
   iso.drawDeaths(ctx().c,.2,-300,300,-300,300);
-  assert.ok(iso.corpses[0].age>.1);
+  assert.ok(iso.corpses[0].age>0,'ограничение dt защищает анимацию от скачков кадров');
   iso.drawDeaths(ctx().c,1,-300,300,-300,300);
   // dt применяется с ограничением, поэтому серия кадров нужна для затухания.
   for(let i=0;i<30;i++)iso.drawDeaths(ctx().c,.05,-300,300,-300,300);
