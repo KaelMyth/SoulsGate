@@ -455,6 +455,7 @@ export class Game {
     });
     this.bus.on('hero:levelup', () => { if (this.mode === 'game' || config.rewards.inTest) this.pendingLevels++; });
     this.bus.on('hero:levelup', () => this.burst(this.hero.x, this.hero.y, 0.6, this.hero.radius, this.hero.radius * 5, '#7dffb0'));
+    this.bus.on('arch:crash', ({ x, y, r }) => { this.burst(x, y, 0.5, r * 0.4, r * 1.6, '#9ea3b0'); this.sparks(x, y, 6, '#d9dce6'); if (this.renderer) for (let k = 0; k < 4; k++) this.renderer.spawnDust(x, y, Math.cos(k * 1.57), Math.sin(k * 1.57)); }); // Арх врезался в скалу: пыль и каменная крошка
     this.bus.on('apotheosis:victory', () => this.endRun('Победа?'));
     this.bus.on('apotheosis:crack', ({ x, y }) => { this.burst(x, y, 0.5, 14, 80, '#8a8aa8'); this.sparks(x, y, 4, '#c8c8e0'); });
     this.bus.on('apotheosis:dissolve', () => { const b = this.apotheosis.boss; if (b) this.burst(b.x, b.y, 0.9, 40, 240, '#fff6c8'); });
