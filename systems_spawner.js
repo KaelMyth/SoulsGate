@@ -376,7 +376,7 @@ export class Spawner {
       if(k)return k;
     }
     const fz=sp.frozen;
-    if(this.arena.location==='sanctum')return this.wave===12?'elderSpirit':'spirit';
+    if(this.arena.location==='sanctum')return this.wave===12?'elderSpirit':this.wave>=13?'spectralSerpent':'spirit';
     if(fz&&this.arena.location==='hall'&&this.wave>=fz.fromWave)return this.pickSkeleton(fz.weights)||sp.enemy;
     // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
@@ -449,7 +449,7 @@ export class Spawner {
           }
         }
       }
-      if(this.arena.location==='sanctum' && (pat?.mix?.spirit||pat?.mix?.elderSpirit)){
+      if(this.arena.location==='sanctum' && (pat?.mix?.spirit||pat?.mix?.elderSpirit||pat?.mix?.spectralSerpent)){
         // Дух материализуется прямо в видимой части зала, но не на герое.
         const cam=this.camera,ar=this.arena;
         const rx=Math.min(cam.viewW*.36,ar.width*.36);

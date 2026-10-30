@@ -58,6 +58,7 @@ export function initEnemy(e, def, x, y) {
   e.goalOn = false;
   e.def = def; // ссылка, не копия: скорость из панели действует на живых врагов сразу
   e.spectralWait = def.spectral ? def.pauseBeforeRush : 0;
+  e.orbitTime = 0;
   e.touchTimer = 0;
   e.flash = 0;
   e.burnT = 0;
@@ -134,6 +135,24 @@ export function updateEnemy(e, dt, hero, arena, nav) {
     return;
   }
 
+  if(e.def.orbitRadius){
+    e.orbitTime+=dt;
+    const dx=hero.x-e.x,dy=hero.y-e.y;
+    const d=Math.max(1,Math.hypot(dx,dy));
+    const radius=e.def.orbitRadius+Math.sin(e.orbitTime*1.6+e.gen)*24;
+    const radial=Math.max(-.8,Math.min(.8,(d-radius)/radius));
+    const sign=e.gen%2?1:-1;
+    let vx=sign*(-dy/d)+dx/d*radial*2;
+    let vy=sign*(dx/d)+dy/d*radial*2;
+    const len=Math.max(.001,Math.hypot(vx,vy));vx/=len;vy/=len;
+    const step=e.def.speed*dt*e.speedMul*(e.rainGravityT>0?.75:1);
+    e.x+=vx*step;e.y+=vy*step;
+    e.hx=vx;e.hy=vy;
+    if(e.kbVx||e.kbVy){e.x+=e.kbVx*dt;e.y+=e.kbVy*dt;
+      const k=Math.exp(-dt/e.kbTau);e.kbVx*=k;e.kbVy*=k;}
+    arena.resolveCircle(e);
+    return;
+  }
   const hdx = hero.x - e.x;
   const hdy = hero.y - e.y;
   const d = Math.hypot(hdx, hdy); // до героя (стрелок держит дистанцию по нему)

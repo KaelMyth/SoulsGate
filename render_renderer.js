@@ -2870,6 +2870,8 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.tartas) {
       // Тартас: замёрзший рыцарь с ледяным мечом.
       this.drawTartas(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.spectralSerpent) {
+      this.drawSpectralSerpent(e,x,y,hit);
     } else if (e.def === this.cfg.enemies.elderSpirit) {
       this.drawElderSpirit(e,x,y,hit);
     } else if (e.def === this.cfg.enemies.spirit) {
@@ -5354,6 +5356,30 @@ export class Renderer {
   }
 
   /** Снежная буря привязана к мировым координатам, не к экрану камеры. */
+  drawSpectralSerpent(e,x,y,hit){
+    const c=this.ctx,t=this.clock,angle=Math.atan2(e.hy||0,e.hx||1);
+    c.save();c.translate(x,y);c.rotate(angle);
+    c.globalCompositeOperation='screen';
+    const sway=t*9+e.gen;
+    for(let j=10;j>=0;j--){
+      const u=j/10,px=-j*11,py=Math.sin(sway-j*.78)*12*u;
+      const r=(1-u)*14+2;
+      c.globalAlpha=(hit?.94:.63)*(1-u*.65);
+      c.fillStyle=j%2?'#7da7ed':'#b4eaff';
+      c.beginPath();c.ellipse(px,py,r,r*.82,0,0,Math.PI*2);c.fill();
+      c.strokeStyle='rgba(235,255,255,.65)';c.lineWidth=1;
+      c.beginPath();c.arc(px,py,r*.72,Math.PI*.22,Math.PI*1.78);c.stroke();
+    }
+    c.globalAlpha=.92;c.fillStyle=hit?'#ffffff':'#b9eaff';
+    c.beginPath();c.ellipse(8,0,24,16,0,0,Math.PI*2);c.fill();
+    c.fillStyle='#284a83';c.beginPath();
+    c.ellipse(16,-7,3.5,4,0,0,Math.PI*2);
+    c.ellipse(16,7,3.5,4,0,0,Math.PI*2);c.fill();
+    c.strokeStyle='#e5faff';c.lineWidth=2;
+    c.beginPath();c.moveTo(24,0);c.lineTo(34,-5);c.moveTo(24,0);c.lineTo(34,5);c.stroke();
+    c.restore();
+  }
+
   drawElderSpirit(e,x,y,hit){
     const c=this.ctx,t=this.clock,phase=t*1.25+e.gen;
     c.save();c.translate(x,y+Math.sin(phase)*5);
