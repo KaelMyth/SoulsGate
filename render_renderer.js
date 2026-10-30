@@ -9,6 +9,7 @@ import { InspirationFx } from './render_inspiration.js';
 import { BlackSunFx } from './render_blacksun.js';
 import { NorthGateArt } from './render_northgate.js';
 import { CastleHallArt } from './render_castle_hall.js';
+import { HallVision } from './render_hall_vision.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
@@ -527,6 +528,7 @@ export class Renderer {
     this.arena = deps.arena;
     this.northGate = this.arena.northWall ? new NorthGateArt(this.arena) : null;
     this.castleHall=new CastleHallArt(this.arena);
+    this.hallVision=new HallVision(cfg);
     this.castleTransition=null;
     this.hero = deps.hero;
     this.camera = deps.camera;
@@ -834,6 +836,9 @@ export class Renderer {
         this.dt,viewL,viewR,viewT,viewB);
 
     this.drawNegative(viewL, viewR, viewT, viewB);
+    // Единственная низкоразрешённая маска тьмы: после мировых эффектов
+    // и колонн, перед HUD. Посох, навыки и летящие снаряды пробивают свет.
+    this.hallVision.draw(ctx,this,alpha);
 
     // Стик и HUD рисуем в экранных координатах (px), поверх мира.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
