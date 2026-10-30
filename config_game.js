@@ -1416,7 +1416,7 @@ export const CONFIG = {
     maxDpr: 2,     // потолок плотности пикселей: iPhone даёт 3, но 2 заметно легче для GPU
     gridSize: 100, // шаг сетки пола (сейчас не рисуется: движение видно по снегу и деталям пола)
     snowflakes: 36,
-    blizzard: { enabled: true, centerFog: 0.045, edgeFog: 0.42, particles: 85 }, // снежинок в кадре (0 = без снегопада)
+    blizzard: { enabled: true, centerFog: 0.045, edgeFog: 0.42, spacing: 28, density: 0.24, wind: 65, fall: 26 }, // снежинок в кадре (0 = без снегопада)
     colors: {
       void: '#0a0f19',
       floor: '#3d4a63',      // снежная пустошь: приглушённый холодный тон, не яркий

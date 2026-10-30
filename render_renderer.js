@@ -855,7 +855,7 @@ export class Renderer {
     // Единственная низкоразрешённая маска тьмы: после мировых эффектов
     // и колонн, перед HUD. Посох, навыки и летящие снаряды пробивают свет.
     this.hallVision.draw(ctx,this,alpha);
-    if(arena.location==='courtyard')this.drawBlizzard(ctx,w,h,dpr);
+    if(arena.location==='courtyard')this.drawBlizzard(ctx,w,h,dpr,camX,camY,s);
 
     // Стик и HUD рисуем в экранных координатах (px), поверх мира.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5331,26 +5331,42 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  drawBlizzard(ctx,w,h,dpr){
+  /** Снежная буря привязана к мировым координатам, не к экрану камеры. */
+  drawBlizzard(ctx,w,h,dpr,camX,camY,scale){
     const cfg=this.cfg.render.blizzard;
     if(!cfg?.enabled)return;
+    const wave=Math.max(1,Math.min(5,this.hud?.wave||1));
+    const k=(wave-1)/4;
     ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
-    const radius=Math.hypot(w,h)*.65;
-    const fog=ctx.createRadialGradient(w*.5,h*.48,Math.min(w,h)*.12,w*.5,h*.48,radius);
-    fog.addColorStop(0,'rgba(204,221,239,'+cfg.centerFog+')');
-    fog.addColorStop(.55,'rgba(200,215,234,.08)');
-    fog.addColorStop(1,'rgba(212,224,239,'+cfg.edgeFog+')');
+    const fog=ctx.createRadialGradient(w*.5,h*.48,Math.min(w,h)*.1,w*.5,h*.48,Math.hypot(w,h)*.68);
+    fog.addColorStop(0,'rgba(204,221,239,'+(cfg.centerFog+k*.095)+')');
+    fog.addColorStop(.52,'rgba(200,215,234,'+(.07+k*.095)+')');
+    fog.addColorStop(1,'rgba(212,224,239,'+Math.min(.72,cfg.edgeFog+k*.26)+')');
     ctx.fillStyle=fog;ctx.fillRect(0,0,w,h);
-    const count=cfg.particles|0,t=this.clock;
-    ctx.lineCap='round';
-    for(let i=0;i<count;i++){
-      const z=(i*.61803398875)%1;
-      const px=((i*73.79+t*(45+z*135))%(w+100)+w+100)%(w+100)-50;
-      const py=((i*137.13+t*(22+z*60))%(h+90)+h+90)%(h+90)-45;
-      const len=1.8+z*9;
-      ctx.globalAlpha=.14+z*.48;
-      ctx.strokeStyle='#f3f8ff';ctx.lineWidth=.6+z*1.3;
-      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px-len,py-len*.28);ctx.stroke();
+
+    // Позиции частиц в мире. При перемещении камеры снежинки
+    // сдвигаются относительно героя и пейзажа, а не приклеиваются к экрану.
+    const spacing=cfg.spacing||28;
+    const left=camX-w/(2*scale),top=camY-h/(2*scale);
+    const right=camX+w/(2*scale),bottom=camY+h/(2*scale);
+    const drift=this.clock*(cfg.wind||65)*(1+k*.65);
+    const fall=this.clock*(cfg.fall||26)*(1+k*.35);
+    const count=cfg.density||.24;
+    const minX=Math.floor((left-drift)/spacing)-1,maxX=Math.ceil((right-drift)/spacing)+1;
+    const minY=Math.floor((top-fall)/spacing)-1,maxY=Math.ceil((bottom-fall)/spacing)+1;
+    ctx.strokeStyle='#f1f7ff';ctx.lineCap='round';
+    for(let iy=minY;iy<=maxY;iy++)for(let ix=minX;ix<=maxX;ix++){
+      const seed=Math.sin(ix*127.1+iy*311.7)*43758.5453;
+      const rnd=seed-Math.floor(seed);
+      if(rnd>count+k*.28)continue;
+      const r2=Math.sin(ix*269.5+iy*183.3)*24634.6345;
+      const jitter=r2-Math.floor(r2);
+      const x=(ix*spacing+jitter*spacing+drift-camX)*scale+w*.5;
+      const y=(iy*spacing+rnd*spacing+fall-camY)*scale+h*.5;
+      const fine=.35+jitter*.55;
+      ctx.globalAlpha=(.2+jitter*.28)*(1+k*.25);
+      ctx.lineWidth=fine;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-1.2-jitter*1.4,y-.3-jitter*.35);ctx.stroke();
     }
     ctx.restore();
   }
