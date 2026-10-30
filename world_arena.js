@@ -47,10 +47,13 @@ export class Arena {
     this.top = -cfg.height / 2;
     this.bottom = cfg.height / 2;
     this.cfgRocks = cfg.rocks;
+    this.location = 'courtyard';
+    this.hallWallDepth=cfg.castleTransition?.hallWallDepth||166;
     // Северная заснеженная крепость: целиком непроходимая стена с закрытыми воротами.
     // Декор занимает часть прямоугольника, но координаты пола и камеры не меняются.
     this.northWall = cfg.northWall?.enabled ? { depth: cfg.northWall.depth } : null;
     this.walkTop = this.top + (this.northWall ? this.northWall.depth : 0);
+    this.cfgNorthDepth=this.northWall?.depth||0;
     this.rocks = [];
     // Финальный бой: остаток карты разрушается, ходить можно только по острову zone { left, right, top, bottom }.
     // null = вся арена. Летающие (def.flies: Апофеоз) и снаряды идут по всей арене. collapse: 0..1, насколько разрушена карта (для отрисовки).
@@ -119,12 +122,22 @@ export class Arena {
     }
   }
 
+  /** Меняем игровую локацию, сохраняя площадь арены и камеру. */
+  setLocation(id) {
+    if(id!=='courtyard' && id!=='hall') throw new Error('Unknown location: '+id);
+    this.location=id;
+    const depth=id==='hall' ? this.hallWallDepth : this.cfgNorthDepth;
+    this.northWall=depth>0?{depth}:null;
+    this.walkTop=this.top+depth;
+    this.restoreRocks();
+  }
+
   /** Скалы как в конфиге (новый забег после того, как жуки проснулись и скалы исчезли). id стабильный: по нему рисуется спрайт. */
   restoreRocks() {
     this.rocks.length = 0;
     this.zone = null;
     this.collapse = 0;
-    for (let i = 0; i < this.cfgRocks.length; i++) {
+    for (let i = 0; this.location==='courtyard' && i < this.cfgRocks.length; i++) {
       const r = this.cfgRocks[i];
       this.rocks.push({ x: r.x, y: r.y, r: r.r, id: i });
     }
