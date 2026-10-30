@@ -153,7 +153,9 @@ test('Canvas: обе большие створки анимируются, те�
     assert.equal(hall.floor,floor);
     assert.ok(stats.gradients>=10);
     assert.ok(stats.images>=4);
-    assert.ok(hall.torches.length>=8);
+    assert.equal(hall.torches.length,2,'в холле остались только две погасшие чаши у решётки');
+    assert.equal(hall.columns.length,20,'колонны теперь занимают весь зал');
+    assert.equal(a.hallCrypts.length,10,'боковые ниши заменены криптами');
   } finally {
     if(old===undefined)delete globalThis.document;
     else globalThis.document=old;

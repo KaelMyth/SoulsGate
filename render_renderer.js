@@ -660,9 +660,7 @@ export class Renderer {
     ctx.strokeStyle = C.arenaEdge;
     ctx.strokeRect(arena.left - 4, arena.top - 4, arena.width + 8, arena.height + 8);
 
-    if(arena.location==='hall'){
-      this.castleHall.drawFlames(ctx,this.clock,viewL,viewR,viewT,viewB);
-    }else{
+    if(arena.location!=='hall'){
       this.drawGroundDetails(C,viewL,viewR,viewT,viewB);
     }
     // Северная крепость уже в системе координат карты, а не нарисована
@@ -829,6 +827,11 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+    // Между моделью героя и камерой стоят настоящие колонны. При перекрытии
+    // персонажа их объём постепенно растворяется, основание остаётся на полу.
+    if(arena.location==='hall' && !arena.zone)
+      this.castleHall.drawColumns(ctx,{x:hx,y:hy,radius:hero.radius,active:hero.active},
+        this.dt,viewL,viewR,viewT,viewB);
 
     this.drawNegative(viewL, viewR, viewT, viewB);
 

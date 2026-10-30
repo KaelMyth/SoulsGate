@@ -49,6 +49,17 @@ export class Arena {
     this.cfgRocks = cfg.rocks;
     this.location = 'courtyard';
     this.hallWallDepth=cfg.castleTransition?.hallWallDepth||166;
+    // Одинаковые координаты для отрисовки, физики и навигации. Колонны
+    // позволяют пройти вокруг себя, саркофаги закрывают только боковые ниши.
+    this.hallColumns=[];
+    for(const y of [-535,-185,165,515,775])
+      for(const x of [-354,-232,232,354])
+        this.hallColumns.push({x,y,r:27});
+    this.hallCrypts=[];
+    for(const y of [-557,-242,73,388,703])
+      for(const x of [-509,509])
+        this.hallCrypts.push({x,y,r:43});
+    this.hallObstacles=[...this.hallColumns,...this.hallCrypts];
     // Северная заснеженная крепость: целиком непроходимая стена с закрытыми воротами.
     // Декор занимает часть прямоугольника, но координаты пола и камеры не меняются.
     this.northWall = cfg.northWall?.enabled ? { depth: cfg.northWall.depth } : null;
@@ -143,6 +154,10 @@ export class Arena {
     }
   }
 
+  get obstacles() {
+    return this.location==='hall' && !this.zone ? this.hallObstacles : this.rocks;
+  }
+
   /** Убрать скалу из мира (жук проснулся). Возвращает убранную скалу или null. */
   removeRock(rock) {
     const i = this.rocks.indexOf(rock);
@@ -158,8 +173,8 @@ export class Arena {
   /** Задевает ли круг (x, y, r) какую-нибудь скалу. */
   circleHitsRock(x, y, r) {
     if (this.northWall && !this.zone && y - r < this.walkTop) return true;
-    for (let i = 0; i < this.rocks.length; i++) {
-      const rock = this.rocks[i];
+    for (let i = 0; i < this.obstacles.length; i++) {
+      const rock = this.obstacles[i];
       const dx = x - rock.x;
       const dy = y - rock.y;
       const lim = rock.r + r;
@@ -177,8 +192,8 @@ export class Arena {
     const dx = x1 - x0;
     const dy = y1 - y0;
     const len2 = dx * dx + dy * dy;
-    for (let i = 0; i < this.rocks.length; i++) {
-      const rock = this.rocks[i];
+    for (let i = 0; i < this.obstacles.length; i++) {
+      const rock = this.obstacles[i];
       let t = len2 > 0 ? ((rock.x - x0) * dx + (rock.y - y0) * dy) / len2 : 0;
       t = t < 0 ? 0 : t > 1 ? 1 : t;
       const px = x0 + dx * t - rock.x;
@@ -195,8 +210,8 @@ export class Arena {
    */
   resolveCircle(c) {
     for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < this.rocks.length; i++) {
-        const rock = this.rocks[i];
+      for (let i = 0; i < this.obstacles.length; i++) {
+        const rock = this.obstacles[i];
         const dx = c.x - rock.x;
         const dy = c.y - rock.y;
         const minD = c.radius + rock.r;

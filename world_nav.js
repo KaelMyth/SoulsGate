@@ -43,8 +43,8 @@ export class NavGrid {
           blocked[r * cols + c] = 1;
           continue;
         }
-        for (let i = 0; i < arena.rocks.length; i++) {
-          const rock = arena.rocks[i];
+        for (let i = 0; i < arena.obstacles.length; i++) {
+          const rock = arena.obstacles[i];
           const dx = x - rock.x;
           const dy = y - rock.y;
           const lim = rock.r + pad;

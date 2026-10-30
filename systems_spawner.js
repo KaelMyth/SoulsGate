@@ -339,6 +339,10 @@ export class Spawner {
   /** Тип нового врага: по весам рисунка волны (pat.mix), иначе по долям из config.spawn. */
   pickKind(pat) {
     const sp = this.cfg.spawn;
+    // Замёрзшие появляются уже в пятой волне, включая рисунки волн с жучьим mix.
+    // Боссы, призывы и другие отдельные системы это правило не меняет.
+    const fz = sp.frozen;
+    if (fz && this.wave >= fz.fromWave) return this.pickSkeleton(fz.weights) || sp.enemy;
     if (pat && pat.mix) {
       const k = this.pickSkeleton(pat.mix);
       if (k) return k;
@@ -348,8 +352,6 @@ export class Spawner {
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
     const r = this.rnd();
     let kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
-    const fz = sp.frozen;
-    if (fz && this.wave >= fz.fromWave) kind = this.pickSkeleton(fz.weights) || kind; // после Тартаса только Замёрзшие
     const sk = sp.skeleton;
     if (sk && this.wave >= sk.fromWave && this.rnd() < sk.share) kind = this.pickSkeleton(sk.weights) || kind; // скелеты временами
     return kind;
@@ -439,13 +441,16 @@ export class Spawner {
     if (a !== null) this.lastAngle = a;
     const cx = this.pt.x;
     const cy = this.pt.y;
-    const leader = this.spawnAt(F.leader, cx, cy);
+    // Девятая волна использует построение отряда в обход pickKind.
+    // После пятой это замёрзший лучник и стражи, а не старые жуки.
+    const frozen=this.cfg.spawn.frozen && this.wave>=this.cfg.spawn.frozen.fromWave;
+    const leader = this.spawnAt(frozen ? 'frozenArcher' : F.leader, cx, cy);
     const guards = [];
     const n = Math.max(0, size - 1);
     const a0 = this.rnd() * TAU;
     for (let i = 0; i < n; i++) {
       const ga = a0 + (i / Math.max(1, n)) * TAU;
-      guards.push(this.spawnAt(F.guard, cx + Math.cos(ga) * ringD, cy + Math.sin(ga) * ringD));
+      guards.push(this.spawnAt(frozen ? 'frozenSoldier' : F.guard, cx + Math.cos(ga) * ringD, cy + Math.sin(ga) * ringD));
     }
     if (this.guards) this.guards.assign(leader, guards);
     let made = 1 + n;
@@ -454,7 +459,7 @@ export class Spawner {
       const m = 1 + Math.floor(this.rnd() * X.n);
       for (let i = 0; i < m; i++) {
         if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) break;
-        const k = this.pickSkeleton(X.mix);
+        const k = frozen ? this.pickKind(pat) : this.pickSkeleton(X.mix);
         if (!k) break;
         this.spawnAt(k, this.pt.x, this.pt.y);
         made++;
