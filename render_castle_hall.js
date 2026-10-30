@@ -134,13 +134,13 @@ export class CastleHallArt {
     // Каменные фундаменты колонн видны под ногами, сами колонны отдельным
     // передним слоем и становятся прозрачными, если закрывают героя.
     for(const p of this.columns){
-      const g=c.createRadialGradient(p.x,p.y+6,0,p.x,p.y+6,62);
+      const g=c.createRadialGradient(p.x,p.y+6,0,p.x,p.y+6,46);
       g.addColorStop(0,'rgba(0,0,0,.68)');
       g.addColorStop(1,'rgba(0,0,0,0)');
-      c.fillStyle=g;c.beginPath();c.arc(p.x,p.y+6,62,0,TAU);c.fill();
-      shape(c,[p.x-36,p.y-24,p.x+36,p.y-24,p.x+42,p.y+24,p.x-42,p.y+24],
+      c.fillStyle=g;c.beginPath();c.arc(p.x,p.y+6,46,0,TAU);c.fill();
+      shape(c,[p.x-26,p.y-19,p.x+26,p.y-19,p.x+31,p.y+19,p.x-31,p.y+19],
         '#303947','#111823',2.4);
-      shape(c,[p.x-29,p.y-17,p.x+29,p.y-17,p.x+29,p.y+18,p.x-29,p.y+18],
+      shape(c,[p.x-21,p.y-14,p.x+21,p.y-14,p.x+21,p.y+15,p.x-21,p.y+15],
         '#454d5b','#6e6b68',1.6);
     }
     // Передняя стена: монументальный мраморный портал в глубину замка.
