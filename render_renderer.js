@@ -652,7 +652,7 @@ export class Renderer {
     // Пол: снежная пустошь. Подложка нужна, чтобы на стыке кусков картинки не мелькала пустота.
     ctx.fillStyle = C.floor;
     ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
-    if(arena.location!=='hall' && !this.floor)this.floor=buildFloorTexture(arena,C);
+    if(arena.location==='courtyard' && !this.floor)this.floor=buildFloorTexture(arena,C);
     const gx0 = Math.max(viewL, arena.left);
     const gx1 = Math.min(viewR, arena.right);
     const gy0 = Math.max(viewT, arena.top);
@@ -672,6 +672,8 @@ export class Renderer {
           ctx.fillStyle='#fff2b0';ctx.beginPath();ctx.ellipse(p.x,p.y-12,3,7,0,0,Math.PI*2);ctx.fill();
         }
       }
+    }else if(arena.location==='sanctum'){
+      this.drawSanctum(ctx,arena);
     }else if(gx1>gx0&&gy1>gy0){
       ctx.drawImage(this.floor,gx0-arena.left,gy0-arena.top,gx1-gx0,gy1-gy0,gx0,gy0,gx1-gx0,gy1-gy0);
     }
@@ -681,7 +683,7 @@ export class Renderer {
     ctx.strokeStyle = C.arenaEdge;
     ctx.strokeRect(arena.left - 4, arena.top - 4, arena.width + 8, arena.height + 8);
 
-    if(arena.location!=='hall'){
+    if(arena.location==='courtyard'){
       this.drawGroundDetails(C,viewL,viewR,viewT,viewB);
     }
     // Северная крепость уже в системе координат карты, а не нарисована
@@ -723,7 +725,9 @@ export class Renderer {
       ctx.restore();
     }
 
-    if(arena.location!=='hall')this.drawSnow(ctx,viewL,viewR,viewT,viewB);
+    if(arena.location==='courtyard')this.drawSnow(ctx,viewL,viewR,viewT,viewB);
+    if(arena.location==='hall' && this.boss?.enemy?.active===false){}
+    if(arena.location==='hall' && this.sanctumGate?.open>=0)this.drawHallPortcullis(ctx,arena,this.sanctumGate.open);
 
     const hx = hero.prevX + (hero.x - hero.prevX) * alpha;
     const hy = hero.prevY + (hero.y - hero.prevY) * alpha;
@@ -869,6 +873,7 @@ export class Renderer {
     // и колонн, перед HUD. Посох, навыки и летящие снаряды пробивают свет.
     this.hallVision.draw(ctx,this,alpha);
     if(arena.location==='courtyard')this.drawBlizzard(ctx,w,h,dpr,camX,camY,s);
+    if(arena.location==='sanctum')this.drawSanctumMotes(ctx,arena,viewL,viewR,viewT,viewB);
 
     // Стик и HUD рисуем в экранных координатах (px), поверх мира.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5345,6 +5350,78 @@ export class Renderer {
   }
 
   /** Снежная буря привязана к мировым координатам, не к экрану камеры. */
+  drawHallPortcullis(ctx,arena,open){
+    const y=arena.walkTop;
+    ctx.save();
+    ctx.fillStyle='#141d2b';ctx.fillRect(-123,y-43,246,44);
+    ctx.fillStyle='#697789';ctx.fillRect(-120,y-44,240,8);
+    const rise=open*170;
+    ctx.strokeStyle='#8d96a6';ctx.lineWidth=7;
+    for(let x=-104;x<=104;x+=26){
+      ctx.beginPath();ctx.moveTo(x,y-rise-140);ctx.lineTo(x,y-rise+26);ctx.stroke();
+    }
+    ctx.lineWidth=6;
+    for(let yy=-116;yy<=18;yy+=34){
+      ctx.beginPath();ctx.moveTo(-116,y-rise+yy);ctx.lineTo(116,y-rise+yy);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawSanctum(ctx,arena){
+    const {left:L,right:R,top:T,bottom:B}=arena;
+    ctx.save();
+    ctx.fillStyle='#c5c4d1';ctx.fillRect(L,T,arena.width,arena.height);
+    const tile=90;
+    for(let y=T;y<B;y+=tile)for(let x=L;x<R;x+=tile){
+      const k=((Math.floor((x-L)/tile)+Math.floor((y-T)/tile))&1);
+      ctx.fillStyle=k?'#e9e7ee':'#d5d4df';ctx.fillRect(x+1,y+1,tile-2,tile-2);
+      ctx.strokeStyle='rgba(108,106,138,.25)';ctx.lineWidth=1.5;ctx.strokeRect(x,y,tile,tile);
+      ctx.strokeStyle='rgba(143,143,170,.19)';ctx.beginPath();
+      ctx.moveTo(x+12,y+20);ctx.bezierCurveTo(x+36,y+10,x+50,y+64,x+tile-12,y+tile-14);ctx.stroke();
+    }
+    ctx.fillStyle='#d4d0e0';ctx.fillRect(L,T,arena.width,142);
+    ctx.fillStyle='#f2e8d4';ctx.fillRect(L,T+116,arena.width,10);
+    ctx.strokeStyle='#aa9db2';ctx.lineWidth=5;ctx.strokeRect(L+12,T+12,arena.width-24,108);
+    const colors=['#f4ae58','#8fcbff','#bca1f8','#83e1c8','#f5a5cc'];
+    for(let i=0;i<5;i++){
+      const x=(i-2)*205;
+      ctx.fillStyle='#55576d';ctx.beginPath();ctx.moveTo(x-66,T+98);ctx.lineTo(x-66,T+48);
+      ctx.quadraticCurveTo(x,T-6,x+66,T+48);ctx.lineTo(x+66,T+98);ctx.closePath();ctx.fill();
+      ctx.fillStyle=colors[i];ctx.globalAlpha=.8;
+      ctx.beginPath();ctx.moveTo(x-56,T+89);ctx.lineTo(x-56,T+48);
+      ctx.quadraticCurveTo(x,T+7,x+56,T+48);ctx.lineTo(x+56,T+89);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=.23;ctx.fillStyle=colors[i];
+      ctx.beginPath();ctx.moveTo(x-52,T+103);ctx.lineTo(x+52,T+103);
+      ctx.lineTo(x+175,T+580);ctx.lineTo(x-180,T+580);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=1;ctx.strokeStyle='#d7d1df';ctx.lineWidth=4;
+      ctx.beginPath();ctx.moveTo(x,T+24);ctx.lineTo(x,T+95);ctx.moveTo(x-55,T+68);ctx.lineTo(x+55,T+68);ctx.stroke();
+    }
+    // Трон у северной стены: спинка, резьба, сиденье и широкие подлокотники.
+    const ty=T+150;
+    ctx.fillStyle='rgba(54,41,80,.25)';ctx.beginPath();ctx.ellipse(0,ty+35,125,35,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#665d87';ctx.fillRect(-67,ty-67,134,95);
+    ctx.fillStyle='#9d83b3';ctx.fillRect(-52,ty-57,104,77);
+    ctx.fillStyle='#e9ca87';ctx.fillRect(-72,ty-74,144,12);
+    ctx.fillStyle='#d6b77b';ctx.fillRect(-91,ty-2,32,52);ctx.fillRect(59,ty-2,32,52);
+    ctx.fillStyle='#59466d';ctx.fillRect(-59,ty+16,118,27);
+    ctx.fillStyle='#f8e5a7';ctx.beginPath();ctx.moveTo(0,ty-89);ctx.lineTo(18,ty-65);ctx.lineTo(0,ty-43);ctx.lineTo(-18,ty-65);ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+
+  drawSanctumMotes(ctx,arena,l,r,t,b){
+    ctx.save();ctx.globalCompositeOperation='screen';
+    const time=this.clock;
+    const colors=['#d2a4ff','#8bd9ff','#ffe4a4','#9af3d3'];
+    for(let i=0;i<115;i++){
+      const x=arena.left+((i*137.23+Math.sin(time*.47+i)*24)%(arena.width));
+      const y=arena.top+((i*191.17-time*(7+i%9))%arena.height+arena.height)%arena.height;
+      if(x<l||x>r||y<t||y>b)continue;
+      ctx.globalAlpha=.24+.3*(.5+.5*Math.sin(time*1.4+i*2.2));
+      ctx.fillStyle=colors[i%4];ctx.beginPath();ctx.arc(x,y,.6+i%3*.4,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  }
+
   drawBlizzard(ctx,w,h,dpr,camX,camY,scale){
     const cfg=this.cfg.render.blizzard;
     if(!cfg?.enabled)return;

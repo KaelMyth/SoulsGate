@@ -288,6 +288,8 @@ export class Game {
       onEnter:()=>this.enterCastleHall(),
     });
     this.renderer.castleTransition=this.castleTransition;
+    this.sanctumGate={open:0};
+    this.renderer.sanctumGate=this.sanctumGate;
     this.renderer.barriers=this.barriers;
 
     // Слои столкновений: кто с кем взаимодействует, объявлено здесь, а не размазано по коду.

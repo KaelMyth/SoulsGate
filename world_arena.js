@@ -136,9 +136,9 @@ export class Arena {
 
   /** Меняем игровую локацию, сохраняя площадь арены и камеру. */
   setLocation(id) {
-    if(id!=='courtyard' && id!=='hall') throw new Error('Unknown location: '+id);
+    if(id!=='courtyard' && id!=='hall' && id!=='sanctum') throw new Error('Unknown location: '+id);
     this.location=id;
-    const depth=id==='hall' ? this.hallWallDepth : this.cfgNorthDepth;
+    const depth=id==='hall' ? this.hallWallDepth : id==='sanctum' ? 130 : this.cfgNorthDepth;
     this.northWall=depth>0?{depth}:null;
     this.walkTop=this.top+depth;
     this.restoreRocks();

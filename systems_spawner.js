@@ -169,8 +169,8 @@ export class Spawner {
       this.alive = this.countAlive();
       if (this.alive === 0) {
         if (this.bus) this.bus.emit('boss:defeated', { wave: this.wave });
-        if(this.wave===this.cfg.waves.boss.wave && this.arena.location==='courtyard' &&
-           this.cfg.arena.castleTransition) {
+        if((this.wave===this.cfg.waves.boss.wave && this.arena.location==='courtyard' && this.cfg.arena.castleTransition) ||
+           (this.wave===this.cfg.waves.boss2.wave && this.arena.location==='hall')) {
           this.phase='gate';
           return;
         }
