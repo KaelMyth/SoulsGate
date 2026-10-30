@@ -1850,7 +1850,7 @@ export class Game {
       this.updateKinetic(attackDt);
       this.updateFires(worldDt);
       this.camera.zoomTarget = Math.max(this.boss.cameraZoom(), this.arena.zone ? this.config.waves.finale.zoom : 1); // клинки и финальный бой отдаляют экран
-      this.camera.update(dt, this.hero.x, this.hero.y, this.arena);
+      this.camera.update(dt, this.introWalk?.cameraX??this.hero.x, this.introWalk?.cameraY??this.hero.y, this.arena);
       this.nav.update(this.hero.x, this.hero.y); // пересчитается, только если герой сменил клетку
 
       const en = this.enemies.items;
@@ -2210,7 +2210,6 @@ export class Game {
     this.blackSun.reset();
     this.autoattack.reset();
     this.beginLocationEntrance();
-    this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
     this.nav.buildBlocked();
     this.nav.source=-1;
     this.renderer.floor=null;
@@ -2232,7 +2231,6 @@ export class Game {
     this.renderer.isoEnemies?.reset();
     this.hero.place(0,this.arena.bottom-this.hero.radius-18);
     this.beginLocationEntrance();
-    this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
     this.nav.buildBlocked();this.nav.source=-1;
     this.renderer.floor=null;this.renderer.details=null;
     this.spawner.advanceAfterGate();this.syncWaveHud();
@@ -2241,9 +2239,21 @@ export class Game {
 
   /** Общий вход снизу экрана с автоматическим продвижением вглубь. */
   beginLocationEntrance(){
-    const bottom=this.arena.bottom-this.hero.radius-18;
-    this.hero.place(0,bottom);this.hero.facing=-Math.PI/2;
-    this.introWalk={targetY:Math.min(0,bottom-165),speed:125};
+    // Точка назначения совпадает с обычным стартом героя (центр арены).
+    // Вход начинается за нижней кромкой экрана, камера остаётся на игровой позиции.
+    this.camera.snapTo(0,0,this.arena);
+    const startY=Math.min(this.arena.bottom-this.hero.radius-8,
+      this.camera.y+this.camera.viewH*.5+this.hero.radius+12);
+    this.hero.place(0,startY);
+    this.hero.facing=-Math.PI/2;
+    this.introWalk={targetY:0,speed:190,cameraX:this.camera.x,cameraY:this.camera.y};
+    // Скалы не могут перекрывать путь из нижней части кадра к центру.
+    if(this.arena.location==='courtyard'){
+      this.arena.rocks=this.arena.rocks.filter(rock=>
+        !(rock.y+rock.r>=-this.hero.radius && rock.y-rock.r<=startY+this.hero.radius &&
+          Math.abs(rock.x)<rock.r+this.hero.radius+24));
+      this.nav.buildBlocked();this.nav.source=-1;
+    }
     this.spawner.timer=this.config.waves.intermission;
   }
 
@@ -2457,7 +2467,6 @@ export class Game {
   beginCourtyardIntro(){
     if(this.config.waves.startWave!==1){this.introWalk=null;return;}
     this.beginLocationEntrance();
-    this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
   }
 
   start() {
@@ -2468,7 +2477,7 @@ export class Game {
     }
     this.renderer.resize();
     if(this.state==='playing')this.beginCourtyardIntro();
-    this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
+    else this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.loop.start();
   }
 }

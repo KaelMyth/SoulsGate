@@ -5512,7 +5512,10 @@ export class Renderer {
     const cfg=this.cfg.render.blizzard;
     if(!cfg?.enabled)return;
     const wave=Math.max(1,Math.min(5,this.hud?.wave||1));
-    const k=(wave-1)/4;
+    const target=(wave-1)/4;
+    if(this.blizzardWaveBlend===undefined)this.blizzardWaveBlend=target;
+    this.blizzardWaveBlend+=(target-this.blizzardWaveBlend)*.012;
+    const k=this.blizzardWaveBlend;
     ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
     const fog=ctx.createRadialGradient(w*.5,h*.5,Math.min(w,h)*.38,w*.5,h*.5,Math.hypot(w,h)*.63);
     fog.addColorStop(0,'rgba(132,143,153,'+(0)+')');
