@@ -210,7 +210,11 @@ export const CONFIG = {
       name: 'Воодушевление',
       icon: 'inspiration',
       rarity: 'legendary',
-      description: 'Третье умение. Героя окружает сияющая золотая сфера, втягивающая камни опыта со всей карты. Каждый собранный камень опыта восстанавливает ровно 1 HP независимо от его ценности. Опыт сохраняется.',
+      description: 'Третье умение: золотая сфера собирает опыт со всей карты, за каждый камень +1 HP. Стихии создают преследующие огоньки (не более 3 на врага), Клинки заменяют огоньки мечами, Гравитация отталкивает всех, Лазер вращается после сбора (1 луч на 3 опыта), Поглощение вырывает опыт из живых врагов, Аура охватывает всю карту. Усилители дочерних модов действуют на их эффекты.',
+      canBurn: true, canFrost: true, canLightning: true, canBlades: true,
+      canGravity: true, canLaser: true, canAbsorption: true, canAura: true,
+      multStat: 'inspirationPower',
+      stats: [{label:'Длительность',key:'inspirationPower',path:'skills.inspiration.duration',unit:'с'}],
       effect: { kind: 'inspiration', secondary: true },
     },
     aura: {
@@ -351,6 +355,22 @@ export const CONFIG = {
       coronaColor: '#ffeab0',
       coreColor: '#fff9dc',
       auraColor: '#ae7728',
+      orbDamage: 13,      // урон вылетающего после подбора опыта светящегося шарика
+      bladeDamage: 20,    // урон духовного клинка; множители Клинков действуют штатно
+      orbSpeed: 470,      // скорость возвратных огоньков и клинков
+      orbLifetime: 2.1,
+      maxPerEnemy: 3,     // одновременно до трёх обратных снарядов в одну цель
+      maxReturn: 240,    // страховка от резких скачков нагрузки, лишний опыт всё равно лечит и начисляется
+      gravityPush: 190,  // отталкивание всех живых врагов при касте
+      gravityPushTime: 0.24,
+      gravityVisualTime: 0.65,
+      laserTime: 2.2,    // лучи начинают вращаться только после сбора всех летящих камней
+      laserTurn: 1.42,   // радиан в секунду
+      laserTick: 0.3,    // интервал поражений
+      laserDamage: 9,
+      absorptionTargets: 4, // уникальные живые враги; Х2/Х3 увеличивают количество
+      absorptionDamage: 9,
+      absorptionViewTime: 0.85,
     },
     incarnation: {
       duration: 5, // с: время неуязвимого энергетического воплощения
