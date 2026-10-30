@@ -7,6 +7,7 @@ import { SpellFx } from './render_spellfx.js';
 import { DashFx } from './render_dashfx.js';
 import { InspirationFx } from './render_inspiration.js';
 import { BlackSunFx } from './render_blacksun.js';
+import { NorthGateArt } from './render_northgate.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
@@ -523,6 +524,7 @@ export class Renderer {
     this.spellFx = new SpellFx();
     this.cfg = cfg;
     this.arena = deps.arena;
+    this.northGate = this.arena.northWall ? new NorthGateArt(this.arena) : null;
     this.hero = deps.hero;
     this.camera = deps.camera;
     this.stick = deps.stick;
@@ -654,6 +656,9 @@ export class Renderer {
     ctx.strokeRect(arena.left - 4, arena.top - 4, arena.width + 8, arena.height + 8);
 
     this.drawGroundDetails(C, viewL, viewR, viewT, viewB);
+    // Северная крепость уже в системе координат карты, а не нарисована
+    // поверх HUD. Один кэшированный спрайт и живой огонь без тяжелых ассетов.
+    if(this.northGate) this.northGate.draw(ctx,viewL,viewR,viewT,viewB,this.clock);
 
     // Скалы: заснеженные хитиновые панцири с каменными наростами (спрайт на каждую).
     for (let i = 0; i < arena.rocks.length; i++) {

@@ -25,13 +25,14 @@ const TAU = Math.PI * 2;
  */
 export function pickSpawnPoint(rnd, cam, arena, margin, out) {
   const edge = 20; // отступ от стены арены
+  const top = arena.walkTop === undefined ? arena.top : arena.walkTop;
   // 1) Кольцо вокруг камеры: радиус больше половины диагонали экрана, значит точка точно вне кадра.
   const R = Math.hypot(cam.viewW, cam.viewH) / 2 + margin;
   for (let i = 0; i < 16; i++) {
     const a = rnd() * TAU;
     const x = cam.x + Math.cos(a) * R;
     const y = cam.y + Math.sin(a) * R;
-    if (x > arena.left + edge && x < arena.right - edge && y > arena.top + edge && y < arena.bottom - edge) {
+    if (x > arena.left + edge && x < arena.right - edge && y > top + edge && y < arena.bottom - edge) {
       out.x = x;
       out.y = y;
       return true;
@@ -40,7 +41,7 @@ export function pickSpawnPoint(rnd, cam, arena, margin, out) {
   // 2) Запасной путь: любая точка арены вне прямоугольника экрана.
   for (let i = 0; i < 16; i++) {
     const x = arena.left + edge + rnd() * (arena.width - 2 * edge);
-    const y = arena.top + edge + rnd() * (arena.height - 2 * edge);
+    const y = top + edge + rnd() * (arena.bottom - top - 2 * edge);
     if (Math.abs(x - cam.x) > cam.viewW / 2 + margin || Math.abs(y - cam.y) > cam.viewH / 2 + margin) {
       out.x = x;
       out.y = y;
@@ -345,12 +346,13 @@ export class Spawner {
     const R = Math.hypot(cam.viewW, cam.viewH) / 2 + this.cfg.spawn.margin;
     const ar = this.arena;
     const edge = 20;
+    const top=ar.walkTop===undefined?ar.top:ar.walkTop;
     for (let i = 0; i < 24; i++) {
       const off = Math.ceil(i / 2) * 0.2618 * (i % 2 ? 1 : -1); // 0, ±15°, ±30° ...
       const a = angle + off;
       const x = cam.x + Math.cos(a) * R;
       const y = cam.y + Math.sin(a) * R;
-      if (x > ar.left + edge && x < ar.right - edge && y > ar.top + edge && y < ar.bottom - edge) {
+      if (x > ar.left + edge && x < ar.right - edge && y > top + edge && y < ar.bottom - edge) {
         out.x = x;
         out.y = y;
         return a;

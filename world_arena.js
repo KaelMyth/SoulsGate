@@ -47,6 +47,10 @@ export class Arena {
     this.top = -cfg.height / 2;
     this.bottom = cfg.height / 2;
     this.cfgRocks = cfg.rocks;
+    // Северная заснеженная крепость: целиком непроходимая стена с закрытыми воротами.
+    // Декор занимает часть прямоугольника, но координаты пола и камеры не меняются.
+    this.northWall = cfg.northWall?.enabled ? { depth: cfg.northWall.depth } : null;
+    this.walkTop = this.top + (this.northWall ? this.northWall.depth : 0);
     this.rocks = [];
     // Финальный бой: остаток карты разрушается, ходить можно только по острову zone { left, right, top, bottom }.
     // null = вся арена. Летающие (def.flies: Апофеоз) и снаряды идут по всей арене. collapse: 0..1, насколько разрушена карта (для отрисовки).
@@ -140,6 +144,7 @@ export class Arena {
 
   /** Задевает ли круг (x, y, r) какую-нибудь скалу. */
   circleHitsRock(x, y, r) {
+    if (this.northWall && !this.zone && y - r < this.walkTop) return true;
     for (let i = 0; i < this.rocks.length; i++) {
       const rock = this.rocks[i];
       const dx = x - rock.x;
@@ -155,6 +160,7 @@ export class Arena {
    * (радиус снаряда или врага). Нужен для прямой видимости: цели и пути врагов.
    */
   segmentBlocked(x0, y0, x1, y1, pad) {
+    if (this.northWall && !this.zone && Math.min(y0, y1) - pad < this.walkTop) return true;
     const dx = x1 - x0;
     const dy = y1 - y0;
     const len2 = dx * dx + dy * dy;
@@ -192,7 +198,7 @@ export class Arena {
       const z = this.zone && !(c.def && c.def.flies) ? this.zone : null;
       const b = z || this;
       c.x = clamp(c.x, b.left + c.radius, b.right - c.radius);
-      c.y = clamp(c.y, b.top + c.radius, b.bottom - c.radius);
+      c.y = clamp(c.y, (!z && this.northWall ? this.walkTop : b.top) + c.radius, b.bottom - c.radius);
       if (z && z.poly) this.resolveInPoly(c, z.poly); // ломаный остров: вдвигаем от кромки
     }
   }
