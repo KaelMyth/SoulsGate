@@ -134,4 +134,123 @@ export class InspirationFx {
     }
     ctx.restore();
   }
+  /** Ответные светляки / кинжалы, ритуал вытягивания опыта и вращающаяся корона лазеров. */
+  drawInteractions(ctx,hx,hy){
+    const spell=this.r.inspiration;
+    if(!spell?.active)return;
+    const t=this.r.clock,S=this.r.cfg.skills.inspiration;
+    const gold=this.r.getGlow('gold'),puff=this.r.getGlow(true);
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+
+    // Гравитация: от сферы по всей карте летит волна давления с неравномерными рукавами.
+    if(spell.gravityWave>0){
+      const u=1-spell.gravityWave/Math.max(.01,S.gravityVisualTime);
+      const r=28+u*Math.max(this.r.w||800,this.r.h||700)*1.8;
+      for(let pass=0;pass<3;pass++){
+        ctx.beginPath();
+        const waves=72;
+        for(let i=0;i<=waves;i++){
+          const a=i*TAU/waves;
+          const rr=r*(1+.04*Math.sin(a*11+t*9)+.025*Math.sin(a*19-t*5));
+          if(!i)ctx.moveTo(hx+rr,hy);else ctx.lineTo(hx+Math.cos(a)*rr,hy+Math.sin(a)*rr);
+        }
+        ctx.strokeStyle=pass===0?'#a774e6':pass===1?'#ffdc87':'#fff5d0';
+        ctx.lineWidth=pass===0?15:pass===1?5:1.1;
+        ctx.globalAlpha=(1-u)*(pass===0?.12:pass===1?.32:.8);
+        ctx.stroke();
+      }
+    }
+
+    // Поглощение: золотая душа вырывается из живого врага и разрывает дымную оболочку.
+    for(const f of spell.extractions){
+      const u=clamp(f.age/f.life),fade=1-u;
+      const sz=17+u*30;
+      ctx.globalAlpha=fade*.6;
+      ctx.drawImage(puff,f.x-sz,f.y-sz,sz*2,sz*2);
+      for(let j=0;j<7;j++){
+        const a=j*2.399+t*.9;
+        const x=f.x+Math.cos(a)*sz*(.3+.6*u),y=f.y+Math.sin(a)*sz*(.3+.6*u);
+        const sm=4+4*fade;
+        ctx.globalAlpha=fade*.39;
+        ctx.drawImage(gold,x-sm,y-sm,sm*2,sm*2);
+      }
+      ctx.strokeStyle='#ffebb1';ctx.lineWidth=2.8;
+      ctx.globalAlpha=fade*.38;
+      ctx.beginPath();ctx.arc(f.x,f.y,sz,0,TAU);ctx.stroke();
+    }
+
+    // Снаряды: энергия разлетается из оболочки и оставляет дымный шлейф.
+    for(const p of spell.projectiles){
+      const x=p.x,y=p.y;
+      const angle=p.angle;
+      ctx.globalAlpha=.75;
+      const sz=p.blade?20:15;
+      ctx.drawImage(gold,x-sz,y-sz,2*sz,2*sz);
+      const dx=x-p.px,dy=y-p.py,d=Math.hypot(dx,dy)||1;
+      const nx=dx/d,ny=dy/d;
+      ctx.strokeStyle=p.blade?'#f2d6ff':'#ffe3a1';
+      ctx.lineWidth=p.blade?4.5:3;
+      ctx.globalAlpha=.5;
+      ctx.beginPath();
+      ctx.moveTo(x,y);
+      ctx.quadraticCurveTo(x-nx*13+ny*5,y-ny*13-nx*5,x-nx*35,y-ny*35);
+      ctx.stroke();
+      if(p.blade){
+        ctx.save();ctx.translate(x,y);ctx.rotate(angle);
+        ctx.fillStyle='#b58ce1';ctx.globalAlpha=.8;
+        ctx.beginPath();ctx.moveTo(15,0);ctx.quadraticCurveTo(-3,-4,-11,-5);
+        ctx.lineTo(-6,0);ctx.lineTo(-11,5);ctx.quadraticCurveTo(-3,4,15,0);ctx.fill();
+        ctx.fillStyle='#fff3d6';ctx.globalAlpha=.9;
+        ctx.beginPath();ctx.moveTo(15,0);ctx.quadraticCurveTo(-1,-2,-8,-1);
+        ctx.lineTo(-3,0);ctx.lineTo(-8,1);ctx.quadraticCurveTo(-1,2,15,0);ctx.fill();
+        ctx.restore();
+      }else{
+        ctx.fillStyle='#fff7d0';ctx.globalAlpha=.8;
+        ctx.beginPath();ctx.arc(x,y,3.2+1.1*Math.sin(t*13+p.age*6),0,TAU);ctx.fill();
+      }
+    }
+
+    // Когда поблизости нет цели, огонёк не исчезает мгновенно, а испаряется в сфере.
+    for(const p of spell.dissolves){
+      const fade=1-clamp(p.age/p.life);
+      const sz=9+(1-fade)*15;
+      ctx.globalAlpha=.45*fade;
+      ctx.drawImage(puff,p.x-sz,p.y-sz,sz*2,sz*2);
+      for(let j=0;j<3;j++){
+        const a=j*TAU/3+t*1.2;
+        const x=p.x+Math.cos(a)*sz*.45,y=p.y+Math.sin(a)*sz*.45;
+        ctx.globalAlpha=.4*fade;
+        ctx.drawImage(gold,x-4,y-4,8,8);
+      }
+    }
+
+    // Лазер: после поглощения кристаллов лучи идут по всей окружности и вращаются.
+    if(spell.laserCount && spell.laserAge<S.laserTime){
+      const n=spell.laserCount;
+      const range=Math.max(spell.arena?.width||900,spell.arena?.height||900)*1.5;
+      const fade=Math.min(1,spell.laserAge/.2,(S.laserTime-spell.laserAge)/.33);
+      const bright=Math.min(.85,8/Math.sqrt(n));
+      ctx.lineCap='round';
+      for(let i=0;i<n;i++){
+        const a=spell.laserAngle+i*TAU/n;
+        const x=Math.cos(a),y=Math.sin(a);
+        const distortion=12*Math.sin(t*7+i*1.29);
+        ctx.beginPath();ctx.moveTo(hx+x*26,hy+y*26);
+        ctx.quadraticCurveTo(hx+x*range*.48-y*distortion,
+          hy+y*range*.48+x*distortion,hx+x*range,hy+y*range);
+        ctx.strokeStyle='#ae64d8';ctx.lineWidth=15;
+        ctx.globalAlpha=bright*.15*fade;ctx.stroke();
+        ctx.strokeStyle='#f7c66e';ctx.lineWidth=5;
+        ctx.globalAlpha=bright*.42*fade;ctx.stroke();
+        ctx.strokeStyle='#fff8d7';ctx.lineWidth=1.6;
+        ctx.globalAlpha=bright*fade;ctx.stroke();
+      }
+      ctx.globalAlpha=fade*.65;
+      ctx.drawImage(gold,hx-53,hy-53,106,106);
+    }
+    ctx.restore();
+  }
+
 }
