@@ -117,7 +117,7 @@ test('Лазер освещает сам луч, молнии — промежу
     light.ensure(r.w,r.h);
     light.mask.drawImage=(...args)=>called.push(args);
     light.draw(m.mainCtx,r);
-    const near=(x,y)=>called.some(a=>Math.abs((a[1]+a[3]/2)-x)<7 && Math.abs((a[2]+a[4]/2)-y)<7);
+    const near=(x,y)=>called.some(a=>Math.abs((a[1]+a[3]/2-r.w/2)-x)<7 && Math.abs((a[2]+a[4]/2-r.h/2)-y)<7);
     assert.equal(near(175,75),true,'освещена первая треть луча');
     assert.equal(near(275,75),true,'освещена вторая треть луча');
     assert.equal(near(375,75),true,'освещён конец лазера');
