@@ -69,10 +69,12 @@ export class IceVolumeArt extends IsometricIceEnemies {
     };
     c.lineCap='round';c.lineJoin='round';
     path();c.strokeStyle=INK;c.lineWidth=width+2.8;c.stroke();
-    path();c.lineWidth=width;c.strokeStyle=grad(c,A,E,
-      metal?['#344355','#7e91a5','#394b62']:['#1b2944','#4b5777','#1f2943']);c.stroke();
-    path();c.strokeStyle=metal?'rgba(232,246,255,.28)':'rgba(140,165,205,.24)';
-    c.lineWidth=Math.max(.8,width*.19);c.stroke();
+    // На мобильном не выделяем отдельный CanvasGradient для каждой руки
+    // и голени: выпуклость получается тремя концентрическими штрихами.
+    path();c.lineWidth=width;
+    c.strokeStyle=metal?'#64788f':'#3a4968';c.stroke();
+    path();c.strokeStyle=metal?'rgba(222,244,255,.42)':'rgba(158,186,221,.31)';
+    c.lineWidth=Math.max(.8,width*.22);c.stroke();
     c.lineCap='butt';
   }
   // Сегмент круглой брони (вместо октогональной коробки): 12 дуг вокруг
@@ -458,7 +460,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     this.angle=st.dir;
     this.near=Math.cos(st.dir)>=0?1:-1;
     const {showFront,showBack}=this.faceOrder(st,boss);
-    const r=e.radius,scale=r/(boss?18:kind==='ram'?13.5:12);
+    const r=e.radius,scale=r/(boss?27:kind==='ram'?19:17); // пропорции близки герою
     const walking=st.weight,phase=st.walk;
     const strike=st.attack>.14;
     const frozen=e.freezeT>0;
