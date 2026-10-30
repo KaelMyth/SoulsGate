@@ -146,6 +146,23 @@ test('Все типы анимируют оружие и атаки, Тарта�
   }
 });
 
+test('Меч описывает дугу по фазам замаха и удара, не скачет из руки в руку',()=>{
+  const f=fixture('tartas'),e=f.enemy;
+  e.atk.state='windup';e.atk.t=0;
+  const ready=pose(f,.7);
+  e.atk.t=.7;
+  const raised=pose(f,.7);
+  e.atk.state='strike';e.atk.t=.25;
+  const fallen=pose(f,.7);
+  assert.notDeepEqual(ready.points.slice(-25),raised.points.slice(-25),
+    'замах поднимает остриё');
+  assert.notDeepEqual(raised.points.slice(-25),fallen.points.slice(-25),
+    'атака опускает остриё ниже горизонтали');
+  e.atk.state='idle';e.atk.t=0;
+  const restored=pose(f,.7);
+  assert.ok(restored.points.length>0,'стойка восстанавливается');
+});
+
 test('Падение, мороз, hit-flash и повторное использование пула безопасны',()=>{
   const f=fixture('tartas'),e=f.enemy;
   e.flash=.25;e.freezeT=4;
