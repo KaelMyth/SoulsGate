@@ -61,11 +61,11 @@ export class MenuFx {
     this.s = r.width > 0 ? r.width / SCENE_W : 1;
     this.ox = r.left;
     this.oy = r.top;
-    const n = 70;
+    const n = Math.min(125,Math.max(65,Math.round(this.W*this.H/4200)));
     if (this.flakes.length !== n) {
       this.flakes = [];
       for (let i = 0; i < n; i++) {
-        this.flakes.push({ x: Math.random() * this.W, y: Math.random() * this.H, z: 0.2 + Math.random() * 0.8, ph: Math.random() * TAU });
+        this.flakes.push({ x: Math.random() * this.W, y: Math.random() * this.H, z: 0.2 + Math.random() * 0.8, ph: Math.random() * TAU, tw: Math.random()*TAU });
       }
     }
   }
@@ -98,7 +98,7 @@ export class MenuFx {
     ctx.clearRect(0, 0, this.W, this.H);
     const X = (x) => this.ox + x * s;
     const Y = (y) => this.oy + y * s;
-    const flick = 0.5 + 0.5 * Math.sin(t * 9.1) * Math.sin(t * 5.3 + 1);
+    const flick = .53 + .23 * Math.sin(t * 8.1) + .14 * Math.sin(t * 13.7 + .7);
 
     // Свечения: костёр, кристалл на посохе, глаза кота, фонарь.
     ctx.globalCompositeOperation = 'lighter';
@@ -131,9 +131,8 @@ export class MenuFx {
         const by = Y(FIRE_Y);
         ctx.beginPath();
         ctx.moveTo(bx - w * s, by);
-        ctx.lineTo(bx - w * 0.55 * s + sway * 0.3 * s, by - h * 0.5 * s);
-        ctx.lineTo(bx + sway * s, by - h * s);
-        ctx.lineTo(bx + w * 0.6 * s + sway * 0.4 * s, by - h * 0.46 * s);
+        ctx.bezierCurveTo(bx-w*.85*s,by-h*.28*s,bx-w*.55*s+sway*.3*s,by-h*.65*s,bx+sway*s,by-h*s);
+        ctx.bezierCurveTo(bx+w*.38*s+sway*.7*s,by-h*.7*s,bx+w*.8*s,by-h*.24*s,bx+w*s,by);
         ctx.lineTo(bx + w * s, by);
         ctx.closePath();
         ctx.fill();
@@ -142,6 +141,11 @@ export class MenuFx {
     // Бликовый тёплый ореол поверх пламени.
     ctx.globalCompositeOperation = 'lighter';
     glow(this.glowOrange, FIRE_X, FIRE_Y - 50, 90, 0.38 + 0.12 * flick);
+
+    // Живой свет огня скользит по снегу, без жёсткого контура.
+    ctx.globalCompositeOperation='lighter';
+    glow(this.glowOrange,FIRE_X-110,FIRE_Y+26,230,.075+.055*flick);
+    glow(this.glowOrange,FIRE_X+120,FIRE_Y+42,190,.06+.04*flick);
 
     // Искры: поднимаются, чуть сносятся, гаснут.
     if (this.embers.length < 16 && Math.random() < dt * 14) {
@@ -176,16 +180,16 @@ export class MenuFx {
     ctx.fillStyle = '#eaf2ff';
     for (let i = 0; i < this.flakes.length; i++) {
       const f = this.flakes[i];
-      f.y += (26 + 70 * f.z) * dt;
-      f.x += (-10 * f.z + Math.sin(t * 0.7 + f.ph) * 9 * f.z) * dt;
+      f.y += (19 + 63 * f.z) * dt;
+      f.x += (-9 * f.z + Math.sin(t * 0.7 + f.ph) * 11 * f.z) * dt;
       if (f.y > this.H + 6) {
         f.y = -6;
         f.x = Math.random() * (this.W + 40);
       }
       if (f.x < -6) f.x = this.W + 4;
-      ctx.globalAlpha = 0.25 + 0.6 * f.z;
+      ctx.globalAlpha = (.19 + .57 * f.z) * (.84 + .16*Math.sin(t*1.7+f.tw));
       ctx.beginPath();
-      ctx.arc(f.x, f.y, 0.7 + f.z * 2, 0, TAU);
+      ctx.arc(f.x, f.y, .55 + f.z * 1.55, 0, TAU);
       ctx.fill();
     }
     ctx.globalAlpha = 1;

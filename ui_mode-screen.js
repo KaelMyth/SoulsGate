@@ -9,17 +9,18 @@ import { MenuFx } from './ui_menu-fx.js';
 export class ModeScreen {
   /** onPick(mode): 'game' | 'test' */
   constructor(root, onPick, onSettings, onOracle) {
-    const idle = (id, text) => h('button', { id, class: 'ui-btn idle', type: 'button' }, text);
     this.fxCanvas = h('canvas', { class: 'fx' });
+    const action=(id,text,fn)=>h('button',{
+      id,class:'ui-btn',type:'button',onclick:fn
+    },text);
     this.stage = h('div', { class: 'stage' },
       buildScene(), buildLogo(),
-      h('div', { class: 'menu' },
-        h('button', { id: 'mode-game', class: 'ui-btn', type: 'button', onclick: () => onPick('game') }, 'Играть'),
-        h('button', { id: 'menu-settings', class: 'ui-btn', type: 'button', onclick: () => onSettings && onSettings() }, 'Настройки'),
-        idle('menu-shop', 'Магазин'),
-        idle('menu-quit', 'Выход')),
-      h('button', { id: 'mode-test', class: 'test-link', type: 'button', onclick: () => onPick('test') }, 'Тестирование'),
-      h('button', { id: 'mode-oracle', class: 'oracle-link', type: 'button', onclick: () => onOracle && onOracle() }, 'Оракл'));
+      h('div', { class: 'menu', role: 'navigation', 'aria-label': 'Главное меню SoulGates' },
+        action('mode-game','Играть',()=>onPick('game')),
+        action('mode-test','Тестирование',()=>onPick('test')),
+        action('mode-oracle','Оракл',()=>onOracle&&onOracle()),
+        action('menu-settings','Настройки',()=>onSettings&&onSettings())
+      ));
     this.el = h('div', { id: 'mode-screen', hidden: '' }, this.stage, this.fxCanvas);
     root.append(this.el);
     this.fx = new MenuFx(this.fxCanvas, this.stage);

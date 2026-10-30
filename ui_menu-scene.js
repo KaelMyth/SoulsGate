@@ -241,12 +241,12 @@ export function buildScene() {
 export function buildLogo() {
   const spikeTop = poly('470,85 475,138 470,172 465,138', '#e4eefc');
   const spikeBot = poly('470,345 475,292 470,256 465,292', '#e4eefc');
-  return svg('svg', { class: 'logo', viewBox: '0 0 ' + SCENE_W + ' ' + SCENE_H, preserveAspectRatio: 'xMidYMid meet', 'aria-label': 'SoulsGate' },
+  return svg('svg', { class: 'logo', viewBox: '0 0 ' + SCENE_W + ' ' + SCENE_H, preserveAspectRatio: 'xMidYMid meet', 'aria-label': 'SoulGates' },
     svg('g', { filter: 'url(#m-glow)' },
       svg('text', {
-        x: 470, y: 247, 'text-anchor': 'middle', textLength: 640, lengthAdjust: 'spacing', fill: 'url(#m-title)',
+        x: 470, y: 247, 'text-anchor': 'middle', textLength: 670, lengthAdjust: 'spacing', fill: 'url(#m-title)',
         style: 'font:500 104px var(--serif)',
-      }, 'SOULSGATE'),
+      }, 'SOULGATES'),
       line('M470 172V256', '#e4eefc', 2),
       spikeTop, spikeBot),
     line('M62 236H160M780 236H880', '#cfe0f8', 2, { opacity: 0.6 }),

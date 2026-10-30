@@ -575,3 +575,53 @@ body { font-family: var(--serif); }
   position: absolute; left: 61.5%; width: 33%; top: 71%; padding: 6px 0; border: 0; background: transparent; color: #8fa6c8;
   font: italic calc(var(--W) * 0.03) var(--serif); opacity: 0.7; text-align: center; touch-action: manipulation;
 }
+
+/* SoulGates · главное меню: четыре настоящие крупные кнопки. */
+#mode-screen { background: #111b30; }
+#mode-screen .stage { isolation: isolate; }
+#mode-screen .scene { filter: saturate(.83) brightness(.79) contrast(1.06); }
+#mode-screen .stage::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 48% 34% at 76% 47%, rgba(10,19,37,.47), transparent 95%),
+              linear-gradient(180deg, rgba(7,13,27,.08), transparent 35%, rgba(8,13,25,.08));
+}
+#mode-screen .logo { z-index: 2; }
+#mode-screen .menu {
+  z-index: 4; left: 57%; top: 32%; width: 39%;
+  display: flex; flex-direction: column; gap: calc(var(--W) * .025);
+}
+#mode-screen .menu .ui-btn {
+  position: relative; box-sizing: border-box;
+  width: 100%; height: calc(var(--W) * .119);
+  min-height: 42px; padding: 0 calc(var(--W) * .01);
+  font: 500 calc(var(--W) * .045)/1.2 var(--serif);
+  letter-spacing: .015em; color: #d5e4fa;
+  background: linear-gradient(90deg, transparent, rgba(10,19,38,.16) 50%, transparent);
+  border: 0; border-radius: 0; cursor: pointer;
+  text-shadow: 0 2px 12px #080e1d;
+  transition: color .25s, text-shadow .25s, background .25s;
+  touch-action: manipulation;
+}
+#mode-screen .menu .ui-btn::after {
+  content: ''; position: absolute; top: auto; bottom: 1px; left: 5%; right: 5%;
+  height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #b1cbe8 30%, transparent 43%, transparent 57%, #b1cbe8 70%, transparent);
+  opacity: .65;
+}
+#mode-screen .menu .ui-btn::before {
+  content: ''; position: absolute; top: auto; bottom: -3px; left: 50%;
+  width: 8px; height: 8px; border: 1px solid #b1cbe8;
+  transform: translateX(-50%) rotate(45deg); background: #263955;
+  box-shadow: 0 0 9px rgba(148,200,255,.28); pointer-events: none;
+}
+#mode-screen .menu .ui-btn:hover,
+#mode-screen .menu .ui-btn:focus-visible,
+#mode-screen .menu .ui-btn:active {
+  color: #fff; text-shadow: 0 0 15px rgba(179,215,255,.9);
+  background: radial-gradient(ellipse at center, rgba(85,119,169,.18), transparent 80%);
+}
+#mode-screen .menu .ui-btn:focus-visible { outline: 1px solid rgba(170,210,255,.65); outline-offset: 3px; }
+#mode-screen .fx { z-index: 3; }
+@media (max-height: 570px) and (orientation: landscape) {
+  #mode-screen .menu .ui-btn { min-height: 30px; }
+}

@@ -6,7 +6,7 @@ import { lockBrowserGestures } from './platform_viewport.js';
 import { Game } from './game.js';
 
 // Однозначный лог загрузки: номер и суть обновления доступны сразу в консоли.
-console.info('[SoulsGate] Обновление №' + RELEASE.number + ' — ' + RELEASE.title);
+console.info('[SoulGates] Обновление №' + RELEASE.number + ' — ' + RELEASE.title);
 window.__SOULSGATE_RELEASE__ = RELEASE;
 
 const storage = safeStorage();
