@@ -7,7 +7,7 @@ import { IsometricIceEnemies } from '../render_isometric_enemies.js';
 import { createEnemy, initEnemy } from '../world_enemy.js';
 
 function ctx(){
-  const events={paths:[],fills:[],strokes:[],transforms:[],alphas:[]};
+  const events={paths:[],fills:[],strokes:[],transforms:[],alphas:[],images:0};
   const c=new Proxy({
     globalAlpha:1,fillStyle:'#000',strokeStyle:'#000',
     save(){events.transforms.push('save');},restore(){events.transforms.push('restore');},
@@ -16,7 +16,7 @@ function ctx(){
     rotate(a){events.transforms.push(['rotate',a]);},
     beginPath(){},closePath(){},moveTo(x,y){events.paths.push([x,y]);},
     lineTo(x,y){events.paths.push([x,y]);},quadraticCurveTo(){},
-    ellipse(){},arc(){},fill(){events.fills.push(this.fillStyle);events.alphas.push(this.globalAlpha);},
+    ellipse(){},arc(){},drawImage(){events.images++;},fill(){events.fills.push(this.fillStyle);events.alphas.push(this.globalAlpha);},
     stroke(){events.strokes.push(this.strokeStyle);},
   },{get(obj,key){if(key in obj)return obj[key];throw Error('unexpected Canvas API: '+String(key));}});
   return {c,events};
@@ -103,12 +103,14 @@ test('Тартас использует существующие состоян�
   const {iso,renderer}=scene();
   const e=mob('tartas');
   renderer.boss.enemy=e;
+  renderer.getGlow=()=>({});
   let pose;
   for(const bs of ['idle','tele','dash','bladeWave','squadCast','blastTele','recover']){
     renderer.boss.state=bs;
     const g=ctx();
     iso.draw(g.c,e,e.x,e.y,'tartas');
     assert.ok(g.events.fills.length>25,bs);
+    assert.ok(g.events.images>0,bs+' сохраняет ледяное свечение босса');
     const state=iso.state(e,e.x,e.y);
     if(bs==='squadCast')assert.ok(state.attack>0);
     if(bs==='idle')pose=state.dir;
