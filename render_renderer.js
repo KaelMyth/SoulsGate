@@ -769,6 +769,7 @@ export class Renderer {
     this.drawScream();
     this.drawFinale();
     this.drawLasers(ctx);
+    this.inspirationFx.drawSynergies(ctx,hx,hy);
     this.drawLaserIncarnationPaths(ctx);
     for(const f of this.synergyFlashes){
       this.spellFx.absorptionSphereBurst(ctx,f.x,f.y,f.r,f.time/Math.max(.01,f.maxTime),this.clock,f.phantom?'phantom':'blood');

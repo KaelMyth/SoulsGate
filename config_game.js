@@ -210,7 +210,16 @@ export const CONFIG = {
       name: 'Воодушевление',
       icon: 'inspiration',
       rarity: 'legendary',
-      description: 'Третье умение. Героя окружает сияющая золотая сфера, втягивающая камни опыта со всей карты. Каждый собранный камень опыта восстанавливает ровно 1 HP независимо от его ценности. Опыт сохраняется.',
+      description: 'Третье умение: золотая сфера собирает опыт со всей карты и лечит на 1 HP за камень. Стихии превращают опыт в ответные заряды, Клинки в самонаводящиеся мечи, Гравитация отталкивает всех при касте, Лазер даёт вращающиеся лучи (1 на 3 камня), Поглощение извлекает опыт из живых врагов без повторного дропа, Смертельная аура временно покрывает всю карту.',
+      canBurn: true,
+      canFrost: true,
+      canLightning: true,
+      canBlades: true,
+      canGravity: true,
+      canLaser: true,
+      canAbsorption: true,
+      canAura: true,
+      multStat: 'count',  // Х2/Х3 на ядре и Лазере множат ответные снаряды и вращающиеся лучи
       effect: { kind: 'inspiration', secondary: true },
     },
     aura: {
@@ -351,6 +360,15 @@ export const CONFIG = {
       coronaColor: '#ffeab0',
       coreColor: '#fff9dc',
       auraColor: '#ae7728',
+      orbSpeed: 475,          // маленькие ответные снаряды из точки прибытия кристалла
+      orbImpactRadius: 7,
+      orbDamage: 12,
+      bladeDamage: 22,
+      gravityPush: 175,      // глобальный импульс в момент каста
+      absorptionDamage: 8,   // осторожно вырывает опыт из живого противника
+      laserDuration: 2.8,    // вращающаяся корона после завершения сбора
+      laserSpeed: 2.5,       // радианы в секунду
+      laserDamage: 9,        // урон каждого тика одного луча
     },
     incarnation: {
       duration: 5, // с: время неуязвимого энергетического воплощения

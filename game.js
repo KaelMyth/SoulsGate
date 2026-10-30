@@ -227,6 +227,13 @@ export class Game {
     this.blackSun = new BlackSun({config,hero:this.hero,aura:this.aura,enemies:this.enemies,combat:this.combat,
       modifiers:(id)=>this.build?.modifiersFor(id)});
     this.aura.pellets = this.pellets;
+    this.inspiration.bind({
+      enemies:this.enemies,combat:this.combat,arena:this.arena,
+      extractXp:(e)=>this.xp.drop(e,true),
+      ignite:(e,d,i)=>this.ignite(e,d,i),
+      chill:(e,st,d,i)=>this.chill(e,st,d,i),
+      zap:(e,d,i,fr,st,cm)=>this.zap(e,d,i,fr,st,cm),
+    });
     this.synergyCasts = [];
     this.synergyFlashes = [];
     this.laserAbsorptionCooldowns = new WeakMap();
@@ -797,7 +804,7 @@ export class Game {
   castInspiration() {
     const id=this.build.secondaryId('inspiration');
     if(this.state!=='playing' || !this.hero.active || this.skillCd[2]>0 || !id)return false;
-    if(!this.inspiration.begin())return false;
+    if(!this.inspiration.begin(this.build.modifiersFor(id)))return false;
     this.skillCd[2]=Math.max(.1,this.config.skills.inspiration.cooldown);
     this.hud.inspirationT=this.inspiration.remaining;
     this.hud.slotFlash=3;

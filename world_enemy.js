@@ -19,6 +19,7 @@ export function createEnemy() {
     archPhase: 0,     // Пепельный Арх: микрофаза 0..2 (systems_arch.js); по ней renderer меняет цвет
     walkIn: false,    // true: стрелок с keepDistance не держит дистанцию, а идёт вплотную (Арх в фазах рывков)
     gen: 0,           // номер «жизни» записи: меняется при каждом появлении (охрана узнаёт, что стрелок погиб, а запись заняли заново)
+    xpExhausted: false, // опыт уже извлечён «Воодушевлением + Поглощением»
     guardOf: null, guardGen: 0, guardAng: 0, // охрана (systems_guards.js): чей телохранитель, его gen, угол на кольце вокруг подопечного
     goalOn: false, goalX: 0, goalY: 0,       // если goalOn: идёт к этой точке, а не к герою (охрана держит место в кольце)
     swX: 0, swY: 0,   // подсказка курса от стаи (сплочённость и согласованность)
@@ -50,6 +51,7 @@ export function initEnemy(e, def, x, y) {
   e.radius = def.radius;
   e.hp = e.maxHp = def.hp;
   e.gen++;
+  e.xpExhausted = false;
   e.archPhase = 0;
   e.walkIn = false;
   e.guardOf = null;

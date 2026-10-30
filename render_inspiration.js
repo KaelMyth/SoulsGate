@@ -134,4 +134,133 @@ export class InspirationFx {
     }
     ctx.restore();
   }
+  /** Модульные эффекты: снаряды, шлейфы душ, глобальная аура, гравитация и вращающийся лазер. */
+  drawSynergies(ctx,hx,hy) {
+    const s=this.r.inspiration;
+    if(!s)return;
+    const t=this.r.clock,glow=this.r.getGlow('gold');
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+
+    if(s.active && s.mods.aura && s.remaining>0 && s.arena) {
+      const a=s.arena;
+      const radius=Math.hypot(a.right-a.left,a.bottom-a.top);
+      const sh=ctx.createRadialGradient(hx,hy,radius*.1,hx,hy,radius*.75);
+      sh.addColorStop(0,'rgba(255,174,110,0.012)');
+      sh.addColorStop(.64,'rgba(207,90,132,0.034)');
+      sh.addColorStop(1,'rgba(255,196,129,0)');
+      ctx.fillStyle=sh;ctx.globalAlpha=.8;
+      ctx.beginPath();ctx.arc(hx,hy,radius*.75,0,TAU);ctx.fill();
+      // У каждого противника своя неровная пульсация, а не геометрическая сетка по карте.
+      let count=0;
+      for(const e of s.enemies?.items || []) {
+        if(!e.active || ++count>100)continue;
+        const r=e.radius+7+Math.sin(t*6+e.x*.05)*5;
+        ctx.globalAlpha=.14+.07*Math.sin(t*5+e.y*.03);
+        ctx.strokeStyle='#ffa3a1';ctx.lineWidth=3.5;
+        ctx.beginPath();ctx.ellipse(e.x,e.y,r,r*.72,t*.35+e.x*.001,0,TAU);ctx.stroke();
+      }
+    }
+
+    for(const v of s.soulStreams) {
+      const p=clamp(v.time),r=24+(1-p)*28;
+      ctx.globalAlpha=p*.6;
+      ctx.drawImage(glow,v.x-r,v.y-r,r*2,r*2);
+      for(let k=0;k<3;k++) {
+        const a=t*2+k*TAU/3+v.seed;
+        const x=v.x+Math.cos(a)*r*.6,y=v.y+Math.sin(a)*r*.43;
+        ctx.lineWidth=2+p*3;
+        ctx.strokeStyle=k===1?'#d5a1f4':'#ffe7ad';
+        ctx.globalAlpha=p*(.16+.12*k);
+        ctx.beginPath();ctx.moveTo(v.x,v.y);
+        ctx.quadraticCurveTo(x+Math.sin(a)*12,y-14,x,y);
+        ctx.stroke();
+      }
+    }
+
+    for(const v of s.impulses) {
+      const p=clamp(v.time/.62),r=v.r+10+(1-p)*88;
+      const g=ctx.createRadialGradient(v.x,v.y,r*.35,v.x,v.y,r*1.15);
+      g.addColorStop(0,'rgba(117,63,195,0)');
+      g.addColorStop(.76,'rgba(172,106,238,0.18)');
+      g.addColorStop(1,'rgba(221,178,255,0)');
+      ctx.fillStyle=g;ctx.globalAlpha=p*.85;
+      ctx.beginPath();ctx.arc(v.x,v.y,r*1.15,0,TAU);ctx.fill();
+      ctx.strokeStyle='#d4a1ff';ctx.globalAlpha=p*.42;ctx.lineWidth=4*p+1.5;
+      ctx.beginPath();ctx.ellipse(v.x,v.y,r,r*.58,t*.4,0,TAU);ctx.stroke();
+    }
+
+    for(const b of s.bolts) {
+      const fading=b.target?1:clamp(b.fade/.4);
+      const dx=b.x-b.px,dy=b.y-b.py,a=Math.atan2(dy,dx);
+      const size=b.blade?11:7;
+      const kind=b.mask&7;
+      const c=kind&1?'#ffb96b':kind&2?'#a4ebff':kind&4?'#ffe9a2':'#ffe5a0';
+      ctx.save();ctx.translate(b.x,b.y);
+      ctx.rotate(a);
+      ctx.globalAlpha=fading;
+      // Светящийся шлейф каждого ответного снаряда.
+      const tail=ctx.createLinearGradient(-27,0,12,0);
+      tail.addColorStop(0,'rgba(247,190,104,0)');
+      tail.addColorStop(.65,c);tail.addColorStop(1,'#fffce6');
+      ctx.fillStyle=tail;
+      ctx.beginPath();ctx.moveTo(-28,0);ctx.quadraticCurveTo(-12,-size*.75,6,-size*.38);
+      ctx.quadraticCurveTo(15,0,6,size*.38);ctx.quadraticCurveTo(-12,size*.75,-28,0);ctx.fill();
+      ctx.drawImage(glow,-size*2.2,-size*2.2,size*4.4,size*4.4);
+      if(b.blade) {
+        // Гранёный магический клинок с изломом и эфесом вместо круглой пули.
+        ctx.fillStyle='#fff7e0';ctx.globalAlpha=fading*.92;
+        ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(-5,-3.8);ctx.lineTo(-10,0);
+        ctx.lineTo(-5,3.8);ctx.closePath();ctx.fill();
+        ctx.fillStyle=c;ctx.beginPath();
+        ctx.moveTo(15,-.5);ctx.lineTo(-5,-3.8);ctx.lineTo(-6,0);ctx.closePath();ctx.fill();
+        ctx.strokeStyle='#f0ce8d';ctx.lineWidth=2.2;
+        ctx.beginPath();ctx.moveTo(-10,-7);ctx.lineTo(-10,7);ctx.stroke();
+      } else {
+        const core=ctx.createRadialGradient(-1,-2,1,0,0,10);
+        core.addColorStop(0,'rgba(255,255,255,.96)');
+        core.addColorStop(.4,c);core.addColorStop(1,'rgba(255,200,108,0)');
+        ctx.fillStyle=core;ctx.beginPath();ctx.arc(0,0,10,0,TAU);ctx.fill();
+        if(kind&4) {
+          ctx.strokeStyle='#f8e8ff';ctx.lineWidth=1.7;
+          for(let k=0;k<3;k++){
+            const x=Math.sin(t*17+k*2+b.seed)*13;
+            ctx.beginPath();ctx.moveTo(-10,k*4-4);ctx.lineTo(x,k*3-3);ctx.lineTo(14,k*4-5);ctx.stroke();
+          }
+        }
+        if(kind&2) {
+          ctx.strokeStyle='#d4faff';ctx.lineWidth=1.4;
+          ctx.beginPath();ctx.moveTo(1,-12);ctx.lineTo(5,-5);ctx.lineTo(13,-3);ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    if(s.laserPhase>0 && s.laserCount>0) {
+      const life=clamp(s.laserPhase/Math.min(.35,s.cfg.laserDuration));
+      const n=s.laserCount,len=s.config.laser.length;
+      // Несколько мягких слоёв с живым изгибом, не жёсткие прямые палки.
+      for(let i=0;i<n;i++) {
+        const a=s.laserAngle+TAU*i/n,dx=Math.cos(a),dy=Math.sin(a);
+        const ox=-dy,oy=dx;
+        for(let pass=0;pass<3;pass++) {
+          const thick=[17,8,2.4][pass];
+          ctx.lineWidth=thick;ctx.lineCap='round';ctx.lineJoin='round';
+          ctx.strokeStyle=['#b782ed','#ffc777','#fff9dd'][pass];
+          ctx.globalAlpha=life*[.12,.32,.82][pass];
+          ctx.beginPath();ctx.moveTo(hx,hy);
+          for(let k=1;k<=12;k++) {
+            const z=k/12,warp=Math.sin(z*15-t*9+i*.8)*7*z+
+              Math.sin(z*23+t*5+i*1.7)*3.5*z;
+            ctx.lineTo(hx+dx*len*z+ox*warp,hy+dy*len*z+oy*warp);
+          }
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha=life*.43;
+      ctx.drawImage(glow,hx-37,hy-37,74,74);
+    }
+    ctx.restore();
+  }
+
 }
