@@ -807,7 +807,7 @@ export class Game {
     if(this.state!=='playing' || !this.hero.active || this.skillCd[2]>0 || !id)return false;
     const mods=this.build.modifiersFor(id);
     if(!this.inspiration.begin(mods))return false;
-    this.skillCd[2]=Math.max(.1,this.config.skills.inspiration.cooldown);
+    this.skillCd[2]=Math.max(.1,this.config.skills.inspiration.cooldown/Math.max(1,mods.gravity?.cooldownRate||1));
     this.hud.inspirationT=this.inspiration.remaining;
     this.hud.slotFlash=3;
     return true;
