@@ -5515,6 +5515,98 @@ export class Renderer {
     ctx.drawImage(this.sanctumFloor,arena.left,arena.top);
   }
 
+  // Пять персонажей, впаянных в витраж: воин, королева, маг, хранитель и жрица.
+  // Все элементы рисуются один раз в кэш пола, без нагрузки на каждый кадр.
+  drawStainedGlassFigure(c,kind){
+    c.save();
+    const dark='#1b2940',lead='#172338',metal='#d8c69e';
+    const path=(pts,color,edge=lead,w=2)=>{
+      c.beginPath();c.moveTo(pts[0],pts[1]);
+      for(let j=2;j<pts.length;j+=2)c.lineTo(pts[j],pts[j+1]);
+      c.closePath();c.fillStyle=color;c.fill();
+      if(edge){c.strokeStyle=edge;c.lineWidth=w;c.stroke();}
+    };
+    // Лучистый ореол и мозаика за фигурой.
+    c.fillStyle='rgba(243,220,166,.19)';
+    c.beginPath();c.ellipse(0,-26,29,28,0,0,TAU);c.fill();
+    c.strokeStyle='rgba(236,214,171,.65)';c.lineWidth=2;
+    c.beginPath();c.arc(0,-26,24,0,TAU);c.stroke();
+    for(let j=0;j<12;j++){
+      const a=j*Math.PI/6;
+      c.beginPath();c.moveTo(Math.cos(a)*27,Math.sin(a)*27-26);
+      c.lineTo(Math.cos(a)*32,Math.sin(a)*32-26);c.stroke();
+    }
+    // Плащ, руки и сегментированные одежды.
+    const cloaks=['#42678b','#774b8b','#384c85','#376c6d','#864b70'];
+    path([-14,-12,-24,8,-33,53,33,53,24,8,14,-12],cloaks[kind]);
+    path([-13,-9,-20,15,-12,43,0,49,12,43,20,15,13,-9],
+      ['#789ab5','#ae8cbb','#7183b5','#83a9a3','#b68a9e'][kind]);
+    path([-3,-9,3,-9,6,46,0,52,-6,46], 'rgba(232,217,185,.5)',null);
+    for(const side of [-1,1]){
+      path([side*12,-9,side*20,-5,side*25,17,side*17,21,side*10,5],
+        kind===0?'#93a9b9':'#b4a5b3');
+      c.strokeStyle=metal;c.lineWidth=1.2;
+      c.beginPath();c.moveTo(side*15,2);c.lineTo(side*21,16);c.stroke();
+    }
+    // Лицо, волосы/капюшон, отдельные черты.
+    c.fillStyle='#d9b7a0';c.beginPath();c.ellipse(0,-24,10,14,0,0,Math.PI*2);c.fill();
+    path([-12,-27,-10,-39,0,-43,10,-39,12,-27,7,-34,0,-35,-7,-34],
+      kind===2?'#23324f':'#594963');
+    c.fillStyle='#26324b';
+    c.fillRect(-6,-25,3,1.5);c.fillRect(3,-25,3,1.5);
+    c.strokeStyle='#8c6572';c.lineWidth=1;
+    c.beginPath();c.moveTo(-3,-17);c.quadraticCurveTo(0,-15,3,-17);c.stroke();
+    if(kind===0){
+      // Рыцарь с клинком и крылатым шлемом.
+      path([-12,-32,-10,-43,0,-48,10,-43,12,-32,0,-36],'#a4c1cc');
+      path([-11,-40,-21,-49,-12,-45,0,-42,12,-45,21,-49,11,-40],
+        '#d7e4d7');
+      c.strokeStyle='#f1e4bd';c.lineWidth=3;
+      c.beginPath();c.moveTo(27,-17);c.lineTo(27,45);c.moveTo(18,2);c.lineTo(36,2);c.stroke();
+      path([-6,2,0,-2,6,2,6,11,0,15,-6,11],'#c2c6d7');
+    }else if(kind===1){
+      // Королева: корона с самоцветами и державой.
+      path([-13,-39,-18,-52,-7,-46,0,-57,8,-46,18,-52,13,-39], '#e7c37c');
+      for(const xx of [-9,0,9]){c.fillStyle='#9de5ee';c.beginPath();c.arc(xx,-44,2.5,0,Math.PI*2);c.fill();}
+      c.strokeStyle='#e9d6a4';c.lineWidth=3;
+      c.beginPath();c.moveTo(26,-9);c.lineTo(26,28);c.stroke();
+      c.fillStyle='#e2c17c';c.beginPath();c.arc(26,-12,8,0,Math.PI*2);c.fill();
+      c.fillStyle='#a9dcf3';c.beginPath();c.arc(26,-12,4,0,Math.PI*2);c.fill();
+    }else if(kind===2){
+      // Архимаг: высокий капюшон, посох и руническая печать.
+      path([-17,-32,-12,-50,0,-58,12,-50,17,-32,9,-38,0,-43,-9,-38], '#344669');
+      c.strokeStyle='#d1a5ed';c.lineWidth=3;
+      c.beginPath();c.moveTo(27,-24);c.lineTo(27,53);c.stroke();
+      c.fillStyle='#b5e3fa';c.beginPath();c.arc(27,-28,9,0,Math.PI*2);c.fill();
+      c.strokeStyle='#e9e0f7';c.lineWidth=1.6;
+      c.beginPath();c.arc(0,19,8,0,Math.PI*2);c.moveTo(-7,23);c.lineTo(7,15);c.stroke();
+    }else if(kind===3){
+      // Хранитель: олений венец и большой гербовый щит.
+      c.strokeStyle='#d3c49b';c.lineWidth=3;
+      c.beginPath();c.moveTo(-7,-37);c.lineTo(-18,-55);c.lineTo(-23,-50);
+      c.moveTo(-18,-55);c.lineTo(-13,-58);
+      c.moveTo(7,-37);c.lineTo(18,-55);c.lineTo(23,-50);
+      c.moveTo(18,-55);c.lineTo(13,-58);c.stroke();
+      path([-31,3,-15,-2,-8,5,-9,29,-20,43,-31,28], '#6f9d9b');
+      c.strokeStyle='#e2d2ac';c.lineWidth=2;
+      c.beginPath();c.moveTo(-20,5);c.lineTo(-20,33);c.moveTo(-29,18);c.lineTo(-11,18);c.stroke();
+    }else{
+      // Жрица: лучистая диадема и чаша с сиянием.
+      path([-14,-38,-8,-48,0,-45,8,-48,14,-38,0,-40], '#dfc7a5');
+      c.strokeStyle='#fff0c9';c.lineWidth=2;
+      c.beginPath();c.moveTo(-22,6);c.quadraticCurveTo(0,23,22,6);
+      c.moveTo(-22,6);c.lineTo(22,6);c.moveTo(0,17);c.lineTo(0,32);c.stroke();
+      c.fillStyle='#b8e5ec';c.beginPath();c.arc(0,0,8,0,Math.PI*2);c.fill();
+      c.strokeStyle='#e9d4af';c.beginPath();c.arc(0,0,15,Math.PI*1.1,Math.PI*1.9);c.stroke();
+    }
+    // Сеть тонких свинцовых швов, формирующая драгоценные фрагменты одежды.
+    c.strokeStyle='rgba(24,34,54,.65)';c.lineWidth=1.5;
+    for(let j=-1;j<=1;j++){
+      c.beginPath();c.moveTo(j*9,17);c.lineTo(j*14,49);c.stroke();
+    }
+    c.restore();
+  }
+
   paintSanctum(ctx,arena){
     const {left:L,right:R,top:T,bottom:B}=arena,c=ctx;
     c.save();
@@ -5556,6 +5648,7 @@ export class Renderer {
       const glass=c.createLinearGradient(-50,-50,50,55);
       glass.addColorStop(0,'#293c59');glass.addColorStop(.5,col);glass.addColorStop(1,'#263d55');
       c.globalAlpha=.85;c.fillStyle=glass;c.fillRect(-58,-58,116,116);
+      this.drawStainedGlassFigure(c,i);
       c.strokeStyle='rgba(17,23,41,.9)';c.lineWidth=5;
       c.beginPath();c.moveTo(0,-62);c.lineTo(0,58);
       c.moveTo(-62,10);c.quadraticCurveTo(0,-14,62,10);
