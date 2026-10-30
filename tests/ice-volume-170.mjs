@@ -59,7 +59,7 @@ test('Рыцари и Тартас имеют закруглённые дета�
   for(const name of ['frozenSoldier','frozenArcher','frozenRam','tartas']){
     const f=fixture(name),p=pose(f,Math.PI*.34);
     assert.ok(p.fills.length>38,name+' имеет многослойные детали');
-    assert.ok(p.gradients>=6,name+' градиенты металла и ткани');
+    assert.ok(p.gradients>=4,name+' мягкие блики металла и ткани без дорогих градиентов для каждой конечности');
     assert.ok(p.beziers>=5,name+' изогнутые, а не угловатые элементы');
     assert.ok(p.points.length>175,name+' детализация исходной модели');
     assert.ok(p.strokes.length>=20,name+' стальные швы');
