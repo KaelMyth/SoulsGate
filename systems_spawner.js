@@ -187,6 +187,26 @@ export class Spawner {
       return;
     }
 
+    // Призывы больших духов не расходуют счётчик запланированных врагов волны.
+    if(this.arena.location==='sanctum' && this.wave>=12 && this.phase==='active'){
+      const alive=this.countAlive(),cap=Math.min(36,this.cap());
+      let slots=Math.max(0,cap-alive);
+      for(const parent of this.enemies.items){
+        if(!parent.active||!parent.def.summon)continue;
+        parent.summonTimer-=dt;
+        if(parent.summonTimer>0)continue;
+        parent.summonTimer+=parent.def.summon.interval;
+        const spec=parent.def.summon;
+        for(let j=0;j<spec.count && slots>0;j++){
+          const angle=(j/spec.count)*TAU+parent.gen*.83;
+          const x=parent.x+Math.cos(angle)*spec.radius;
+          const y=parent.y+Math.sin(angle)*spec.radius;
+          const child=this.spawnAt(spec.kind,x,y);
+          child.spectralWait=this.cfg.enemies.spirit.pauseBeforeRush;
+          slots--;
+        }
+      }
+    }
     if (this.crash) this.crashTime += dt;
     this.alive = this.countAlive();
     const total = this.waveCount();
@@ -356,7 +376,7 @@ export class Spawner {
       if(k)return k;
     }
     const fz=sp.frozen;
-    if(this.arena.location==='sanctum')return 'spirit';
+    if(this.arena.location==='sanctum')return this.wave===12?'elderSpirit':'spirit';
     if(fz&&this.arena.location==='hall'&&this.wave>=fz.fromWave)return this.pickSkeleton(fz.weights)||sp.enemy;
     // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
@@ -429,7 +449,7 @@ export class Spawner {
           }
         }
       }
-      if(this.arena.location==='sanctum' && pat?.mix?.spirit){
+      if(this.arena.location==='sanctum' && (pat?.mix?.spirit||pat?.mix?.elderSpirit)){
         // Дух материализуется прямо в видимой части зала, но не на герое.
         const cam=this.camera,ar=this.arena;
         const rx=Math.min(cam.viewW*.36,ar.width*.36);
@@ -521,6 +541,7 @@ export class Spawner {
     const e = this.enemies.spawn();
     initEnemy(e, this.cfg.enemies[kind], x, y);
     e.hp = e.maxHp = this.hpFor(this.cfg.enemies[kind].hp);
+    if(e.def.summon)e.summonTimer=e.def.summon.firstDelay;
     this.arena.resolveCircle(e); // не внутри скалы
     e.prevX = e.x;
     e.prevY = e.y;

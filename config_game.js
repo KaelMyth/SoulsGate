@@ -757,6 +757,12 @@ export const CONFIG = {
       drop: 'green', swarm: false, spectral: true, pauseBeforeRush: 0.85,
       color: '#c4eaff', edge: '#f3ffff',
     },
+    elderSpirit: {
+      hp: 350, speed: 0, radius: 31, touchDamage: 18, touchCooldown: 1.1, knockbackScale: 0.15,
+      drop: 'red', swarm: false, spectral: true, pauseBeforeRush: 0,
+      summon: { kind: 'spirit', count: 3, interval: 5.5, firstDelay: 1.2, radius: 72 },
+      color: '#a8c5ff', edge: '#ffffff',
+    },
     battleMage: {
       hp: 65.6, speed: 0, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
       drop: 'red', swarm: false, squad: true,
@@ -1337,6 +1343,7 @@ export const CONFIG = {
         { mix: { frozenRam: 1 }, groupSize: 3, spread: 30 },
       ] },
       11: { mix: { spirit: 1 }, groupSize: 1, sides: 'varied', count: 12, interval: 1.6, maxAlive: 12 },
+      12: { mix: { elderSpirit: 1 }, groupSize: 1, sides: 'varied', count: 4, interval: 4.5, maxAlive: 30 },
     },
     total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).
