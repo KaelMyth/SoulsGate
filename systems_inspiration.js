@@ -90,7 +90,8 @@ export class Inspiration {
     for(let i=0;i<Math.min(limit,available.length);i++){
       const e=available[i];
       e.inspirationDrained=true;
-      this.xp.drop(e,'green',true); // принудительно ровно 1 XP, без случайного лечебного кристалла
+      const pulled=this.xp.drop(e,'green',true); // принудительно 1 XP, без лечебного камня
+      if(pulled)pulled.inspireDuration=this.cfg.travelTime/Math.max(.1,a?.rate||1);
       this.extractions.push({x:e.x,y:e.y,age:0,life:this.cfg.absorptionViewTime});
       const dmg=this.cfg.absorptionDamage*(a?.damage||1);
       this.combat.damageEnemy(e,dmg,this.source,null);
@@ -151,7 +152,10 @@ export class Inspiration {
     const multiple=blades?Math.max(1,Math.floor(this.mods.blades.max||1)):1;
     for(let i=0;i<value;i++){
       for(let j=0;j<multiple;j++){
-        if(this.projectiles.length>=this.cfg.maxReturn)return;
+        if(this.projectiles.length>=this.cfg.maxReturn){
+          if(this.dissolves.length<24)this.dissolves.push({x,y,age:0,life:.55,blade:blades});
+          continue;
+        }
         const e=this.nearestTarget(x,y);
         if(!e){
           if(this.dissolves.length<24)this.dissolves.push({x,y,age:0,life:.55,blade:blades});
@@ -194,7 +198,7 @@ export class Inspiration {
       }
       const dx=e.x-p.x,dy=e.y-p.y;
       const d=Math.hypot(dx,dy)||1;
-      const v=speed*(p.blade?1.35:1)*(1+.22*Math.min(1,p.age));
+      const v=speed*(p.blade?1.35:1)*(p.blade?(this.mods?.blades?.rate||1):1)*(1+.22*Math.min(1,p.age));
       p.angle=Math.atan2(dy,dx);
       const step=Math.min(d,v*dt);
       p.x+=dx/d*step;
@@ -280,7 +284,7 @@ export class Inspiration {
       g.inspireY=g.y;
       g.inspireSeed=g.x*.013+g.y*.017+g.radius*1.29;
     }
-    const total=Math.max(.15,this.cfg.travelTime);
+    const total=Math.max(.15,g.inspireDuration||this.cfg.travelTime);
     g.inspireT=Math.min(1,g.inspireT+dt/total);
     const p=g.inspireT,ease=p*p*(3-2*p);
     const hx=this.hero.x,hy=this.hero.y;
