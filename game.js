@@ -75,6 +75,7 @@ export class Game {
     this.insets = readSafeInsets(o.probe);
 
     // Состояние забега.
+    this.introWalk = null;
     this.state = 'playing'; // 'playing' | 'paused' | 'dead' | 'menu' | 'cutscene' (вступление босса: мир замер, камера на боссе)
     this.cine = null;       // состояние вступления босса: { t, fromX, fromY, boss }
     this.deadTimer = 0;
@@ -1827,7 +1828,12 @@ export class Game {
         this.lightdash.bonus = this.shockBonus(km0);
       }
       this.defense.update(attackDt);
-      this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      if(this.introWalk && this.arena.location==='courtyard'){
+        const intro=this.introWalk;
+        const step=Math.min(intro.targetY-this.hero.y,intro.speed*dt);
+        if(step>0){this.hero.place(this.hero.x,this.hero.y+step);this.hero.facing=-Math.PI/2;}
+        if(this.hero.y>=intro.targetY-.01){this.hero.place(0,intro.targetY);this.introWalk=null;this.spawner.timer=this.config.waves.intermission;}
+      }else this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.barriers.blockHero(this.hero);
       this.castleTransition.update(dt);
       this.lightdash.update(attackDt);
@@ -1880,7 +1886,7 @@ export class Game {
       this.blackSun.update(attackDt);
       this.updateSynergyCasts(attackDt);
       this.hitShotsOnBlock();
-      this.spawner.update(worldDt);
+      if(!this.introWalk)this.spawner.update(worldDt);
       this.syncWaveHud();
       this.watchCrash(dt);
     } else {
@@ -2333,6 +2339,7 @@ export class Game {
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.autoattack.reset();
     this.spawner.reset();
+    this.beginCourtyardIntro();
     this.crashResult = null;
     this.hud.crashResult = '';
     this.sagTimer = 0;
@@ -2414,6 +2421,16 @@ export class Game {
     this.modeScreen.show();
   }
 
+  beginCourtyardIntro(){
+    if(this.config.waves.startWave!==1){this.introWalk=null;return;}
+    const bottom=this.arena.bottom-this.hero.radius-14;
+    this.hero.place(0,bottom);
+    this.hero.facing=-Math.PI/2;
+    this.introWalk={targetY:Math.min(0,bottom-135),speed:110};
+    this.spawner.timer=this.config.waves.intermission;
+    this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
+  }
+
   start() {
     if (this.o.menu) {
       this.state = 'menu';
@@ -2421,6 +2438,7 @@ export class Game {
       this.modeScreen.show();
     }
     this.renderer.resize();
+    if(this.state==='playing')this.beginCourtyardIntro();
     this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
     this.loop.start();
   }

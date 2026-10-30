@@ -855,6 +855,7 @@ export class Renderer {
     // Единственная низкоразрешённая маска тьмы: после мировых эффектов
     // и колонн, перед HUD. Посох, навыки и летящие снаряды пробивают свет.
     this.hallVision.draw(ctx,this,alpha);
+    if(arena.location==='courtyard')this.drawBlizzard(ctx,w,h,dpr);
 
     // Стик и HUD рисуем в экранных координатах (px), поверх мира.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5328,6 +5329,30 @@ export class Renderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  drawBlizzard(ctx,w,h,dpr){
+    const cfg=this.cfg.render.blizzard;
+    if(!cfg?.enabled)return;
+    ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
+    const radius=Math.hypot(w,h)*.65;
+    const fog=ctx.createRadialGradient(w*.5,h*.48,Math.min(w,h)*.12,w*.5,h*.48,radius);
+    fog.addColorStop(0,'rgba(204,221,239,'+cfg.centerFog+')');
+    fog.addColorStop(.55,'rgba(200,215,234,.08)');
+    fog.addColorStop(1,'rgba(212,224,239,'+cfg.edgeFog+')');
+    ctx.fillStyle=fog;ctx.fillRect(0,0,w,h);
+    const count=cfg.particles|0,t=this.clock;
+    ctx.lineCap='round';
+    for(let i=0;i<count;i++){
+      const z=(i*.61803398875)%1;
+      const px=((i*73.79+t*(45+z*135))%(w+100)+w+100)%(w+100)-50;
+      const py=((i*137.13+t*(22+z*60))%(h+90)+h+90)%(h+90)-45;
+      const len=1.8+z*9;
+      ctx.globalAlpha=.14+z*.48;
+      ctx.strokeStyle='#f3f8ff';ctx.lineWidth=.6+z*1.3;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px-len,py-len*.28);ctx.stroke();
+    }
+    ctx.restore();
   }
 
   drawStick(C) {
