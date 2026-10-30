@@ -403,6 +403,15 @@ export class BuildGrid {
       if (this.cells[i].mod && this.cells[i].mod.def.effect.kind === 'gravity' && owner.get(i) === coreId) gravityNodes.push(i);
     if (gravityNodes.length) {
       res.gravity = { count: gravityNodes.length };
+      // Вторичное ядро Воодушевления: Х2/Х3 на Гравитации усиливают
+      // всекартное отталкивание, не скорость сбора камней.
+      if(this.coreById(coreId)?.def?.multStat === 'inspirationPower'){
+        let force=1;
+        for(const node of gravityNodes)
+          for(const k of kids.get(node)||[])
+            if(this.cells[k].mod.def.effect.kind==='double')force+=mult(k)-1;
+        res.gravity.forceMult=force;
+      }
       // Только щит: Х2/Х3 на Гравитации продлевают горизонт; Х2/Х3 на ядре тоже действуют.
       // Отдельные ветки складывают прибавки, цепочки множителей перемножаются, как и в остальном билде.
       if (this.coreById(coreId)?.def?.multStat === 'blockPower') {
@@ -556,7 +565,17 @@ export class BuildGrid {
       lDmg += 1 + d;
       lRate += 1 + r;
     }
-    if (lasers) res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+    if (lasers) {
+      res.laser = { count: lasers, damage: lDmg / lasers, rate: lRate / lasers };
+      if(this.coreById(coreId)?.def?.multStat === 'inspirationPower'){
+        let split=1;
+        for(let i=0;i<this.cells.length;i++)if(owner.get(i)===coreId &&
+            this.cells[i].mod?.def.effect.kind==='laser')
+          for(const k of kids.get(i)||[])
+            if(this.cells[k].mod.def.effect.kind==='double')split+=mult(k)-1;
+        res.laser.countMultiplier=split; // как в базовом Лазере: Х2 удваивает число лучей
+      }
+    }
     // Сочетания срабатывают только внутри одной связанной ветви.
     const linked = (child, ancestor) => this.cells.some((cell,i) => {
       if (!cell.mod || owner.get(i)!==coreId || cell.mod.def.effect.kind!==child) return false;
