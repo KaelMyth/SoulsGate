@@ -5514,35 +5514,35 @@ export class Renderer {
     const wave=Math.max(1,Math.min(5,this.hud?.wave||1));
     const k=(wave-1)/4;
     ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
-    const fog=ctx.createRadialGradient(w*.5,h*.48,Math.min(w,h)*.1,w*.5,h*.48,Math.hypot(w,h)*.68);
-    fog.addColorStop(0,'rgba(204,221,239,'+(Math.min(.82,cfg.centerFog+.28+k*.13))+')');
-    fog.addColorStop(.52,'rgba(200,215,234,'+(.28+k*.16)+')');
-    fog.addColorStop(1,'rgba(212,224,239,'+Math.min(.97,cfg.edgeFog+.35+k*.33)+')');
+    const fog=ctx.createRadialGradient(w*.5,h*.5,Math.min(w,h)*.38,w*.5,h*.5,Math.hypot(w,h)*.63);
+    fog.addColorStop(0,'rgba(132,143,153,'+(0)+')');
+    fog.addColorStop(.52,'rgba(139,148,159,'+(.015+k*.008)+')');
+    fog.addColorStop(1,'rgba(120,128,139,'+(.20+k*.035)+')');
     ctx.fillStyle=fog;ctx.fillRect(0,0,w,h);
 
     // Позиции частиц в мире. При перемещении камеры снежинки
     // сдвигаются относительно героя и пейзажа, а не приклеиваются к экрану.
-    const spacing=Math.max(11,(cfg.spacing||28)*.63);
+    const spacing=Math.max(17,(cfg.spacing||28)*.8);
     const left=camX-w/(2*scale),top=camY-h/(2*scale);
     const right=camX+w/(2*scale),bottom=camY+h/(2*scale);
-    const drift=this.clock*(cfg.wind||65)*(2.6+k*1.5);
-    const fall=this.clock*(cfg.fall||26)*(1.5+k*.75);
-    const count=Math.min(.98,(cfg.density||.24)+.42);
+    const drift=this.clock*(cfg.wind||65)*(1+k*.65);
+    const fall=this.clock*(cfg.fall||26)*(1+k*.35);
+    const count=Math.min(.94,(cfg.density||.24)+.35);
     const minX=Math.floor((left-drift)/spacing)-1,maxX=Math.ceil((right-drift)/spacing)+1;
     const minY=Math.floor((top-fall)/spacing)-1,maxY=Math.ceil((bottom-fall)/spacing)+1;
     ctx.strokeStyle='#f1f7ff';ctx.lineCap='round';
     for(let iy=minY;iy<=maxY;iy++)for(let ix=minX;ix<=maxX;ix++){
       const seed=Math.sin(ix*127.1+iy*311.7)*43758.5453;
       const rnd=seed-Math.floor(seed);
-      if(rnd>Math.min(.99,count+k*.18))continue;
+      if(rnd>Math.min(.99,count+k*.15))continue;
       const r2=Math.sin(ix*269.5+iy*183.3)*24634.6345;
       const jitter=r2-Math.floor(r2);
       const x=(ix*spacing+jitter*spacing+drift-camX)*scale+w*.5;
       const y=(iy*spacing+rnd*spacing+fall-camY)*scale+h*.5;
       const fine=.35+jitter*.55;
-      ctx.globalAlpha=(.46+jitter*.4)*(1+k*.15);
-      ctx.lineWidth=fine*1.8;
-      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-9-jitter*15,y+3+jitter*5);ctx.stroke();
+      ctx.globalAlpha=(.23+jitter*.31)*(1+k*.15);
+      ctx.lineWidth=fine;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-1.8-jitter*2,y-.35-jitter*.45);ctx.stroke();
     }
     ctx.restore();
   }
