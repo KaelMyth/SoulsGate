@@ -173,7 +173,7 @@ export class Attacks {
  * Рисует renderer, а считается тут, чтобы одни и те же данные видели и экран, и тесты.
  */
 export function getTelegraph(e, hero, out) {
-  const A = e.def.attack;
+  const A = e.def.attack || (e.def.arch && e.def.arch.dash); // Арх: линия рывка из arch.dash (systems_arch.js)
   if (A) {
     const a = e.atk;
     if (a.state !== 'windup') return null;

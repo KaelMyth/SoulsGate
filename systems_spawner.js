@@ -7,7 +7,7 @@
 // в секунду, а интервал появления падает до minInterval. Он нужен, чтобы найти число врагов,
 // на котором телефон перестаёт держать 60 FPS.
 //
-// Миниборс (config.waves.boss): когда на волне босса убиты все враги, выходит босс, и новые враги не появляются,
+// Миниборсы (config.waves.boss и boss2): когда на волне босса убиты все враги, выходит босс, и новые враги не появляются,
 // пока он жив. Убили босса: передышка и обычные волны дальше.
 //
 // После waves.total волн забег пройден: событие 'run:completed' { wave }, новые враги не выходят.
@@ -202,7 +202,7 @@ export class Spawner {
       if (this.bus) this.bus.emit('wave:cleared', { wave: this.wave });
       // Волна босса: после зачистки вместо передышки выходит босс.
       const W = this.cfg.waves;
-      const B = W.boss && W.boss.wave === this.wave ? W.boss : W.finalBoss && W.finalBoss.wave === this.wave ? W.finalBoss : null;
+      const B = W.boss && W.boss.wave === this.wave ? W.boss : W.boss2 && W.boss2.wave === this.wave ? W.boss2 : W.finalBoss && W.finalBoss.wave === this.wave ? W.finalBoss : null;
       if (B && this.cfg.enemies[B.enemy]) {
         if (B === W.finalBoss && W.finale && W.finale.portal) this.openPortal(); // финальный босс: сначала портал в центре карты
         else this.spawnBoss(this.cfg.enemies[B.enemy]);

@@ -28,6 +28,7 @@ import { Shooters } from './systems_shooters.js';
 import { Guards } from './systems_guards.js';
 import { Attacks } from './systems_attacks.js';
 import { Boss } from './systems_boss.js';
+import { Arch } from './systems_arch.js';
 import { Xp, createGem, resetGem } from './systems_xp.js';
 import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
@@ -111,6 +112,7 @@ export class Game {
     this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
+    this.arch = new Arch({ config, hero: this.hero, arena: this.arena, combat: this.combat, enemyShots: this.enemyShots, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.guards = new Guards({ config, hero: this.hero });
     this.shooters = new Shooters({ config, hero: this.hero, arena: this.arena, shots: this.enemyShots, bus: this.bus });
     this.apostles = new Apostles({ config, hero: this.hero, arena: this.arena, enemies: this.enemies, combat: this.combat, defense: this.defense, bus: this.bus, rnd: this.rnd });
@@ -251,7 +253,8 @@ export class Game {
       storage: o.storage,
       storageKey: o.storageKey,
       actions: [
-        { group: 'Боссы', label: 'К боссу: Тартас (волна 10)', run: () => this.skipToBoss('mid') },
+        { group: 'Боссы', label: 'К боссу: Пепельный Арх (волна 10)', run: () => this.skipToBoss('arch') },
+        { group: 'Боссы', label: 'К боссу: Тартас (волна 15)', run: () => this.skipToBoss('mid') },
         { group: 'Боссы', label: 'К боссу: Апофеоз (волна 20)', run: () => this.skipToBoss('final') },
         { group: 'Боссы', label: 'Апофеоз: Апостолы', run: () => this.apotheosis.force('apostles') },
         { group: 'Боссы', label: 'Апофеоз: Руки', run: () => this.apotheosis.force('hands') },
@@ -1300,6 +1303,7 @@ export class Game {
       this.swarm.steer(en);        // стая: куда тянет жуков
       this.guards.update(dt, en);  // охрана: куда идёт кольцо вокруг стрелка
       this.attacks.update(dt, en); // замахи, рывки и восстановление врагов с атакой
+      this.arch.update(dt);        // Пепельный Арх: залпы и рывки по микрофазам
       this.boss.update(dt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       this.apostles.update(dt);    // финальный босс: призыв апостолов, их очерёдность умений
       this.apotheosis.update(dt);  // голова-солнце, умение «Руки», очерёдность умений босса
@@ -1564,13 +1568,13 @@ export class Game {
   }
 
   /**
-   * Отладка: сразу к бою с боссом без зачистки волны. which: 'mid' (Тартас, waves.boss) или 'final' (Апофеоз, waves.finalBoss).
+   * Отладка: сразу к бою с боссом без зачистки волны. which: 'arch' (Пепельный Арх, waves.boss), 'mid' (Тартас, waves.boss2) или 'final' (Апофеоз, waves.finalBoss).
    * Всё, что было на поле (враги, снаряды, отряд, апостолы, мошки, разрушение карты), убирается; герой остаётся как есть.
    */
   skipToBoss(which) {
     if (this.state !== 'playing') return;
     const W = this.config.waves;
-    const B = which === 'final' ? W.finalBoss : W.boss;
+    const B = which === 'final' ? W.finalBoss : which === 'arch' ? W.boss : W.boss2;
     const def = B && this.config.enemies[B.enemy];
     if (!def) return;
     this.enemies.clear();
@@ -1578,6 +1582,7 @@ export class Game {
     this.enemyShots.clear();
     this.pellets.clear();
     this.boss.reset();
+    this.arch.reset();
     this.apostles.reset();
     this.apotheosis.reset();
     this.rockBeetles.reset(); // мошки исчезают, скалы и вся карта возвращаются
@@ -1681,6 +1686,7 @@ export class Game {
     this.swipe.reset();
     this.hitStop = 0;
     this.boss.reset();
+    this.arch.reset();
     this.apostles.reset();
     this.apotheosis.reset();
     this.cine = null;
