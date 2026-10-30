@@ -14,7 +14,7 @@ export class ModeScreen {
       id,class:'ui-btn',type:'button',onclick:fn
     },text);
     this.stage = h('div', { class: 'stage' },
-      buildScene(), buildLogo(),
+      h('div', { class: 'reference-art', 'aria-hidden': 'true' }), buildLogo(),
       h('div', { class: 'menu', role: 'navigation', 'aria-label': 'Главное меню SoulGates' },
         action('mode-game','Играть',()=>onPick('game')),
         action('mode-test','Тестирование',()=>onPick('test')),

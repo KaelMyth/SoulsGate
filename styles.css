@@ -625,3 +625,39 @@ body { font-family: var(--serif); }
 @media (max-height: 570px) and (orientation: landscape) {
   #mode-screen .menu .ui-btn { min-height: 30px; }
 }
+
+/* №191: оригинальный арт заставки, а не его векторная имитация. */
+#mode-screen .reference-art {
+  position: absolute; inset: 0; z-index: 0;
+  background: #1b2941 url('./assets/soulgates-menu.webp') center / 100% 100% no-repeat;
+}
+#mode-screen .reference-art::before {
+  content: ''; position: absolute; left: 4%; top: 3%; width: 92%; height: 20%;
+  background: radial-gradient(ellipse at center, rgba(20,31,52,.87) 0%, rgba(20,31,52,.85) 49%, transparent 75%);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  mask-image: radial-gradient(ellipse, #000 46%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse, #000 46%, transparent 75%);
+}
+#mode-screen .stage::after {
+  z-index: 1;
+  background: linear-gradient(90deg, transparent 43%, rgba(18,29,51,.18) 58%, rgba(17,28,50,.28) 100%);
+}
+#mode-screen .logo { z-index: 2; }
+#mode-screen .menu {
+  left: 58%; top: 31.2%; width: 38%; gap: calc(var(--W) * .032);
+  padding: calc(var(--W) * .028) 0 calc(var(--W) * .034);
+  border-radius: 48% / 12%;
+  background: rgba(17,27,49,.72);
+  box-shadow: 0 0 calc(var(--W) * .055) calc(var(--W) * .05) rgba(17,27,49,.68);
+  backdrop-filter: blur(17px);
+  -webkit-backdrop-filter: blur(17px);
+}
+#mode-screen .menu .ui-btn {
+  height: calc(var(--W) * .116);
+  min-height: 0;
+  font-size: calc(var(--W) * .043);
+  background: transparent;
+}
+#mode-screen .menu .ui-btn::after { bottom: 2px; top: auto; }
+#mode-screen .menu .ui-btn::before { bottom: -2px; top: auto; }

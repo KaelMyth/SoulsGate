@@ -3,8 +3,8 @@
 import { SCENE_W } from './ui_menu-scene.js';
 
 const TAU = Math.PI * 2;
-const FIRE_X = 478;
-const FIRE_Y = 1262;
+const FIRE_X = 475;
+const FIRE_Y = 1205;
 
 /** Мягкое пятно света одного цвета: рисуется один раз, потом только масштабируется. */
 function makeGlow(r, g, b) {
