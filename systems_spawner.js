@@ -154,6 +154,7 @@ export class Spawner {
     }
 
     if (this.phase === 'complete') return; // забег пройден: ждём перезапуска
+    if (this.phase === 'gate') return; // ждём героя в воротах
 
     // Портал перед финальным боссом: растёт, ждёт героя; подошёл вплотную: гаснет, потом выходит босс (и ролик).
     if (this.phase === 'portal') {
@@ -166,6 +167,11 @@ export class Spawner {
       this.alive = this.countAlive();
       if (this.alive === 0) {
         if (this.bus) this.bus.emit('boss:defeated', { wave: this.wave });
+        if(this.wave===this.cfg.waves.boss.wave && this.arena.location==='courtyard' &&
+           this.cfg.arena.castleTransition) {
+          this.phase='gate';
+          return;
+        }
         const total = this.cfg.waves.total;
         if (total > 0 && this.wave >= total) { // победа над финальным боссом: забег пройден
           this.phase = 'complete';
@@ -223,6 +229,18 @@ export class Spawner {
   }
 
   /** Портал в центре карты (waves.finale.portal): ждёт героя. Событие 'portal:opened' { portal }. */
+  /** Возобновление волн после перехода через ворота. */
+  advanceAfterGate() {
+    if(this.phase!=='gate')return false;
+    this.wave++;
+    this.phase='intermission';
+    this.timer=this.cfg.waves.intermission;
+    this.spawned=0;
+    this.spawnTimer=0;
+    this.alive=0;
+    return true;
+  }
+
   openPortal() {
     const P = this.cfg.waves.finale.portal;
     this.portal = { x: P.x, y: P.y, r: P.radius, alpha: 0, state: 'open', t: 0 };
