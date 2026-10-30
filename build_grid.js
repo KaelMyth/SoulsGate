@@ -411,6 +411,14 @@ export class BuildGrid {
           for(const k of kids.get(node)||[])
             if(this.cells[k].mod.def.effect.kind==='double')force+=mult(k)-1;
         res.gravity.forceMult=force;
+        // Ускорение на Гравитации снижает откат связанного умения.
+        let haste=0;
+        for(const node of gravityNodes)
+          for(const k of kids.get(node)||[]){
+            const e=this.cells[k].mod.def.effect;
+            if(e.kind==='stat'&&e.stat==='rate')haste+=walk(k,0);
+          }
+        res.gravity.cooldownRate=Math.max(1,1+haste*3);
       }
       // Только щит: Х2/Х3 на Гравитации продлевают горизонт; Х2/Х3 на ядре тоже действуют.
       // Отдельные ветки складывают прибавки, цепочки множителей перемножаются, как и в остальном билде.
