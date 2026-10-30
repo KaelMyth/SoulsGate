@@ -762,6 +762,7 @@ export class Renderer {
       }
       this.blackSunFx.drawFront(ctx,hx,hy);
       this.inspirationFx.drawFront(ctx,hx,hy);
+      this.inspirationFx.drawInteractions(ctx,hx,hy);
     }
 
     this.drawFlash(viewL, viewR, viewT, viewB);
