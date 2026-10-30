@@ -340,14 +340,31 @@ export class IceVolumeArt extends IsometricIceEnemies {
     this.iceSpike(c,[front+2,r,z+h*.7+raised],
       [front+4,r,z+h+5+raised],1.6);
   }
-  sword(c,st,boss,bs){
+  sword(c,st,boss,bs,e){
     const attack=st.attack;
     const cast=boss&&['bladeIn','bladeWave','bladeGap','squadCast','blastTele'].includes(bs);
     const dash=boss&&(bs==='dash'||bs==='tele');
     const hand=[13,boss?18:14,boss?24:19]; // правая рука, не переключается при развороте
     const w=this.p(...hand);
     const length=boss?51:30;
-    const tilt=cast?.97:dash?.23: attack>.28?.7:-.12;
+    // Реальная дуга замаха: при подготовке клинок поднимается, в момент
+    // попадания опускается ниже горизонтали, после чего возвращается в стойку.
+    // Никаких мгновенных перескоков поз между фазами.
+    let tilt=-.17+.075*Math.sin(st.walk)*st.weight;
+    const state=e?.atk?.state||'idle';
+    if(cast)tilt=1.12+.1*Math.sin(this.renderer.clock*2.1);
+    else if(dash)tilt=.12;
+    else if(bs==='blast')tilt=-.85;
+    else if(bs==='recover')tilt=-.45;
+    else if(state==='windup'){
+      const length=Math.max(.05,e?.def?.attack?.windup||.7);
+      const progress=clamp((e?.atk?.t||0)/length,0,1);
+      tilt=-.17+1.56*(progress*progress*(3-2*progress));
+    }else if(state==='strike'){
+      const length=Math.max(.05,e?.def?.attack?.strike||.25);
+      const progress=clamp((e?.atk?.t||0)/length,0,1);
+      tilt=1.39-2.26*(progress*progress*(3-2*progress));
+    }else if(attack>.07)tilt=-.17+attack*.83;
     const axis=[Math.cos(tilt),0,Math.sin(tilt)];
     const tip=[hand[0]+length*axis[0],hand[1],hand[2]+length*axis[2]];
     const base=[hand[0]+5,hand[1],hand[2]+(cast?3:0)];
@@ -515,7 +532,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     if(this.near===-1 && kind!=='ram'){
       if(kind==='archer')this.bow(ctx,st,
         e.aim>0?1-e.aim/Math.max(.01,e.aimTotal):0);
-      else this.sword(ctx,st,boss,bs);
+      else this.sword(ctx,st,boss,bs,e);
     }
     this.body(ctx,boss,!backVisible);
     // Затылочный шов всегда геометрически сзади, не нарисован поверх лица.
@@ -530,7 +547,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     else if(this.near===1){
       if(kind==='archer')this.bow(ctx,st,
         e.aim>0?1-e.aim/Math.max(.01,e.aimTotal):0);
-      else this.sword(ctx,st,boss,bs);
+      else this.sword(ctx,st,boss,bs,e);
     }
     if(frozen){
       ctx.globalAlpha=deathAlpha*.55;
