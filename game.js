@@ -125,6 +125,13 @@ export class Game {
     this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
     this.inspiration = new Inspiration({config,hero:this.hero,gems:this.gems,bus:this.bus});
     this.xp.inspiration = this.inspiration;
+    this.inspiration.xp=this.xp;
+    this.inspiration.enemies=this.enemies;
+    this.inspiration.combat=this.combat;
+    this.inspiration.arena=this.arena;
+    this.inspiration.ignite=(e,d,i)=>this.ignite(e,d,i);
+    this.inspiration.chill=(e,st,d,i)=>this.chill(e,st,d,i);
+    this.inspiration.zap=(e,d,i,fr,st,cm)=>this.zap(e,d,i,fr,st,cm);
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.guards = new Guards({ config, hero: this.hero });
@@ -227,6 +234,7 @@ export class Game {
     this.blackSun = new BlackSun({config,hero:this.hero,aura:this.aura,enemies:this.enemies,combat:this.combat,
       modifiers:(id)=>this.build?.modifiersFor(id)});
     this.aura.pellets = this.pellets;
+    this.aura.inspiration=this.inspiration;
     this.synergyCasts = [];
     this.synergyFlashes = [];
     this.laserAbsorptionCooldowns = new WeakMap();
@@ -797,7 +805,8 @@ export class Game {
   castInspiration() {
     const id=this.build.secondaryId('inspiration');
     if(this.state!=='playing' || !this.hero.active || this.skillCd[2]>0 || !id)return false;
-    if(!this.inspiration.begin())return false;
+    const mods=this.build.modifiersFor(id);
+    if(!this.inspiration.begin(mods))return false;
     this.skillCd[2]=Math.max(.1,this.config.skills.inspiration.cooldown);
     this.hud.inspirationT=this.inspiration.remaining;
     this.hud.slotFlash=3;
