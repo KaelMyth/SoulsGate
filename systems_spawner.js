@@ -339,6 +339,10 @@ export class Spawner {
   /** Тип нового врага: по весам рисунка волны (pat.mix), иначе по долям из config.spawn. */
   pickKind(pat) {
     const sp = this.cfg.spawn;
+    // Замёрзшие появляются уже в пятой волне, включая рисунки волн с жучьим mix.
+    // Боссы, призывы и другие отдельные системы это правило не меняет.
+    const fz = sp.frozen;
+    if (fz && this.wave >= fz.fromWave) return this.pickSkeleton(fz.weights) || sp.enemy;
     if (pat && pat.mix) {
       const k = this.pickSkeleton(pat.mix);
       if (k) return k;
@@ -348,8 +352,6 @@ export class Spawner {
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
     const r = this.rnd();
     let kind = r < bullShare ? 'bull' : r < bullShare + shooterShare ? 'shooter' : sp.enemy;
-    const fz = sp.frozen;
-    if (fz && this.wave >= fz.fromWave) kind = this.pickSkeleton(fz.weights) || kind; // после Тартаса только Замёрзшие
     const sk = sp.skeleton;
     if (sk && this.wave >= sk.fromWave && this.rnd() < sk.share) kind = this.pickSkeleton(sk.weights) || kind; // скелеты временами
     return kind;
