@@ -1465,6 +1465,7 @@ export const CONFIG = {
     // Выбранный первый вариант: северная готическая крепость, снежные бастионы,
     // огромные закрытые ворота. Внутренняя полоса стены непроходима.
     northWall: { enabled: true, depth: 206, gateWidth: 218 },
+    castleTransition: { afterWave: 5, openTime: 6, touchHalfWidth: 97, touchDistance: 33, hallStartY: 570, hallWallDepth: 166 },
     rocks: [
       { x: -300, y: -500, r: 60 },
       { x: 250, y: -650, r: 45 },

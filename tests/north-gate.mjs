@@ -55,6 +55,7 @@ test('Игровая графика отрисовывает каменную с
   try {
     const north=new NorthGateArt(arena);
     const display=new Proxy({drawImage(){calls.sprites++;},
+      createLinearGradient(){calls.gradients++;return{addColorStop(){}};},
       createRadialGradient(){calls.gradients++;return{addColorStop(){}};},
       fill(){calls.fills++;},stroke(){calls.strokes++;},
     },{get(t,k){return k in t?t[k]:()=>{};}});
