@@ -1,7 +1,6 @@
 // Воодушевление: золото притягивает опыт, а ветви модов отвечают своей магией.
 // У каждой способности свой носитель стихий и собственные усилители Х2/Х3, Мощь и Ускорение.
 import { applyKnockback } from './world_enemy.js';
-import { forCarrier } from './build_scopes.js';
 const TAU=Math.PI*2;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -169,7 +168,7 @@ export class Inspiration {
     if(!e?.active)return;
     const el=this.elements(kind);
     const burn=el.burn,frost=el.frost,lightning=el.lightning;
-    const bd=burn?this.config.burn.damage*(burn.damage||1):0;
+    const bd=burn?this.cfg.orbDamage*this.config.burn.damageFrac*(burn.damage||1):0;
     const bi=this.config.burn.interval/Math.max(.01,burn?.rate||1);
     const steam=burn&&frost?(el.steam?.damage||1):0;
     if(burn&&this.ignite)this.ignite(e,bd,bi);
@@ -265,7 +264,7 @@ export class Inspiration {
     }
     if(this.laserCount && this.laserAge<this.cfg.laserTime)this.updateLasers(dt);
     const lasersDone=!this.laserCount||this.laserAge>=this.cfg.laserTime;
-    if(this.remaining>0||!lasersDone||this.projectiles.length||this.extractions.length)return;
+    if(this.remaining>0||!lasersDone||this.projectiles.length||this.extractions.length||this.dissolves.length)return;
     for(const g of this.gems.items)if(g.active&&g.inspired)return;
     this.active=false;
   }
