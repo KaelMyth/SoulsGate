@@ -176,36 +176,8 @@ export class NorthGateArt {
     c.lineWidth=9;c.strokeStyle='#8190a3';c.stroke();
     arch(0,gy-4,gateW,gateH);c.fillStyle='#111824';c.fill();
     c.strokeStyle='#a3a3a1';c.lineWidth=2.4;c.stroke();
-    // Клёпанные створки: две независимые половины.
-    c.save();arch(0,gy-4,gateW-5,gateH-5);c.clip();
-    for(const side of [-1,1]){
-      const x=side<0?-gateW/2:0;
-      const wood=c.createLinearGradient(x,0,x+gateW/2,0);
-      wood.addColorStop(0,'#313342');wood.addColorStop(.5,'#434351');wood.addColorStop(1,'#232a39');
-      c.fillStyle=wood;c.fillRect(x,-75,gateW/2,180);
-      for(let k=1;k<6;k++)line(c,[x+k*18,-69,x+k*18,110],
-        k%2?'#646273':'#262936',1.5);
-      for(let yy=-42;yy<99;yy+=38){
-        c.fillStyle='#242d39';c.fillRect(x+3,yy,gateW/2-7,9);
-        line(c,[x+3,yy+1,x+gateW/2-4,yy+1],'#8d795c',1.4);
-        for(let xx=x+16;xx<x+gateW/2-6;xx+=20){
-          c.fillStyle='#b19a73';c.beginPath();c.arc(xx,yy+4,1.7,0,TAU);c.fill();
-        }
-      }
-    }
-    c.restore();
-    line(c,[0,-59,0,103],'#141b28',6);
-    line(c,[3,-57,3,100],'rgba(207,170,105,.35)',1.4);
-    // Латунная эмблема древнего жука над створками, напоминает первого босса.
-    c.save();c.translate(0,-4);
-    c.strokeStyle='#a88859';c.lineWidth=3;
-    c.beginPath();c.arc(0,0,27,0,TAU);c.stroke();
-    poly(c,[-8,-17,0,-27,8,-17,16,0,9,19,0,26,-9,19,-16,0],
-      '#766144','#c3a270',1.8);
-    line(c,[-18,-5,-33,-20,-22,-20],'#bc9b66',3);
-    line(c,[18,-5,33,-20,22,-20],'#bc9b66',3);
-    line(c,[0,-10,0,18],'#e1c391',2);
-    c.restore();
+    // Створки намеренно не входят в статичный спрайт:
+    // они рисуются отдельно и медленно распахиваются после смерти Арха.
     // Каменная ступенчатая площадка и подножие арки.
     for(let i=0;i<5;i++){
       const y=106+i*7,w=122+i*12;
@@ -240,6 +212,66 @@ export class NorthGateArt {
     }
     this.cached=cv;
   }
+  /** Две тяжёлые створки вращаются внутрь, открывая настоящий тёмный проход. */
+  drawGate(ctx,progress=0,time=0){
+    const p=Math.max(0,Math.min(1,progress)),W=218,H=163;
+    const ease=p*p*(3-2*p);
+    const scale=1-ease*.89;
+    ctx.save();
+    ctx.translate(0,this.arena.top+70);
+    ctx.beginPath();
+    ctx.moveTo(-W/2,99);ctx.lineTo(-W/2,-8);
+    ctx.bezierCurveTo(-W/2,-79,W/2,-79,W/2,-8);
+    ctx.lineTo(W/2,99);ctx.closePath();ctx.clip();
+    if(p>.01){
+      const inside=ctx.createLinearGradient(0,-44,0,111);
+      inside.addColorStop(0,'rgba(37,41,56,.53)');
+      inside.addColorStop(.48,'rgba(79,66,51,.48)');
+      inside.addColorStop(1,'rgba(159,112,58,.3)');
+      ctx.fillStyle=inside;ctx.fillRect(-W/2,-80,W,200);
+      ctx.globalAlpha=Math.min(.8,p)*(.23+.08*Math.sin(time*2));
+      ctx.fillStyle='#d6a76a';ctx.fillRect(-7,-44,14,144);
+      ctx.globalAlpha=1;
+    }
+    for(const side of [-1,1]){
+      ctx.save();
+      ctx.translate(side*W/2,0);
+      ctx.scale(scale,1);
+      const x=side<0?0:-W/2;
+      const wood=ctx.createLinearGradient(x,-20,x+W/2,35);
+      wood.addColorStop(0,'#303340');
+      wood.addColorStop(.47,'#4f4d56');
+      wood.addColorStop(1,'#252b39');
+      ctx.fillStyle=wood;ctx.fillRect(x,-77,W/2,179);
+      ctx.strokeStyle='#b9a17e';ctx.lineWidth=3;
+      ctx.strokeRect(x,-77,W/2,179);
+      for(let k=1;k<6;k++){
+        line(ctx,[x+k*18,-69,x+k*18,98],k%2?'#626273':'#262b3b',1.6);
+      }
+      for(let yy=-41;yy<100;yy+=37){
+        ctx.fillStyle='#292e39';ctx.fillRect(x+3,yy,W/2-6,9);
+        line(ctx,[x+3,yy+1,x+W/2-4,yy+1],'#ad8e61',1.4);
+        for(let xx=x+15;xx<x+W/2-5;xx+=21){
+          ctx.fillStyle='#c1a477';ctx.beginPath();ctx.arc(xx,yy+4,1.7,0,TAU);ctx.fill();
+        }
+      }
+      // Перевернутые половины герба жука на каждой створке.
+      ctx.fillStyle='#b49a71';
+      ctx.beginPath();ctx.ellipse(x+W/2*.55,-5,12,20,0,0,TAU);ctx.strokeStyle='#c4a675';ctx.lineWidth=3;ctx.stroke();
+      line(ctx,[x+W/2*.55,-25,x+W/2*.55,18],'#ceb082',2);
+      ctx.restore();
+    }
+    // Латунный звон и лучи света из расширяющейся щели.
+    if(p>0&&p<1){
+      const k=Math.sin(Math.PI*p);
+      ctx.globalAlpha=k*.25;
+      ctx.fillStyle='#f8d9a1';
+      ctx.fillRect(-4,-65,8,165);
+      ctx.globalAlpha=1;
+    }
+    ctx.restore();
+  }
+
   draw(ctx,viewL,viewR,viewT,viewB,time=0){
     const ar=this.arena;
     if(ar.zone)return; // поздняя арена Апофеоза разрушается, северной крепости там уже нет
@@ -247,6 +279,7 @@ export class NorthGateArt {
     if(viewR<ar.left || viewL>ar.right || viewB<startY || viewT>endY)return;
     if(!this.cached)this.build();
     ctx.drawImage(this.cached,ar.left,startY,ar.width,this.height);
+    this.drawGate(ctx,this.gateProgress||0,time);
     // Живой огонь по сторонам ворот и вдоль северного укрепления.
     const y=ar.top;
     for(const x of [-220,-132,132,220,-ar.width/2+90,ar.width/2-90]){
