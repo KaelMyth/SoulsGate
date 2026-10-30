@@ -779,7 +779,11 @@ export class Renderer {
       const margin = iso ? r * (iso === 'tartas' ? 3.6 : 3.3) : r;
       if (ex + margin < viewL || ex - margin > viewR ||
           ey + r * 1.5 < viewT || ey - margin > viewB) continue;
-      this.drawEnemy(e, ex, ey, C);
+      if(e.spawnT>0){
+        this.drawEnemyMaterialization(e,ex,ey);
+      }else{
+        this.drawEnemy(e,ex,ey,C);
+      }
     }
 
     // Щит на уровне бойцов, его полотно видно поверх боевого построения.
@@ -2841,6 +2845,39 @@ export class Renderer {
       ctx.globalAlpha=.35;path([-7,-10,9,-12,16,-4,16,4,9,12,-7,10],'#ffffff',null);
     }
     ctx.restore();
+  }
+
+  drawEnemyMaterialization(e,x,y){
+    const c=this.ctx, t=1-e.spawnT/Math.max(.01,e.spawnDuration);
+    const spectral=!!e.def.spectral;
+    const r=e.radius, radius=r*(2.7-1.45*t);
+    const hue=spectral?'139,207,255':'167,126,231';
+    c.save();c.globalCompositeOperation='screen';
+    // Энергия сначала разрежена, затем стягивается в силуэт.
+    const fog=c.createRadialGradient(x,y,0,x,y,radius*2);
+    fog.addColorStop(0,'rgba('+hue+','+(.10+.30*t)+')');
+    fog.addColorStop(.38,'rgba('+hue+','+(.15+.12*t)+')');
+    fog.addColorStop(1,'rgba('+hue+',0)');
+    c.fillStyle=fog;c.beginPath();c.arc(x,y,radius*2,0,TAU);c.fill();
+    const n=15;
+    for(let i=0;i<n;i++){
+      const a=i*2.39996+e.gen*.7,spiral=1-t;
+      const d=r*(.25+1.85*spiral)*(i%5+3)/7;
+      const px=x+Math.cos(a+this.clock*.6)*d;
+      const py=y+Math.sin(a+this.clock*.6)*d*.75;
+      const size=(1.1+i%3*.65)*(1-t*.55);
+      c.fillStyle='rgba('+hue+','+(.25+.55*t)+')';
+      c.beginPath();c.arc(px,py,size,0,TAU);c.fill();
+      c.strokeStyle='rgba('+hue+','+(.10+.28*t)+')';c.lineWidth=.8;
+      c.beginPath();c.moveTo(px,py);c.quadraticCurveTo((px+x)*.5,py-9,x,y);c.stroke();
+    }
+    c.restore();
+    // Лишь в конце проявляется настоящий враг, без внезапного скачка.
+    if(t>.57){
+      c.save();c.globalAlpha=Math.pow((t-.57)/.43,1.5);
+      this.drawEnemy(e,x,y,this.cfg.render.colors);
+      c.restore();
+    }
   }
 
   drawEnemy(e, x, y, C) {

@@ -12,6 +12,7 @@ export function createEnemy() {
     def: null,
     touchTimer: 0, // пауза до следующего удара по герою
     flash: 0,      // вспышка при попадании, с
+    spawnT: 0, spawnDuration: 0.85, // сгущение энергии до материализации
     kbVx: 0, kbVy: 0, // скорость откидывания, быстро затухает
     kbTau: 0.07,      // за сколько секунд затухает откидывание
     hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
@@ -51,6 +52,8 @@ export function initEnemy(e, def, x, y) {
   e.radius = def.radius;
   e.hp = e.maxHp = def.hp;
   e.gen++;
+  e.spawnDuration=def.spectral?1.1:.85;
+  e.spawnT=e.spawnDuration;
   e.xpExhausted = false;
   e.archPhase = 0;
   e.walkIn = false;
@@ -115,6 +118,12 @@ export function applyKnockback(e, dirX, dirY, distance, tau, ignoreScale) {
 
 /** nav: необязательное поле навигации (NavGrid); без него враг идёт напрямую. */
 export function updateEnemy(e, dt, hero, arena, nav) {
+  if(e.spawnT>0){
+    e.prevX=e.x;e.prevY=e.y;
+    e.spawnT=Math.max(0,e.spawnT-dt);
+    e.hx=e.hy=0;
+    return;
+  }
   if (e.rainGravityT > 0) e.rainGravityT = Math.max(0,e.rainGravityT-dt);
   e.prevX = e.x;
   e.prevY = e.y;
