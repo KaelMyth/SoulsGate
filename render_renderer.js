@@ -659,6 +659,19 @@ export class Renderer {
     const gy1 = Math.min(viewB, arena.bottom);
     if(arena.location==='hall'){
       this.castleHall.drawFloor(ctx,viewL,viewT,viewR,viewB);
+      if(this.boss?.enemy?.active && this.boss.enemy.def===this.cfg.enemies.tartas){
+        for(const p of this.castleHall.torches){
+          const flicker=Math.sin(this.clock*13+p.x)*3;
+          const glow=ctx.createRadialGradient(p.x,p.y-13,2,p.x,p.y-13,42);
+          glow.addColorStop(0,'rgba(255,179,67,.7)');
+          glow.addColorStop(1,'rgba(255,120,24,0)');
+          ctx.fillStyle=glow;ctx.fillRect(p.x-44,p.y-57,88,88);
+          ctx.fillStyle='#ffb84e';ctx.beginPath();
+          ctx.moveTo(p.x-6,p.y-8);ctx.quadraticCurveTo(p.x-11,p.y-24,p.x+flicker,p.y-34);
+          ctx.quadraticCurveTo(p.x+11,p.y-18,p.x+5,p.y-8);ctx.closePath();ctx.fill();
+          ctx.fillStyle='#fff2b0';ctx.beginPath();ctx.ellipse(p.x,p.y-12,3,7,0,0,Math.PI*2);ctx.fill();
+        }
+      }
     }else if(gx1>gx0&&gy1>gy0){
       ctx.drawImage(this.floor,gx0-arena.left,gy0-arena.top,gx1-gx0,gy1-gy0,gx0,gy0,gx1-gx0,gy1-gy0);
     }

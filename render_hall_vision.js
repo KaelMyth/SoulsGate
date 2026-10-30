@@ -113,6 +113,20 @@ export class HallVision {
     // Вражеские атаки всегда получают свет до заполнения бюджета эффектами героя.
     // Вражеские выстрелы и телеграфы полноценные источники света, а не декорации.
     this.list(r.enemyShots?.items,20,cfg.projectileRadius*1.35,.88,alpha,true);
+    // Факелы и магические атаки Тартаса освещают зал во время боя.
+    const boss=r.boss;
+    const tartas=boss?.enemy;
+    if(tartas?.active && tartas.def===r.cfg.enemies.tartas){
+      for(const p of r.castleHall?.torches||[])this.light(p.x,p.y,190,.98);
+      this.light(tartas.x,tartas.y,165,.88);
+      for(let i=0;i<(boss.bladeCount||0)&&this.count<cfg.maxLights;i++){
+        const blade=boss.blades[i];
+        if(blade && blade.state>0 && blade.state<3)
+          this.light(blade.x,blade.y,115,.92);
+      }
+      if(boss.state==='blastTele'||boss.state==='blast'||boss.state==='squadCast')
+        this.light(tartas.x,tartas.y,260,.96);
+    }
     if(r.enemies?.items){
       let attackLights=0;
       for(const e of r.enemies.items){

@@ -1409,7 +1409,7 @@ export const CONFIG = {
 
   render: {
     // Объёмные Canvas-модели рыцарей (включая варианты версии 1 и 2).
-    isometricIceEnemies: true,
+    isometricIceEnemies: false,
     isometricTartas: false, // Тартас использует исходный плоский спрайт
     iceModelVersion: 2, // 2 — новые плавные объёмы; 1 — предыдущая версия
     maxEffects: 80, // потолок вспышек одновременно

@@ -128,6 +128,10 @@ export class Blades {
     const m = raw ? forCarrier(raw, 'blades') : null;
     if (m?.scopes) {
       const carrier = m.scopes.blades || {};
+      const root = m.scopes.root || {};
+      for (const element of ['burn','frost','lightning','steam']) {
+        if (!m[element] && root[element]) m[element] = root[element];
+      }
       m.laser = carrier.laser ? raw.laser : null;
       m.shot = carrier.shot ? raw.shot : null;
       m.phantom = carrier.phantom ? {...raw.phantom, mult:carrier.phantom.mult} : null;
