@@ -73,7 +73,7 @@ export class HallVision {
 
   /** Применяется только поверх мира и перед HUD, чтобы интерфейс не темнел. */
   draw(ctx,r,alpha=1){
-    if(r.arena.location!=='hall'||r.arena.zone)return;
+    if(r.arena.location!=='hall')return;
     const w=r.w,h=r.h,cfg=this.cfg;
     this.ensure(w,h);
     this.camX=r.camera.x;this.camY=r.camera.y;
@@ -98,7 +98,11 @@ export class HallVision {
       // Сияние кристалла посоха, чуть меньше радиуса базовой атаки.
       this.light(hx,hy,base,.99);
       // Действующие навыки расширяют собственные освещённые области.
-      if(r.hud?.rainT>0)this.light(hx,hy,base*1.28,.8);
+      if(r.hud?.rainT>0){
+        // Магический дождь идёт по всему экрану, а не только возле героя.
+        const across=Math.hypot(w,h)/Math.max(.1,this.scale);
+        this.light(this.camX,this.camY,across*.54,.62);
+      }
       if(hero.incarnationT>0||r.incarnation?.active)this.light(hx,hy,base*1.5,.9);
       if(r.inspiration?.active)this.light(hx,hy,Math.max(160,r.cfg.skills.inspiration.radius*2.3),.92);
       if(r.aura?.active)this.light(hx,hy,Math.max(cfg.spellRadius,r.aura.radius*1.12),.86);
@@ -107,6 +111,11 @@ export class HallVision {
     }
 
     // Крупные стационарные заклинания раньше мелких снарядов: гарантируем свет навыков.
+    this.list(r.absorption?.targets,10,cfg.spellRadius,.8);
+    this.list(r.absorption?.flashes,8,cfg.spellRadius,.9);
+    this.list(r.blackSun?.souls,10,78,.68);
+    this.list(r.incarnation?.afterimages,7,100,.57);
+    this.list(r.synergyCasts,8,cfg.spellRadius,.68);
     this.list(r.fires,10,140,.75);
     this.list(r.clouds,8,145,.55);
     this.list(r.synergyFlashes,8,cfg.spellRadius,.85);
@@ -122,13 +131,24 @@ export class HallVision {
     if(r.lasers?.length)for(let i=0;i<r.lasers.length&&this.count<cfg.maxLights;i+=Math.max(1,Math.ceil(r.lasers.length/8))){
       const b=r.lasers[i];
       if(!b||b.active===false)continue;
-      const x0=b.x0??b.x1??hero.x,y0=b.y0??b.y1??hero.y;
-      const x1=b.x1??b.x??hero.x,y1=b.y1??b.y??hero.y;
+      const x0=b.x??b.x0??hero.x,y0=b.y??b.y0??hero.y;
+      const x1=b.len!==undefined?x0+(b.dx||0)*b.len:(b.x1??x0);
+      const y1=b.len!==undefined?y0+(b.dy||0)*b.len:(b.y1??y0);
       for(let j=1;j<=3&&this.count<cfg.maxLights;j++)
         this.light(x0+(x1-x0)*j/3,y0+(y1-y0)*j/3,105,.64);
     }
-    this.list(r.zapBolts,8,85,.8);
-    this.list(r.dashBeams,8,100,.7);
+    for(const group of [r.zapBolts,r.dashBeams]){
+      if(!group?.length)continue;
+      const step=Math.max(1,Math.ceil(group.length/7));
+      for(let i=0;i<group.length&&this.count<cfg.maxLights;i+=step){
+        const b=group[i];
+        if(!b)continue;
+        const x0=b.x0??b.x,y0=b.y0??b.y;
+        const x1=b.x1??b.x,y1=b.y1??b.y;
+        if(!Number.isFinite(x0)||!Number.isFinite(y0)||!Number.isFinite(x1)||!Number.isFinite(y1))continue;
+        this.light((x0+x1)*.5,(y0+y1)*.5,Math.max(78,Math.hypot(x1-x0,y1-y0)*.58),.78);
+      }
+    }
 
     // Отображаемые снаряды. Бюджет общий, так что сотни дробинок
     // не вызывают сотни полупрозрачных кругов в каждом кадре.
