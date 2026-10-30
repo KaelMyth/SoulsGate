@@ -679,7 +679,7 @@ export const CONFIG = {
       edge: '#ffb3a8',
     },
     // Охотник: зелёный жук с острой головой и «глазами охотника», намного быстрее обычного жука.
-    // Хрупкий: бьёт при касании, держится сам по себе (волны 6, 8, 9, 10). Вид: ЗАГЛУШКА ГРАФИКИ.
+    // Хрупкий: бьёт при касании, держится сам по себе (с 4-й волны). Вид: ЗАГЛУШКА ГРАФИКИ.
     hunter: {
       hp: 20,
       speed: 170,         // у жука 85
@@ -1252,7 +1252,7 @@ export const CONFIG = {
     shooterShare: 0.2,    // доля жуков-стрелков среди появляющихся
     shooterFromWave: 2,   // с какой волны стрелки появляются
     bullShare: 0.12,      // доля быков среди появляющихся
-    bullFromWave: 4,      // с какой волны появляются быки
+    bullFromWave: 3,      // с какой волны появляются тараны (быки)
     // С шестой волны (в новом холле) появляются Замёрзшие, те же, которых Тартас призывает атакой «Замёрзший отряд»
     // (enemies.frozen*). Тип по весам (2 лучника, 4 пехотинца, 1 таран). Приоритет над рисунками с 6-й волны, после перехода в холл.
     frozen: { fromWave: 6, weights: { frozenArcher: 2, frozenSoldier: 4, frozenRam: 1 } },
@@ -1291,15 +1291,21 @@ export const CONFIG = {
       { count: 86, interval: 0.26, maxAlive: 56 },
       { count: 90, interval: 0.25, maxAlive: 58 },
     ],
-    // Рисунки появления волн: как враги выходят (без записи волна идёт по таблице: по одному, случайно с краёв).
-    // groupSize: сколько выходят разом; mix: веса типов { ключ из enemies: вес }; sides: 'random' | 'varied' (каждая
-    // группа с новой стороны) | 'one' (вся волна с одной стороны) | 'ring' (группа по всему кольцу, со всех сторон);
-    // spread: разброс группы, единиц (кучка); count, interval (между группами), maxAlive переопределяют таблицу.
+    // Начальные волны: компактные стаи → охрана стрелков → тараны → окружение охотников → все жуки.
+    // groupSize — размер одной пачки; formation — стрелок с кольцом охраны;
+    // support — свободный таран в каждой N-й пачке (заменяет одного охранника);
+    // lineup — гарантированная последовательность типов, в отличие от случайного mix.
     patterns: {
-      2: { mix: { beetle: 1 }, groupSize: 3, sides: 'varied', spread: 28, count: 12, interval: 3.2, maxAlive: 12 },  // жуки по 3 с разных сторон
-      3: { mix: { beetle: 1 }, sides: 'random', count: 30, interval: 0.35, maxAlive: 26 },                            // много ближников
-      4: { mix: { beetle: 10, shooter: 3, bull: 3 }, groupSize: 16, sides: 'one', spread: 70, count: 16, interval: 1, maxAlive: 20 }, // все жуки кучей с одной стороны
-      5: { mix: { beetle: 6, shooter: 1 }, sides: 'random', count: 14, interval: 0.8, maxAlive: 12 },                // здесь просыпается жук-скала (rockWake)
+      1: { mix: { beetle: 1 }, groupSize: 4, sides: 'varied', spread: 24,
+        count: 16, interval: 2.6, maxAlive: 16 },
+      2: { formation: { leader: 'shooter', guard: 'beetle' }, groupSize: 6,
+        sides: 'varied', count: 24, interval: 3.4, maxAlive: 24 },
+      3: { formation: { leader: 'shooter', guard: 'beetle', support: { kind: 'bull', every: 2 } },
+        groupSize: 6, sides: 'varied', count: 30, interval: 3.0, maxAlive: 30 },
+      4: { mix: { hunter: 1 }, groupSize: 12, sides: 'ring',
+        count: 36, interval: 2.7, maxAlive: 36 },
+      5: { lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'bull', 'hunter', 'beetle'],
+        groupSize: 8, sides: 'ring', count: 32, interval: 3.0, maxAlive: 32 },
       6: { mix: { hunter: 5, beetle: 1 }, sides: 'random', count: 20, interval: 0.55, maxAlive: 16 },                // охотники
       7: { mix: { bull: 1 }, groupSize: 3, sides: 'varied', spread: 40, count: 12, interval: 5, maxAlive: 12 },      // группы быков
       8: { mix: { hunter: 1 }, groupSize: 10, sides: 'ring', count: 30, interval: 4, maxAlive: 30 },                // толпа охотников со всех сторон

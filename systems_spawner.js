@@ -61,7 +61,8 @@ export class Spawner {
     this.rnd = o.rnd;
     this.bus = o.bus || null;
     this.hero = o.hero || null; // нужен, чтобы босс появился рядом с героем
-    this.guards = o.guards || null; // Guards: охрана стрелка (формации волны 9)
+    this.guards = o.guards || null; // Охрана стрелков в формациях
+    this.rockBeetles = o.rockBeetles || null; // ждём пробуждения скалы на пятой волне
     this.pt = { x: 0, y: 0 };
     this.portal = null; // портал финального босса (openPortal)
     this.alive = 0;
@@ -205,7 +206,9 @@ export class Spawner {
     // Упёрлись в потолок или в лимит за шаг: не копим «долг» по таймеру, иначе после гибели врагов хлынет залп.
     if (this.spawnTimer < 0) this.spawnTimer = 0;
 
-    if (!this.crash && this.spawned >= total && this.alive === 0) {
+    // Пятая волна включает ещё и одну просыпающуюся скалу: Арх не выходит до её появления и гибели.
+    const rockPending = this.wave === 5 && this.rockBeetles?.pending.some(p => p.wave === 5 && p.left > 0);
+    if (!this.crash && this.spawned >= total && this.alive === 0 && !rockPending) {
       if (this.bus) this.bus.emit('wave:cleared', { wave: this.wave });
       // Волна босса: после зачистки вместо передышки выходит босс.
       const W = this.cfg.waves;
@@ -419,7 +422,10 @@ export class Spawner {
         }
       }
       if (!ok && !pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) continue;
-      this.spawnAt(this.pickKind(pat), this.pt.x, this.pt.y);
+      // Для смешанной пятой волны каждый вид гарантирован, а не зависит от случайного веса.
+      const lineup = pat?.lineup;
+      const kind = lineup?.length ? lineup[(this.spawned + i) % lineup.length] : this.pickKind(pat);
+      this.spawnAt(kind, this.pt.x, this.pt.y);
       made++;
     }
     if (anchorUsed !== null) {
@@ -441,12 +447,14 @@ export class Spawner {
     if (a !== null) this.lastAngle = a;
     const cx = this.pt.x;
     const cy = this.pt.y;
-    // Девятая волна использует построение отряда в обход pickKind.
-    // После пятой это замёрзший лучник и стражи, а не старые жуки.
+    // С шестой волны отряд заменяется Замёрзшими (существующее правило).
     const frozen=this.cfg.spawn.frozen && this.wave>=this.cfg.spawn.frozen.fromWave;
     const leader = this.spawnAt(frozen ? 'frozenArcher' : F.leader, cx, cy);
     const guards = [];
-    const n = Math.max(0, size - 1);
+    const groupIndex = Math.floor(this.spawned / Math.max(1, pat.groupSize || size));
+    const support = !frozen && size > 1 && F.support &&
+      (groupIndex + 1) % Math.max(1, F.support.every || 1) === 0 ? F.support : null;
+    const n = Math.max(0, size - 1 - (support ? 1 : 0));
     const a0 = this.rnd() * TAU;
     for (let i = 0; i < n; i++) {
       const ga = a0 + (i / Math.max(1, n)) * TAU;
@@ -454,6 +462,13 @@ export class Spawner {
     }
     if (this.guards) this.guards.assign(leader, guards);
     let made = 1 + n;
+    // Таран не охраняет стрелка: он атакует самостоятельно рядом с группой.
+    if (support) {
+      const sa = a0 + Math.PI / 2;
+      this.spawnAt(support.kind, cx + Math.cos(sa) * ringD * 1.65,
+        cy + Math.sin(sa) * ringD * 1.65);
+      made++;
+    }
     const X = pat.extra;
     if (X && this.rnd() < X.chance) {
       const m = 1 + Math.floor(this.rnd() * X.n);

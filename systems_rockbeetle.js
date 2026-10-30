@@ -79,7 +79,7 @@ export class RockBeetles {
     const table = this.cfg.waves.rockWake;
     if (!table || !this.cfg.enemies.rockBeetle) return;
     for (let k = 0; k < table.length; k++) {
-      if (table[k].wave === wave) this.pending.push({ pick: table[k].pick, left: table[k].count });
+      if (table[k].wave === wave) this.pending.push({ wave, pick: table[k].pick, left: table[k].count, wait: 0 });
     }
   }
 
@@ -96,6 +96,7 @@ export class RockBeetles {
   /** Раз в scanEvery секунд: из ждущих долгов будим скалы, которые сейчас видны. */
   tryWake(dt) {
     if (!this.pending.length) return;
+    for (const w of this.pending) w.wait += dt;
     this.scan -= dt;
     if (this.scan > 0) return;
     this.scan = this.cfg.waves.rockWakeScan || 0.25;
@@ -107,6 +108,15 @@ export class RockBeetles {
       cand.length = 0;
       const rocks = this.arena.rocks;
       for (let i = 0; i < rocks.length; i++) if (this.rockSeen(rocks[i])) cand.push(rocks[i]);
+      // Если на пятой волне ни одна скала не попала в кадр, после небольшой
+      // паузы будим ближайшую безопасную. Иначе Арх мог бы выйти до жука-скалы.
+      if (!cand.length && W.wave === 5 && W.wait >= 4) {
+        const minD = this.cfg.waves.rockWakeMinHeroDist || 0;
+        for (const rock of rocks)
+          if (Math.hypot(rock.x - this.hero.x, rock.y - this.hero.y) >= minD + rock.r)
+            cand.push(rock);
+        if (!cand.length) cand.push(...rocks); // тесная арена, но волна должна продолжаться
+      }
       if (W.pick === 'smallest') cand.sort((a, b) => a.r - b.r);
       else for (let i = cand.length - 1; i > 0; i--) { // перемешать (Фишер-Йейтс)
         const j = Math.floor(this.rnd() * (i + 1));
@@ -115,6 +125,7 @@ export class RockBeetles {
       const n = Math.min(W.left, cand.length);
       for (let i = 0; i < n; i++) this.wakeRock(cand[i], def);
       W.left -= n;
+      if (W.wave === 5 && !rocks.length) W.left = 0; // нет скал: не блокируем босса навсегда
       if (n > 0) woke = true;
       cand.length = 0;
       if (W.left <= 0) this.pending.splice(k, 1);

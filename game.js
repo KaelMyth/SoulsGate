@@ -278,7 +278,7 @@ export class Game {
       hud: this.hud,
     });
     this.spawner = new Spawner({
-      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero, guards: this.guards,
+      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero, guards: this.guards, rockBeetles: this.rockBeetles,
     });
     this.castleTransition=new CastleTransition({
       arena:this.arena,hero:this.hero,spawner:this.spawner,config,
