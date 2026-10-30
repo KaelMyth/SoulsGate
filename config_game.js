@@ -667,7 +667,7 @@ export const CONFIG = {
   enemies: {
     // Жук: бежит к герою, бьёт при касании, держится стаей.
     beetle: {
-      hp: 30,
+      hp: 24,
       speed: 85,
       radius: 12,
       touchDamage: 10,
@@ -681,7 +681,7 @@ export const CONFIG = {
     // Охотник: зелёный жук с острой головой и «глазами охотника», намного быстрее обычного жука.
     // Хрупкий: бьёт при касании, держится сам по себе (с 4-й волны). Вид: ЗАГЛУШКА ГРАФИКИ.
     hunter: {
-      hp: 20,
+      hp: 16,
       speed: 170,         // у жука 85
       radius: 11,
       touchDamage: 9,
@@ -695,7 +695,7 @@ export const CONFIG = {
     // Жук-стрелок: держит дистанцию, на секунду замирает (светится) и выпускает медленный снаряд.
     // Снаряд можно парировать. Касание стрелка обычное и не парируется.
     shooter: {
-      hp: 22,
+      hp: 17.6,
       speed: 62,
       radius: 11,
       touchDamage: 5,
@@ -716,7 +716,7 @@ export const CONFIG = {
     // После парирования бык отлетает в бок (не назад) и на время оглушён.
     // Атака описана данными в attack, логика в systems/attacks.js; shape: 'circle' даёт удар по площади.
     bull: {
-      hp: 60,
+      hp: 48,
       speed: 75,
       radius: 15,
       touchDamage: 8,
@@ -746,14 +746,14 @@ export const CONFIG = {
     // Замёрзший отряд Тартаса (третья атака босса). Цвета: ЗАГЛУШКА ГРАФИКИ, голубые круги.
     // Лучник: как стрелок, но сильнее.
     frozenArcher: {
-      hp: 45, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
+      hp: 36, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
       drop: 'green', swarm: false, squad: true, flameArrow: true,
       keepDistance: 190, shotRange: 340, aimTime: 0.5, fireInterval: 1.8, firstShotDelay: 1.0,
       shot: { damage: 20, speed: 205, radius: 6, range: 480, knockback: 0, parryable: true, color: '#ff923d' },
       color: '#5aa9e6', edge: '#d6efff',
     },
     battleMage: {
-      hp: 82, speed: 0, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
+      hp: 65.6, speed: 0, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
       drop: 'red', swarm: false, squad: true,
       keepDistance: 330, shotRange: 450, aimTime: 0.65, fireInterval: 2.2, firstShotDelay: 1,
       shot: { damage: 19, speed: 175, radius: 8, range: 600, knockback: 0, parryable: true, color: '#ac83ff' },
@@ -761,13 +761,13 @@ export const CONFIG = {
     },
     // Пехотинец: как жук, но сильнее и быстрее.
     frozenSoldier: {
-      hp: 55, speed: 120, radius: 12, touchDamage: 14, touchCooldown: 0.8, knockbackScale: 1,
+      hp: 44, speed: 120, radius: 12, touchDamage: 14, touchCooldown: 0.8, knockbackScale: 1,
       drop: 'green', swarm: true, squad: true,
       color: '#5aa9e6', edge: '#d6efff',
     },
     // Таран: как бык, но атака достаёт дальше.
     frozenRam: {
-      hp: 60, speed: 75, radius: 15, touchDamage: 8, touchCooldown: 0.9, knockbackScale: 0.6,
+      hp: 48, speed: 75, radius: 15, touchDamage: 8, touchCooldown: 0.9, knockbackScale: 0.6,
       drop: 'red', swarm: false, squad: true,
       attack: {
         shape: 'line', range: 520, length: 440, width: 30, windup: 0.9, strike: 0.28, recovery: 0.8,
@@ -778,7 +778,7 @@ export const CONFIG = {
     // Горный жук: просыпается из скалы (скала исчезает, см. rockWake). Одна атака: замирает, бьёт в землю,
     // из него вылетают мошки (systems_rockbeetle.js). Размер и здоровье зависят от размера скалы. Цвета: ЗАГЛУШКА ГРАФИКИ.
     rockBeetle: {
-      hp: 120, speed: 55, radius: 24, touchDamage: 12, touchCooldown: 0.9, knockbackScale: 0.4,
+      hp: 96, speed: 55, radius: 24, touchDamage: 12, touchCooldown: 0.9, knockbackScale: 0.4,
       drop: 'red', swarm: false,
       hpRockRef: 50,       // скала такого радиуса даёт здоровье hp; меньше скала: меньше здоровья и размер
       radiusScale: 0.85,   // радиус жука = радиус скалы × это (в пределах minRadius..maxRadius): жук размером со скалу
@@ -809,25 +809,25 @@ export const CONFIG = {
     },
     // Восставший апостол (вторая фаза, «Восстание»): быстрый бегун с касанием, здоровья мало. risen: признак для systems_apostles.js.
     apostleRisen: {
-      hp: 45, speed: 150, radius: 14, touchDamage: 16, touchCooldown: 0.7, knockbackScale: 1, drop: 'green', swarm: false,
+      hp: 36, speed: 150, radius: 14, touchDamage: 16, touchCooldown: 0.7, knockbackScale: 1, drop: 'green', swarm: false,
       risen: true, color: '#3a3a46', edge: '#b8b8d0',   // ЗАГЛУШКА ГРАФИКИ
     },
     // Апостолы Апофеоза (атака «Призыв апостолов», systems_apostles.js): высокие создания по углам острова.
     // Стоят на месте (speed 0), умения применяют по очереди. apostle: вид умения. Цвета: ЗАГЛУШКА ГРАФИКИ.
     apostleFaith: {
-      hp: 380, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 304, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'faith', color: '#f4f0d8', edge: '#ffffff',   // Вера: лечит остальных
     },
     apostleTruth: {
-      hp: 420, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 336, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'truth', color: '#e9b93a', edge: '#fff0b0',   // Правда: золотые клинки
     },
     apostleForce: {
-      hp: 480, speed: 0, radius: 18, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 384, speed: 0, radius: 18, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'force', color: '#c8503c', edge: '#ffc0b0',   // Сила: притягивает героя
     },
     apostleLove: {
-      hp: 340, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 272, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'love', color: '#e58ab8', edge: '#ffd6ea',    // Любовь: усиливает остальных
     },
     // Апофеоз: финальный босс 20-й волны. Шаг 1: только арена (остаток карты рушится, герой на острове, босс в разрушенной зоне).
@@ -1028,7 +1028,7 @@ export const CONFIG = {
     // Скелеты: появляются среди обычных врагов после волны босса (spawn.skeleton). Цвета: ЗАГЛУШКА ГРАФИКИ, кремовые круги.
     // Стрелок: как жук-стрелок, но сильнее.
     skeletonArcher: {
-      hp: 40, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
+      hp: 32, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
       drop: 'green', swarm: false,
       keepDistance: 200, shotRange: 300, aimTime: 0.5, fireInterval: 2.0, firstShotDelay: 1.2,
       shot: { damage: 18, speed: 170, radius: 7, range: 460, knockback: 0, parryable: true, color: '#e8dfc4' },
@@ -1036,13 +1036,13 @@ export const CONFIG = {
     },
     // Воин: как жук, но крепче и быстрее.
     skeletonWarrior: {
-      hp: 50, speed: 110, radius: 12, touchDamage: 13, touchCooldown: 0.8, knockbackScale: 1,
+      hp: 40, speed: 110, radius: 12, touchDamage: 13, touchCooldown: 0.8, knockbackScale: 1,
       drop: 'green', swarm: true,
       color: '#cfc6a8', edge: '#f6f1e0',
     },
     // Таран: как бык, но рывок длиннее.
     skeletonRam: {
-      hp: 70, speed: 75, radius: 15, touchDamage: 8, touchCooldown: 0.9, knockbackScale: 0.6,
+      hp: 56, speed: 75, radius: 15, touchDamage: 8, touchCooldown: 0.9, knockbackScale: 0.6,
       drop: 'red', swarm: false,
       attack: {
         shape: 'line', range: 420, length: 360, width: 30, windup: 0.9, strike: 0.28, recovery: 0.8,
