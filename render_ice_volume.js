@@ -106,7 +106,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     const fall=boss?53:35,t=this.renderer.clock+st.seed;
     const wind=st.weight*4.5,flap=Math.sin(t*2.5)*2.5;
     // Кривой нижний контур с несколькими слоями и мягкими складками.
-    const L=this.p(-x-12-wind,-y*1.15,3),R=this.p(-x-16-wind,y*1.15,2);
+    const L=this.p(-23-wind,-y*1.15,3),R=this.p(-26-wind,y*1.15,2);
     const topL=this.p(-6,-y,top),topR=this.p(-6,y,top);
     const midL=this.p(-19-wind,-y*1.12,12+flap),midR=this.p(-19-wind,y*1.1,14-flap);
     const bottom=this.p(-29-wind,0,boss?2:4);
@@ -505,7 +505,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     }
     this.arm(ctx,-this.near,st,boss,strike);
     this.pauldron(ctx,-this.near,boss);
-    this.body(ctx,boss,true);
+    this.body(ctx,boss,!backVisible);
     // Затылочный шов всегда геометрически сзади, не нарисован поверх лица.
     if(backVisible)this.mantle(ctx,st,boss,true);
     this.arm(ctx,this.near,st,boss,strike);
