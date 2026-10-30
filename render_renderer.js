@@ -2350,7 +2350,8 @@ export class Renderer {
   }
 
   drawTartas(e, x, y, hit) {
-    if(this.isoEnemies.enabled){
+    // По умолчанию используем исходный плоский спрайт; 2.5D остаётся для рыцарей.
+    if(this.isoEnemies.enabled && this.cfg.render.isometricTartas!==false){
       this.isoEnemies.draw(this.ctx,e,x,y,'tartas',hit);
       return;
     }

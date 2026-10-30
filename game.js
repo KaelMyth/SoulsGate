@@ -387,7 +387,9 @@ export class Game {
       if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
-      this.renderer.isoEnemies.onDeath(enemy); // изометрические падения (без влияния на выпадение опыта)
+      // Для плоского Тартаса не создаём объёмный труп поверх старого спрайта.
+      if (enemy.def!==this.config.enemies.tartas || this.config.render.isometricTartas!==false)
+        this.renderer.isoEnemies.onDeath(enemy); // падения объёмных врагов, без влияния на опыт
       // Запускаем открытие прямо в кадре последнего удара по Арху.
       if(enemy.def===this.config.enemies.ashenArch && this.spawner.wave===this.config.waves.boss.wave)
         this.castleTransition.bossDefeated(this.spawner.wave);
