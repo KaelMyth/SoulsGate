@@ -1,4 +1,4 @@
-// Релиз 167: замёрзшие враги с волны 5; тёмный холл с криптами и колоннами.
+// Релиз 168: исправлено начало Замёрзших на 6 волнe; редкие тонкие колонны и крипты.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
