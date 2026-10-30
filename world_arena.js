@@ -155,7 +155,7 @@ export class Arena {
   }
 
   get obstacles() {
-    return this.location==='hall' ? this.hallObstacles : this.rocks;
+    return this.location==='hall' && !this.zone ? this.hallObstacles : this.rocks;
   }
 
   /** Убрать скалу из мира (жук проснулся). Возвращает убранную скалу или null. */
