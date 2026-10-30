@@ -252,5 +252,6 @@ export function buildLogo() {
       spikeTop, spikeBot),
     line('M62 236H160M780 236H880', '#cfe0f8', 2, { opacity: 0.6 }),
     line('M206 278H452M488 278H740', '#cfe0f8', 1.6, { opacity: 0.45 }),
-    poly('470,270 478,278 470,286 462,278', 'none', { stroke: '#cfe0f8', 'stroke-width': 1.6, opacity: 0.7 }));
+    poly('470,270 478,278 470,286 462,278', 'none', { stroke: '#cfe0f8', 'stroke-width': 1.6, opacity: 0.7 }),
+    svg('text', { x: 470, y: 326, 'text-anchor': 'middle', fill: '#c5d5ee', opacity: .9, style: 'font: 400 26px var(--serif)' }, 'Pre-Alfa ver 0.1a'));
 }
