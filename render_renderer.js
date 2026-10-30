@@ -11,6 +11,7 @@ import { NorthGateArt } from './render_northgate.js';
 import { CastleHallArt } from './render_castle_hall.js';
 import { HallVision } from './render_hall_vision.js';
 import { IsometricIceEnemies } from './render_isometric_enemies.js';
+import { IceVolumeArt } from './render_ice_volume.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
@@ -530,7 +531,9 @@ export class Renderer {
     this.northGate = this.arena.northWall ? new NorthGateArt(this.arena) : null;
     this.castleHall=new CastleHallArt(this.arena);
     this.hallVision=new HallVision(cfg);
-    this.isoEnemies=new IsometricIceEnemies(this);
+    // 2 — новая объёмная модель; 1 — предыдущая версия; false — исходный top-down.
+    this.isoEnemies=cfg.render.iceModelVersion===1
+      ?new IsometricIceEnemies(this):new IceVolumeArt(this);
     this.isoEnemies.enabled=cfg.render.isometricIceEnemies!==false;
     this.castleTransition=null;
     this.hero = deps.hero;
