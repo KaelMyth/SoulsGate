@@ -39,6 +39,10 @@ export class NavGrid {
       for (let c = 0; c < cols; c++) {
         const x = arena.left + (c + 0.5) * cell;
         const y = arena.top + (r + 0.5) * cell;
+        if(arena.northWall && !arena.zone && y < arena.walkTop + pad){
+          blocked[r * cols + c] = 1;
+          continue;
+        }
         for (let i = 0; i < arena.rocks.length; i++) {
           const rock = arena.rocks[i];
           const dx = x - rock.x;
