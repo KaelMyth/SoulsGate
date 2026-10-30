@@ -27,6 +27,24 @@ test('С 5-й волны спавнятся только замёрзшие, д�
   assert.equal(CONFIG.waves.boss.wave,5,'Пепельный Арх остаётся на 5 волне');
 });
 
+test('Построение отряда девятой волны тоже выпускает Замёрзших',()=>{
+  const s=Object.create(Spawner.prototype),kinds=[];
+  s.cfg=CONFIG;s.rnd=()=>.3;s.pt={x:0,y:0};
+  s.ringPoint=(angle,out)=>{out.x=200;out.y=120;return angle;};
+  s.spawnAt=(kind)=>{kinds.push(kind);return{kind};};
+  s.guards={assign(){}};
+  const pat={formation:{leader:'shooter',guard:'beetle'}};
+  s.wave=9;
+  s.spawnFormation(6,pat,0);
+  assert.equal(kinds[0],'frozenArcher');
+  assert.deepEqual(kinds.slice(1),Array(5).fill('frozenSoldier'));
+  kinds.length=0;
+  s.wave=4;
+  s.spawnFormation(3,pat,0);
+  assert.equal(kinds[0],'shooter');
+  assert.deepEqual(kinds.slice(1),['beetle','beetle']);
+});
+
 test('В холле физические колонны и боковые саркофаги, не снежные скалы',()=>{
   const a=new Arena(CONFIG.arena);
   assert.equal(a.location,'courtyard');
