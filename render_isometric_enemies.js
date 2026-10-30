@@ -305,6 +305,36 @@ export class IsometricIceEnemies {
     const kick=Math.sin(phase),back= Math.sin(st.dir)<-.1;
     const sc=e.radius/(boss?17:kind==='ram'?13.5:11.5);
     this.angle=st.dir; // используется только пока синхронно рисуется один персонаж
+    // Сохраняем характерные для исходного Тартаса визуальные акценты:
+    // морозное свечение, разгон рывка и рунический венец призыва.
+    if(boss&&this.renderer.getGlow){
+      const t=this.renderer.clock,b=this.renderer.boss,gl=this.renderer.getGlow('blue');
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=.13+.08*Math.sin(t*2.7+st.seed);
+      ctx.drawImage(gl,x-e.radius*2.15,y-e.radius*2.45,e.radius*4.3,e.radius*4.5);
+      const casting=['bladeIn','bladeWave','bladeGap','squadCast','blastTele'].includes(bs);
+      if(casting){
+        ctx.strokeStyle='#9dd8f5';ctx.lineWidth=1.5;
+        ctx.globalAlpha=.4+.12*Math.sin(t*6);
+        ctx.beginPath();ctx.arc(x,y,e.radius*1.85,0,TAU);ctx.stroke();
+        for(let i=0;i<9;i++){
+          const a=i*TAU/9+t*.42,d=e.radius*1.8;
+          const q=[x+Math.cos(a)*d,y+Math.sin(a)*d];
+          const p=[x+Math.cos(a+.08)*(d+5),y+Math.sin(a+.08)*(d+5)];
+          line(ctx,q,p,'#d8f1ff',1.5);
+        }
+      }
+      if(bs==='dash'){
+        const dir=st.dir,length=e.radius*2.5;
+        ctx.strokeStyle='#8fd8ff';
+        ctx.globalAlpha=.27;
+        ctx.lineWidth=e.radius*.8;ctx.lineCap='round';
+        line(ctx,[x-Math.cos(dir)*length,y-Math.sin(dir)*length],
+          [x,y],'#8fd8ff',e.radius*.8);
+      }
+      ctx.restore();
+    }
     ctx.save();ctx.translate(x,y);
     // Силуэт вырастает из точки на полу, а не вращается плоской медалькой.
     const fall=clamp(dx,0,1),deathAlpha=1-fall*.98;
