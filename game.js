@@ -1830,7 +1830,7 @@ export class Game {
         this.lightdash.bonus = this.shockBonus(km0);
       }
       this.defense.update(attackDt);
-      if(this.introWalk && this.arena.location==='courtyard'){
+      if(this.introWalk){
         const intro=this.introWalk;
         const step=Math.min(intro.targetY-this.hero.y,intro.speed*dt);
         if(step>0){this.hero.place(this.hero.x,this.hero.y+step);this.hero.facing=-Math.PI/2;}
@@ -1838,6 +1838,14 @@ export class Game {
       }else this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
       this.barriers.blockHero(this.hero);
       this.castleTransition.update(dt);
+      if(this.arena.location==='hall' && this.sanctumGate){
+        const gate=this.sanctumGate;
+        if(this.spawner.phase==='gate' && this.spawner.wave===this.config.waves.boss2.wave){
+          gate.open=Math.min(1,gate.open+dt/5.5);
+          if(gate.open>=1 && Math.abs(this.hero.x)<105 &&
+             this.hero.y-this.hero.radius<=this.arena.walkTop+42)this.enterSanctum();
+        }
+      }
       this.lightdash.update(attackDt);
       this.updateKinetic(attackDt);
       this.updateFires(worldDt);
@@ -2154,8 +2162,9 @@ export class Game {
     this.barriers?.reset(); // мошки исчезают, скалы и вся карта возвращаются
     this.camera.resetZoom();
     this.cine = null;
-    this.arena.setLocation(which==='arch'?'courtyard':'hall');
+    this.arena.setLocation(which==='arch'?'courtyard':which==='final'?'sanctum':'hall');
     this.castleTransition.reset();
+    this.sanctumGate.open=0;
     this.renderer.floor=null;
     this.renderer.details=null;
     this.nav.buildBlocked();
@@ -2168,7 +2177,7 @@ export class Game {
   }
 
   jumpToWave(n) {
-    this.arena.setLocation(n>this.config.waves.boss.wave?'hall':'courtyard');
+    this.arena.setLocation(n>this.config.waves.boss2.wave?'sanctum':n>this.config.waves.boss.wave?'hall':'courtyard');
     this.castleTransition.reset();
     this.renderer.floor=null;
     this.renderer.details=null;
@@ -2200,10 +2209,7 @@ export class Game {
     this.absorption.reset();
     this.blackSun.reset();
     this.autoattack.reset();
-    this.hero.x=0;
-    this.hero.y=Math.min(this.arena.bottom-120,Math.max(this.arena.walkTop+130,this.config.arena.castleTransition.hallStartY));
-    this.hero.prevX=this.hero.x;
-    this.hero.prevY=this.hero.y;
+    this.beginLocationEntrance();
     this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
     this.nav.buildBlocked();
     this.nav.source=-1;
@@ -2214,6 +2220,31 @@ export class Game {
     this.syncWaveHud();
     this.burst(this.hero.x,this.hero.y,.7,15,90,'#e7c58c');
     return true;
+  }
+
+  /** Переход в тронный зал после победы над Тартасом. */
+  enterSanctum(){
+    if(this.arena.location!=='hall'||this.spawner.phase!=='gate')return false;
+    this.arena.setLocation('sanctum');
+    this.enemies.clear();this.heroShots.clear();this.enemyShots.clear();
+    this.gems.clear();this.effects.clear();this.pellets.clear();
+    this.barriers?.reset();this.blades.reset();this.absorption.reset();
+    this.renderer.isoEnemies?.reset();
+    this.hero.place(0,this.arena.bottom-this.hero.radius-18);
+    this.beginLocationEntrance();
+    this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
+    this.nav.buildBlocked();this.nav.source=-1;
+    this.renderer.floor=null;this.renderer.details=null;
+    this.spawner.advanceAfterGate();this.syncWaveHud();
+    return true;
+  }
+
+  /** Общий вход снизу экрана с автоматическим продвижением вглубь. */
+  beginLocationEntrance(){
+    const bottom=this.arena.bottom-this.hero.radius-18;
+    this.hero.place(0,bottom);this.hero.facing=-Math.PI/2;
+    this.introWalk={targetY:Math.min(0,bottom-165),speed:125};
+    this.spawner.timer=this.config.waves.intermission;
   }
 
   /** Расставить ядра по полю билда случайно (внутри, не на краях). */
@@ -2425,11 +2456,7 @@ export class Game {
 
   beginCourtyardIntro(){
     if(this.config.waves.startWave!==1){this.introWalk=null;return;}
-    const bottom=this.arena.bottom-this.hero.radius-14;
-    this.hero.place(0,bottom);
-    this.hero.facing=-Math.PI/2;
-    this.introWalk={targetY:Math.min(0,bottom-135),speed:110};
-    this.spawner.timer=this.config.waves.intermission;
+    this.beginLocationEntrance();
     this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
   }
 

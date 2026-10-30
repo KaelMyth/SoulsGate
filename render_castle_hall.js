@@ -63,7 +63,7 @@ function sconce(c,x,y){
   c.restore();
 }
 export class CastleHallArt {
-  constructor(arena){this.arena=arena;this.floor=null;this.torches=[];this.columns=arena.hallColumns;this.columnSprite=null;this.opacity=new Map();}
+  constructor(arena){this.arena=arena;this.floor=null;this.torches=[{x:-242,y:arena.top+190},{x:242,y:arena.top+190}];this.columns=arena.hallColumns;this.columnSprite=null;this.opacity=new Map();}
   build(){
     const ar=this.arena,W=ar.width|0,H=ar.height|0;
     const cv=typeof OffscreenCanvas==='function'?new OffscreenCanvas(W,H):document.createElement('canvas');
@@ -200,7 +200,6 @@ export class CastleHallArt {
         '#7f7159','#c3a17b',1);
     }
     // Пустые погасшие чаши: никакого горящего факела в заброшенном зале.
-    this.torches.push({x:-242,y:T+190},{x:242,y:T+190});
     for(const p of this.torches)sconce(c,p.x,p.y);
     // Затемнение краёв усиливает глубину помещения, а не обесцвечивает игровой центр.
     const vignette=c.createRadialGradient(0,60,250,0,60,1120);
