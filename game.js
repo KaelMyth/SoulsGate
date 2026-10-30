@@ -49,6 +49,7 @@ import { BuildGrid } from './build_grid.js';
 import { Storage } from './build_storage.js';
 import { Blades } from './systems_blades.js';
 import { Incarnation } from './systems_incarnation.js';
+import { Inspiration } from './systems_inspiration.js';
 import { Pellets } from './systems_pellets.js';
 import { layoutCores } from './build_placement.js';
 import { readSafeInsets } from './platform_viewport.js';
@@ -122,6 +123,8 @@ export class Game {
       if (this.state === 'playing') this.defense.tryDash(dx, dy);
     });
     this.xp = new Xp({ config, hero: this.hero, gems: this.gems, bus: this.bus, rnd: this.rnd });
+    this.inspiration = new Inspiration({config,hero:this.hero,gems:this.gems,bus:this.bus});
+    this.xp.inspiration = this.inspiration;
     this.attacks = new Attacks({ config, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense });
     this.boss = new Boss({ config, enemies: this.enemies, hero: this.hero, arena: this.arena, combat: this.combat, bus: this.bus, defense: this.defense, rnd: this.rnd });
     this.guards = new Guards({ config, hero: this.hero });
@@ -251,6 +254,7 @@ export class Game {
       blades: this.blades.items,
       kineticBlades: this.kineticBlades,
       incarnation: this.incarnation,
+      inspiration: this.inspiration,
       aura: this.aura,
       absorption: this.absorption,
       blackSun: this.blackSun,
@@ -295,7 +299,7 @@ export class Game {
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
-    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); else if (i === 1) this.castIncarnation(); });
+    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); else if (i === 1) this.castIncarnation(); else if (i === 2) this.castInspiration(); });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
@@ -788,6 +792,17 @@ export class Game {
     return true;
   }
 
+  /** Воодушевление: золотая сфера притягивает все камни опыта и лечит на 1 HP за каждый. */
+  castInspiration() {
+    const id=this.build.secondaryId('inspiration');
+    if(this.state!=='playing' || !this.hero.active || this.skillCd[2]>0 || !id)return false;
+    if(!this.inspiration.begin())return false;
+    this.skillCd[2]=Math.max(.1,this.config.skills.inspiration.cooldown);
+    this.hud.inspirationT=this.inspiration.remaining;
+    this.hud.slotFlash=3;
+    return true;
+  }
+
   /** Перезарядки умений и время дождя на экране. */
   updateSkills(dt) {
     const sc = this.skillCd;
@@ -795,6 +810,9 @@ export class Game {
     if (this.hud.rainT > 0) this.hud.rainT = Math.max(0, this.hud.rainT - dt);
     this.hud.skillFrac0 = 1 - sc[0] / this.config.skills.rain.cooldown;
     this.hud.skillFrac1 = Math.max(0, Math.min(1, 1 - sc[1] / Math.max(0.1, this.config.skills.incarnation.cooldown)));
+    this.hud.skillFrac2 = Math.max(0,Math.min(1,1-sc[2]/Math.max(.1,this.config.skills.inspiration.cooldown)));
+    this.hud.inspirationOn = !!this.build.secondaryId('inspiration');
+    this.hud.inspirationT = this.inspiration.active ? this.inspiration.remaining : 0;
     const incarnationId = this.build.secondaryId('incarnation');
     this.hud.incarnationOn = !!incarnationId;
     this.hud.incarnationT = this.hero.incarnationT;
@@ -1811,6 +1829,7 @@ export class Game {
       this.rockBeetles.hitByShots(this.heroShots.items); // снаряды героя сбивают мошек
 
       this.xp.update(dt);
+      this.inspiration.update(dt);
       this.collisions.detect();
       this.gravityShield.hitEnemies();
       this.gravityShield.applyElements(worldDt);
@@ -2178,6 +2197,7 @@ export class Game {
     this.kineticMods = null;
     this.lightdash.reset();
     this.incarnation.reset(); // новый забег: очищаем память уже задетых врагов
+    this.inspiration.reset();
     this.hero.incarnationMask = 0;
     this.zapBolts.length = 0;
     this.dashBeams.length = 0;
@@ -2191,6 +2211,9 @@ export class Game {
     this.hud.rainGravity = false;
     this.hud.rainEquippedMask = 0;
     this.hud.incarnationT = 0;
+    this.hud.inspirationT = 0;
+    this.hud.inspirationOn = false;
+    this.hud.skillFrac2 = 1;
     this.hud.incarnationOn = false;
     this.hud.incarnationEquippedMask = 0;
     this.hud.skillFrac1 = 1;

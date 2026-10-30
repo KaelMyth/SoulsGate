@@ -12,12 +12,15 @@ export function createGem() {
   return {
     active: false, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0,
     radius: 4, value: 1, kind: 'green', def: null, age: 0, pull: 0, speed: 0,
+    inspired: false, inspireT: 0, inspireX: 0, inspireY: 0, inspireSeed: 0,
   };
 }
 
 export function resetGem(g) {
   g.active = false;
   g.def = null;
+  g.inspired = false;
+  g.inspireT = 0;
 }
 
 export class Xp {
@@ -28,6 +31,7 @@ export class Xp {
     this.gems = o.gems;
     this.bus = o.bus;
     this.rnd = o.rnd || Math.random;
+    this.inspiration = null; // третье умение: задаётся Game после создания объектов
     this.level = 1;
     this.xp = 0;        // накоплено в текущем уровне
     this.total = 0;     // всего за забег
@@ -77,6 +81,8 @@ export class Xp {
     g.age = 0;
     g.pull = 0;
     g.speed = 0;
+    g.inspired = false;
+    g.inspireT = 0;
     this.bus.emit('gem:dropped', { gem: g });
     return g;
   }
@@ -99,6 +105,7 @@ export class Xp {
       return;
     }
     const value = g.def.value;
+    this.inspiration?.collectedGem(g);
     this.bus.emit('gem:collected', { gem: g, value });
     this.add(value);
   }
@@ -135,6 +142,8 @@ export class Xp {
       g.prevY = g.y;
       g.age += dt;
       if (!hero.active) continue;
+      if (this.inspiration?.pull(g,dt)) { this.collect(g); continue; }
+      if (g.inspired) continue; // полёт из любой точки карты не прерывается обычным магнитом
       const dx = hero.x - g.x;
       const dy = hero.y - g.y;
       const d = Math.hypot(dx, dy);
