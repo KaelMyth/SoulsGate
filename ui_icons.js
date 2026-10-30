@@ -106,6 +106,14 @@ const ICONS = {
     ['circle', Object.assign({ cx: 20, cy: 13, r: 4.5 }, HI)],
     spark(7, 7, 2.2),
   ],
+  // Воодушевление: лучистая сфера, втягивающая маленькие кристаллы опыта.
+  inspiration: [
+    ['circle', S({ cx:16, cy:16, r:10.5, 'stroke-width':2.2 })],
+    ['circle', S({ cx:16, cy:16, r:6.3, 'stroke-width':1.1, opacity:.5 })],
+    ['path', S({ d:'M16 1.8V6M16 26V30.2M1.8 16H6M26 16H30.2M5.8 5.8L8.8 8.8M26.2 5.8L23.2 8.8M5.8 26.2L8.8 23.2M26.2 26.2L23.2 23.2', 'stroke-width':1.5 })],
+    ['path', Object.assign({d:'M16 10L21.5 16L16 22L10.5 16Z'},HI)],
+    spark(25,25,2.1),
+  ],
   // Молния: зигзаг и искры.
   lightning: [
     ['path', { d: 'M19 2L7 18H15L12 30L25 12H17Z', fill: 'currentColor' }],
