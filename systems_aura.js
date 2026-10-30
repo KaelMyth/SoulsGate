@@ -93,17 +93,25 @@ export class Aura {
   tick(m, dmg) {
     const h = this.hero;
     const en = this.enemies.items;
-    const n = this.grid.query(h.x, h.y, this.radius + this.reach);
-    const buf = this.grid.buf;
     const hit = this.hit;
     hit.length = 0;
-    for (let k = 0; k < n; k++) {
-      const e = en[buf[k]];
-      if (!e || !e.active) continue;
-      const dx = e.x - h.x;
-      const dy = e.y - h.y;
-      const r = this.radius + e.radius;
-      if (dx * dx + dy * dy <= r * r) hit.push(e);
+    if(this.inspiration?.auraWhole){
+      // Вся карта — не перебираем тысячи пустых ячеек пространственной сетки.
+      for(const e of en)if(e?.active){
+        const dx=e.x-h.x,dy=e.y-h.y,r=this.radius+e.radius;
+        if(dx*dx+dy*dy<=r*r)hit.push(e);
+      }
+    }else{
+      const n = this.grid.query(h.x, h.y, this.radius + this.reach);
+      const buf = this.grid.buf;
+      for (let k = 0; k < n; k++) {
+        const e = en[buf[k]];
+        if (!e || !e.active) continue;
+        const dx = e.x - h.x;
+        const dy = e.y - h.y;
+        const r = this.radius + e.radius;
+        if (dx * dx + dy * dy <= r * r) hit.push(e);
+      }
     }
     this.pulse = 1;
     this.source.kind = this.kind; // для эффекта попадания (только вид)
