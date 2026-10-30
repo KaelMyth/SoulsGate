@@ -64,6 +64,20 @@ test('Моды и их штатные усилители доступны на �
   assert.equal(build([['aura',3,4],['x2',3,5]]).aura.mult,2);
 });
 
+test('Мощь и Ускорение на дочерних модах сохраняют их базовую специализацию',()=>{
+  const blades=build([['blades',3,4],['haste',3,5]]);
+  const laser=build([['laser',3,4],['power',3,5],['haste',4,4]]);
+  const gravity=build([['gravity',3,4],['haste',3,5]]);
+  const absorption=build([['absorption',3,4],['haste',3,5]]);
+  const aura=build([['aura',3,4],['haste',3,5]]);
+  assert.ok(blades.blades.rate>1);
+  assert.ok(laser.laser.damage>1);
+  assert.ok(laser.laser.rate>1);
+  assert.ok(gravity.gravity.cooldownRate>1);
+  assert.ok(absorption.absorption.rate>1);
+  assert.ok(aura.aura.rate>1);
+});
+
 test('Красный камень даёт пять ответных огоньков, но лечит на один HP; максимум 3 на цель',()=>{
   const m=build([['burn',3,4]]),s=setup(m,8);
   s.inspiration.begin(m);s.gem('red');
