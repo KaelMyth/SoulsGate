@@ -5,6 +5,7 @@ import { getTelegraph } from './systems_attacks.js';
 import { HitFx } from './render_hitfx.js';
 import { SpellFx } from './render_spellfx.js';
 import { DashFx } from './render_dashfx.js';
+import { InspirationFx } from './render_inspiration.js';
 import { BlackSunFx } from './render_blacksun.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
@@ -525,6 +526,8 @@ export class Renderer {
     this.blades = deps.blades || [];
     this.kineticBlades = deps.kineticBlades || [];
     this.incarnation = deps.incarnation || null;
+    this.inspiration = deps.inspiration || null;
+    this.inspirationFx = new InspirationFx(this);
     this.aura = deps.aura || null;
     this.synergyCasts = deps.synergyCasts || [];
     this.synergyFlashes = deps.synergyFlashes || [];
@@ -727,6 +730,7 @@ export class Renderer {
       this.drawGravityDash(ctx);
       if (!this.defense?.gravityAuraMode) this.drawAura(ctx, hx, hy); // в связке общий новый горизонт вместо двух перекрывающихся кругов
       this.blackSunFx.drawBack(ctx,hx,hy);
+      this.inspirationFx.drawBack(ctx,hx,hy);
       this.dashfx.frame(ctx, this.dt, hx, hy);
       if (hero.incarnationLaser) this.drawLaserIncarnation(ctx, hx, hy);
       else if (hero.incarnationT > 0 && this.incarnation?.bladeQueue) { /* герой скрыт: игрок управляет стаей */ }
@@ -740,6 +744,7 @@ export class Renderer {
         this.drawHeroArcs(hx, hy, C);
       }
       this.blackSunFx.drawFront(ctx,hx,hy);
+      this.inspirationFx.drawFront(ctx,hx,hy);
     }
 
     this.drawFlash(viewL, viewR, viewT, viewB);
@@ -992,6 +997,7 @@ export class Renderer {
       ctx.lineWidth = 1;
       ctx.strokeStyle = g.def.edge;
       ctx.stroke();
+      if(g.inspired)this.inspirationFx.drawGem(ctx,g,x,y);
     }
   }
 
@@ -4967,7 +4973,12 @@ export class Renderer {
       this.drawAbility(cx, rowY, f1, slotColor, slotLight, 4,
         (hud.incarnationT || 0) > 0, f1 >= 0.999 ? ((hud.incarnationEquippedMask || 0) & 4 ? 'gold' : 'blue') : undefined, U.slots[1]);
     } else this.drawAbility(cx, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
-    this.drawAbility(cx + 64, rowY, 0, '#6fb6ff', '#d6efff', 0, false, undefined, 0, true);
+    if(hud.inspirationOn){
+      const S=this.cfg.skills.inspiration;
+      const f2=hud.skillFrac2===undefined?1:hud.skillFrac2;
+      this.drawAbility(cx+64,rowY,f2,S.shellColor,S.coreColor,5,
+        !!this.inspiration?.active,'gold',U.slots[2]);
+    }else this.drawAbility(cx+64,rowY,0,'#6fb6ff','#d6efff',0,false,undefined,0,true);
 
     // Повышение уровня: надпись плавно гаснет.
     if (hud.levelFlash > 0) {
@@ -5193,6 +5204,17 @@ export class Renderer {
       ctx.arc(cx, cy, 10, 0.4, TAU - 0.5);
       ctx.arc(cx, cy, 5.5, TAU - 0.5, 0.9, true);
       ctx.stroke();
+    } else if (kind === 5) { // золотая сфера Воодушевления с втягиваемыми кристаллами
+      ctx.beginPath();ctx.arc(cx,cy,9,0,TAU);ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,5,0,TAU);ctx.stroke();
+      for(let i=0;i<5;i++){
+        const a=i*TAU/5+this.clock*.38;
+        const x=cx+Math.cos(a)*15,y=cy+Math.sin(a)*15;
+        ctx.moveTo(x,y-2.5);ctx.lineTo(x+2.5,y);
+        ctx.lineTo(x,y+2.5);ctx.lineTo(x-2.5,y);ctx.closePath();
+      }
+      ctx.fill();
+      ctx.beginPath();ctx.arc(cx,cy,2.7,0,TAU);ctx.fill();
     } else if (kind === 4) { // комета: энергетическое ядро и три струи
       ctx.beginPath(); ctx.arc(cx + 4, cy - 3, 6.2, 0, TAU); ctx.stroke();
       ctx.beginPath();
