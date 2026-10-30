@@ -206,6 +206,13 @@ export const CONFIG = {
       stats: [{ label: 'Урон Воплощения', key: 'damage' }, { label: 'Скорость Воплощения', key: 'rate' }],
       effect: { kind: 'incarnation', secondary: true },
     },
+    inspiration: {
+      name: 'Воодушевление',
+      icon: 'inspiration',
+      rarity: 'legendary',
+      description: 'Третье умение. Героя окружает сияющая золотая сфера, втягивающая камни опыта со всей карты. Каждый собранный камень опыта восстанавливает ровно 1 HP независимо от его ценности. Опыт сохраняется.',
+      effect: { kind: 'inspiration', secondary: true },
+    },
     aura: {
       name: 'Смертельная аура',
       icon: 'aura',
@@ -335,6 +342,16 @@ export const CONFIG = {
   // Дробинки лежат в плоских массивах (systems/pellets.js), capacity это потолок дробинок на поле.
   // Умения (кнопки внизу). Первое: Магический дождь.
   skills: {
+    inspiration: {
+      duration: 3.8,     // время призыва камней, уже втянутые гарантированно долетают
+      travelTime: 2.5,   // время подлёта с любого расстояния
+      cooldown: 30,      // откат с момента нажатия
+      radius: 54,        // радиус золотой сферы в мире
+      shellColor: '#e9bc58',
+      coronaColor: '#ffeab0',
+      coreColor: '#fff9dc',
+      auraColor: '#ae7728',
+    },
     incarnation: {
       duration: 5, // с: время неуязвимого энергетического воплощения
       cooldown: 30, // с: перезарядка с момента активации
@@ -1125,7 +1142,7 @@ export const CONFIG = {
     // Мешок: сколько штук каждого мода может выпасть за забег (выбранный уходит из мешка).
     pool: {
       x2: 2, x3: 1, power: 5, haste: 5, burn: 1, frost: 1,
-      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, gravity: 1, kinetic: 1, rain: 1, incarnation: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
+      shot: 1, blades: 1, laser: 1, pierce: 1, phantom: 1, aura: 1, absorption: 1, gravity: 1, kinetic: 1, rain: 1, incarnation: 1, inspiration: 1, lightning: 1, magnet: 1, vamp: 1, xpmul: 1, vitality: 1, reach: 1, swift: 1,
     },
   },
 
