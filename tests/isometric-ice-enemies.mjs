@@ -96,7 +96,7 @@ test('Плавное вращение, ходьба с раздельными н
   e.aimTotal=1;e.aim=.5;
   const g=ctx();iso.draw(g.c,e,e.x,e.y,'archer');
   assert.ok(g.events.strokes.includes('#d0deed'),'лук и тетива');
-  assert.ok(g.events.strokes.includes('#e0f8ff'),'прицел и стрела');
+  assert.ok(g.events.strokes.includes('#ffcf87'),'прицел и стрела');
 });
 
 test('Тартас использует существующие состояния босса: телеграф, рывок, каст, восстановление',()=>{

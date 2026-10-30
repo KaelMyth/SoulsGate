@@ -9,6 +9,7 @@ export class Pellets {
     this.arena = o.arena;
     this.grid = o.grid;
     this.enemies = o.enemies;
+    this.barriers = o.barriers || null;
     this.onHit = o.onHit; // (enemy, damage, vx, vy, burnDmg, burnInt, frost, steam) => void
     const N = o.config.shot.capacity;
     this.cap = N;
@@ -119,6 +120,9 @@ export class Pellets {
       this.py[i] = this.y[i];
       const x = (this.x[i] += vx * dt);
       const y = (this.y[i] += vy * dt);
+      if(this.barriers?.interceptPellet(this.px[i],this.py[i],x,y,S.radius)){
+        this.remove(i);continue;
+      }
       this.left[i] -= this.speed[i] * dt;
       if (this.left[i] <= 0 || x < arena.left || x > arena.right || y < arena.top || y > arena.bottom
         || arena.circleHitsRock(x, y, S.radius)) {

@@ -766,6 +766,8 @@ export class Renderer {
       this.drawEnemy(e, ex, ey, C);
     }
 
+    // Щит на уровне бойцов, его полотно видно поверх боевого построения.
+    this.barriers?.draw(ctx,this.clock);
     this.drawAbsorptionVeils(ctx);
     this.drawDust(this.dt);
     this.hitfx.draw(ctx, this.dt);
@@ -2708,14 +2710,14 @@ export class Renderer {
       ctx.stroke();
       if (aim > 0) {
         ctx.lineWidth = 1.2;
-        ctx.strokeStyle = '#e8f6ff';
+        ctx.strokeStyle = '#ffe1a0';
         ctx.beginPath();
         ctx.moveTo(5 - pull, 0);
         ctx.lineTo(18, 0);
         ctx.stroke();
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 0.4 + 0.5 * aim;
-        ctx.drawImage(this.getGlow('blue'), 12, -7, 14, 14);
+        ctx.drawImage(this.getGlow(), 12, -8, 17, 16);
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
       }
@@ -2754,6 +2756,73 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Боевой маг в многослойной броне и мантии, с левитирующим фокусом щита. */
+  drawBattleMage(e,x,y,hit){
+    const ctx=this.ctx,t=this.clock,r=e.radius;
+    const a=Math.atan2(this.hero.y-y,this.hero.x-x);
+    const cs=Math.cos(a),sn=Math.sin(a),scale=r/15;
+    ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.scale(scale,scale);
+    const path=(pts,color,outline='#14182c')=>{
+      ctx.beginPath();ctx.moveTo(pts[0],pts[1]);
+      for(let i=2;i<pts.length;i+=2)ctx.lineTo(pts[i],pts[i+1]);
+      ctx.closePath();ctx.fillStyle=color;ctx.fill();
+      if(outline){ctx.lineWidth=.9;ctx.strokeStyle=outline;ctx.stroke();}
+    };
+    // Задние слои плаща, продольные складки и угловые набедренники.
+    path([-11,-11,-19,-12,-25,-7,-32,0,-25,7,-19,12,-11,11],
+      '#26243d');
+    path([-14,-9,-27,-7,-23,-3,-30,0,-21,3,-27,8,-14,9],
+      '#46406b',null);
+    path([-8,-8,-5,-12,9,-11,16,-4,16,4,9,11,-5,12],
+      '#33394e');
+    path([-7,-9,4,-12,15,-5,12,-1,-6,-1],'#67738a');
+    path([-7,9,4,12,15,5,12,1,-6,1],'#495770');
+    // Объёмная нагрудная броня, боковые грани, парящий камень.
+    path([-6,-12,7,-14,13,-7,13,7,7,14,-6,12,-13,0],
+      '#39465e');
+    path([3,-12,12,-8,15,-1,11,8,3,12,6,0],
+      '#66738e');
+    path([10,-6,15,-3,17,0,15,3,10,6],
+      '#8b86bd');
+    // Наплечники и металлические кромки с отдельными бликами.
+    for(const side of [-1,1]){
+      path([-3,side*11,4,side*17,15,side*15,17,side*10,7,side*8],
+        '#505c79');
+      path([4,side*13,14,side*14,16,side*11,9,side*10],
+        '#8892bb',null);
+    }
+    // Высокий капюшон над лицевой щелью, две подсвеченные руны.
+    path([-5,-8,3,-12,12,-8,15,0,12,8,3,12,-5,8,-8,0],
+      '#20243a');
+    path([0,-9,10,-7,15,0,10,7,0,9,4,0],
+      '#626a91');
+    path([9,-5,17,-3,17,3,9,5],
+      '#0c1428');
+    ctx.strokeStyle='#c4b0ff';ctx.lineWidth=1.6;ctx.beginPath();
+    ctx.moveTo(15,-3);ctx.lineTo(17,-1);
+    ctx.moveTo(15,3);ctx.lineTo(17,1);ctx.stroke();
+    // Боевой посох и фокус барьера, живые дуги энергии.
+    ctx.strokeStyle='#84769e';ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-6,17);ctx.lineTo(26,19);ctx.stroke();
+    ctx.strokeStyle='#e6ceff';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(15,18);ctx.lineTo(25,19);ctx.stroke();
+    const glow=.64+.2*Math.sin(t*7+e.x);
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle='rgba(151,115,255,'+glow+')';
+    ctx.beginPath();ctx.arc(27,19,6.5+Math.sin(t*5)*.6,0,TAU);ctx.fill();
+    ctx.fillStyle='#eee1ff';ctx.beginPath();ctx.arc(27,19,3.1,0,TAU);ctx.fill();
+    ctx.strokeStyle='rgba(192,169,255,.8)';ctx.lineWidth=1.1;
+    for(let i=0;i<3;i++){
+      const ang=t*1.5+i*TAU/3;
+      ctx.beginPath();ctx.arc(27+Math.cos(ang)*10,19+Math.sin(ang)*10,1.5,0,TAU);ctx.stroke();
+    }
+    ctx.restore();
+    if(hit){
+      ctx.globalAlpha=.35;path([-7,-10,9,-12,16,-4,16,4,9,12,-7,10],'#ffffff',null);
+    }
+    ctx.restore();
+  }
+
   drawEnemy(e, x, y, C) {
     const ctx = this.ctx;
     const r = e.radius;
@@ -2782,6 +2851,8 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.tartas) {
       // Тартас: замёрзший рыцарь с ледяным мечом.
       this.drawTartas(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.battleMage) {
+      this.drawBattleMage(e,x,y,hit);
     } else if (e.def === this.cfg.enemies.frozenSoldier) {
       this.drawFrozenTroop(e, x, y, hit, 'soldier');
     } else if (e.def === this.cfg.enemies.frozenArcher) {
@@ -3635,8 +3706,8 @@ export class Renderer {
       const py = p.prevY + (p.y - p.prevY) * alpha;
       if (px < viewL - 30 || px > viewR + 30 || py < viewT - 30 || py > viewB + 30) continue;
       if (p.color === archCols[0] || p.color === archCols[1]) continue; // у шаров Арха своё свечение
-      const g = p.radius * 3.2;
-      ctx.drawImage(glow, px - g, py - g, g * 2, g * 2);
+      const g = p.radius * (p.flameArrow?5:3.2);
+      ctx.drawImage(p.flameArrow?this.getGlow():glow, px - g, py - g, g * 2, g * 2);
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
@@ -3675,6 +3746,27 @@ export class Renderer {
         }
         ctx.restore();
         continue;
+      }
+      if(p.flameArrow){
+        // Огненная стрела со стальным древком и живым хвостом пламени.
+        const flick=Math.sin(t*21+ph)*.18;
+        ctx.globalCompositeOperation='lighter';
+        ctx.fillStyle='rgba(255,89,31,.38)';
+        ctx.beginPath();ctx.ellipse(-r*1.8,0,r*(2.7+flick),r*.95,0,0,TAU);ctx.fill();
+        ctx.fillStyle='#fd7830';
+        ctx.beginPath();ctx.moveTo(r*.4,-r*.8);
+        ctx.quadraticCurveTo(-r*1.5,-r*1.5,-r*(4.1+flick),0);
+        ctx.quadraticCurveTo(-r*1.4,r*1.3,r*.4,r*.8);
+        ctx.closePath();ctx.fill();
+        ctx.fillStyle='#ffda77';
+        ctx.beginPath();ctx.moveTo(r*1.2,0);ctx.lineTo(-r*1.6,-r*.45);
+        ctx.lineTo(-r*.7,0);ctx.lineTo(-r*1.6,r*.45);ctx.closePath();ctx.fill();
+        ctx.globalCompositeOperation='source-over';
+        ctx.strokeStyle='#453333';ctx.lineWidth=Math.max(1,r*.28);
+        ctx.beginPath();ctx.moveTo(-r*2.4,0);ctx.lineTo(r*1.5,0);ctx.stroke();
+        ctx.fillStyle='#f7e9cf';ctx.beginPath();
+        ctx.moveTo(r*2.2,0);ctx.lineTo(r*1.1,-r*.4);ctx.lineTo(r*1.1,r*.4);ctx.closePath();ctx.fill();
+        ctx.restore();continue;
       }
       if (p.color === archCols[0] || p.color === archCols[1]) { // сфера света Арха с кометным шлейфом, как у снаряда игрока
         const red = p.color === archCols[1];

@@ -23,6 +23,7 @@ import { createEffect, resetEffect, initEffect, initGlob, updateEffect } from '.
 import { Combat } from './systems_combat.js';
 import { AutoAttack } from './systems_autoattack.js';
 import { Spawner } from './systems_spawner.js';
+import { MageBarriers } from './systems_mage_barriers.js';
 import { Swarm } from './systems_swarm.js';
 import { HeroDefense } from './systems_defense.js';
 import { GravityShield } from './systems_gravity_shield.js';
@@ -146,6 +147,7 @@ export class Game {
     this.gravityShield.ignite = (e, dmg, interval) => this.ignite(e, dmg, interval);
     this.gravityShield.chill = (e, steam, dmg, interval) => this.chill(e, steam, dmg, interval);
     this.gravityShield.zap = (e, dmg, interval, frost, steam) => this.zap(e, dmg, interval, frost, steam);
+    this.barriers = new MageBarriers(config);
     this.lasers = []; // лучи на поле: { x, y, dx, dy, len, width, age, life, ... }
     this.laserSource = { laser: true, active: true };
     this.rayE = []; // враги на луче и расстояния до них (буферы, чтобы не создавать каждый кадр)
@@ -156,7 +158,7 @@ export class Game {
     this.fireCandidates = [];
     this.zapCandidates = [];
     this.pellets = new Pellets({
-      config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies,
+      config, arena: this.arena, grid: this.swarm.grid, enemies: this.enemies, barriers: this.barriers,
       onHit: (e, dmg, vx, vy, bd, bi, fr, st, zp, pc, pp, pg) => {
         const sp = Math.hypot(vx, vy) || 1;
         this.pelletSource.el = bd > 0 ? (fr && st > 0 ? 3 : 2) : fr ? 1 : 0; // для эффекта попадания (только вид)
@@ -278,13 +280,14 @@ export class Game {
       hud: this.hud,
     });
     this.spawner = new Spawner({
-      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero, guards: this.guards, rockBeetles: this.rockBeetles,
+      config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero, guards: this.guards, rockBeetles: this.rockBeetles, barriers: this.barriers,
     });
     this.castleTransition=new CastleTransition({
       arena:this.arena,hero:this.hero,spawner:this.spawner,config,
       onEnter:()=>this.enterCastleHall(),
     });
     this.renderer.castleTransition=this.castleTransition;
+    this.renderer.barriers=this.barriers;
 
     // Слои столкновений: кто с кем взаимодействует, объявлено здесь, а не размазано по коду.
     this.collisions = new CollisionWorld();
@@ -385,6 +388,12 @@ export class Game {
     const C = config.render.colors;
     this.bus.on('enemy:hit-incoming', (inc) => { // уязвимость от дождя: входящий урон больше
       if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
+    });
+    // Барьер отражает прямые и магические атаки спереди, в том числе
+    // лучи, проникающий урон и взрывы. С флангов стрелков можно атаковать.
+    this.bus.on('enemy:hit-incoming', (inc) => {
+      if(this.barriers?.active.length && this.barriers.intersection(
+        this.hero.x,this.hero.y,inc.enemy.x,inc.enemy.y,0)) inc.cancelled=true;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
       // Для плоского Тартаса не создаём объёмный труп поверх старого спрайта.
@@ -1042,7 +1051,7 @@ export class Game {
   scanLaser(l) {
     // При движении героя/клинка лазер остаётся направленным в текущую цель.
     const maxLen = l.target && !l.fixed ? Math.max(this.config.laser.length, Math.hypot(l.target.x-l.x,l.target.y-l.y) + l.target.radius + 5) : this.config.laser.length;
-    let cut = maxLen;
+    let cut = this.barriers?.cutRay(l.x,l.y,l.dx,l.dy,maxLen,l.width) ?? maxLen;
     const pad = l.width * 0.3;
     const ex = l.x + l.dx * maxLen;
     const ey = l.y + l.dy * maxLen;
@@ -1053,7 +1062,7 @@ export class Game {
         const mid = (lo + hi) / 2;
         if (this.arena.segmentBlocked(l.x, l.y, l.x + l.dx * mid, l.y + l.dy * mid, pad)) hi = mid; else lo = mid;
       }
-      cut = lo;
+      cut = Math.min(cut,lo);
     }
     const en = this.enemies.items;
     const grid = this.swarm.grid;
@@ -1819,6 +1828,7 @@ export class Game {
       }
       this.defense.update(attackDt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      this.barriers.blockHero(this.hero);
       this.castleTransition.update(dt);
       this.lightdash.update(attackDt);
       this.updateKinetic(attackDt);
@@ -1845,6 +1855,7 @@ export class Game {
       this.swarm.separate(en, this.hero, this.arena); // жуки вплотную, но не друг в друге
       this.gravityShield.slowEnemies();
       this.swarm.rebuild(en); // попадания используют актуальные позиции после движения и расталкивания
+      this.barriers.update(worldDt); // при смерти мага щит исчезает, лучники освобождаются
       this.moveShots(this.heroShots.items, attackDt);
       this.moveShots(this.enemyShots.items, worldDt);
       // Вражеские снаряды только замедляются в moveShots, автоматического перехвата больше нет.
@@ -2040,6 +2051,8 @@ export class Game {
       if (p.gravityOrbit) continue;
       const flightDt = list === this.enemyShots.items ? this.gravityShield.enemyShotDt(p, dt) : dt;
       if (updateProjectile(p, flightDt, this.arena) === 'rock') this.burst(p.x, p.y, 0.15, 2, 9, p.color);
+      if(p.active&&list===this.heroShots.items&&this.barriers?.interceptShot(p))
+        this.burst(p.x,p.y,.12,2,11,'#b8a2ff');
     }
   }
 
@@ -2129,7 +2142,8 @@ export class Game {
     this.arch.reset();
     this.apostles.reset();
     this.apotheosis.reset();
-    this.rockBeetles.reset(); // мошки исчезают, скалы и вся карта возвращаются
+    this.rockBeetles.reset();
+    this.barriers?.reset(); // мошки исчезают, скалы и вся карта возвращаются
     this.camera.resetZoom();
     this.cine = null;
     this.arena.setLocation(which==='arch'?'courtyard':'hall');
@@ -2170,6 +2184,7 @@ export class Game {
     this.effects.clear();
     this.pellets.clear();
     this.rockBeetles.reset();
+    this.barriers?.reset();
     this.steamClouds.length=0;
     this.synergyCasts.length=0;
     this.synergyFlashes.length=0;
@@ -2258,7 +2273,8 @@ export class Game {
     this.renderer.details=null;
     this.renderer.rockSprites=[];
     this.nav.buildBlocked();
-    this.rockBeetles.reset(); // мошки исчезают, скалы возвращаются
+    this.rockBeetles.reset();
+    this.barriers?.reset(); // мошки исчезают, скалы возвращаются
     this.effects.clear();
     this.steamClouds.length = 0;
     this.fires.length = 0;

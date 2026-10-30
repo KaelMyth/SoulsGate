@@ -110,6 +110,26 @@ export class HallVision {
       if(r.defense?.gravityAuraMode)this.light(hx,hy,Math.max(120,r.defense.gravityAuraRadius||0),.73);
     }
 
+    // Вражеские атаки всегда получают свет до заполнения бюджета эффектами героя.
+    // Вражеские выстрелы и телеграфы полноценные источники света, а не декорации.
+    this.list(r.enemyShots?.items,20,cfg.projectileRadius*1.35,.88,alpha,true);
+    if(r.enemies?.items){
+      let attackLights=0;
+      for(const e of r.enemies.items){
+        if(!e.active || attackLights>=14 || this.count>=cfg.maxLights)continue;
+        if(e.aim>0 || ['windup','strike'].includes(e.atk?.state)){
+          if(this.light(e.x,e.y,e.def===r.cfg.enemies.battleMage?135:100,.74))attackLights++;
+        }
+      }
+    }
+    if(r.barriers?.active)for(const b of r.barriers.active){
+      if(this.count>=cfg.maxLights)break;
+      this.light(b.x,b.y,Math.max(95,cfg.spellRadius),.76);
+      this.light(b.ax,b.ay,60,.5);
+      this.light(b.bx,b.by,60,.5);
+    }
+    this.list(r.midges?.items,12,48,.58,alpha,true);
+
     // Крупные стационарные заклинания раньше мелких снарядов: гарантируем свет навыков.
     this.list(r.absorption?.targets,10,cfg.spellRadius,.8);
     this.list(r.absorption?.flashes,8,cfg.spellRadius,.9);
@@ -153,7 +173,6 @@ export class HallVision {
     // Отображаемые снаряды. Бюджет общий, так что сотни дробинок
     // не вызывают сотни полупрозрачных кругов в каждом кадре.
     this.list(r.heroShots?.items,20,cfg.projectileRadius,.76,alpha,true);
-    this.list(r.enemyShots?.items,12,cfg.projectileRadius*.8,.58,alpha,true);
     const pe=r.pellets;
     if(pe?.n>0&&this.count<cfg.maxLights){
       const step=Math.max(1,Math.ceil(pe.n/12));

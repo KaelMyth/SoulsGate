@@ -138,7 +138,7 @@ test('Все типы анимируют оружие и атаки, Тарта�
     f.enemy.aim=.5;f.enemy.aimTotal=1;
     const act=pose(f,.7,{attack:1,bState:name==='tartas'?'squadCast':'idle'});
     assert.ok(act.fills.length>35);
-    if(name==='frozenArcher')assert.ok(act.strokes.includes('#c9f0ff'),'лучник натянул стрелу');
+    if(name==='frozenArcher')assert.ok(act.strokes.includes('#f4d2a1'),'лучник натянул стрелу');
     if(name==='tartas'){
       assert.ok(act.draws>0,'ледяное свечение сохранено');
       assert.ok(act.strokes.length>20,'магический круг призыва');

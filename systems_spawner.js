@@ -63,6 +63,7 @@ export class Spawner {
     this.hero = o.hero || null; // нужен, чтобы босс появился рядом с героем
     this.guards = o.guards || null; // Охрана стрелков в формациях
     this.rockBeetles = o.rockBeetles || null; // ждём пробуждения скалы на пятой волне
+    this.barriers = o.barriers || null;
     this.pt = { x: 0, y: 0 };
     this.portal = null; // портал финального босса (openPortal)
     this.alive = 0;
@@ -194,9 +195,16 @@ export class Spawner {
     const pat = this.pattern();
     while (this.spawnTimer <= 0 && this.spawned < total && made < MAX_SPAWNS_PER_STEP) {
       // Группа выходит целиком (groupSize из рисунка волны), иначе по одному. Потолок живых считается на всю группу.
-      const size = Math.min(pat && pat.groupSize ? pat.groupSize : 1, total - this.spawned, Math.max(1, this.cap()));
-      if (this.alive + size > this.cap()) break;
-      const n = this.spawnGroup(size, pat);
+      let groupPat=pat;
+      if(pat?.groups){
+        let left=this.spawned;
+        const group=pat.groups.find(g=>{if(left<g.groupSize)return true;left-=g.groupSize;return false;});
+        if(!group)break;
+        groupPat={...group,sides:pat.sides};
+      }
+      const size=Math.min(groupPat?.groupSize||1,total-this.spawned,Math.max(1,this.cap()));
+      if(this.alive+size>this.cap())break;
+      const n=this.spawnGroup(size,groupPat);
       if (n === 0) break;
       this.spawned += n;
       this.alive += n;
@@ -342,14 +350,13 @@ export class Spawner {
   /** Тип нового врага: по весам рисунка волны (pat.mix), иначе по долям из config.spawn. */
   pickKind(pat) {
     const sp = this.cfg.spawn;
-    // Замёрзшие приходят с шестой волны (после ворот), перекрывая рисунки с жучьим mix.
-    // Боссы, призывы и другие отдельные системы это правило не меняет.
-    const fz = sp.frozen;
-    if (fz && this.wave >= fz.fromWave) return this.pickSkeleton(fz.weights) || sp.enemy;
-    if (pat && pat.mix) {
-      const k = this.pickSkeleton(pat.mix);
-      if (k) return k;
+    // Рисунки первых десяти волн имеют приоритет над запасной смесью Замёрзших.
+    if(pat?.mix){
+      const k=this.pickSkeleton(pat.mix);
+      if(k)return k;
     }
+    const fz=sp.frozen;
+    if(fz&&this.wave>=fz.fromWave)return this.pickSkeleton(fz.weights)||sp.enemy;
     // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
@@ -447,18 +454,33 @@ export class Spawner {
     if (a !== null) this.lastAngle = a;
     const cx = this.pt.x;
     const cy = this.pt.y;
-    // С шестой волны отряд заменяется Замёрзшими (существующее правило).
-    const frozen=this.cfg.spawn.frozen && this.wave>=this.cfg.spawn.frozen.fromWave;
-    const leader = this.spawnAt(frozen ? 'frozenArcher' : F.leader, cx, cy);
+    // Перед тройкой лучников стоит маг; щит остаётся по направлению к герою
+    // в момент появления. Пока маг жив, стрелки держат позиции за ним.
+    if(F.mage){
+      const hx=this.hero?.x??this.camera.x,hy=this.hero?.y??this.camera.y;
+      const angle=Math.atan2(hy-cy,hx-cx),nx=Math.cos(angle),ny=Math.sin(angle);
+      const mage=this.spawnAt(F.mage,cx+nx*32,cy+ny*32);
+      const archers=[];
+      for(let i=0;i<size-1;i++){
+        const offset=(i-(size-2)*.5)*48;
+        const e=this.spawnAt(F.archer,cx-nx*64-ny*offset,cy-ny*64+nx*offset);
+        e.goalOn=true;e.goalX=e.x;e.goalY=e.y;
+        archers.push(e);
+      }
+      this.barriers?.add(mage,archers,this.hero||this.camera);
+      this.lastAngle=a??base;
+      return size;
+    }
+    const leader = this.spawnAt(F.leader, cx, cy);
     const guards = [];
     const groupIndex = Math.floor(this.spawned / Math.max(1, pat.groupSize || size));
-    const support = !frozen && size > 1 && F.support &&
+    const support = size > 1 && F.support &&
       (groupIndex + 1) % Math.max(1, F.support.every || 1) === 0 ? F.support : null;
     const n = Math.max(0, size - 1 - (support ? 1 : 0));
     const a0 = this.rnd() * TAU;
     for (let i = 0; i < n; i++) {
       const ga = a0 + (i / Math.max(1, n)) * TAU;
-      guards.push(this.spawnAt(frozen ? 'frozenSoldier' : F.guard, cx + Math.cos(ga) * ringD, cy + Math.sin(ga) * ringD));
+      guards.push(this.spawnAt(F.guard, cx + Math.cos(ga) * ringD, cy + Math.sin(ga) * ringD));
     }
     if (this.guards) this.guards.assign(leader, guards);
     let made = 1 + n;
@@ -474,7 +496,7 @@ export class Spawner {
       const m = 1 + Math.floor(this.rnd() * X.n);
       for (let i = 0; i < m; i++) {
         if (!pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) break;
-        const k = frozen ? this.pickKind(pat) : this.pickSkeleton(X.mix);
+        const k = this.pickSkeleton(X.mix);
         if (!k) break;
         this.spawnAt(k, this.pt.x, this.pt.y);
         made++;

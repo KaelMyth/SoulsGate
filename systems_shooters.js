@@ -44,6 +44,7 @@ export class Shooters {
     if (this.shots.count >= lim.maxEnemyShots) return;
     const p = this.shots.spawn();
     initProjectile(p, e.def.shot, e.x, e.y, dx, dy, e);
+    p.flameArrow=!!e.def.flameArrow;
     this.bus.emit('enemy:shot', { projectile: p, enemy: e });
   }
 }

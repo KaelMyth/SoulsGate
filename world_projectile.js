@@ -9,6 +9,7 @@ export function createProjectile() {
     radius: 0, damage: 0, speed: 0, range: 0,
     knockback: 0, // насколько откидывает врага при попадании, единиц
     parryable: false, // можно ли парировать (снаряды стрелков)
+    flameArrow: false, // только визуал горящего наконечника лучника
     frost: false, // замораживающий снаряд (мод «Мороз»)
     pierce: 0,    // сколько врагов снаряд ещё может пройти насквозь
     hits: [],     // кого уже пробил (чтобы не бить одного дважды)
@@ -54,6 +55,7 @@ export function initProjectile(p, def, x, y, dirX, dirY, owner) {
   p.range = def.range;
   p.knockback = def.knockback || 0;
   p.parryable = !!def.parryable;
+  p.flameArrow = false;
   p.burnDmg = 0;
   p.burnInt = 0;
   p.frost = false;

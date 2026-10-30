@@ -404,8 +404,16 @@ export class IceVolumeArt extends IsometricIceEnemies {
     seg(c,hand,tipBottom,'#d1e2e9',.95);
     if(tension>.09){
       const tip=this.p(u+39,r,z+4);
-      seg(c,hand,tip,'#c9f0ff',1.8);
-      this.iceSpike(c,[u+33,r,z+4],[u+40,r,z+4],1.4);
+      seg(c,hand,tip,'#f4d2a1',1.8);
+      const flame=this.p(u+37,r,z+4),tail=this.p(u+31,r,z+4);
+      const flick=Math.sin(this.renderer.clock*16+st.seed)*2;
+      c.save();c.globalCompositeOperation='lighter';
+      c.fillStyle='#ff9b35';c.beginPath();
+      c.moveTo(flame[0]+6,flame[1]);
+      c.quadraticCurveTo(tail[0]-7,tail[1]-4-flick,tail[0]-6,tail[1]);
+      c.quadraticCurveTo(tail[0]-7,tail[1]+5+flick,flame[0]+6,flame[1]);
+      c.fill();c.fillStyle='#ffe9ae';
+      c.beginPath();c.arc(flame[0],flame[1],2,0,TAU);c.fill();c.restore();
     }
     const quiver=[-9,-8,30];
     this.facet(c,[[-10,-12,19],[-14,-12,19],[-14,-12,32],[-10,-12,32]],
@@ -413,7 +421,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
     for(let i=-1;i<=1;i++){
       const v=quiver[1]+i*2.5;
       this.line3(c,[-12,v,30],[-16,v,43+i*2],'#bed9e7',1.1);
-      this.iceSpike(c,[-16,v,43+i*2],[-18,v,48+i*2],1.0);
+      this.line3(c,[-16,v,43+i*2],[-19,v,47+i*2],'#ffb55c',1.8);
     }
   }
   ram(c,st){

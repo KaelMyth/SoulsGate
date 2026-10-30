@@ -248,13 +248,14 @@ export class IsometricIceEnemies {
       line(ctx,top,h,'#d0deed',.8);line(ctx,h,bot,'#d0deed',.8);
       if(pull>.15){
         const tip=this.project(u+25,v,z+5);
-        line(ctx,h,tip,'#e0f8ff',1.9);
-        gem(ctx,[this.project(u+20,v,z+4),tip,this.project(u+20,v,z+6)],'#89d9ff');
+        line(ctx,h,tip,'#ffcf87',1.9);
+        gem(ctx,[this.project(u+20,v,z+4),tip,this.project(u+20,v,z+6)],'#ff9e3b');
+        ctx.fillStyle='#ffe2a0';ctx.beginPath();ctx.arc(tip[0],tip[1],2.6,0,TAU);ctx.fill();
       }
       // Колчан и торчащие из него обледеневшие стрелы.
       for(let i=-1;i<=1;i++){
         this.rib(ctx,[[-7,-6+i*3,28],[-13,-6+i*3,44+i*2]],'#a7b9cc',1.35);
-        this.crystal(ctx,-13,-6+i*3,42+i*2,-1,0,5,1.3);
+        this.rib(ctx,[[-13,-6+i*3,42+i*2],[-15,-6+i*3,47+i*2]],'#ffa64d',1.7);
       }
     }else if(kind==='ram'){
       // Таран сохраняет прежний острый клиновидный нос; теперь он выступает

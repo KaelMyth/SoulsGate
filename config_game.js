@@ -747,10 +747,17 @@ export const CONFIG = {
     // Лучник: как стрелок, но сильнее.
     frozenArcher: {
       hp: 45, speed: 62, radius: 11, touchDamage: 8, touchCooldown: 0.8, knockbackScale: 1,
-      drop: 'green', swarm: false, squad: true,
-      keepDistance: 190, shotRange: 300, aimTime: 0.5, fireInterval: 1.8, firstShotDelay: 1.0,
-      shot: { damage: 20, speed: 180, radius: 7, range: 460, knockback: 0, parryable: true, color: '#8fd3ff' },
+      drop: 'green', swarm: false, squad: true, flameArrow: true,
+      keepDistance: 190, shotRange: 340, aimTime: 0.5, fireInterval: 1.8, firstShotDelay: 1.0,
+      shot: { damage: 20, speed: 205, radius: 6, range: 480, knockback: 0, parryable: true, color: '#ff923d' },
       color: '#5aa9e6', edge: '#d6efff',
+    },
+    battleMage: {
+      hp: 82, speed: 0, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
+      drop: 'red', swarm: false, squad: true,
+      keepDistance: 330, shotRange: 450, aimTime: 0.65, fireInterval: 2.2, firstShotDelay: 1,
+      shot: { damage: 19, speed: 175, radius: 8, range: 600, knockback: 0, parryable: true, color: '#ac83ff' },
+      color: '#7d6bb7', edge: '#bdb0ff',
     },
     // Пехотинец: как жук, но сильнее и быстрее.
     frozenSoldier: {
@@ -1233,6 +1240,8 @@ export const CONFIG = {
   },
 
   // Зрение во втором зале: мягкая тьма поверх мира, посох и действующая магия её рассеивают.
+  mageBarrier: { width: 170, forward: 22 },
+
   hallVision: {
     scale: 0.48,       // размер маски от CSS-пикселей, независимо от DPR
     darkness: 0.93,    // насыщенность общей тьмы
@@ -1306,15 +1315,22 @@ export const CONFIG = {
         count: 36, interval: 2.7, maxAlive: 36 },
       5: { lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'bull', 'hunter', 'beetle'],
         groupSize: 8, sides: 'ring', count: 32, interval: 3.0, maxAlive: 32 },
-      6: { mix: { hunter: 5, beetle: 1 }, sides: 'random', count: 20, interval: 0.55, maxAlive: 16 },                // охотники
-      7: { mix: { bull: 1 }, groupSize: 3, sides: 'varied', spread: 40, count: 12, interval: 5, maxAlive: 12 },      // группы быков
-      8: { mix: { hunter: 1 }, groupSize: 10, sides: 'ring', count: 30, interval: 4, maxAlive: 30 },                // толпа охотников со всех сторон
-      // formation: группа — стрелок (leader) в кольце из guard (groupSize - 1 штук); extra: с шансом chance рядом выбегают
-      // 1..n одиночек по весам mix (Охотники и быки), со случайной стороны.
-      9: { formation: { leader: 'shooter', guard: 'beetle' }, groupSize: 6, sides: 'varied', count: 36, interval: 5, maxAlive: 40,
-        extra: { chance: 0.8, n: 2, mix: { hunter: 2, bull: 1 } } },
-      // Волна 10: все виды жуков со всех сторон (кольцо); после зачистки выходит Тартас (waves.boss2).
-      10: { mix: { beetle: 6, shooter: 2, bull: 2, hunter: 3 }, groupSize: 10, sides: 'ring', count: 50, interval: 3.5, maxAlive: 40 },
+      // Холл: вторые пять волн, с сохранением групповой тактики.
+      6: { mix: { frozenSoldier: 1 }, groupSize: 4, sides: 'varied', spread: 24, count: 16, interval: 2.6, maxAlive: 16 },
+      7: { formation: { leader: 'frozenArcher', guard: 'frozenSoldier' }, groupSize: 6, sides: 'varied', count: 24, interval: 3.4, maxAlive: 24 },
+      8: { formation: { leader: 'frozenArcher', guard: 'frozenSoldier', support: { kind: 'frozenRam', every: 2 } }, groupSize: 6, sides: 'varied', count: 30, interval: 3.0, maxAlive: 30 },
+      9: { formation: { mage: 'battleMage', archer: 'frozenArcher' }, groupSize: 4, sides: 'varied', count: 20, interval: 3.0, maxAlive: 20 },
+      // Вся смесь появляется в один момент, а не по очереди в течение волны.
+      10: { sides: 'varied', interval: 0, count: 36, maxAlive: 36, groups: [
+        { formation: { mage: 'battleMage', archer: 'frozenArcher' }, groupSize: 4 },
+        { mix: { frozenSoldier: 1 }, groupSize: 5, spread: 26 },
+        { formation: { leader: 'frozenArcher', guard: 'frozenSoldier' }, groupSize: 6 },
+        { mix: { frozenRam: 1 }, groupSize: 3, spread: 30 },
+        { formation: { mage: 'battleMage', archer: 'frozenArcher' }, groupSize: 4 },
+        { mix: { frozenSoldier: 1 }, groupSize: 5, spread: 26 },
+        { formation: { leader: 'frozenArcher', guard: 'frozenSoldier' }, groupSize: 6 },
+        { mix: { frozenRam: 1 }, groupSize: 3, spread: 30 },
+      ] },
     },
     total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).
@@ -1357,8 +1373,7 @@ export const CONFIG = {
     // pick: 'smallest' берёт самые маленькие из видимых скал, иначе случайные. Скалу рядом с героем (minHeroDist) не трогаем.
     rockWake: [
       { wave: 5, count: 1, pick: 'smallest' },
-      { wave: 7, count: 1 },
-      { wave: 9, count: 1 },
+      // В холле скал нет, на 7/9-й волнах их не будим.
       { wave: 11, count: 1 }, { wave: 12, count: 1 }, { wave: 13, count: 1 },
       { wave: 15, count: 2 }, { wave: 16, count: 2 }, { wave: 17, count: 2 },
       { wave: 19, count: 3 },
