@@ -13,6 +13,7 @@ import { EntityPool } from './core_entity-pool.js';
 import { CollisionWorld, Layer } from './core_collision.js';
 import { Stick } from './input_stick.js';
 import { Arena, pointInPoly } from './world_arena.js';
+import { CastleTransition } from './systems_castle_transition.js';
 import { Hero } from './world_hero.js';
 import { Camera } from './world_camera.js';
 import { NavGrid } from './world_nav.js';
@@ -279,6 +280,11 @@ export class Game {
     this.spawner = new Spawner({
       config, enemies: this.enemies, camera: this.camera, arena: this.arena, rnd: this.rnd, bus: this.bus, hero: this.hero, guards: this.guards,
     });
+    this.castleTransition=new CastleTransition({
+      arena:this.arena,hero:this.hero,spawner:this.spawner,config,
+      onEnter:()=>this.enterCastleHall(),
+    });
+    this.renderer.castleTransition=this.castleTransition;
 
     // Слои столкновений: кто с кем взаимодействует, объявлено здесь, а не размазано по коду.
     this.collisions = new CollisionWorld();
@@ -381,6 +387,9 @@ export class Game {
       if (inc.enemy.vuln && !inc.source?.ignoreRainVulnerability) inc.amount *= 1 + this.config.skills.rain.vulnerability;
     });
     this.bus.on('enemy:killed', ({ enemy, source }) => {
+      // Запускаем открытие прямо в кадре последнего удара по Арху.
+      if(enemy.def===this.config.enemies.ashenArch && this.spawner.wave===this.config.waves.boss.wave)
+        this.castleTransition.bossDefeated(this.spawner.wave);
       this.blackSun.onEnemyKilled(enemy);
       const vamp = this.build.passives().vamp; // пассив «Вампиризм»
       if (vamp > 0 && this.hero.active && this.state === 'playing') this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + vamp);
@@ -418,6 +427,7 @@ export class Game {
     });
     // Вышел босс: мир замирает, камера плывёт к нему (см. updateCine).
     this.bus.on('boss:spawned', ({ enemy }) => this.startBossIntro(enemy));
+    this.bus.on('boss:defeated', ({wave}) => this.castleTransition.bossDefeated(wave));
     // Вспышки к атакам босса: кольцо на старте рывка, взрыв в области пересечения разломов.
     this.bus.on('boss:dash', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.25, enemy.radius, enemy.radius * 2, enemy.def.edge));
     this.bus.on('boss:blast', ({ x, y, hit }) => {
@@ -1806,6 +1816,7 @@ export class Game {
       }
       this.defense.update(attackDt);
       this.hero.update(dt, this.stick.x, this.stick.y, this.arena);
+      this.castleTransition.update(dt);
       this.lightdash.update(attackDt);
       this.updateKinetic(attackDt);
       this.updateFires(worldDt);
@@ -2117,6 +2128,11 @@ export class Game {
     this.rockBeetles.reset(); // мошки исчезают, скалы и вся карта возвращаются
     this.camera.resetZoom();
     this.cine = null;
+    this.arena.setLocation(which==='arch'?'courtyard':'hall');
+    this.castleTransition.reset();
+    this.renderer.floor=null;
+    this.renderer.details=null;
+    this.nav.buildBlocked();
     this.spawner.wave = B.wave;
     this.crashResult = null;
     this.hud.crashResult = '';
@@ -2126,11 +2142,50 @@ export class Game {
   }
 
   jumpToWave(n) {
+    this.arena.setLocation(n>this.config.waves.boss.wave?'hall':'courtyard');
+    this.castleTransition.reset();
+    this.renderer.floor=null;
+    this.renderer.details=null;
+    this.nav.buildBlocked();
     this.spawner.jumpToWave(n);
     this.crashResult = null;
     this.hud.crashResult = '';
     this.sagTimer = 0;
     this.syncWaveHud();
+  }
+
+  /** Переход в большой тёмный холл за воротами. Билд, XP, здоровье и волны сохраняем. */
+  enterCastleHall() {
+    if(this.arena.location==='hall')return false;
+    this.arena.setLocation('hall');
+    this.enemies.clear();
+    this.heroShots.clear();
+    this.enemyShots.clear();
+    this.gems.clear();
+    this.effects.clear();
+    this.pellets.clear();
+    this.rockBeetles.reset();
+    this.steamClouds.length=0;
+    this.synergyCasts.length=0;
+    this.synergyFlashes.length=0;
+    this.blades.reset();
+    this.absorption.reset();
+    this.blackSun.reset();
+    this.autoattack.reset();
+    this.hero.x=0;
+    this.hero.y=Math.min(this.arena.bottom-120,Math.max(this.arena.walkTop+130,this.config.arena.castleTransition.hallStartY));
+    this.hero.prevX=this.hero.x;
+    this.hero.prevY=this.hero.y;
+    this.camera.snapTo(this.hero.x,this.hero.y,this.arena);
+    this.nav.buildBlocked();
+    this.nav.source=-1;
+    this.renderer.floor=null;
+    this.renderer.details=null;
+    this.renderer.rockSprites=[];
+    this.spawner.advanceAfterGate();
+    this.syncWaveHud();
+    this.burst(this.hero.x,this.hero.y,.7,15,90,'#e7c58c');
+    return true;
   }
 
   /** Расставить ядра по полю билда случайно (внутри, не на краях). */
@@ -2191,6 +2246,12 @@ export class Game {
     this.heroShots.clear();
     this.pellets.clear();
     this.enemyShots.clear();
+    this.arena.setLocation('courtyard');
+    this.castleTransition.reset();
+    this.renderer.floor=null;
+    this.renderer.details=null;
+    this.renderer.rockSprites=[];
+    this.nav.buildBlocked();
     this.rockBeetles.reset(); // мошки исчезают, скалы возвращаются
     this.effects.clear();
     this.steamClouds.length = 0;
