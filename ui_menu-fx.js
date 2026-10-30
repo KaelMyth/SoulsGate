@@ -3,8 +3,8 @@
 import { SCENE_W } from './ui_menu-scene.js';
 
 const TAU = Math.PI * 2;
-const FIRE_X = 475;
-const FIRE_Y = 1205;
+const FIRE_X = 498;
+const FIRE_Y = 1238;
 
 /** Мягкое пятно света одного цвета: рисуется один раз, потом только масштабируется. */
 function makeGlow(r, g, b) {
@@ -106,8 +106,8 @@ export class MenuFx {
       ctx.globalAlpha = a;
       ctx.drawImage(img, X(x) - r * s, Y(y) - r * s, r * 2 * s, r * 2 * s);
     };
-    glow(this.glowOrange, FIRE_X, FIRE_Y - 70, 330 + 24 * flick, 0.42 + 0.14 * flick);
-    glow(this.glowOrange, FIRE_X, FIRE_Y - 20, 150, 0.5 + 0.2 * flick);
+    glow(this.glowOrange, FIRE_X, FIRE_Y - 70, 310 + 18 * flick, 0.15 + 0.08 * flick);
+    glow(this.glowOrange, FIRE_X, FIRE_Y - 20, 145, 0.14 + 0.08 * flick);
     glow(this.glowBlue, 146, 850, 190 + 10 * Math.sin(t * 2.1), 0.5 + 0.14 * Math.sin(t * 2.1));
     glow(this.glowCyan, 146, 850, 60, 0.55);
     glow(this.glowCyan, 324, 1105, 30, 0.6 + 0.25 * Math.sin(t * 1.6));
@@ -115,37 +115,13 @@ export class MenuFx {
     glow(this.glowBlue, 324, 1210, 190, 0.3);
     glow(this.glowOrange, 470, 836, 80 + 6 * flick, 0.5 + 0.12 * flick);
 
-    // Пламя: три слоя языков, у каждого своя качка и высота. Низкополигональные остроконечные формы.
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
-    const layers = [['#ff6a14', 1, 1], ['#ffa02e', 0.64, 0.66], ['#ffe19a', 0.34, 0.38]];
-    for (let li = 0; li < layers.length; li++) {
-      const [col, wk, hk] = layers[li];
-      ctx.fillStyle = col;
-      for (let i = 0; i < TONGUES.length; i++) {
-        const [dx, w0, h0, ph] = TONGUES[i];
-        const h = h0 * hk * (1 + 0.14 * Math.sin(t * 7.3 + ph * 2.1) + 0.08 * Math.sin(t * 13.1 + ph * 5.3));
-        const sway = w0 * 0.35 * Math.sin(t * 5.1 + ph * 1.7);
-        const w = w0 * wk;
-        const bx = X(FIRE_X + dx);
-        const by = Y(FIRE_Y);
-        ctx.beginPath();
-        ctx.moveTo(bx - w * s, by);
-        ctx.bezierCurveTo(bx-w*.85*s,by-h*.28*s,bx-w*.55*s+sway*.3*s,by-h*.65*s,bx+sway*s,by-h*s);
-        ctx.bezierCurveTo(bx+w*.38*s+sway*.7*s,by-h*.7*s,bx+w*.8*s,by-h*.24*s,bx+w*s,by);
-        ctx.lineTo(bx + w * s, by);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-    // Бликовый тёплый ореол поверх пламени.
+    // Пламя уже нарисовано в исходном арте. Только живой рассеянный свет:
+    // никаких векторных треугольников поверх иллюстрации.
     ctx.globalCompositeOperation = 'lighter';
-    glow(this.glowOrange, FIRE_X, FIRE_Y - 50, 90, 0.38 + 0.12 * flick);
-
-    // Живой свет огня скользит по снегу, без жёсткого контура.
-    ctx.globalCompositeOperation='lighter';
-    glow(this.glowOrange,FIRE_X-110,FIRE_Y+26,230,.075+.055*flick);
-    glow(this.glowOrange,FIRE_X+120,FIRE_Y+42,190,.06+.04*flick);
+    glow(this.glowOrange, FIRE_X, FIRE_Y - 76, 142, .16 + .09 * flick);
+    glow(this.glowOrange, FIRE_X, FIRE_Y + 15, 260, .10 + .08 * flick);
+    glow(this.glowOrange, FIRE_X - 118, FIRE_Y + 22, 205, .035 + .035 * flick);
+    glow(this.glowOrange, FIRE_X + 130, FIRE_Y + 36, 215, .045 + .045 * flick);
 
     // Искры: поднимаются, чуть сносятся, гаснут.
     if (this.embers.length < 16 && Math.random() < dt * 14) {

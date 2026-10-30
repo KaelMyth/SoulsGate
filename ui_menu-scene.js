@@ -242,6 +242,7 @@ export function buildLogo() {
   const spikeTop = poly('470,85 475,138 470,172 465,138', '#e4eefc');
   const spikeBot = poly('470,345 475,292 470,256 465,292', '#e4eefc');
   return svg('svg', { class: 'logo', viewBox: '0 0 ' + SCENE_W + ' ' + SCENE_H, preserveAspectRatio: 'xMidYMid meet', 'aria-label': 'SoulGates' },
+    defs(),
     svg('g', { filter: 'url(#m-glow)' },
       svg('text', {
         x: 470, y: 247, 'text-anchor': 'middle', textLength: 670, lengthAdjust: 'spacing', fill: 'url(#m-title)',

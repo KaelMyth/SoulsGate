@@ -661,3 +661,38 @@ body { font-family: var(--serif); }
 }
 #mode-screen .menu .ui-btn::after { bottom: 2px; top: auto; }
 #mode-screen .menu .ui-btn::before { bottom: -2px; top: auto; }
+
+/* №192: отдельный детализированный арт без текста. UI поверх, без размытия картинки. */
+#mode-screen .reference-art {
+  background-image: url('./assets/soulgates-menu-v2.webp');
+  background-position: center;
+  background-size: 100% 100%;
+}
+#mode-screen .reference-art::before { display: none; }
+#mode-screen .stage::after {
+  background: radial-gradient(ellipse 38% 34% at 78% 45%,
+    rgba(8,17,34,.29),rgba(8,17,34,.10) 66%,transparent 100%);
+}
+#mode-screen .logo {
+  filter: drop-shadow(0 1px 3px rgba(2,7,20,.65));
+  opacity: 1;
+}
+#mode-screen .menu {
+  left: 59%; top: 31.5%; width: 36%;
+  padding: 0; gap: calc(var(--W) * .032);
+  background: transparent; border-radius: 0; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+#mode-screen .menu .ui-btn {
+  height: calc(var(--W) * .116);
+  font-size: calc(var(--W) * .042);
+  color: #e2eeff;
+  text-shadow: 0 2px 7px #050c1e,0 0 13px rgba(100,145,210,.24);
+}
+#mode-screen .menu .ui-btn::before {
+  width: 7px; height: 7px; bottom: -3px;
+  background: #243a58;
+}
+#mode-screen .menu .ui-btn::after {
+  background: linear-gradient(90deg,transparent,#9dbbda 25%,transparent 43%,transparent 57%,#9dbbda 75%,transparent);
+}
