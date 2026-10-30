@@ -6,6 +6,8 @@
 //     через getTelegraph) → почти мгновенный рывок → короткая передышка → следующий рывок (dash.count штук) → пауза.
 //   Фаза 3: разгорается: те же рывки быстрее и длиннее серией (burst), а вдоль пути в обе стороны от линии рывка
 //     разлетаются шарики (burst.sideEvery: через сколько единиц пути пара шариков).
+//   Врезался в скалу на рывке (фазы 2 и 3): отлетает от неё вбок, как бык от парирования, скала просыпается жуком-скалой
+//   (RockBeetles.wakeRock), босс оглушён arch.rockStun секунд (около 4).
 //
 // Босс идёт по обычному движению врага (world_enemy.updateEnemy): пока e.atk.state не 'idle', он стоит; во время рывка
 // двигает его эта система. Рывок и шарики бьют героя через Combat.damageHero (блок и парирование работают как у остальных).
@@ -14,9 +16,10 @@
 // Состояния (this.state): idle → (aim → fire → pause) в фазе 1; (windup → strike → recovery → gap → …) в фазах 2 и 3.
 // События: 'arch:phase' { phase } при смене микрофазы.
 import { initProjectile } from './world_projectile.js';
+import { applyKnockback } from './world_enemy.js';
 
 export class Arch {
-  /** o: { config, hero, arena, combat, enemyShots (EntityPool), bus, defense?, rnd } */
+  /** o: { config, hero, arena, combat, enemyShots (EntityPool), bus, defense?, rnd, rockBeetles? } */
   constructor(o) {
     this.cfg = o.config;
     this.hero = o.hero;
@@ -26,6 +29,9 @@ export class Arch {
     this.bus = o.bus;
     this.defense = o.defense || null;
     this.rnd = o.rnd || Math.random;
+    this.rockBeetles = o.rockBeetles || null; // будит скалу, в которую врезался босс
+    this.flip = 1;     // в какую сторону отлетит от следующей скалы: чередуем
+    this.stunLen = 1;  // сколько длится текущее оглушение
     this.enemy = null;
     this.state = 'idle';
     this.t = 0;
@@ -203,7 +209,7 @@ export class Arch {
         if (this.t >= D.gap) this.startWindup(e, a, h);
         break;
       case 'stun':
-        if (this.t >= D.stun) { a.state = 'idle'; this.setState('idle'); this.cd = D.pause; }
+        if (this.t >= this.stunLen) { a.state = 'idle'; this.setState('idle'); this.cd = D.pause; }
         break;
       default:
         this.setState('idle');
@@ -250,7 +256,40 @@ export class Arch {
       this.combat.damageHero(D.damage, e.strikeSrc); // рывок идёт сквозь героя до конца (при парировании state станет 'stun', onParried)
       if (this.state !== 'strike') return;
     }
+    if (this.crashIntoRock(e, A, a)) return;
     if (moved < step * 0.5 || this.t >= D.strike) this.endStrike(e, a);
+  }
+
+  /** Рывок упёрся в скалу: отлёт вбок, скала просыпается, оглушение arch.rockStun. Возвращает true, если врезался. */
+  crashIntoRock(e, A, a) {
+    const rocks = this.arena.rocks;
+    let hit = null;
+    for (let i = 0; i < rocks.length; i++) {
+      const k = rocks[i];
+      const dx = k.x - e.x;
+      const dy = k.y - e.y;
+      if (dx * a.dirX + dy * a.dirY <= 0) continue; // скала позади
+      const lim = e.radius + k.r + 2;
+      if (dx * dx + dy * dy <= lim * lim) { hit = k; break; }
+    }
+    if (!hit) return false;
+    // Вбок от линии рывка (сторону чередуем; если там тоже скала, берём противоположную), как носорог после парирования.
+    let px = -a.dirY * this.flip;
+    let py = a.dirX * this.flip;
+    this.flip = -this.flip;
+    if (this.arena.segmentBlocked(e.x, e.y, e.x + px * A.rockKnock, e.y + py * A.rockKnock, e.radius)) { px = -px; py = -py; }
+    e.kbVx = e.kbVy = 0;
+    applyKnockback(e, px, py, A.rockKnock, A.rockKnockTime, true);
+    a.state = 'stun';
+    a.hit = true;
+    this.stunLen = A.rockStun;
+    this.setState('stun');
+    if (this.rockBeetles && this.cfg.enemies.rockBeetle) {
+      this.rockBeetles.wakeRock(hit, this.cfg.enemies.rockBeetle);
+      if (this.rockBeetles.nav) this.rockBeetles.nav.buildBlocked(); // скалы не стало: враги ходят напрямик
+    }
+    this.bus.emit('arch:crash', { enemy: e, x: hit.x, y: hit.y, r: hit.r });
+    return true;
   }
 
   endStrike(e, a) {
@@ -274,6 +313,7 @@ export class Arch {
     if (!e || !p.source || p.source.enemy !== e || this.state !== 'strike') return;
     e.atk.state = 'stun';
     e.atk.hit = true;
+    this.stunLen = this.dashCfg(e).stun;
     this.setState('stun');
     this.bus.emit('enemy:parried', { enemy: e });
   }
