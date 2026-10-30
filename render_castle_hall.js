@@ -266,6 +266,14 @@ export class CastleHallArt {
       shape(c,[-5,y,0,y-8,5,y,0,y+8],
         'rgba(164,145,106,.19)','rgba(183,171,140,.17)',.9);
     }
+    // На каждой колонне — кованый настенный факел, полностью погасший.
+    // Темная чаша с пеплом и ни одного источника света в фоновой текстуре.
+    shape(c,[-19,-82,19,-82,22,-75,-22,-75], '#1c222c','#71665e',1.4);
+    trace(c,[-11,-82,-18,-90,-11,-98,11,-98,18,-90,11,-82], '#5b5551',2.2);
+    shape(c,[-12,-99,12,-99,15,-92,-15,-92], '#24242a','#77706b',1.3);
+    shape(c,[-10,-98,-6,-102,4,-103,10,-98], '#0b1017');
+    trace(c,[-19,-77,-26,-87,-26,-107], '#333640',2);
+    trace(c,[19,-77,26,-87,26,-107], '#333640',2);
     this.columnSprite=cv;
   }
 
@@ -276,16 +284,16 @@ export class CastleHallArt {
     const k=1-Math.exp(-Math.max(0,Math.min(.1,dt||0))*9);
     for(let i=0;i<this.columns.length;i++){
       const p=this.columns[i];
-      if(p.x+75<viewL||p.x-75>viewR||p.y+34<viewT||p.y-183>viewB)continue;
+      if(p.x+54<viewL||p.x-54>viewR||p.y+30<viewT||p.y-145>viewB)continue;
       const overlaps=hero?.active!==false&&
-        Math.abs(hero.x-p.x)<49+(hero.radius||12) &&
-        hero.y>p.y-174-(hero.radius||12)&&hero.y<p.y+22+(hero.radius||12);
+        Math.abs(hero.x-p.x)<32+(hero.radius||12) &&
+        hero.y>p.y-138-(hero.radius||12)&&hero.y<p.y+24+(hero.radius||12);
       const target=overlaps?.19:1;
       const alpha=(this.opacity.get(i)??1)+
         (target-(this.opacity.get(i)??1))*k;
       this.opacity.set(i,alpha);
       ctx.save();ctx.globalAlpha=alpha;
-      ctx.drawImage(this.columnSprite,p.x-68,p.y-174,136,208);
+      ctx.drawImage(this.columnSprite,p.x-49,p.y-138,98,162);
       ctx.restore();
     }
   }
