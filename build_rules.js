@@ -42,7 +42,7 @@ export function parentAccepts(modDef, core, carry, ownerCore) {
       || e.kind === 'burn' || e.kind === 'frost' || e.kind === 'lightning'; // стихии накладывают максимум стаков
   if (carry === 'absorption:damage' || carry === 'absorption:rate')
     return e.kind === 'stat' && e.stat === carry.slice('absorption:'.length); // цепочки однородных усилений
-  if (e.kind === 'stat' && e.stat === 'rate' && carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') return true;
+  if (e.kind === 'stat' && e.stat === 'rate' && carry === 'gravity' && (ownerCore?.def.multStat === 'blockPower' || ownerCore?.def.multStat === 'inspirationPower')) return true;
   if (e.kind === 'double') return !['burn', 'frost', 'steam'].includes(carry); // на «Лазере» и «Дроби» множитель увеличивает число снарядов, как на ядре
   // Стихии можно соединять в обоих направлениях; реакции считаются общей системой статусов.
   if (e.kind === 'lightning') return (carry === 'gravity' && ownerCore?.def.multStat === 'blockPower') || carry === 'burn' || carry === 'frost' || carry === 'steam' || carry === 'laser' || carry === 'blades' || carry === 'aura' || carry === 'shot'; // Горение/Мороз → Молния: один стак соответствующей стихии по цепи
