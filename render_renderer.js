@@ -8,6 +8,7 @@ import { DashFx } from './render_dashfx.js';
 import { InspirationFx } from './render_inspiration.js';
 import { BlackSunFx } from './render_blacksun.js';
 import { NorthGateArt } from './render_northgate.js';
+import { CastleHallArt } from './render_castle_hall.js';
 import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
@@ -525,6 +526,8 @@ export class Renderer {
     this.cfg = cfg;
     this.arena = deps.arena;
     this.northGate = this.arena.northWall ? new NorthGateArt(this.arena) : null;
+    this.castleHall=new CastleHallArt(this.arena);
+    this.castleTransition=null;
     this.hero = deps.hero;
     this.camera = deps.camera;
     this.stick = deps.stick;
@@ -641,13 +644,15 @@ export class Renderer {
     // Пол: снежная пустошь. Подложка нужна, чтобы на стыке кусков картинки не мелькала пустота.
     ctx.fillStyle = C.floor;
     ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
-    if (!this.floor) this.floor = buildFloorTexture(arena, C);
+    if(arena.location!=='hall' && !this.floor)this.floor=buildFloorTexture(arena,C);
     const gx0 = Math.max(viewL, arena.left);
     const gx1 = Math.min(viewR, arena.right);
     const gy0 = Math.max(viewT, arena.top);
     const gy1 = Math.min(viewB, arena.bottom);
-    if (gx1 > gx0 && gy1 > gy0) {
-      ctx.drawImage(this.floor, gx0 - arena.left, gy0 - arena.top, gx1 - gx0, gy1 - gy0, gx0, gy0, gx1 - gx0, gy1 - gy0);
+    if(arena.location==='hall'){
+      this.castleHall.drawFloor(ctx,viewL,viewT,viewR,viewB);
+    }else if(gx1>gx0&&gy1>gy0){
+      ctx.drawImage(this.floor,gx0-arena.left,gy0-arena.top,gx1-gx0,gy1-gy0,gx0,gy0,gx1-gx0,gy1-gy0);
     }
 
     // Граница арены: тёмная кромка, основное затемнение к краям уже в картинке пола.
@@ -655,10 +660,17 @@ export class Renderer {
     ctx.strokeStyle = C.arenaEdge;
     ctx.strokeRect(arena.left - 4, arena.top - 4, arena.width + 8, arena.height + 8);
 
-    this.drawGroundDetails(C, viewL, viewR, viewT, viewB);
+    if(arena.location==='hall'){
+      this.castleHall.drawFlames(ctx,this.clock,viewL,viewR,viewT,viewB);
+    }else{
+      this.drawGroundDetails(C,viewL,viewR,viewT,viewB);
+    }
     // Северная крепость уже в системе координат карты, а не нарисована
     // поверх HUD. Один кэшированный спрайт и живой огонь без тяжелых ассетов.
-    if(this.northGate) this.northGate.draw(ctx,viewL,viewR,viewT,viewB,this.clock);
+    if(this.northGate && arena.location==='courtyard'){
+      this.northGate.gateProgress=this.castleTransition?.open||0;
+      this.northGate.draw(ctx,viewL,viewR,viewT,viewB,this.clock);
+    }
 
     // Скалы: заснеженные хитиновые панцири с каменными наростами (спрайт на каждую).
     for (let i = 0; i < arena.rocks.length; i++) {
@@ -692,7 +704,7 @@ export class Renderer {
       ctx.restore();
     }
 
-    this.drawSnow(ctx, viewL, viewR, viewT, viewB);
+    if(arena.location!=='hall')this.drawSnow(ctx,viewL,viewR,viewT,viewB);
 
     const hx = hero.prevX + (hero.x - hero.prevX) * alpha;
     const hy = hero.prevY + (hero.y - hero.prevY) * alpha;
@@ -825,6 +837,7 @@ export class Renderer {
     this.drawStick(C);
     this.drawHud(C);
     this.drawPortalArrow();
+    this.drawCastleArrow();
   }
 
   /** #153: тёмная воронка вокруг каждой отмеченной цели, следует за мобом. */
@@ -1407,6 +1420,42 @@ export class Renderer {
     const p = this.getPortal ? this.getPortal() : null;
     if (!p || p.alpha <= 0) return;
     this.apoFin.portal(p);
+  }
+
+  /** Золотая стрелка из позиции героя к северным открывающимся воротам. */
+  drawCastleArrow() {
+    const target=this.castleTransition?.arrow;
+    if(!target||this.arena.location!=='courtyard')return;
+    const ctx=this.ctx,cam=this.camera,h=this.hero;
+    const dx=target.x-h.x,dy=target.y-h.y;
+    const a=Math.atan2(dy,dx);
+    const px=this.w/2+(h.x-cam.x)*cam.scale;
+    const py=this.h/2+(h.y-cam.y)*cam.scale;
+    const x=Math.max(36,Math.min(this.w-36,px+Math.cos(a)*61));
+    const y=Math.max(66,Math.min(this.h-66,py+Math.sin(a)*61));
+    const wave=.82+.18*Math.sin(this.clock*5.5);
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(a);
+    ctx.globalAlpha=wave;
+    ctx.shadowColor='#eec17a';ctx.shadowBlur=14;
+    ctx.fillStyle='#efc77e';
+    ctx.strokeStyle='#fff0c4';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(22,0);
+    ctx.lineTo(-4,-12);ctx.lineTo(-1,-4);ctx.lineTo(-17,-4);
+    ctx.lineTo(-17,4);ctx.lineTo(-1,4);ctx.lineTo(-4,12);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.restore();
+    // На самой двери рисуем маркер назначения, если она в кадре.
+    const gx=this.w/2+(target.x-cam.x)*cam.scale;
+    const gy=this.h/2+(target.y-cam.y)*cam.scale;
+    if(gx>30&&gx<this.w-30&&gy>30&&gy<this.h-30){
+      ctx.save();
+      ctx.globalAlpha=.45+.3*Math.sin(this.clock*4)**2;
+      ctx.strokeStyle='#f5d6a1';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(gx,gy,17+3*Math.sin(this.clock*3),0,TAU);ctx.stroke();
+      ctx.restore();
+    }
   }
 
   /** ЗАГЛУШКА ГРАФИКИ: стрелка на краю экрана в сторону портала, пока самого портала не видно. */
