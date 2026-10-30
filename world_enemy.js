@@ -32,6 +32,7 @@ export function createEnemy() {
     gravityDashSlowT: 0, gravityDashSlowMul: 1, absorptionGravity: false, // отдельное замедление после гравитационного телепорта
     pushId: 0, // номер рывка, который уже оттолкнул этого врага
     rainGravityT: 0, // временное замедление от Дождя + Гравитации
+    inspirationDrained: false, // опыт вырван живым Поглощением, после смерти нового нет
     vuln: false, // уязвимость от Магического дождя: до смерти, +урон
     shockStacks: 0, shockT: 0, // электризация: заряды и время до угасания
     frostStacks: 0, frostT: 0, freezeT: 0, // мороз: заряды замедления, до таяния, заморозка (с)
@@ -66,6 +67,7 @@ export function initEnemy(e, def, x, y) {
   e.shockStacks = 0;
   e.shockT = 0;
   e.vuln = false;
+  e.inspirationDrained = false;
   e.rainGravityT = 0;
   e.speedMul = 1;
   e.absorptionGravity = false;
