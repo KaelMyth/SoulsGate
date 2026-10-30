@@ -752,6 +752,11 @@ export const CONFIG = {
       shot: { damage: 20, speed: 205, radius: 6, range: 480, knockback: 0, parryable: true, color: '#ff923d' },
       color: '#5aa9e6', edge: '#d6efff',
     },
+    spirit: {
+      hp: 24, speed: 245, radius: 13, touchDamage: 12, touchCooldown: 0.8, knockbackScale: 0.65,
+      drop: 'green', swarm: false, spectral: true, pauseBeforeRush: 0.85,
+      color: '#c4eaff', edge: '#f3ffff',
+    },
     battleMage: {
       hp: 65.6, speed: 0, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
       drop: 'red', swarm: false, squad: true,
@@ -1331,6 +1336,7 @@ export const CONFIG = {
         { formation: { leader: 'frozenArcher', guard: 'frozenSoldier' }, groupSize: 6 },
         { mix: { frozenRam: 1 }, groupSize: 3, spread: 30 },
       ] },
+      11: { mix: { spirit: 1 }, groupSize: 1, sides: 'varied', count: 12, interval: 1.6, maxAlive: 12 },
     },
     total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).

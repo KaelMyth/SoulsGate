@@ -57,6 +57,7 @@ export function initEnemy(e, def, x, y) {
   e.guardOf = null;
   e.goalOn = false;
   e.def = def; // ссылка, не копия: скорость из панели действует на живых врагов сразу
+  e.spectralWait = def.spectral ? def.pauseBeforeRush : 0;
   e.touchTimer = 0;
   e.flash = 0;
   e.burnT = 0;
@@ -116,6 +117,11 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   if (e.rainGravityT > 0) e.rainGravityT = Math.max(0,e.rainGravityT-dt);
   e.prevX = e.x;
   e.prevY = e.y;
+  if(e.spectralWait>0){
+    e.spectralWait=Math.max(0,e.spectralWait-dt);
+    e.hx=e.hy=0;
+    return;
+  }
   if (e.touchTimer > 0) e.touchTimer -= dt;
   if (e.flash > 0) e.flash -= dt;
   if (e.gravityDashSlowT > 0) {

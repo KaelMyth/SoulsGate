@@ -2870,6 +2870,8 @@ export class Renderer {
     } else if (e.def === this.cfg.enemies.tartas) {
       // Тартас: замёрзший рыцарь с ледяным мечом.
       this.drawTartas(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.spirit) {
+      this.drawSpirit(e,x,y,hit);
     } else if (e.def === this.cfg.enemies.battleMage) {
       this.drawBattleMage(e,x,y,hit);
     } else if (e.def === this.cfg.enemies.frozenSoldier) {
@@ -5350,6 +5352,31 @@ export class Renderer {
   }
 
   /** Снежная буря привязана к мировым координатам, не к экрану камеры. */
+  drawSpirit(e,x,y,hit){
+    const c=this.ctx,t=this.clock,wait=e.spectralWait>0;
+    const bob=Math.sin(t*3+e.gen)*3;
+    const a=wait?.45+(.85-e.spectralWait)*.55:.82;
+    c.save();c.translate(x,y+bob);c.globalAlpha=Math.min(.9,a);
+    const glow=c.createRadialGradient(0,-10,1,0,-8,35);
+    glow.addColorStop(0,'rgba(192,242,255,.5)');
+    glow.addColorStop(1,'rgba(104,185,248,0)');
+    c.fillStyle=glow;c.fillRect(-38,-49,76,77);
+    c.fillStyle=hit?'#ffffff':'#a8dcf3';
+    c.beginPath();c.moveTo(-17,1);
+    c.bezierCurveTo(-25,-20,-17,-38,0,-40);
+    c.bezierCurveTo(18,-38,25,-21,18,1);
+    c.quadraticCurveTo(14,14,9,9);
+    c.quadraticCurveTo(3,19,-3,9);
+    c.quadraticCurveTo(-10,16,-17,1);
+    c.fill();
+    c.fillStyle='#dff9ff';c.globalAlpha*=.75;
+    c.beginPath();c.ellipse(-6,-24,3,5,-.12,0,Math.PI*2);
+    c.ellipse(7,-24,3,5,.12,0,Math.PI*2);c.fill();
+    c.strokeStyle='rgba(245,255,255,.85)';c.lineWidth=1;
+    c.beginPath();c.moveTo(-12,-10);c.quadraticCurveTo(0,-6,12,-10);c.stroke();
+    c.restore();
+  }
+
   drawHallPortcullis(ctx,arena,open){
     const y=arena.walkTop;
     ctx.save();

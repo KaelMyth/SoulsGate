@@ -356,7 +356,8 @@ export class Spawner {
       if(k)return k;
     }
     const fz=sp.frozen;
-    if(fz&&this.wave>=fz.fromWave)return this.pickSkeleton(fz.weights)||sp.enemy;
+    if(this.arena.location==='sanctum')return 'spirit';
+    if(fz&&this.arena.location==='hall'&&this.wave>=fz.fromWave)return this.pickSkeleton(fz.weights)||sp.enemy;
     // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
     const shooterShare = this.wave >= sp.shooterFromWave ? sp.shooterShare : 0;
@@ -427,6 +428,17 @@ export class Spawner {
             this.pt.y += (this.rnd() - 0.5) * 2 * spread;
           }
         }
+      }
+      if(this.arena.location==='sanctum' && pat?.mix?.spirit){
+        // Дух материализуется прямо в видимой части зала, но не на герое.
+        const cam=this.camera,ar=this.arena;
+        const rx=Math.min(cam.viewW*.36,ar.width*.36);
+        const ry=Math.min(cam.viewH*.36,ar.height*.32);
+        const angle=this.rnd()*TAU;
+        const dist=90+this.rnd()*Math.max(25,Math.min(rx,ry)-90);
+        this.pt.x=Math.max(ar.left+30,Math.min(ar.right-30,cam.x+Math.cos(angle)*dist));
+        this.pt.y=Math.max(ar.walkTop+30,Math.min(ar.bottom-30,cam.y+Math.sin(angle)*dist));
+        ok=true;
       }
       if (!ok && !pickSpawnPoint(this.rnd, this.camera, this.arena, this.cfg.spawn.margin, this.pt)) continue;
       // Для смешанной пятой волны каждый вид гарантирован, а не зависит от случайного веса.
