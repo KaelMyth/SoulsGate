@@ -215,18 +215,21 @@ export class IceVolumeArt extends IsometricIceEnemies {
         [f,-6,shoulder-4],[f,6,shoulder-4],
         [f,6,waist+5],[f,-6,waist+5]
       ];
-      // Отдельные сегменты плавно огибают доспех.
-      const p0=this.p(f,-6,shoulder-4),p1=this.p(f,6,waist+5);
-      this.facet(c,[q[0],q[1],q[6]||q[2]],front?'#8798ac':'#3d4b63',null);
-      this.facet(c,[q[1],q[2],q[3],q[4]],front?'#697d93':'#46566c',null);
+      // Криволинейная нагрудная пластина с центральным гребнем.
+      // Сзади своя сплошная пластина: нельзя рисовать передние
+      // сегменты с индексами, которых у спинки не существует.
       if(front){
+        this.facet(c,[q[0],q[1],q[6]],'#899bae',null);
+        this.facet(c,[q[1],q[2],q[3],q[4]],'#72869b',null);
         this.facet(c,[q[1],q[4],q[5],q[6]],'#566b83',null);
         this.line3(c,[f+.5,0,shoulder-8],[f+.5,0,waist+5],
           'rgba(227,243,255,.74)',1.0);
         this.line3(c,[f,-5,shoulder-5],[f+1,0,shoulder-9],
           'rgba(245,251,255,.46)',.8);
       }else{
+        this.facet(c,q,'#3d4b63',null);
         this.line3(c,[f,-5,shoulder-5],[f,-5,waist+5],'#7b8da3',.85);
+        this.line3(c,[f,5,shoulder-5],[f,5,waist+5],'#253a51',.85);
       }
     }
     // Ткань и пояс с рельефной застёжкой.
@@ -439,7 +442,7 @@ export class IceVolumeArt extends IsometricIceEnemies {
       Math.cos(target-st.dir))*(1-Math.exp(-dt*turnRate));
     st.dir=Math.atan2(Math.sin(st.dir),Math.cos(st.dir));
     st.weight=smooth(st.weight,walking?1:0,1-Math.exp(-dt*9));
-    st.walk+=dt*(boss?7:kind==='ram'?8:10)*st.weight;
+    if(e.freezeT<=0)st.walk+=dt*(boss?7:kind==='ram'?8:10)*st.weight;
     const attacking=(e.atk?.state==='windup'||e.atk?.state==='strike'||e.aim>0||
       (boss&&special!=='idle'&&special!=='recover'));
     st.attack=smooth(st.attack,attacking?1:0,1-Math.exp(-dt*12));
