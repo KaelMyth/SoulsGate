@@ -1002,7 +1002,7 @@ export class Renderer {
     const tg = this.tg || (this.tg = {});
     for (let i = 0; i < en.length; i++) {
       const e = en[i];
-      if (!e.active || !e.def.attack) continue;
+      if (!e.active || !(e.def.attack || e.def.arch)) continue;
       if (!getTelegraph(e, this.hero, tg)) continue;
       const x = e.prevX + (e.x - e.prevX) * alpha;
       const y = e.prevY + (e.y - e.prevY) * alpha;
@@ -1839,6 +1839,86 @@ export class Renderer {
    * плащ-лохмотья и ледяной меч, который по ходу атак меняет позу: замах назад на телеграфе рывка, выпад на рывке,
    * меч над головой на клинках, острие в землю при призыве отряда. Состояние читаем из this.boss (он же рисует землю).
    */
+  // ЗАГЛУШКА ГРАФИКИ: Пепельный Арх. Большой серый жук; микрофаза e.archPhase: 0 серый, 1 краснеет, 2 разгорается.
+  drawArch(e, x, y, hit) {
+    const ctx = this.ctx;
+    const r = e.radius;
+    const t = this.clock;
+    const ph = e.archPhase || 0;
+    let st = this.beetleState.get(e);
+    if (!st) {
+      st = { a: Math.atan2(this.hero.y - y, this.hero.x - x), ph: Math.random() * TAU };
+      this.beetleState.set(e, st);
+    }
+    const a = e.atk;
+    const target = a.state === 'windup' || a.state === 'strike' ? Math.atan2(a.dirY, a.dirX)
+      : e.hx !== 0 || e.hy !== 0 ? Math.atan2(e.hy, e.hx) : Math.atan2(this.hero.y - y, this.hero.x - x);
+    let da = (target - st.a) % TAU;
+    if (da > Math.PI) da -= TAU;
+    else if (da < -Math.PI) da += TAU;
+    st.a += da * 0.2;
+    // Цвет панциря по микрофазам: серый → краснеющий → раскалённый.
+    const body = ['#6f7178', '#85605f', '#9a4a3c'][ph];
+    const plate = ['#8b8d93', '#a77472', '#c4573a'][ph];
+    const glowCol = ['#c9cbd2', '#ff9d8a', '#ff7a2f'][ph];
+    const shake = a.state === 'windup' ? Math.sin(t * 60) * 1.5 : 0;
+    ctx.save();
+    ctx.translate(x + shake, y);
+    ctx.rotate(st.a);
+    const k = hit ? 1.06 : 1;
+    ctx.scale(k, k);
+    if (ph === 2 || e.aim > 0) { // раскалённое свечение
+      ctx.globalAlpha = 0.22 + 0.08 * Math.sin(t * 8);
+      ctx.fillStyle = glowCol;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.7, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = '#3c3e44'; // ноги
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    const moving = e.hx !== 0 || e.hy !== 0;
+    for (let i = 0; i < 3; i++) {
+      const lx = (0.4 - i * 0.5) * r;
+      const sw = moving ? Math.sin(t * 12 + st.ph + i * 2.1) * 0.2 * r : 0;
+      ctx.moveTo(lx, -0.5 * r); ctx.lineTo(lx + 0.2 * r, -1.05 * r); ctx.lineTo(lx + 0.2 * r + sw, -1.3 * r);
+      ctx.moveTo(lx, 0.5 * r); ctx.lineTo(lx + 0.2 * r, 1.05 * r); ctx.lineTo(lx + 0.2 * r - sw, 1.3 * r);
+    }
+    ctx.stroke();
+    ctx.beginPath(); // панцирь
+    ctx.moveTo(0.7 * r, -0.55 * r); ctx.lineTo(0.1 * r, -0.95 * r); ctx.lineTo(-0.8 * r, -0.75 * r);
+    ctx.lineTo(-1.2 * r, 0); ctx.lineTo(-0.8 * r, 0.75 * r); ctx.lineTo(0.1 * r, 0.95 * r); ctx.lineTo(0.7 * r, 0.55 * r);
+    ctx.closePath();
+    ctx.fillStyle = hit ? '#ffffff' : body;
+    ctx.fill();
+    ctx.strokeStyle = hit ? '#ffffff' : glowCol;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (!hit) {
+      ctx.fillStyle = plate; // пластины на спине
+      ctx.beginPath();
+      ctx.moveTo(0.3 * r, -0.4 * r); ctx.lineTo(-0.7 * r, -0.5 * r); ctx.lineTo(-0.9 * r, 0); ctx.lineTo(-0.7 * r, 0.5 * r); ctx.lineTo(0.3 * r, 0.4 * r);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = hit ? '#ffffff' : '#4f5157'; // голова с жвалами
+    ctx.beginPath();
+    ctx.moveTo(1.15 * r, -0.2 * r); ctx.lineTo(0.7 * r, -0.5 * r); ctx.lineTo(0.7 * r, 0.5 * r); ctx.lineTo(1.15 * r, 0.2 * r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = glowCol;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(1.1 * r, -0.2 * r); ctx.lineTo(1.5 * r, -0.4 * r);
+    ctx.moveTo(1.1 * r, 0.2 * r); ctx.lineTo(1.5 * r, 0.4 * r);
+    ctx.stroke();
+    ctx.fillStyle = ph === 0 ? '#ffe9a8' : '#ff5a3a'; // глаза
+    ctx.fillRect(0.82 * r, -0.4 * r, 0.14 * r, 0.14 * r);
+    ctx.fillRect(0.82 * r, 0.26 * r, 0.14 * r, 0.14 * r);
+    ctx.restore();
+  }
+
   drawTartas(e, x, y, hit) {
     const ctx = this.ctx;
     const C = this.cfg.render.colors;
@@ -2258,6 +2338,8 @@ export class Renderer {
       this.drawBull(e, x, y, hit);
     } else if (e.def === this.cfg.enemies.rockBeetle) {
       this.drawRockBeetle(e, x, y, hit);
+    } else if (e.def === this.cfg.enemies.ashenArch) {
+      this.drawArch(e, x, y, hit); // ЗАГЛУШКА ГРАФИКИ: большой серый жук
     } else if (e.def === this.cfg.enemies.tartas) {
       // Тартас: замёрзший рыцарь с ледяным мечом.
       this.drawTartas(e, x, y, hit);

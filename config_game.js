@@ -1010,6 +1010,47 @@ export const CONFIG = {
     },
     // Тартас: миниборс, «замерзший рыцарь». Атаки обычных врагов описаны в attack, а у босса своя логика (systems/boss.js).
     // immuneFrost: Мороз его не замедляет и не замораживает. knockbackScale 0: снаряды его не отталкивают.
+    // Мини-босс Пепельный Арх (волна 10, systems_arch.js): большой серый жук, три микрофазы по здоровью (arch.phases).
+    // 1: залпы серых шариков (как стрелок, но много подряд). 2: чуть краснеет, поочерёдные рывки как у быка.
+    // 3: разгорается, рывки с шариками, разлетающимися в стороны от линии рывка. Вид: ЗАГЛУШКА ГРАФИКИ.
+    ashenArch: {
+      name: 'Пепельный Арх',
+      title: 'Пепельный Арх - серый жук', // надпись при появлении
+      hp: 900,
+      speed: 58,
+      radius: 34,
+      touchDamage: 12,
+      touchCooldown: 1.0,
+      knockbackScale: 0,
+      drop: 'red',
+      swarm: false,
+      boss: true,
+      passThroughHero: true, // на рывке проходит сквозь героя
+      spawnDistance: 280,
+      keepDistance: 240,     // фаза 1: держит дистанцию, как стрелок
+      color: '#8b8d93',
+      edge: '#c9cbd2',
+      arch: {
+        phases: [0.66, 0.33],  // доля здоровья: ниже первой — фаза 2, ниже второй — фаза 3
+        firstDelay: 1.5,
+        phaseDelay: 1.2,       // пауза после смены фазы
+        // Фаза 1: прицеливание (светится, сигнал для парирования), затем count шариков подряд, каждый в героя на момент выстрела.
+        volley: {
+          aim: 0.6, count: 7, interval: 0.16, pause: 1.6, jitter: 0.07,
+          shot: { damage: 9, speed: 210, radius: 7, range: 520, knockback: 0, parryable: true, color: '#b9bcc4' },
+        },
+        // Фазы 2 и 3: рывки по линии подряд (count), между ними gap. startRange: с какого расстояния начинает серию.
+        dash: {
+          shape: 'line', length: 330, width: 34, windup: 0.75, strike: 0.16, recovery: 0.3, gap: 0.2,
+          count: 3, pause: 1.8, startRange: 380, damage: 22, parryable: true, stun: 1.0,
+        },
+        // Фаза 3: тот же рывок, но быстрее и больше, а вдоль пути в обе стороны от линии разлетаются шарики.
+        burst: {
+          windup: 0.6, count: 4, pause: 1.4, sideEvery: 55,
+          shot: { damage: 8, speed: 230, radius: 6, range: 420, knockback: 0, parryable: true, color: '#ff8a6a' },
+        },
+      },
+    },
     tartas: {
       name: 'Тартас',
       title: 'Тартас - замерзший рыцарь', // надпись при появлении
@@ -1217,6 +1258,8 @@ export const CONFIG = {
       // 1..n одиночек по весам mix (Охотники и быки), со случайной стороны.
       9: { formation: { leader: 'shooter', guard: 'beetle' }, groupSize: 6, sides: 'varied', count: 36, interval: 5, maxAlive: 40,
         extra: { chance: 0.8, n: 2, mix: { hunter: 2, bull: 1 } } },
+      // Волна 10: все виды жуков со всех сторон (кольцо); после зачистки выходит мини-босс (waves.boss).
+      10: { mix: { beetle: 6, shooter: 2, bull: 2, hunter: 3 }, groupSize: 10, sides: 'ring', count: 50, interval: 3.5, maxAlive: 40 },
     },
     total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).
@@ -1224,7 +1267,7 @@ export const CONFIG = {
     // После победы над боссом идут обычные волны дальше. Времена в секундах.
     boss: {
       wave: 10,
-      enemy: 'tartas',
+      enemy: 'ashenArch',
       intro: {
         panTime: 1.0,     // камера плывёт к боссу
         titleIn: 0.4,     // надпись проявляется
@@ -1235,6 +1278,7 @@ export const CONFIG = {
     },
     // Финальный босс: после зачистки волны выходит Апофеоз. Игра замирает, камера отдаляется, остаток карты рушится,
     // герой остаётся на острове (zone), босс в разрушенной зоне (finale). Потом бой идёт с отдалённой камерой.
+    boss2: { wave: 15, enemy: 'tartas' }, // второй мини-босс (вступление то же, waves.boss.intro)
     finalBoss: { wave: 20, enemy: 'apotheosis' },
     finale: {
       zoom: 1.4,           // во сколько раз отдалена камера на время боя (остров 520 шириной и босс над ним помещаются; было 2.0: всё мелко)

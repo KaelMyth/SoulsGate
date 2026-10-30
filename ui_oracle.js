@@ -16,7 +16,7 @@ const ENEMY = {
   beetle: 'Жук', hunter: 'Охотник', shooter: 'Жук-стрелок', bull: 'Бык', frozenArcher: 'Замёрзший лучник', frozenSoldier: 'Замёрзший воин',
   frozenRam: 'Замёрзший таран', rockBeetle: 'Мошка', apostleRisen: 'Апостол: Воскресший', apostleFaith: 'Апостол: Вера', apostleTruth: 'Апостол: Истина',
   apostleForce: 'Апостол: Сила', apostleLove: 'Апостол: Любовь', apotheosis: 'Апофеоз', skeletonArcher: 'Скелет-стрелок', skeletonWarrior: 'Скелет-воин',
-  skeletonRam: 'Скелет-таран', tartas: 'Тартас',
+  skeletonRam: 'Скелет-таран', tartas: 'Тартас', ashenArch: 'Пепельный Арх',
 };
 const enemyName = (cfg, key) => ENEMY[key] || (cfg.enemies[key] && cfg.enemies[key].name) || key;
 

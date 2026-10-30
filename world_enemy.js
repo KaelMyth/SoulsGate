@@ -16,6 +16,8 @@ export function createEnemy() {
     kbTau: 0.07,      // за сколько секунд затухает откидывание
     hx: 0, hy: 0,     // куда шёл на прошлом шаге (единичный вектор); по нему соседи по стае выравнивают курс
     headAngle: 0,     // Апофеоз: поворот головы-солнца, радианы (systems_apotheosis.js)
+    archPhase: 0,     // Пепельный Арх: микрофаза 0..2 (systems_arch.js); по ней renderer меняет цвет
+    walkIn: false,    // true: стрелок с keepDistance не держит дистанцию, а идёт вплотную (Арх в фазах рывков)
     gen: 0,           // номер «жизни» записи: меняется при каждом появлении (охрана узнаёт, что стрелок погиб, а запись заняли заново)
     guardOf: null, guardGen: 0, guardAng: 0, // охрана (systems_guards.js): чей телохранитель, его gen, угол на кольце вокруг подопечного
     goalOn: false, goalX: 0, goalY: 0,       // если goalOn: идёт к этой точке, а не к герою (охрана держит место в кольце)
@@ -48,6 +50,8 @@ export function initEnemy(e, def, x, y) {
   e.radius = def.radius;
   e.hp = e.maxHp = def.hp;
   e.gen++;
+  e.archPhase = 0;
+  e.walkIn = false;
   e.guardOf = null;
   e.goalOn = false;
   e.def = def; // ссылка, не копия: скорость из панели действует на живых врагов сразу
@@ -134,7 +138,7 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   const gap = e.goalOn ? dt2 - 3 : d - (hero.radius + e.radius - 2);
   // Стрелок держит дистанцию: стоит, пока целится, и когда видит героя с нужного расстояния.
   let hold = false;
-  if (e.def.keepDistance > 0) {
+  if (e.def.keepDistance > 0 && !e.walkIn) {
     hold = e.aim > 0 || (d <= e.def.keepDistance && !arena.segmentBlocked(e.x, e.y, hero.x, hero.y, 3));
   }
   if (e.atk.state !== 'idle') hold = true; // замах, удар, восстановление и оглушение: сам не идёт
