@@ -52,9 +52,10 @@ export class Arena {
     // Одинаковые координаты для отрисовки, физики и навигации. Колонны
     // позволяют пройти вокруг себя, саркофаги закрывают только боковые ниши.
     this.hallColumns=[];
-    for(const y of [-535,-185,165,515,775])
-      for(const x of [-354,-232,232,354])
-        this.hallColumns.push({x,y,r:27});
+    // Две свободные линии прохода, между рядами больше пространства для боя.
+    for(const y of [-510,-75,360,775])
+      for(const x of [-325,325])
+        this.hallColumns.push({x,y,r:20});
     this.hallCrypts=[];
     for(const y of [-557,-242,73,388,703])
       for(const x of [-509,509])

@@ -1,4 +1,4 @@
-// Релиз 167: замёрзшие враги с волны 5; тёмный холл с криптами и колоннами.
+// Релиз 168: исправлено начало Замёрзших на 6 волнe; редкие тонкие колонны и крипты.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -8,12 +8,12 @@ import { Arena } from '../world_arena.js';
 import { NavGrid } from '../world_nav.js';
 import { CastleHallArt } from '../render_castle_hall.js';
 
-test('С 5-й волны спавнятся только замёрзшие, даже если рисунок волны требует жуков',()=>{
-  assert.equal(CONFIG.spawn.frozen.fromWave,5);
+test('С 6-й волны спавнятся только замёрзшие после входа в холл',()=>{
+  assert.equal(CONFIG.spawn.frozen.fromWave,6);
   const sp=Object.create(Spawner.prototype);
   sp.cfg=CONFIG;sp.rnd=()=>.52;
   const frozen=Object.keys(CONFIG.spawn.frozen.weights);
-  for(const wave of [5,6,7,8,9,10,11,12]){
+  for(const wave of [6,7,8,9,10,11,12]){
     sp.wave=wave;
     for(let i=0;i<4;i++){
       const pat=CONFIG.waves.patterns?.[wave]||null;
@@ -21,9 +21,9 @@ test('С 5-й волны спавнятся только замёрзшие, д�
       assert.ok(frozen.includes(kind),'волна '+wave+': '+kind);
     }
   }
-  sp.wave=4;
-  const normal=sp.pickKind(CONFIG.waves.patterns[4]);
-  assert.ok(!frozen.includes(normal),'до 5 волны прежние враги остаются');
+  sp.wave=5;
+  const normal=sp.pickKind(CONFIG.waves.patterns[5]);
+  assert.ok(!frozen.includes(normal),'в 5-й волне ещё прежние враги, включая битву с Архом');
   assert.equal(CONFIG.waves.boss.wave,5,'Пепельный Арх остаётся на 5 волне');
 });
 
@@ -51,9 +51,9 @@ test('В холле физические колонны и боковые сар
   assert.ok(a.rocks.length>0);
   a.setLocation('hall');
   assert.equal(a.rocks.length,0);
-  assert.equal(a.hallColumns.length,20);
+  assert.equal(a.hallColumns.length,8);
   assert.equal(a.hallCrypts.length,10);
-  assert.equal(a.obstacles.length,30);
+  assert.equal(a.obstacles.length,18);
   for(const p of [a.hallColumns[0],a.hallCrypts[0]]){
     assert.equal(a.circleHitsRock(p.x,p.y,8),true);
     assert.equal(a.segmentBlocked(p.x-80,p.y,p.x+80,p.y,4),true);
@@ -130,18 +130,20 @@ test('Колонны поверх персонажа плавно прозрач
   const prev=globalThis.document;
   globalThis.document={createElement(){return{width:0,height:0,getContext(){return c;}};}};
   try{
+    const sourceHasTorch=()=>readFileSync(new URL('../render_castle_hall.js',import.meta.url),'utf8').includes('погасший');
     const art=new CastleHallArt(arena),p=arena.hallColumns[3];
     const bounds=[arena.left,arena.right,arena.top,arena.bottom];
     const hero={active:true,x:p.x,y:p.y-74,radius:12};
     for(let i=0;i<7;i++)art.drawColumns(c,hero,.1,...bounds);
     assert.equal(art.columnSprite.width,136);
     assert.equal(art.columnSprite.height,208);
+    assert.ok(sourceHasTorch(),'на каждой колонне предусмотрен погашенный факел');
     assert.ok((art.opacity.get(3)||1)<.3,'колонна закрывает персонажа и становится прозрачной');
     assert.ok((art.opacity.get(4)||1)>.95,'соседние колонны остаются непрозрачны');
     hero.x=0;hero.y=0;
     for(let i=0;i<10;i++)art.drawColumns(c,hero,.1,...bounds);
     assert.ok((art.opacity.get(3)||0)>.98,'когда герой вышел, колонна снова непрозрачна');
-    assert.ok(record.images>=20,'кэшированный спрайт используется для всех колонн');
+    assert.ok(record.images>=12,'кэшированный спрайт используется для всех колонн');
   }finally{
     if(prev===undefined)delete globalThis.document;
     else globalThis.document=prev;
