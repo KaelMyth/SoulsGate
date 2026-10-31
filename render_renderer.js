@@ -16,6 +16,7 @@ import { ApotheosisArt } from './render_apotheosis.js';
 import { ApoFinaleFx } from './render_apofinale.js';
 
 const TAU = Math.PI * 2;
+const TROOP_SIZE = 48, TROOP_HALF = 24; // клетка спрайта воина в мировых единицах (радиус 12 → хватает с запасом для тарана)
 // Цвета молнии по стихиям: 0 жёлтая, 1 огонь (оранжевая), 2 мороз (синяя), 3 все три (белая).
 const ZAP_RGB = ['255,225,70', '255,58,67', '110,205,255', '255,255,255'];
 const LASER_RGB = ['110,205,255', '255,140,50', '150,242,255', '236,242,252', '190,120,255']; // луч: синий, огонь, мороз, пар, фантом
@@ -619,6 +620,7 @@ export class Renderer {
     const h = this.canvas.clientHeight || 1;
     const nativeDpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
     this.dpr = Math.max(1, Math.min(nativeDpr, this.cfg.render.maxDpr));
+    this.troopSprites = null; // спрайты воинов зависят от плотности пикселей
     this.w = w;
     this.h = h;
     this.canvas.width = Math.round(w * this.dpr);
@@ -627,6 +629,7 @@ export class Renderer {
   }
 
   draw(alpha) {
+    this.frameNo = (this.frameNo || 0) + 1;
     const { ctx, dpr, w, h, arena, hero, camera } = this;
     const C = this.cfg.render.colors;
     const now = performance.now() / 1000;
@@ -2685,12 +2688,27 @@ export class Renderer {
     const windup = A.state === 'windup' && e.def.attack ? Math.min(1, A.t / Math.max(0.01, e.def.attack.windup)) : 0;
     const striking = A.state === 'strike';
     const aim = e.aim > 0 ? 1 - e.aim / Math.max(0.01, e.aimTotal) : 0;
+    const q = this.troopSprite(kind, st.a, st.step, frozen, hit, windup, striking, aim);
+    if (q) {
+      // Готовый спрайт: тело уже нарисовано под нужным углом и фазой шага, на кадр остаётся одна drawImage.
+      const ox = windup > 0 ? Math.sin(t * 60) * windup * 0.6 : 0;
+      ctx.drawImage(q, x + ox - TROOP_HALF * s, y - TROOP_HALF * s, TROOP_SIZE * s, TROOP_SIZE * s);
+      return;
+    }
+    // Запасной путь (лимит новых спрайтов за кадр исчерпан): прежняя прямая отрисовка.
     this.localLight(st.a);
     ctx.save();
     ctx.translate(x + (windup > 0 ? Math.sin(t * 60) * windup * 0.6 : 0), y);
     ctx.rotate(st.a);
     ctx.scale(s, s);
-    const stride = Math.sin(st.step) * 2.4;
+    this.paintTroop(ctx, kind, st.step, frozen, hit, windup, striking, aim, t, st.ph);
+    ctx.restore();
+  }
+
+  /** Тело замёрзшего воина в местных осях (вперёд = +x), без поворота и масштаба: рисуется и в спрайт, и напрямую. */
+  paintTroop(ctx, kind, step, frozen, hit, windup, striking, aim, t, ph) {
+    const C = this.cfg.render.colors;
+    const stride = Math.sin(step) * 2.4;
     for (const sg of [-1, 1]) this.bevel([4 + stride * sg, sg * 4 - 2.5, 10 + stride * sg, sg * 4 - 2, 10 + stride * sg, sg * 4 + 2, 4 + stride * sg, sg * 4 + 2.5], '#18203a', '#3b4a73', 0.8);
     const wide = kind === 'ram' ? 1.2 : 1;
     this.bevel([-6, -9 * wide, 3, -10 * wide, 8, -5, 8, 5, 3, 10 * wide, -6, 9 * wide, -9, 0], frozen ? '#4a6486' : C.tartasPlate, C.tartasPlateLit, 1.5);
@@ -2704,7 +2722,7 @@ export class Renderer {
     ctx.fill();
     this.bevel([2, -4.5, 6.5, -2.5, 7.5, 0, 6.5, 2.5, 2, 4.5, -1, 2, -1, -2], '#222c48', '#566b9a', 1);
     if (kind === 'soldier') {
-      const sw = (striking ? 0 : 0.6) + windup * 1.4 + 0.15 * Math.sin(st.step);
+      const sw = (striking ? 0 : 0.6) + windup * 1.4 + 0.15 * Math.sin(step);
       ctx.save();
       ctx.translate(5, 9);
       ctx.rotate(sw);
@@ -2773,11 +2791,45 @@ export class Renderer {
     }
     ctx.globalCompositeOperation = 'lighter';
     const heat = striking || windup > 0 ? 1 : 0.7;
-    ctx.globalAlpha = (frozen ? 0.35 : heat) * (0.8 + 0.2 * Math.sin(t * 8 + st.ph));
+    ctx.globalAlpha = (frozen ? 0.35 : heat) * (0.8 + 0.2 * Math.sin(t * 8 + ph));
     for (const sg of [-1, 1]) ctx.drawImage(this.getGlow('blue'), 5.6, sg * 1.6 - 3.5, 7, 7);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
-    ctx.restore();
+  }
+
+  /**
+   * Кэш спрайтов воинов Тартаса и призраков. Ключ: вид, угол (32 шага), фаза шага (8), заморозка, вспышка попадания,
+   * замах/прицел (по 4 ступени), выпад. Спрайт рисуется один раз, дальше на врага уходит одна drawImage вместо ~40 путей.
+   * Новых спрайтов за кадр не больше троих: остальные враги этот кадр рисуются по-старому, без заметного рывка.
+   */
+  troopSprite(kind, ang, step, frozen, hit, windup, striking, aim) {
+    const cache = this.troopSprites || (this.troopSprites = new Map());
+    const ab = ((Math.round(ang / TAU * 32) % 32) + 32) % 32;
+    const sb = ((Math.round((step % TAU) / TAU * 8) % 8) + 8) % 8;
+    const wq = Math.min(4, Math.round(windup * 4));
+    const aq = aim > 0 ? Math.min(4, Math.ceil(aim * 4)) : 0;
+    const key = kind + ab + '.' + sb + (frozen ? 'f' : '') + (hit ? 'h' : '') + (striking ? 's' : '') + wq + aq;
+    let c = cache.get(key);
+    if (c) return c;
+    if (this.troopMade >= 3 && this.troopMadeFrame === this.frameNo) return null;
+    if (this.troopMadeFrame !== this.frameNo) { this.troopMadeFrame = this.frameNo; this.troopMade = 0; }
+    if (cache.size > 700) cache.clear(); // на случай дрейфа ключей; пересоберётся лениво
+    this.troopMade++;
+    const px = Math.round(TROOP_SIZE * this.dpr);
+    if (typeof OffscreenCanvas === 'function') c = new OffscreenCanvas(px, px);
+    else { c = document.createElement('canvas'); c.width = c.height = px; }
+    const g = c.getContext('2d');
+    const saved = this.ctx;
+    this.ctx = g;
+    const a = ab / 32 * TAU;
+    this.localLight(a);
+    g.setTransform(px / TROOP_SIZE, 0, 0, px / TROOP_SIZE, 0, 0);
+    g.translate(TROOP_HALF, TROOP_HALF);
+    g.rotate(a);
+    this.paintTroop(g, kind, sb / 8 * TAU, frozen, hit, wq / 4, striking, aq / 4, 0, 0);
+    this.ctx = saved;
+    cache.set(key, c);
+    return c;
   }
 
   /** Боевой маг в многослойной броне и мантии, с левитирующим фокусом щита. */
