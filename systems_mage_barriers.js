@@ -1,25 +1,27 @@
-// Непробиваемая магическая мембрана перед троицей лучников.
-// Работает только при живом маге того же поколения пула. Обойти можно с фланга.
+// Магическая мембрана-полукруг перед троицей лучников.
+// Щит движется с магом, но навсегда сохраняет направление в момент призыва.
+// Обойти можно с фланга и с тыла.
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class MageBarriers {
   constructor(config){this.cfg=config.mageBarrier;this.active=[];}
   reset(){this.active.length=0;}
   add(mage,archers,hero){
-    const dx=hero.x-mage.x,dy=hero.y-mage.y,d=Math.hypot(dx,dy)||1;
-    const nx=dx/d,ny=dy/d;
+    const dx=hero.x-mage.x,dy=hero.y-mage.y,d=Math.hypot(dx,dy);
+    // Если герой совпал с точкой появления мага, сохраняем корректную единичную ось.
+    const nx=d>1e-4?dx/d:1,ny=d>1e-4?dy/d:0;
     const b={mage,gen:mage.gen,hero,archers:archers.map(e=>({e,gen:e.gen})),
-      nx,ny,age:0,x:0,y:0,ax:0,ay:0,bx:0,by:0};
+      nx,ny,                 // направление строя лучников: они продолжают следовать за магом
+      shieldNx:nx,shieldNy:ny, // направление щита фиксировано при появлении и не поворачивается
+      age:0,x:0,y:0,radius:this.cfg.width*.5};
     this.active.push(b);
     this.position(b);
   }
   position(b){
-    b.x=b.mage.x+b.nx*this.cfg.forward;
-    b.y=b.mage.y+b.ny*this.cfg.forward;
-    const r=this.cfg.width*.5;
-    b.ax=b.x-b.ny*r;b.ay=b.y+b.nx*r;
-    b.bx=b.x+b.ny*r;b.by=b.y-b.nx*r;
+    // Перемещаем полукруг вместе с магом, но не меняем его исходную ориентацию.
+    b.x=b.mage.x+b.shieldNx*this.cfg.forward;
+    b.y=b.mage.y+b.shieldNy*this.cfg.forward;
   }
-  /** Перед движением врагов: щит поворачивается к герою, лучники идут в строю за магом. */
+  /** Перед движением врагов: лучники перестраиваются за магом, щит не поворачивается. */
   updateFormation() {
     for (const b of this.active) {
       const mage = b.mage;
@@ -56,19 +58,30 @@ export class MageBarriers {
       b.age+=dt;this.position(b);
     }
   }
+  /** Пересечение отрезка с передней половиной окружности. Ровно эта дуга и нарисована.
+   *  pad учитывает радиус снаряда/героя. Работает с обеих сторон полукруга. */
   intersection(x0,y0,x1,y1,pad=0){
     const dx=x1-x0,dy=y1-y0;
+    const lenSq=dx*dx+dy*dy;
+    if(lenSq<1e-10)return null;
     let best=null;
     for(const b of this.active){
-      if(!b.mage.active||b.mage.gen!==b.gen)continue;
-      const qx=b.bx-b.ax,qy=b.by-b.ay,det=dx*qy-dy*qx;
-      if(Math.abs(det)<1e-8)continue;
-      const ex=b.ax-x0,ey=b.ay-y0;
-      const t=(ex*qy-ey*qx)/det,u=(ex*dy-ey*dx)/det;
-      // Толщина заряда увеличивает перехватываемую ширину щита.
-      const slack=pad/Math.max(1,this.cfg.width);
-      if(t>=0&&t<=1&&u>=-slack&&u<=1+slack&&(!best||t<best.t))
-        best={t:clamp(t,0,1),x:x0+dx*clamp(t,0,1),y:y0+dy*clamp(t,0,1)};
+      if(!b.mage.active||b.mage.gen!==b.gen||b.mage.hp<=0)continue;
+      const ox=x0-b.x,oy=y0-b.y;
+      const radius=b.radius+Math.max(0,pad);
+      const along=ox*dx+oy*dy;
+      const disc=along*along-lenSq*(ox*ox+oy*oy-radius*radius);
+      if(disc<0)continue;
+      const root=Math.sqrt(disc);
+      const start=(-along-root)/lenSq,end=(-along+root)/lenSq;
+      // Обе точки проверяются: при движении изнутри полукруга важна выходная.
+      for(let k=0;k<2;k++){
+        const t=k===0?start:end; // без массива в горячем цикле пересечений
+        if(t<0||t>1||best&&t>=best.t)continue;
+        const hx=ox+dx*t,hy=oy+dy*t;
+        if(hx*b.shieldNx+hy*b.shieldNy < -Math.max(0,pad))continue;
+        best={t,x:x0+dx*t,y:y0+dy*t};
+      }
     }
     return best;
   }
@@ -93,18 +106,32 @@ export class MageBarriers {
     const h=this.intersection(x,y,x+dx*length,y+dy*length,width*.5);
     return h?Math.max(0,length*h.t):length;
   }
+  /** Полукруглая магическая оболочка с мягкой подсветкой и тонкими рунами по дуге. */
   draw(ctx,clock){
+    const PI=Math.PI;
     for(const b of this.active){
+      if(!b.mage.active||b.mage.gen!==b.gen||b.mage.hp<=0)continue;
       const pulse=.8+.12*Math.sin(clock*5+b.age*3);
-      ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='lighter';
+      const angle=Math.atan2(b.shieldNy,b.shieldNx);
+      const start=angle-PI*.5,end=angle+PI*.5;
+      const r=b.radius;
+      ctx.save();
+      ctx.lineCap='round';
+      ctx.globalCompositeOperation='lighter';
+      // Тонкая полупрозрачная мембрана заполняет переднюю половину круга.
+      ctx.fillStyle='rgba(92,90,184,.075)';
+      ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.arc(b.x,b.y,r,start,end);ctx.closePath();ctx.fill();
+      // Три слоя обводки создают объём и свечение, не меняя графический стиль.
       for(const [col,w] of [['rgba(87,91,219,.2)',15],['rgba(147,136,255,.48)',6*pulse],['rgba(238,220,255,.88)',1.5]]){
         ctx.strokeStyle=col;ctx.lineWidth=w;
-        ctx.beginPath();ctx.moveTo(b.ax,b.ay);ctx.lineTo(b.bx,b.by);ctx.stroke();
+        ctx.beginPath();ctx.arc(b.x,b.y,r,start,end);ctx.stroke();
       }
-      for(let i=0;i<=6;i++){
-        const t=i/6,x=b.ax+(b.bx-b.ax)*t,y=b.ay+(b.by-b.ay)*t;
+      // Отдельные частицы строго вдоль дуги, а не на прежней прямой.
+      for(let i=0;i<=8;i++){
+        const a=start+(end-start)*i/8;
+        const x=b.x+Math.cos(a)*r,y=b.y+Math.sin(a)*r;
         ctx.fillStyle=i%2?'#8d8cf9':'#e8d9ff';
-        ctx.beginPath();ctx.arc(x,y,2.1+Math.sin(clock*4+i)*.3,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(x,y,2.1+Math.sin(clock*4+i)*.3,0,PI*2);ctx.fill();
       }
       ctx.restore();
     }
