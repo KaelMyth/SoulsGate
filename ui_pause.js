@@ -15,7 +15,7 @@ function gearIcon() {
   return svg('svg', { viewBox: '0 0 32 32', 'aria-hidden': 'true' },
     svg('path', { d: 'M' + pts.join('L') + 'ZM16 11.4l4.6 4.6-4.6 4.6-4.6-4.6z', fill: 'currentColor', 'fill-rule': 'evenodd' }));
 }
-import { BuilderUI } from './ui_builder.js';
+import { BuilderUI } from './ui_builder.js?v=210';
 
 export class PauseUI {
   /** handlers: { onToggle, onResume, onRestart, onExit }; grid: BuildGrid; storage: Storage; config: живой конфиг */

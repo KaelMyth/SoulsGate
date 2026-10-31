@@ -1,9 +1,9 @@
-import { CONFIG, BUILD } from './config_game.js';
-import { RELEASE } from './release_notes.js';
+import { CONFIG, BUILD } from './config_game.js?v=210';
+import { RELEASE } from './release_notes.js?v=210';
 import { TUNABLES } from './config_tunables.js';
 import { loadOverrides, safeStorage } from './debug_tunables.js';
 import { lockBrowserGestures } from './platform_viewport.js?v=209';
-import { Game } from './game.js?v=209';
+import { Game } from './game.js?v=210';
 
 // Однозначный лог загрузки: номер и суть обновления доступны сразу в консоли.
 console.info('[SoulGates] Обновление №' + RELEASE.number + ' — ' + RELEASE.title);

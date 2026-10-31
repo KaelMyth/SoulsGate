@@ -40,7 +40,7 @@ import { SwipeDetector } from './input_swipe.js';
 import { Renderer } from './render_renderer.js';
 import { DebugPanel } from './debug_panel.js';
 import { DeathScreen } from './ui_death-screen.js';
-import { PauseUI } from './ui_pause.js';
+import { PauseUI } from './ui_pause.js?v=210';
 import { SlotUI } from './ui_slot.js';
 import { Oracle } from './oracle.js';
 import { OracleScreen } from './ui_oracle.js';

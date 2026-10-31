@@ -361,60 +361,143 @@ export class BuilderUI {
 
   /* ---------- Перетаскивание ---------- */
 
-  /**
-   * Нажатие выбирает мод; сдвиг пальца больше DRAG_START_PX начинает перетаскивание.
-   * Поддерживаются оба направления между основным полем, пассивками и хранилищем.
-   */
+  /** Текущее перетаскивание принадлежит ОДНОМУ pointerId.
+   * Слушатели стоят на document, а захват на постоянном контейнере, поэтому
+   * уход пальца за пределы маленькой плитки или перестройка DOM не обрывают перенос. */
   attachDrag(el, src, mod, onSelect) {
-    let start = null;
-    let ghost = null;
-    const finish = (e, cancelled) => {
-      if (!start) return;
-      const wasDrag = start.drag;
-      start = null;
-      if (ghost && ghost.remove) ghost.remove();
-      ghost = null;
-      if (!wasDrag || cancelled || typeof document.elementFromPoint !== 'function') return;
-      this.suppressClick = true;
-      let t = document.elementFromPoint(e.clientX, e.clientY);
-      while (t && !(t.classList && (t.classList.contains('cell') || t.classList.contains('pcell') || t.classList.contains('shelf')))) t = t.parentElement;
-      if (!t) return;
-      if (src.from === 'shelf' && t.classList.contains('pcell')) {
-        this.placePassiveFromShelf(src.index, +t.getAttribute('data-p'));
-      } else if (src.from === 'placed' && t.classList.contains('pcell')) {
-        this.moveFieldToPassive(src.x, src.y, +t.getAttribute('data-p'));
-      } else if (src.from === 'pplaced' && t.classList.contains('pcell')) {
-        this.movePassive(src.id, +t.getAttribute('data-p'));
-      } else if (src.from === 'pplaced' && t.classList.contains('shelf')) {
-        this.returnPassiveToShelf(src.id);
-      } else if (src.from === 'shelf' && t.classList.contains('cell')) {
-        this.placeFromShelf(src.index, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
-      } else if (src.from === 'pplaced' && t.classList.contains('cell')) {
-        this.movePassiveToField(src.id, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
-      } else if (src.from === 'placed' && t.classList.contains('cell')) {
-        this.moveOnField(src.x, src.y, +t.getAttribute('data-x'), +t.getAttribute('data-y'));
-      } else if (src.from === 'placed' && t.classList.contains('shelf')) {
-        this.returnToShelf(src.x, src.y);
-      }
+    el.addEventListener('pointerdown', (e) => this.beginDrag(el, src, mod, onSelect, e));
+    el.addEventListener('dragstart', (e) => e.preventDefault());
+  }
+
+  beginDrag(el, src, mod, onSelect, e) {
+    if (this.dragSession || (e.button !== undefined && e.button !== 0)) return;
+    if (e.pointerType === 'touch' && e.cancelable) e.preventDefault();
+    onSelect(); // обычное короткое нажатие по-прежнему выделяет мод
+    const d = {
+      id: e.pointerId, src, mod, source: el,
+      x0: e.clientX, y0: e.clientY, lastX: e.clientX, lastY: e.clientY,
+      shelfScroll: this.shelf.scrollLeft, drag: false, scrolling: false,
+      ghost: null, hover: null,
     };
-    el.addEventListener('pointerdown', (e) => {
-      if (e.button > 0) return;
-      start = { x: e.clientX, y: e.clientY, drag: false };
-      if (el.setPointerCapture && e.pointerId !== undefined) {
-        try { el.setPointerCapture(e.pointerId); } catch (err) { /* не критично */ }
+    this.dragSession = d;
+    const move = (ev) => this.moveDrag(ev);
+    const up = (ev) => this.endDrag(ev, false);
+    const cancel = (ev) => this.endDrag(ev, true);
+    d.handlers = { move, up, cancel };
+    document.addEventListener('pointermove', move, { passive: false });
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', cancel);
+    // root не пересоздаётся при перестановке или получении модов.
+    if (this.root.setPointerCapture && d.id !== undefined) {
+      try { this.root.setPointerCapture(d.id); } catch (_) { /* document продолжит отслеживать */ }
+    }
+  }
+
+  /** Возвращает видимую подходящую клетку или область возврата в хранилище. */
+  dropCellAt(x, y, d) {
+    let el = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(x, y) : null;
+    while (el && el !== this.root) {
+      if (this.validDrop(el, d)) return el;
+      if (el === this.shelf || el === this.wrap) break;
+      el = el.parentElement;
+    }
+    // Клетки повернуты на 45°: допустим небольшой промах пальцем возле края ромба.
+    if (!this.wrap.getBoundingClientRect) return null;
+    const area = this.wrap.getBoundingClientRect();
+    if (x < area.left - 14 || x > area.right + 14 ||
+        y < area.top - 14 || y > area.bottom + 14) return null;
+    let nearest = null, score = Infinity;
+    for (const cell of [...this.cellEls, ...this.pEls]) {
+      if (!this.validDrop(cell, d) || !cell.getBoundingClientRect) continue;
+      const rect = cell.getBoundingClientRect();
+      const cx = rect.left + rect.width * .5, cy = rect.top + rect.height * .5;
+      const dist = Math.hypot(cx - x, cy - y);
+      const tolerance = Math.max(17, Math.max(rect.width, rect.height) * .58);
+      if (dist <= tolerance && dist < score) { nearest = cell; score = dist; }
+    }
+    return nearest;
+  }
+
+  validDrop(el, d) {
+    if (!el || !el.classList) return false;
+    const from = d.src.from;
+    if (el.classList.contains('shelf')) return from !== 'shelf';
+    if (el.classList.contains('cell') || el.classList.contains('pcell'))
+      return el.classList.contains('target'); // подсветка рассчитана по правилам билда
+    return false;
+  }
+
+  moveDrag(e) {
+    const d = this.dragSession;
+    if (!d || (d.id !== undefined && e.pointerId !== d.id)) return;
+    if (e.cancelable && (e.pointerType === 'touch' || d.drag)) e.preventDefault();
+    const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+    // Горизонтальный свайп прямо по моду листает хранилище. Чтобы взять мод,
+    // сначала потяни вверх/вниз. Пустая полоса хранилища листается нативно.
+    if (!d.drag && d.src.from === 'shelf' && e.pointerType === 'touch' &&
+        !d.scrolling && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.35) d.scrolling = true;
+    if (d.scrolling) {
+      this.shelf.scrollLeft = d.shelfScroll - dx;
+      return;
+    }
+    if (!d.drag && Math.hypot(dx, dy) < DRAG_START_PX) return;
+    if (!d.drag) {
+      d.drag = true;
+      d.ghost = h('div', { class: 'drag-ghost' }, piece(tileOfMod(d.mod.key, d.mod.def), d.mod.def.icon));
+      if (document.body) document.body.append(d.ghost);
+      d.source.classList.add('drag-source');
+      this.shelf.classList.add('dragging-mod');
+    }
+    if (d.ghost) d.ghost.style.transform =
+      'translate3d(' + (e.clientX - 28) + 'px,' + (e.clientY - 64) + 'px,0)';
+    const dest = this.dropCellAt(e.clientX, e.clientY, d);
+    if (dest !== d.hover) {
+      if (d.hover) d.hover.classList.remove('drag-over');
+      if (dest) dest.classList.add('drag-over');
+      d.hover = dest;
+    }
+    d.lastX = e.clientX; d.lastY = e.clientY;
+    // Протяни мод к краю длинной полки, чтобы добраться до скрытых ячеек.
+    if (d.src.from !== 'shelf' && this.shelf.getBoundingClientRect) {
+      const r = this.shelf.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+        if (e.clientX > r.right - 30) this.shelf.scrollLeft += 12;
+        if (e.clientX < r.left + 30) this.shelf.scrollLeft -= 12;
       }
-      onSelect();
-    });
-    el.addEventListener('pointermove', (e) => {
-      if (!start) return;
-      if (!start.drag && Math.hypot(e.clientX - start.x, e.clientY - start.y) > DRAG_START_PX) {
-        start.drag = true;
-        ghost = h('div', { class: 'drag-ghost' }, piece(tileOfMod(mod.key, mod.def), mod.def.icon));
-        if (document.body) document.body.append(ghost);
-      }
-      if (ghost && ghost.style) ghost.style.transform = 'translate(' + (e.clientX - 24) + 'px,' + (e.clientY - 24) + 'px)';
-    });
-    el.addEventListener('pointerup', (e) => finish(e, false));
-    el.addEventListener('pointercancel', (e) => finish(e, true));
+    }
+  }
+
+  endDrag(e, cancelled) {
+    const d = this.dragSession;
+    if (!d || (d.id !== undefined && e.pointerId !== d.id)) return;
+    // Сохраняем цель до удаления ghost/подсветки и перестройки ячеек.
+    const destination = !cancelled && d.drag ? this.dropCellAt(e.clientX, e.clientY, d) : null;
+    this.dragSession = null;
+    document.removeEventListener('pointermove', d.handlers.move);
+    document.removeEventListener('pointerup', d.handlers.up);
+    document.removeEventListener('pointercancel', d.handlers.cancel);
+    if (this.root.releasePointerCapture && d.id !== undefined) {
+      try { if (!this.root.hasPointerCapture || this.root.hasPointerCapture(d.id)) this.root.releasePointerCapture(d.id); } catch (_) { /* уже отпущен */ }
+    }
+    if (d.hover) d.hover.classList.remove('drag-over');
+    d.source.classList.remove('drag-source');
+    this.shelf.classList.remove('dragging-mod');
+    if (d.ghost) d.ghost.remove();
+    if (!destination) return;
+    const s = d.src;
+    if (destination.classList.contains('shelf')) {
+      if (s.from === 'placed') this.returnToShelf(s.x, s.y);
+      if (s.from === 'pplaced') this.returnPassiveToShelf(s.id);
+    } else if (destination.classList.contains('pcell')) {
+      const id = +destination.getAttribute('data-p');
+      if (s.from === 'shelf') this.placePassiveFromShelf(s.index, id);
+      if (s.from === 'placed') this.moveFieldToPassive(s.x, s.y, id);
+      if (s.from === 'pplaced') this.movePassive(s.id, id);
+    } else if (destination.classList.contains('cell')) {
+      const x = +destination.getAttribute('data-x'), y = +destination.getAttribute('data-y');
+      if (s.from === 'shelf') this.placeFromShelf(s.index, x, y);
+      if (s.from === 'placed') this.moveOnField(s.x, s.y, x, y);
+      if (s.from === 'pplaced') this.movePassiveToField(s.id, x, y);
+    }
   }
 }

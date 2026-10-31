@@ -827,3 +827,32 @@ body { font-family: var(--serif); }
 #pause-screen .mod-build-guide p { margin: 4px 0 8px; font: 13px/1.36 var(--serif); color: #cfd8e7; }
 .mod-build-guide button { width: 100%; max-width: none; min-height: 32px; font-size: 13px; }
 @media (max-height: 700px) { #tutorial-guide { top: calc(var(--safe-top) + 14px); } }
+
+/* При касании занятой плитки браузер не перехватывает жест ради прокрутки
+   хранилища. Горизонтальный свайп по ней обрабатывается самим BuilderUI. */
+#pause-screen .shelf .slot-cell.has,
+#pause-screen .board .cell.mod,
+#pause-screen .pcell.has {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#pause-screen .drag-source { opacity: .45; }
+.drag-ghost {
+  width: 56px; height: 56px;
+  will-change: transform;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+#pause-screen .cell.drag-over,
+#pause-screen .pcell.drag-over {
+  outline: 2px solid rgba(132, 238, 222, .95);
+  outline-offset: 3px;
+  filter: drop-shadow(0 0 7px rgba(111, 225, 222, .7));
+}
+#pause-screen .shelf.drag-over {
+  box-shadow: inset 0 0 0 2px rgba(145, 228, 232, .85), inset 0 5px 10px rgba(0, 0, 0, .6);
+}
