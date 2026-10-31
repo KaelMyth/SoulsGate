@@ -763,3 +763,6 @@ body { font-family: var(--serif); }
   #levelup-screen .lu-card .lu-icon { width: 43px; height: 43px; padding: 7px; }
   #levelup-screen .lu-subtitle { margin-bottom: 9px; }
 }
+
+/* Номер и название актуальной сборки на главном экране, без изменения меню. */
+#mode-screen .menu-release { position:absolute; left:50%; bottom:max(12px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(94%,520px); text-align:center; font:500 clamp(10px,2.4vw,13px)/1.4 Georgia,serif; letter-spacing:.035em; color:#cbb89a; text-shadow:0 2px 4px #080a0d; pointer-events:none; z-index:5; }

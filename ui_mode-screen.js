@@ -3,6 +3,7 @@
 // «Тестирование»: панель отладки, ползунки, FPS, краш-тест, как раньше.
 // Все четыре кнопки активны; фон и интерфейс разделены для независимых эффектов.
 import { h } from './ui_dom.js';
+import { RELEASE } from './release_notes.js';
 import { buildLogo } from './ui_menu-scene.js';
 import { MenuFx } from './ui_menu-fx.js';
 
@@ -20,7 +21,9 @@ export class ModeScreen {
         action('mode-test','Тестирование',()=>onPick('test')),
         action('mode-oracle','Оракл',()=>onOracle&&onOracle()),
         action('menu-settings','Настройки',()=>onSettings&&onSettings())
-      ));
+      ),
+      h('div', { class:'menu-release', 'aria-label':'Версия игры' },
+        'Обновление №' + RELEASE.number + ' · ' + RELEASE.title));
     this.el = h('div', { id: 'mode-screen', hidden: '' }, this.stage, this.fxCanvas);
     root.append(this.el);
     this.fx = new MenuFx(this.fxCanvas, this.stage);
