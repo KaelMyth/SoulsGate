@@ -33,8 +33,8 @@ function mob(kind,x=60,y=80){
   return e;
 }
 
-test('Изометрия включена по умолчанию, старые модели сохранены резервом',()=>{
-  assert.equal(CONFIG.render.isometricIceEnemies,true);
+test('Изометрия выключена по умолчанию (Релиз 176), модели сохранены резервом',()=>{
+  assert.equal(CONFIG.render.isometricIceEnemies,false);
   const r=scene();
   assert.equal(r.iso.kind(mob('frozenSoldier')),'soldier');
   assert.equal(r.iso.kind(mob('frozenArcher')),'archer');

@@ -36,7 +36,7 @@ function defenseSetup(gravity) {
 function enemy(x, y = 0) {
   const e = createEnemy();
   initEnemy(e, { radius: 12, hp: 100, speed: 100, keepDistance: 0 }, x, y);
-  e.active = true;
+  e.active = true; e.spawnT = 0; // у новых врагов есть анимация появления
   return e;
 }
 
@@ -178,7 +178,7 @@ test('Лазер на гравитационном рывке направлен
   const fake = {
     config: CONFIG,
     defense: { kinetic: true, gravityDashCharging: true, dashX: 1, dashY: 0 },
-    kineticMods: { laser: {} }, lightdash: { active: false },
+    kineticMods: { scopes: { root: { laser: {} } } }, lightdash: { active: false },
     hero: { x: 0, y: 0, radius: 12 },
     arena: { left: -500, right: 500, top: -500, bottom: 500, circleHitsRock() { return false; } },
     gravityDash: { active: true, x: 245, y: 10 },

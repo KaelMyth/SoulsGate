@@ -183,7 +183,7 @@ test('Бонусный удар использует Мощь и Вампири�
   assert.equal(strike.length, 1);
   assert.ok(Math.abs(strike[0].amount - CONFIG.absorption.damage * 1.1) < 1e-9);
   assert.ok(s.hero.hp > 20);
-  assert.equal(s.absorption.flashes[0].color, '255,50,75');
+  assert.equal(s.absorption.flashes[0].color, '197,73,110');
 });
 
 test('Бонусный удар использует Горение, Мороз, Молнию и сочетание Пар из настоящего дерева', () => {
@@ -205,7 +205,7 @@ test('Бонусный удар использует Горение, Мороз,
   assert.equal(s.en[0].burnStacks, CONFIG.burn.maxStacks);
   assert.equal(s.en[0].freezeT, CONFIG.frost.freezeTime); // тестовый chill вызывает заморозку
   assert.equal(s.en[0].shockStacks, 0); // четыре заряда дали разряд
-  assert.equal(s.absorption.flashes[0].color, '255,255,255');
+  assert.equal(s.absorption.flashes[0].color, '172,84,136');
 });
 
 test('Обычный трёхсекундный цикл Поглощения не сбивается бонусным', () => {

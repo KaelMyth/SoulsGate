@@ -186,6 +186,7 @@ test('Цвет дождя фиксируется на время эффекта,
   const burning = grid.cells.find(c => c.mod && c.mod.key === 'burn');
   burning.mod = { key: 'frost', def: CONFIG.mods.frost };
   grid.ver++;
+  fake.inspiration = fake.inspiration || { active: false, remaining: 0 };
   Game.prototype.updateSkills.call(fake, 0.1);
   assert.equal(fake.hud.rainMask, 1, 'активный дождь остаётся огненным');
   assert.equal(fake.hud.rainEquippedMask, 2, 'слот становится морозным');

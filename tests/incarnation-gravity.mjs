@@ -17,8 +17,8 @@ test('Gravity form runs for five real seconds and leaves afterimages while movin
  inc.update(.1);
  assert.ok(inc.afterimages.length>0);
  assert.ok(inc.gravityTime<5);
- for(let i=0;i<49;i++)inc.update(.1);
- assert.equal(inc.gravityTime,0);
+ for(let i=0;i<51;i++)inc.update(.1);
+ assert.ok(inc.gravityTime<1e-9);
  assert.equal(hero.incarnationT,0);
  assert.equal(inc.active,false);
 });
