@@ -696,3 +696,69 @@ body { font-family: var(--serif); }
 #mode-screen .menu .ui-btn::after {
   background: linear-gradient(90deg,transparent,#9dbbda 25%,transparent 43%,transparent 57%,#9dbbda 75%,transparent);
 }
+
+/* №194 — Алтарь выбора дара. Приглушённые цвета редкости. */
+#levelup-screen {
+  background: radial-gradient(ellipse at 50% 45%,rgba(29,37,59,.84) 0%,rgba(6,10,21,.97) 78%);
+  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+}
+#levelup-screen .card {
+  position: relative; width: min(94vw, 520px); padding: 24px 18px 22px;
+  background: linear-gradient(145deg,rgba(28,35,54,.97),rgba(12,18,32,.98));
+  border: 1px solid rgba(165,180,204,.27); border-radius: 13px;
+  box-shadow: 0 22px 80px rgba(0,0,0,.7),inset 0 1px rgba(230,238,255,.09);
+}
+#levelup-screen .card::before,#levelup-screen .card::after {
+  content: '◆'; position: absolute; top: 10px; font-size: 13px;
+  color: rgba(170,185,211,.55); pointer-events: none;
+}
+#levelup-screen .card::before { left: 13px; }
+#levelup-screen .card::after { right: 13px; }
+#levelup-screen h2 { margin: 0 0 4px; color: #e5d7c1; font-size: clamp(23px,5vw,34px); text-shadow: 0 0 20px rgba(186,161,122,.25); }
+#levelup-screen .lu-subtitle { margin: 0 0 19px; color: #8e9fb9; font: 12px/1.4 var(--serif); letter-spacing: .23em; }
+#levelup-screen .lu-list { gap: 11px; }
+#levelup-screen .lu-card {
+  --rarity: #969da9; --tint: rgba(139,150,168,.08);
+  position: relative; min-height: 100px; height: auto; padding: 14px 17px;
+  border: 1px solid color-mix(in srgb,var(--rarity) 48%,#30394c);
+  border-left: 3px solid var(--rarity); border-radius: 6px;
+  background: linear-gradient(100deg,var(--tint),rgba(16,24,40,.94) 68%);
+  box-shadow: inset 0 1px rgba(255,255,255,.045),0 4px 15px rgba(0,0,0,.18);
+  transition: border-color .2s, background .2s, transform .2s;
+}
+#levelup-screen .lu-card.rarity-common { --rarity: #9ba4b2; --tint: rgba(143,152,165,.12); }
+#levelup-screen .lu-card.rarity-rare { --rarity: #6f9dce; --tint: rgba(69,115,172,.17); }
+#levelup-screen .lu-card.rarity-epic { --rarity: #a184ca; --tint: rgba(111,76,157,.18); }
+#levelup-screen .lu-card.rarity-legendary { --rarity: #d5a06a; --tint: rgba(162,99,43,.19); }
+#levelup-screen .lu-card .lu-icon {
+  width: 54px; height: 54px; padding: 10px; box-sizing: border-box;
+  color: var(--rarity); border: 1px solid rgba(192,204,226,.15);
+  background: radial-gradient(circle,rgba(196,210,238,.09),rgba(9,15,29,.3));
+  transform: rotate(0deg); flex-shrink: 0;
+}
+#levelup-screen .lu-text { gap: 5px; }
+#levelup-screen .lu-rarity {
+  color: var(--rarity); font: 10px/1.2 var(--serif); letter-spacing: .17em;
+  text-transform: uppercase;
+}
+#levelup-screen .lu-text b { color: #e8edf5; font-size: clamp(17px,3.5vw,22px); }
+#levelup-screen .lu-text small { color: #a9b4c6; font-size: 12px; line-height: 1.35; -webkit-line-clamp: 2; }
+#levelup-screen .lu-card:focus-visible,#levelup-screen .lu-card:active {
+  border-color: var(--rarity); background: linear-gradient(100deg,var(--tint),rgba(36,46,66,.98));
+  outline: 1px solid var(--rarity); outline-offset: 2px;
+}
+@media (hover:hover) {
+  #levelup-screen .lu-card:hover { border-color: var(--rarity); transform: translateY(-1px); }
+}
+#levelup-screen .lu-exchange {
+  margin-top: 18px; min-height: 44px; color: #a5b0c2;
+  border: 1px solid rgba(145,160,186,.25); border-radius: 5px;
+  background: rgba(8,14,27,.38);
+}
+@media(max-height:600px) {
+  #levelup-screen { align-items: flex-start; }
+  #levelup-screen .card { margin: 10px auto; padding: 12px; }
+  #levelup-screen .lu-card { min-height: 74px; padding: 8px 12px; }
+  #levelup-screen .lu-card .lu-icon { width: 43px; height: 43px; padding: 7px; }
+  #levelup-screen .lu-subtitle { margin-bottom: 9px; }
+}

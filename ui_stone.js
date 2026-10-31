@@ -3,18 +3,11 @@
 import { h, svg } from './ui_dom.js';
 import { icon } from './ui_icons.js';
 
-/** Редкость модов, пока в config.mods нет поля rarity (запрос к «Модам»: requests/mods-rarity.md). */
-const RARITY = {
-  power: 'common', haste: 'common', x2: 'common', x3: 'common',
-  burn: 'rare', frost: 'rare', pierce: 'rare', shot: 'rare',
-  laser: 'legendary', blades: 'legendary', aura: 'legendary', phantom: 'legendary',
-};
-
 /** Вид плитки для мода: вторичные ядра имеют свой дизайн, остальные: камень, железо или золото по редкости. */
 export function tileOfMod(key, def) {
   if (def && def.effect && def.effect.secondary) return 'dash-steel';
-  const r = (def && def.rarity) || RARITY[key] || 'common';
-  return r === 'legendary' ? 'gold' : r === 'rare' ? 'iron' : 'stone';
+  const r = (def && def.rarity) || 'common';
+  return r === 'legendary' ? 'gold' : r === 'rare' || r === 'epic' ? 'iron' : 'stone';
 }
 
 /** Вид плитки для ядра. */

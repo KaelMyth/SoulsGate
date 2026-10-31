@@ -3,6 +3,7 @@ import { h } from './ui_dom.js';
 import { icon } from './ui_icons.js';
 
 const HOLD_MS = 380;
+const RARITY_NAMES = { common: 'Обычный', rare: 'Редкий', epic: 'Эпический', legendary: 'Легендарный' };
 
 export class LevelUpScreen {
   /** root: куда класть окно; onPick(offer), onExchange(): вызываются при выборе. */
@@ -11,10 +12,11 @@ export class LevelUpScreen {
     this.onPick = onPick;
     this.onExchange = onExchange;
     this.title = h('h2', {});
+    this.subtitle = h('p', { class: 'lu-subtitle' }, 'ВЫБЕРИТЕ ДАР');
     this.list = h('div', { class: 'lu-list' });
     this.exchange = h('button', { type: 'button', class: 'lu-exchange', onclick: () => this.choose(() => this.onExchange()) });
     this.el = h('div', { id: 'levelup-screen', hidden: '' },
-      h('div', { class: 'card' }, this.title, this.list, this.exchange));
+      h('div', { class: 'card' }, this.title, this.subtitle, this.list, this.exchange));
     root.append(this.el);
     this.armedAt = 0;
   }
@@ -24,9 +26,11 @@ export class LevelUpScreen {
     this.title.textContent = 'Уровень ' + level;
     this.list.replaceChildren();
     for (const o of offers) {
-      const card = h('button', { type: 'button', class: 'lu-card', oncontextmenu: (e) => e.preventDefault(), onclick: () => { if (this.heldFired) { this.heldFired = false; return; } this.choose(() => this.onPick(o)); } },
+      const rarity = o.def.rarity || 'common';
+      const card = h('button', { type: 'button', class: 'lu-card rarity-' + rarity, oncontextmenu: (e) => e.preventDefault(), onclick: () => { if (this.heldFired) { this.heldFired = false; return; } this.choose(() => this.onPick(o)); } },
         h('span', { class: 'lu-icon' }, icon(o.def.icon)),
         h('span', { class: 'lu-text' },
+          h('span', { class: 'lu-rarity' }, RARITY_NAMES[rarity] || RARITY_NAMES.common),
           h('b', {}, o.def.name),
           h('small', {}, o.def.description)));
       this.hold(card, o);
