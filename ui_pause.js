@@ -2,7 +2,6 @@
 // «Меню» открывает второе окно: «Новая игра» и «Выход» (выход возвращает на экран выбора режима).
 // Экран паузы лежит ниже кнопки ⚙ и отладочной панели, поэтому ползунки доступны во время паузы.
 import { h, svg } from './ui_dom.js';
-import { icon } from './ui_icons.js';
 
 /** Шестерёнка низким полигоном: 8 зубцов и отверстие. */
 function gearIcon() {
@@ -32,10 +31,9 @@ export class PauseUI {
     for (const key of Object.keys(config.mods)) {
       const def = config.mods[key];
       this.toolsList.append(h('button', {
-        type: 'button', class: 'tool-item rarity-' + (def.rarity || 'common'), 'data-spawn': key,
+        type: 'button', class: 'tool-item', 'data-spawn': key,
         onclick: () => { this.storage.addAlways({ key, def }); this.builder.rebuild(); },
-      }, h('span',{class:'tool-icon'},icon(def.icon)),
-          h('span',{class:'tool-copy'},h('b',{},def.name),h('small',{},def.description))));
+      }, h('b', {}, def.name), h('span', {}, def.description)));
     }
     this.toolsBtn = h('button', {
       type: 'button', id: 'tools-toggle', class: 'tools-toggle', onclick: () => this.showTools(this.toolsList.hidden),
@@ -45,13 +43,9 @@ export class PauseUI {
     this.mainRow = h('div', { class: 'row' },
         h('button', { id: 'pause-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
         h('button', { id: 'pause-menu', class: 'secondary', type: 'button', onclick: () => this.showMenu(true) }, 'Меню'));
-    this.main = h('div', { class: 'card', id: 'pause-main' },
-      h('header',{class:'grimoire-head'},
-        h('small',{},'ПЕЧАТЬ СИЛЫ'),h('h2',{},'Гримуар модов')),
-      this.builder.root, this.tools, this.mainRow, this.previewRow);
+    this.main = h('div', { class: 'card', id: 'pause-main' }, this.builder.root, this.tools, this.mainRow, this.previewRow);
     this.menu = h('div', { class: 'card', id: 'menu-card', hidden: '' },
-      h('div',{class:'pause-chapter'},'СВИТОК СТРАННИКА'),
-      h('h2', {}, 'Пауза'),
+      h('h2', {}, 'Меню'),
       h('button', { id: 'menu-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
       h('button', { id: 'menu-new', type: 'button', onclick: () => handlers.onRestart() }, 'Новая игра'),
       h('button', { id: 'menu-exit', class: 'secondary', type: 'button', onclick: () => handlers.onExit() }, 'Выход'));

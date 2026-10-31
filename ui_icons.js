@@ -30,19 +30,18 @@ const ICONS = {
   ],
   // Гравитация: центральное ядро и уходящие наружу орбиты / линии ускорения.
   gravity: [
-    // Спираль притяжения вокруг плотного ядра.
-    ['path',S({d:'M27 10C22 2 9 4 5 13C0 23 13 32 23 25C29 21 28 13 22 10C17 7 10 12 12 18C13 22 19 23 21 19','stroke-width':2.4})],
-    ['path',Object.assign({d:'M19 18C19 21 15 21 15 18C15 15 19 14 20 17Z'},HI)],
-    ['path',S({d:'M2.5 11L5 13L8 12M23 25L26 25L27 21','stroke-width':1.8})],
-    ['path',S({d:'M24 5H29M4 27H9','stroke-width':1.4,opacity:.58})]
+    ['circle', S({ cx: 13, cy: 16, r: 5.2, 'stroke-width': 2 })],
+    ['circle', Object.assign({ cx: 13, cy: 16, r: 2.6 }, HI)],
+    ['path', S({ d: 'M2 11C11 2 24 5 29 12M3 22C12 31 26 27 30 18', 'stroke-width': 2 })],
+    ['path', Object.assign({ d: 'M22 10L29 12L27 5M23 24L30 18L25 16', 'stroke-width': 2 }, HIS)],
+    ['path', S({ d: 'M2 16H6M22 16H30', 'stroke-width': 1.5, opacity: 0.6 })],
   ],
   // Мощь: три шеврона, растущие вверх.
   power: [
-    // Клинок пробивает броню вспышкой: усиление урона, не ускорение.
-    ['path',{d:'M5 27L19 11L23 14L9 29L5 29Z',fill:'currentColor'}],
-    ['path',Object.assign({d:'M18 8L21 4L28 11L25 15Z'},HI)],
-    ['path',S({d:'M3 25L8 30M4 12L11 15M12 4L14 10M23 23L29 26','stroke-width':2.2})],
-    spark(21,17,4.6)
+    ['path', S({ d: 'M6 27L16 17L26 27', 'stroke-width': 3.2, opacity: 0.45 })],
+    ['path', S({ d: 'M6 19.5L16 9.5L26 19.5', 'stroke-width': 3.4, opacity: 0.75 })],
+    ['path', S({ d: 'M8 12L16 4L24 12', 'stroke-width': 3.6 })],
+    spark(26, 6, 3),
   ],
   // Ускорение: секундомер с линиями скорости.
   haste: [
@@ -72,28 +71,22 @@ const ICONS = {
   ],
   // Лазер: излучатель, луч и вспышка на конце.
   laser: [
-    // Призма концентрирует один луч в точке поражения.
-    ['path',{d:'M3 10L12 16L3 22Z',fill:'currentColor'}],
-    ['path',Object.assign({d:'M5 14L10 16L5 18Z'},HI)],
-    ['path',S({d:'M12 16H27','stroke-width':5,opacity:.34})],
-    ['path',Object.assign({d:'M12 16H27','stroke-width':2.2},HIS)],
-    ['circle',S({cx:26,cy:16,r:5,'stroke-width':1.5})],
-    ['path',S({d:'M26 8V11M26 21V24M19 16H21M8 6L13 11M8 26L13 21','stroke-width':1.4})]
+    ['path', { d: 'M2.5 16L7.5 10.5L12.5 16L7.5 21.5Z', fill: 'currentColor' }],
+    ['path', S({ d: 'M12 16H24', 'stroke-width': 4.2, opacity: 0.55 })],
+    ['path', Object.assign({ d: 'M12 16H24', 'stroke-width': 2 }, HIS)],
+    spark(27, 16, 5.2),
+    ['path', S({ d: 'M13 9L17 12M13 23L17 20', 'stroke-width': 1.6, opacity: 0.7 })],
   ],
   // Дробь: веер дробинок из одной точки.
   shot: [
-    // Один заряд распадается на пять дробинок.
-    ['circle',{cx:5,cy:16,r:3.2,fill:'currentColor'}],
-    ['path',S({d:'M9 16L20 4M9 16L25 10M9 16H26M9 16L25 22M9 16L20 28','stroke-width':1.5,opacity:.65})],
-    ['circle',Object.assign({cx:22,cy:3,r:2.7},HI)],
-    ['circle',{cx:27,cy:9,r:2.6,fill:'currentColor'}],
-    ['circle',Object.assign({cx:29,cy:16,r:2.8},HI)],
-    ['circle',{cx:27,cy:23,r:2.6,fill:'currentColor'}],
-    ['circle',Object.assign({cx:22,cy:29,r:2.7},HI)]
+    ['path', S({ d: 'M5 16L21 3M5 16L25 9M5 16H26M5 16L25 23M5 16L21 29', 'stroke-width': 1, opacity: 0.35 })],
+    ['circle', { cx: 5, cy: 16, r: 2.6, fill: 'currentColor' }],
+    ['circle', { cx: 15.9, cy: 10.9, r: 2.5, fill: 'currentColor' }], ['circle', { cx: 17, cy: 16, r: 2.5, fill: 'currentColor' }], ['circle', { cx: 15.9, cy: 21.1, r: 2.5, fill: 'currentColor' }],
+    ['circle', Object.assign({ cx: 21.1, cy: 2.7, r: 2.1 }, HI)], ['circle', Object.assign({ cx: 24.7, cy: 8.9, r: 2.1 }, HI)], ['circle', Object.assign({ cx: 26.4, cy: 16, r: 2.1 }, HI)],
+    ['circle', Object.assign({ cx: 24.7, cy: 23.1, r: 2.1 }, HI)], ['circle', Object.assign({ cx: 21.1, cy: 29.3, r: 2.1 }, HI)],
   ],
   // Спектральные клинки: три клинка веером.
-  blades: [blade(-36),blade(36),blade(0),
-    ['path',S({d:'M8 28H24M16 25V30','stroke-width':2})],spark(16,6,2.2)],
+  blades: [blade(-34), blade(34), blade(0), ['circle', { cx: 16, cy: 28, r: 2.2, fill: 'currentColor' }]],
   // Кинетический рывок: стрелка рывка и расходящиеся дуги удара.
   kinetic: [
     ['path', S({ d: 'M3 21H21M16 16L21.5 21L16 26', 'stroke-width': 3 })],
@@ -161,31 +154,25 @@ const ICONS = {
   ],
   // Смертельная аура: поле вокруг точки.
   aura: [
-    // Герой и опоясывающие его опасные магические потоки.
-    ['circle',{cx:16,cy:16,r:3.4,fill:'currentColor'}],
-    ['circle',S({cx:16,cy:16,r:8.3,'stroke-width':1.7,opacity:.65})],
-    ['path',S({d:'M16 3C23 1 31 8 29 16M28 20C24 29 14 32 7 26M4 22C-1 12 5 4 12 3','stroke-width':2.4})],
-    ['path',Object.assign({d:'M24 4L29 8L30 2M7 26L3 22L2 28M28 19L29 23L26 25','stroke-width':1.6},HIS)],
-    spark(16,16,2.2)
+    ['circle', { cx: 16, cy: 16, r: 3.4, fill: 'currentColor' }],
+    ['circle', S({ cx: 16, cy: 16, r: 8, 'stroke-width': 2.2 })],
+    ['circle', S({ cx: 16, cy: 16, r: 13, 'stroke-width': 1.6, 'stroke-dasharray': '2.5 3.2' })],
+    ['path', Object.assign({ d: 'M16 1.5L18 4L16 6.5L14 4ZM30.5 16L28 18L25.5 16L28 14ZM16 30.5L14 28L16 25.5L18 28ZM1.5 16L4 14L6.5 16L4 18Z' }, HI)],
   ],
   // Поглощение: временный значок прицела с нарастающим кругом.
   absorption: [
-    // Дымные объятия сходятся на душе в центре.
-    ['path',S({d:'M23 6C14 0 5 7 6 13C-1 17 5 29 15 27C25 31 32 23 27 15C30 11 26 8 23 6Z','stroke-width':2.2,opacity:.8})],
-    ['path',S({d:'M8 10C12 8 16 10 18 13M26 20C23 24 18 24 15 20M12 26C10 22 12 17 16 16','stroke-width':2.2})],
-    ['path',Object.assign({d:'M19 11L18 13L14 13M22 24L19 22L20 18M12 20L16 16L11 15','stroke-width':1.8},HIS)],
-    ['circle',{cx:17,cy:16,r:3.4,fill:'currentColor'}],
-    ['circle',Object.assign({cx:17,cy:16,r:1.2},HI)]
+    ['circle', S({ cx: 16, cy: 16, r: 11.5, 'stroke-width': 2 })],
+    ['circle', S({ cx: 16, cy: 16, r: 6.5, 'stroke-width': 2, opacity: 0.7 })],
+    ['circle', { cx: 16, cy: 16, r: 2.5, fill: 'currentColor' }],
+    ['path', Object.assign({ d: 'M16 1V5M16 27V31M1 16H5M27 16H31', 'stroke-width': 2 }, HIS)],
   ],
   // Фантомный выстрел: призрак и его бледная копия.
   phantom: [
-    // Явное двойное изображение одного призрака.
-    ['path',S({d:'M14 29V13C14 5 29 5 29 13V29L25 25L22 29L18 25Z','stroke-width':1.7,'stroke-dasharray':'2.7 2.6',opacity:.65})],
-    ['path',{d:'M3 28V14C3 6 19 6 19 14V28L15 25L11 29L7 25Z',fill:'currentColor'}],
-    ['path',Object.assign({d:'M8 13V11C10 9 13 9 15 11V13Z',opacity:.55},HI)],
-    ['circle',{cx:8,cy:17,r:1.5,style:'fill:var(--dark,#392b24)'}],
-    ['circle',{cx:14.5,cy:17,r:1.5,style:'fill:var(--dark,#392b24)'}],
-    spark(26,4,2.5)
+    ['path', S({ d: 'M12 28V14.5A7.5 7.5 0 0 1 27 14.5V28L23.5 25L19.5 28L16 25Z', 'stroke-width': 1.6, 'stroke-dasharray': '2.4 2.4', opacity: 0.6 })],
+    ['path', { d: 'M4 29V15.5A7.5 7.5 0 0 1 19 15.5V29L15.5 26L11.5 29L8 26Z', fill: 'currentColor' }],
+    ['circle', { cx: 8.4, cy: 15.5, r: 1.7, style: 'fill:var(--dark,#1a2236)' }],
+    ['circle', { cx: 14.6, cy: 15.5, r: 1.7, style: 'fill:var(--dark,#1a2236)' }],
+    spark(26, 6, 3.4),
   ],
   // Пробитие: стрела, пронзающая кольцо.
   pierce: [
@@ -217,11 +204,6 @@ function build(parent, specs) {
 
 export function icon(name) {
   const root = svg('svg', { viewBox: '0 0 32 32', class: 'icon-svg i-' + name, 'aria-hidden': 'true' });
-  // Руническая гравировка по углам, не перекрывающая силуэт.
-  build(root, [['path', {
-    d:'M2 8V2H8M24 2H30V8M2 24V30H8M24 30H30V24',
-    stroke:'var(--rune,#a08e71)',fill:'none','stroke-width':.7,opacity:.38
-  }]]);
   build(root, ICONS[name] || []);
   return root;
 }
