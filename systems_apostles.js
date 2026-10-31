@@ -227,7 +227,7 @@ export class Apostles {
       const def = this.cfg.enemies[A.defs[kinds[i]]];
       if (!def) continue;
       const e = this.enemies.spawn();
-      initEnemy(e, def, this.corners[i].x, this.corners[i].y);
+      initEnemy(e, def, this.corners[i].x, this.corners[i].y, this.arena.location === 'sanctum');
       if (this.neg) e.hp = e.maxHp = def.hp * this.N.hpMult;
       this.arena.resolveCircle(e); // остров ломаный: угол мог оказаться за кромкой
       e.prevX = e.x;
@@ -356,7 +356,7 @@ export class Apostles {
         for (let i = 0; i < this.husks.length; i++) {
           const h = this.husks[i];
           const e = this.enemies.spawn();
-          initEnemy(e, def, h.x, h.y);
+          initEnemy(e, def, h.x, h.y, this.arena.location === 'sanctum');
           this.arena.resolveCircle(e);
           e.prevX = e.x;
           e.prevY = e.y;

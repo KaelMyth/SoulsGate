@@ -7,7 +7,7 @@ export class MageBarriers {
   add(mage,archers,hero){
     const dx=hero.x-mage.x,dy=hero.y-mage.y,d=Math.hypot(dx,dy)||1;
     const nx=dx/d,ny=dy/d;
-    const b={mage,gen:mage.gen,archers:archers.map(e=>({e,gen:e.gen})),
+    const b={mage,gen:mage.gen,hero,archers:archers.map(e=>({e,gen:e.gen})),
       nx,ny,age:0,x:0,y:0,ax:0,ay:0,bx:0,by:0};
     this.active.push(b);
     this.position(b);
@@ -19,6 +19,29 @@ export class MageBarriers {
     b.ax=b.x-b.ny*r;b.ay=b.y+b.nx*r;
     b.bx=b.x+b.ny*r;b.by=b.y-b.nx*r;
   }
+  /** Перед движением врагов: щит поворачивается к герою, лучники идут в строю за магом. */
+  updateFormation() {
+    for (const b of this.active) {
+      const mage = b.mage;
+      if (!mage.active || mage.gen !== b.gen || mage.hp <= 0) continue;
+      const hero = b.hero;
+      const dx = hero.x - mage.x, dy = hero.y - mage.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1e-4) { b.nx = dx / d; b.ny = dy / d; }
+      const back = this.cfg.archerBehind ?? 70;
+      const spacing = this.cfg.archerSpacing ?? 48;
+      const n = b.archers.length;
+      for (let j = 0; j < n; j++) {
+        const {e, gen} = b.archers[j];
+        if (!e.active || e.gen !== gen) continue;
+        const side = (j - (n - 1) * 0.5) * spacing;
+        e.goalOn = true;
+        e.goalX = mage.x - b.nx * back - b.ny * side;
+        e.goalY = mage.y - b.ny * back + b.nx * side;
+      }
+    }
+  }
+
   update(dt){
     for(let i=this.active.length-1;i>=0;i--){
       const b=this.active[i],mage=b.mage;
@@ -27,6 +50,9 @@ export class MageBarriers {
           if(e.active&&e.gen===gen)e.goalOn=false;
         this.active.splice(i,1);continue;
       }
+      const hero=b.hero, dx=hero.x-mage.x, dy=hero.y-mage.y;
+      const d=Math.hypot(dx,dy);
+      if(d>1e-4){b.nx=dx/d;b.ny=dy/d;}
       b.age+=dt;this.position(b);
     }
   }

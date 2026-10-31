@@ -794,9 +794,10 @@ export const CONFIG = {
       color: '#9bc8ef', edge: '#ecffff',
     },
     battleMage: {
-      hp: 65.6, speed: 0, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
+      hp: 65.6, speed: 58, radius: 15, touchDamage: 9, touchCooldown: 1, knockbackScale: 0.6,
       drop: 'red', swarm: false, squad: true,
-      keepDistance: 330, shotRange: 450, aimTime: 0.65, fireInterval: 2.2, firstShotDelay: 1,
+      // Идёт впереди стрелков до дистанции, с которой вся группа может атаковать.
+      keepDistance: 235, shotRange: 450, aimTime: 0.65, fireInterval: 2.2, firstShotDelay: 1,
       shot: { damage: 19, speed: 175, radius: 8, range: 600, knockback: 0, parryable: true, color: '#ac83ff' },
       color: '#7d6bb7', edge: '#bdb0ff',
     },
@@ -1279,7 +1280,7 @@ export const CONFIG = {
   },
 
   // Зрение во втором зале: мягкая тьма поверх мира, посох и действующая магия её рассеивают.
-  mageBarrier: { width: 170, forward: 22 },
+  mageBarrier: { width: 170, forward: 22, archerBehind: 70, archerSpacing: 48 },
 
   hallVision: {
     scale: 0.48,       // размер маски от CSS-пикселей, независимо от DPR

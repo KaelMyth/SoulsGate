@@ -310,7 +310,7 @@ export class Spawner {
    */
   spawnBoss(def) {
     const e = this.enemies.spawn();
-    initEnemy(e, def, 0, 0);
+    initEnemy(e, def, 0, 0, this.arena.location === 'sanctum');
     e.hp = e.maxHp = def.hp; // здоровье босса не растёт от номера волны
     if (def === this.cfg.enemies.tartas && this.arena.location === 'hall') {
       e.x = 0;
@@ -551,7 +551,7 @@ export class Spawner {
 
   spawnAt(kind, x, y) {
     const e = this.enemies.spawn();
-    initEnemy(e, this.cfg.enemies[kind], x, y);
+    initEnemy(e, this.cfg.enemies[kind], x, y, this.arena.location === 'sanctum');
     e.hp = e.maxHp = this.hpFor(this.cfg.enemies[kind].hp);
     if(e.def.summon)e.summonTimer=e.def.summon.firstDelay;
     this.arena.resolveCircle(e); // не внутри скалы

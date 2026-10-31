@@ -1872,6 +1872,7 @@ export class Game {
       this.boss.update(worldDt);        // цикл атак босса: до движения врагов, чтобы он замер на время атаки
       this.apostles.update(worldDt);    // финальный босс: призыв апостолов, их очерёдность умений
       this.apotheosis.update(worldDt);  // голова-солнце, умение «Руки», очерёдность умений босса
+      this.barriers.updateFormation(); // маги ведут стрелков за щитом к дистанции выстрела
       for (let i = 0; i < en.length; i++) if (en[i].active) updateEnemy(en[i], worldDt, this.hero, this.arena, this.nav);
       this.shooters.update(worldDt, en);
       this.rockBeetles.update(worldDt, en); // замах и удар Горных жуков, полёт мошек

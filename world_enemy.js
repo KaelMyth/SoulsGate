@@ -46,14 +46,15 @@ export function resetEnemy(e) {
   e.def = null;
 }
 
-export function initEnemy(e, def, x, y) {
+export function initEnemy(e, def, x, y, materialize = false) {
   e.x = e.prevX = x;
   e.y = e.prevY = y;
   e.radius = def.radius;
   e.hp = e.maxHp = def.hp;
   e.gen++;
-  e.spawnDuration=def.spectral?1.1:.85;
-  e.spawnT=e.spawnDuration;
+  // Материализация нужна только третьей локации; остальные появляются сразу и могут двигаться.
+  e.spawnDuration = def.spectral ? 1.1 : 0.85;
+  e.spawnT = materialize ? e.spawnDuration : 0;
   e.xpExhausted = false;
   e.archPhase = 0;
   e.walkIn = false;
@@ -175,7 +176,9 @@ export function updateEnemy(e, dt, hero, arena, nav) {
   // Стрелок держит дистанцию: стоит, пока целится, и когда видит героя с нужного расстояния.
   let hold = false;
   if (e.def.keepDistance > 0 && !e.walkIn) {
-    hold = e.aim > 0 || (d <= e.def.keepDistance && !arena.segmentBlocked(e.x, e.y, hero.x, hero.y, 3));
+    // Лучник в группе мага следует за щитом даже при сближении героя.
+    hold = e.aim > 0 || (!e.goalOn && d <= e.def.keepDistance
+      && !arena.segmentBlocked(e.x, e.y, hero.x, hero.y, 3));
   }
   if (e.atk.state !== 'idle') hold = true; // замах, удар, восстановление и оглушение: сам не идёт
   if (dt2 > 1e-6 && gap > 0 && !hold) {
@@ -183,7 +186,8 @@ export function updateEnemy(e, dt, hero, arena, nav) {
     let my = dy / dt2;
     let direct = true;
     // Скала на пути к герою: идём по полю навигации в обход.
-    if (nav && !e.goalOn && arena.segmentBlocked(e.x, e.y, hero.x, hero.y, e.radius + 2) && nav.direction(e.x, e.y, dir)) {
+    // В узком холле стрелки с заданной позицией тоже обходят препятствия, пользуясь маршрутом к герою.
+    if (nav && arena.segmentBlocked(e.x, e.y, tx, ty, e.radius + 2) && nav.direction(e.x, e.y, dir)) {
       mx = dir.x;
       my = dir.y;
       direct = false;
