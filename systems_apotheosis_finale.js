@@ -82,7 +82,10 @@ export class Finale {
     const cur = z.poly.map((p) => ({ x: p.x, y: p.y }));
     const R0 = A.map((a) => rayDist(cur, cx, cy, a));
     const R1 = A.map((a) => rayDist(strip, cx, cy, a));
-    const delay = A.map(() => ai.rnd() * P.spread);
+    // Соседние края обваливаются связанными пластами, а не иголками со случайным временем у каждого луча.
+    // Гладкая низкочастотная волна оставляет живой, но читаемый силуэт острова.
+    const delay = A.map((angle) => P.spread * Math.max(0, Math.min(1,
+      0.48 + 0.32 * Math.sin(angle * 3 + .24) + 0.14 * Math.sin(angle * 7 - 1.1))));
     this.path = { cx, cy, ang: A, R0, R1, delay, started: A.map(() => false) };
     this.stage = 'path';
     this.t = 0;
@@ -108,7 +111,8 @@ export class Finale {
       if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y;
       if (!f.started[i] && k > 0.02 && f.R1[i] < f.R0[i]) { // кусок откололся
         f.started[i] = true;
-        ai.bus.emit('apotheosis:crack', { x: f.cx + Math.cos(f.ang[i]) * f.R0[i], y: f.cy + Math.sin(f.ang[i]) * f.R0[i] });
+        // Вспышки и звук не нужны на каждом луче: это одна широкая линия раскола.
+        if (i % 3 === 0) ai.bus.emit('apotheosis:crack', { x: f.cx + Math.cos(f.ang[i]) * f.R0[i], y: f.cy + Math.sin(f.ang[i]) * f.R0[i] });
       }
     }
     ai.arena.setZone({ left: l, right: r, top: t, bottom: b, poly });

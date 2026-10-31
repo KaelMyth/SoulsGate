@@ -1,14 +1,9 @@
 // Апофеоз: оркестр умений финального босса и его голова-солнце.
 //
-// Пять умений первой фазы идут по очереди (enemies.apotheosis.abilities): fixed ('apostles', 'hands'), затем poolPick случайных
-//   из pool ('beams', 'crumble', 'flash'; не вошедшие откладываются на вторую фазу, this.deferred), последним умением 'transform'.
-//   Между умениями пауза afterDelay.
-//   Каждое умение, когда оно кончилось, проворачивает голову на одно деление: у солнца rays лучей (10), поворот = 1/rays оборота.
-//   Сама голова не вращается: проворот = знак «умение применено». После phaseAfter умений (5) босс готов ко второй фазе:
-//   событие 'apotheosis:phase2' (поведения второй фазы пока нет, умения прекращаются). Будущее правило: если у босса кончилось
-//   здоровье раньше, чем применено phaseAfter умений, голова сразу доворачивается до фазы перехода, минуя повороты по умениям.
-//
-//   Пятое умение «Превращение» само делает пятый проворот (голова встаёт вверх ногами) и заканчивается фазой 2.
+// Пять атак первой фазы: апостолы, руки и все три атаки пула в случайном порядке.
+//   После пятой атаки отдельно идёт переход «Превращение»: разрыв острова и вторая фаза.
+//   Голова проходит пять делений (180°); последний проворот происходит во время перехода.
+//   Во второй фазе пять атак, затем отдельный переход-эпилог.
 //
 //   Важно: во время умения голова может крутиться (умение «Лучи» качает её), но к концу умения она возвращается в то же
 //   положение, где была, а засчитанный проворот на деление делает только завершение умения (finishAbility).
@@ -21,9 +16,8 @@
 //   Урон тиками, не парируется (блок гасит часть).
 // 4 «Распад острова»: куски поля краснеют (crumble.telegraph) и обваливаются в пустоту: удар при обвале и тики урона, пока
 //   герой стоит на провале (crumble.holdTime), потом кусок зарастает. Волны идут внахлёст, первый кусок каждой волны на герое.
-// 5 «Вспышка»: голова заряжается flash.charge секунд, экран темнеет, потом вспышка на всё поле. Парирование гасит вспышку целиком
-//   и оглушает босса (stunTime: он получает stunDamageMult урона, пауза между умениями стоит). Блок гасит часть.
-// 6 «Превращение» (пятое по счёту, конец первой фазы): остров сжимается в маленький клочок; из краёв экрана быстро вылезают
+// 5 «Световые заряды»: пять последовательных самонаводящихся снарядов, каждый парируется.
+// 6 «Превращение» (отдельный переход после 5 атак): остров сжимается в клочок; из краёв экрана вылезают
 //   руки и хватаются за его центр; голова проворачивается в последний раз (до 180°: рот сверху, голова снизу, босс безумен);
 //   руки разрывают клочок, и на его месте вырастает туманная платформа; графика переходит в негатив (renderer.drawNegative).
 //   Платформа это новая arena.zone (многоугольник). Конец: событие 'apotheosis:phase2'.
@@ -35,10 +29,10 @@
 //   кончается, когда все убиты, и голова проворачивается ещё на одно деление (abilities.p2Turn).
 // 8 «Единство» (третье умение второй фазы): босс сам, без апостолов, применяет все четыре их умения сразу, в усиленной негативной
 //   форме: Любовь усиливает остальных, Вера бросает клинки с неба, Правда золотые клинки от головы, Сила отталкивает (и взрывает у
-//   края). Перед этим omni.castTime секунд заряд. Кончается, когда всё отыграло. Дальше умения второй фазы не заданы (state 'done').
+//   края). Перед этим omni.castTime секунд заряд. После пяти атак второй фазы начинается отдельный эпилог.
 //
 // События: 'apotheosis:ability' { id }, 'apotheosis:hands-start', 'apotheosis:slam' { band, x, y }, 'apotheosis:beams-fire',
-//          'apotheosis:crumble' { x, y, r }, 'apotheosis:flash' { parried }, 'apotheosis:stun', 'apotheosis:head-turn' { turns },
+//          'apotheosis:crumble' { x, y, r }, 'apotheosis:bolt-impact' { parried }, 'apotheosis:stun', 'apotheosis:head-turn' { turns },
 //          'apotheosis:phase2',
 //          'apotheosis:transform' { stage: 'grab' | 'turn' | 'tear' | 'form' }.
 //          Графика: ЗАГЛУШКА (renderer.drawHands / drawBeams / drawCrumble / drawFlash / drawGrip / drawFog / drawNegative).
@@ -61,7 +55,7 @@ export class ApotheosisAI {
     this.bus = o.bus;
     this.rnd = o.rnd || Math.random;
     this.boss = null;
-    this.sequence = [];    // порядок умений первой фазы
+    this.sequence = [];    // только боевые умения первой фазы, без перехода
     this.ability = null;   // идущее умение: 'apostles' | 'hands' | 'beams' | 'crumble' | 'flash' | null (пауза)
     this.state = 'off';    // off | apostles | emerge | slams | retract | beams-tele | beams-fire | crumble | flash-charge | flash-burst | gap | done
     this.t = 0;
@@ -70,7 +64,7 @@ export class ApotheosisAI {
     this.phase2 = false;
     this.spin = 0;         // качание головы во время «Лучей», радианы; к концу умения всегда 0
     this.spinDir = 1;
-    this.stunT = 0;        // оглушение босса после парированной вспышки
+    this.stunT = 0;        // оглушение после парирования световых зарядов
     this.src = { x: 0, y: 0, active: true, parryable: true, enemy: null };       // удар руки
     this.beamSrc = { x: 0, y: 0, active: true, parryable: false, enemy: null };  // тик луча
     this.holeSrc = { x: 0, y: 0, active: true, parryable: false, enemy: null };  // обвал и тик провала
@@ -83,11 +77,11 @@ export class ApotheosisAI {
     this.cwave = 0;
     this.cT = 0;
     this.cTick = 0;
-    this.flashDim = 0;     // 0..1 затемнение экрана при зарядке вспышки (для отрисовки)
-    this.flashWhite = 0;   // больше не используется для глобальной вспышки
+    this.flashDim = 0;     // старое поле оставлено для совместимости с интерфейсом
+    this.flashWhite = 0;   // глобальной вспышки больше нет
     this.flashFired = 0;
     this.flashNext = 0;
-    this.deferred = [];    // умения пула, не вошедшие в первую фазу (на вторую)
+    this.deferred = [];    // запас для совместимости с прежними настройками
     this.tf = null;        // данные «Превращения» (для отрисовки рук и клочка)
     this.madTurn = false;  // идёт последний, медленный проворот головы
     this.fog = 0;          // 0..1 туман на платформе (для отрисовки)
@@ -107,8 +101,8 @@ export class ApotheosisAI {
       if (inc.enemy !== this.boss || !this.boss) return;
       if (this.apostles.boss === this.boss && this.apostles.alive() > 0) inc.amount *= 0.1; // апостолы гасят 90% урона
       if (this.stunT > 0) inc.amount *= this.boss.def.flash.stunDamageMult;
-      // Во второй фазе босс ударами не умирает: здоровье не опускается ниже 1, конец игры только по эпилогу.
-      if (this.phase2 && inc.enemy === this.boss && inc.amount >= this.boss.hp) inc.amount = Math.max(0, this.boss.hp - 1);
+      // Скриптовый босс не может умереть до конца обеих фаз: иначе пропадают катсцены.
+      if (inc.amount >= this.boss.hp) inc.amount = Math.max(0, this.boss.hp - 1);
     });
   }
 
@@ -122,6 +116,7 @@ export class ApotheosisAI {
     if (this.sequence[0] === 'apostles') {
       this.ability = 'apostles';
       this.state = 'apostles'; // призыв запускает сам systems_apostles.js (firstDelay)
+      this.bus.emit('apotheosis:ability', { id: 'apostles' });
     } else {
       this.apostles.requestSummon(Infinity); // апостолы не первые: сами не призываются
       this.enterGap(this.apostles.A.firstDelay);
@@ -137,7 +132,7 @@ export class ApotheosisAI {
     }
     const pick = A && A.poolPick !== undefined ? A.poolPick : pool.length;
     this.deferred = pool.slice(pick);
-    return fixed.concat(pool.slice(0, pick), A && A.final ? A.final : []);
+    return fixed.concat(pool.slice(0, pick)); // переход запускается отдельно, после пяти атак
   }
 
   reset() {
@@ -192,16 +187,15 @@ export class ApotheosisAI {
 
   /** Умение закончилось: голова проворачивается на одно деление. true, если босс готов ко второй фазе. */
   finishAbility() {
-    this.turns++;
-    this.bus.emit('apotheosis:head-turn', { turns: this.turns });
     const D = this.boss.def.head;
-    this.ability = null;
-    if (this.turns >= D.phaseAfter && !this.phase2) {
-      this.phase2 = true;
-      this.state = 'done';
-      this.bus.emit('apotheosis:phase2', {});
+    // Пятое боевое умение завершено: переход отдельный. Пятый проворот сделает
+    // само Превращение во время захвата острова, как предусмотрено анимацией.
+    if (!this.phase2 && this.turns + 1 >= D.phaseAfter) {
+      this.start(this.boss.def.abilities.transition || 'transform');
       return true;
     }
+    this.turns++;
+    this.bus.emit('apotheosis:head-turn', { turns: this.turns });
     this.enterGap(this.boss.def.abilities.afterDelay);
     return false;
   }
@@ -247,7 +241,8 @@ export class ApotheosisAI {
       else { this.ability = null; this.state = 'done'; }
       return;
     }
-    this.start(this.sequence[this.turns % this.sequence.length]);
+    if (this.turns >= this.sequence.length) this.start(this.boss.def.abilities.transition || 'transform');
+    else this.start(this.sequence[this.turns]);
   }
 
   start(id) {
@@ -296,7 +291,7 @@ export class ApotheosisAI {
     this.flashBolts.length = 0;
     this.flashFired = 0;
     this.flashNext = 0;
-    if (id === 'transform') { // отладка: «Превращение» всегда пятое, голова уже на 4 деления
+    if (id === 'transform') { // отладка: переход после пяти атак; голова готова к последнему провороту
       this.turns = this.boss.def.head.phaseAfter - 1;
       this.boss.headAngle = this.turns * (TAU / this.boss.def.head.rays);
     }
@@ -415,6 +410,8 @@ export class ApotheosisAI {
         b.t += dt;
         if (b.t >= H.slamHold) b.state = 4;
         else allDone = false;
+      } else if (b.state === 4) {
+        b.t += dt; // рука уходит от острова, а не пропадает мгновенно
       }
     }
     if (allDone) { this.state = 'retract'; this.t = 0; }
@@ -588,10 +585,13 @@ export class ApotheosisAI {
     const o = this.headPos(), h = this.hero;
     if (!o) return;
     const direction = Math.atan2(h.y - o.y, h.x - o.x);
-    this.flashBolts.push({
+    const b = {
       x:o.x, y:o.y, px:o.x, py:o.y, angle:direction + (this.flashFired % 2 ? .12 : -.12),
       r:F.radius, age:0, active:true, parryable:F.parryable !== false, enemy:this.boss,
-    });
+      trailX:new Float32Array(9),trailY:new Float32Array(9),trailIndex:0,trailCount:0,trailTime:0,
+    };
+    b.trailX.fill(o.x);b.trailY.fill(o.y);
+    this.flashBolts.push(b);
     this.flashFired++;
     this.bus.emit('apotheosis:bolt-fired', {x:o.x, y:o.y});
   }
@@ -626,6 +626,14 @@ export class ApotheosisAI {
       }
       b.x += Math.cos(b.angle) * F.speed * dt;
       b.y += Math.sin(b.angle) * F.speed * dt;
+      b.trailTime += dt;
+      if (b.trailTime >= .05) {
+        b.trailTime -= .05;
+        b.trailIndex = (b.trailIndex + 1) % b.trailX.length;
+        b.trailX[b.trailIndex] = b.x;
+        b.trailY[b.trailIndex] = b.y;
+        b.trailCount = Math.min(b.trailCount + 1, b.trailX.length);
+      }
       if (hero.active && Math.hypot(hero.x - b.x, hero.y - b.y) < hero.radius + b.r) {
         b.parryable = F.parryable !== false;
         this.combat.damageHero(F.damage, b);

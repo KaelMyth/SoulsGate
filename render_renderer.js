@@ -576,6 +576,7 @@ export class Renderer {
     this.h = 1;
     this.floor = null;            // картинка пола арены: строится при первой отрисовке
     this.details = null;          // сухие кусты, камешки и наметы на полу
+    this.voidPalm = null;         // одна детальная кисть для всех рук Апофеоза
     this.rockSprites = [];        // спрайт каждой скалы: строится при первой отрисовке
     this.flakes = [];             // снежинки: живут вокруг камеры, только для вида
     this.clock = 0;               // время кадра в секундах: для мерцания пламени и пульса глаз
@@ -804,6 +805,7 @@ export class Renderer {
     this.drawDust(this.dt);
     this.hitfx.draw(ctx, this.dt);
     this.drawBeams();
+    this.drawHandsForeground(); // кисти видны над противниками, под героем
 
     this.drawTargetGlow(alpha, true);
     this.drawAbsorptionFlash(ctx); // #153 дымка, частицы и анимированная вспышка
@@ -1161,15 +1163,62 @@ export class Renderer {
    * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
    * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
-  /** Костлявая объёмная рука с суставами, когтями и подсвеченными рёбрами.
-   * Используется и в ударе с двух сторон, и при разрыве острова. */
+  /** Кэш кисти строится единожды, чтобы десятки суставов не пересчитывались каждый кадр. */
+  ensureVoidPalm() {
+    if (this.voidPalm) return this.voidPalm;
+    const cv = makeCanvas(256, 192);
+    const g = cv.getContext('2d');
+    g.setTransform(2, 0, 0, 2, 128, 96);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    // Ладонь: от сужающегося запястья к рельефу четырёх костяшек.
+    g.beginPath();
+    g.moveTo(-31, -14);
+    g.bezierCurveTo(-10, -23, -3, -28, 14, -23);
+    g.bezierCurveTo(26, -17, 29, 13, 14, 24);
+    g.bezierCurveTo(-3, 27, -12, 18, -31, 13);
+    g.closePath();
+    g.fillStyle = '#161321'; g.fill();
+    g.lineWidth = 3; g.strokeStyle = '#797189'; g.stroke();
+    g.beginPath();
+    g.moveTo(-22, -12); g.quadraticCurveTo(2, -24, 17, -14);
+    g.moveTo(-23, 10); g.quadraticCurveTo(4, 21, 16, 12);
+    g.lineWidth = 2; g.strokeStyle = '#403a50'; g.stroke();
+    // Четыре шарнирных пальца, каждый из двух сегментов и кончика-когтя.
+    for (let k = 0; k < 4; k++) {
+      const yy = -18 + k * 11.5;
+      const bend = k === 0 ? -10 : k === 3 ? 8 : 0;
+      g.beginPath();
+      g.moveTo(11, yy); g.quadraticCurveTo(28, yy + bend * .2, 35, yy + bend);
+      g.quadraticCurveTo(45, yy + bend * 1.2, 49 - k * 2, yy + bend + 2);
+      g.lineWidth = 10 - k * .7; g.strokeStyle = '#4c4359'; g.stroke();
+      g.lineWidth = 7 - k * .5; g.strokeStyle = '#15131f'; g.stroke();
+      g.lineWidth = 1.5; g.strokeStyle = '#aaa1ad'; g.stroke();
+      g.fillStyle = '#c5bbcb'; g.beginPath();
+      g.arc(35, yy + bend, 2.1, 0, TAU); g.fill();
+      g.beginPath();
+      g.moveTo(49 - k * 2, yy + bend + 2);
+      g.lineTo(61 - k * 3, yy + bend + (k % 2 ? 7 : -5));
+      g.lineTo(47 - k * 2, yy + bend + 7);
+      g.closePath(); g.fillStyle = '#171421'; g.fill(); g.strokeStyle = '#8c8194'; g.lineWidth = 1; g.stroke();
+    }
+    // Большой палец складывается к атакуемой полосе.
+    g.beginPath();
+    g.moveTo(-8, 17); g.quadraticCurveTo(3, 41, 20, 36);
+    g.lineTo(30, 28);
+    g.lineWidth = 11; g.strokeStyle = '#554b63'; g.stroke();
+    g.lineWidth = 7; g.strokeStyle = '#171420'; g.stroke();
+    g.lineWidth = 1.5; g.strokeStyle = '#aba0b2'; g.stroke();
+    this.voidPalm = cv;
+    return cv;
+  }
+
+  /** Нарисовать объёмную суставчатую руку: живой длинный рукав и кэшированный рельеф кисти. */
   drawVoidHand(ctx, wx, wy, bx, by, ex, ey, facing, size = 1) {
     ctx.save();
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     const arm = () => {
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
+      ctx.beginPath();ctx.moveTo(bx, by);
       ctx.quadraticCurveTo((bx + ex) * .5, (by + ey) * .5 - 13 * size, ex, ey);
       ctx.quadraticCurveTo((ex + wx) * .5 + 9 * size, (ey + wy) * .5, wx, wy);
     };
@@ -1180,44 +1229,7 @@ export class Renderer {
     ctx.translate(wx, wy);
     ctx.rotate(facing);
     ctx.scale(size, size);
-    // Ладонь: от сужающегося запястья к рельефу четырёх костяшек.
-    ctx.beginPath();
-    ctx.moveTo(-31, -14);
-    ctx.bezierCurveTo(-10, -23, -3, -28, 14, -23);
-    ctx.bezierCurveTo(26, -17, 29, 13, 14, 24);
-    ctx.bezierCurveTo(-3, 27, -12, 18, -31, 13);
-    ctx.closePath();
-    ctx.fillStyle = '#161321'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = '#797189'; ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-22, -12); ctx.quadraticCurveTo(2, -24, 17, -14);
-    ctx.moveTo(-23, 10); ctx.quadraticCurveTo(4, 21, 16, 12);
-    ctx.lineWidth = 2; ctx.strokeStyle = '#403a50'; ctx.stroke();
-    // Четыре шарнирных пальца, каждый из двух сегментов и кончика-когтя.
-    for (let k = 0; k < 4; k++) {
-      const yy = -18 + k * 11.5;
-      const bend = k === 0 ? -10 : k === 3 ? 8 : 0;
-      ctx.beginPath();
-      ctx.moveTo(11, yy); ctx.quadraticCurveTo(28, yy + bend * .2, 35, yy + bend);
-      ctx.quadraticCurveTo(45, yy + bend * 1.2, 49 - k * 2, yy + bend + 2);
-      ctx.lineWidth = 10 - k * .7; ctx.strokeStyle = '#4c4359'; ctx.stroke();
-      ctx.lineWidth = 7 - k * .5; ctx.strokeStyle = '#15131f'; ctx.stroke();
-      ctx.lineWidth = 1.5; ctx.strokeStyle = '#aaa1ad'; ctx.stroke();
-      ctx.fillStyle = '#c5bbcb'; ctx.beginPath();
-      ctx.arc(35, yy + bend, 2.1, 0, TAU); ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(49 - k * 2, yy + bend + 2);
-      ctx.lineTo(61 - k * 3, yy + bend + (k % 2 ? 7 : -5));
-      ctx.lineTo(47 - k * 2, yy + bend + 7);
-      ctx.closePath(); ctx.fillStyle = '#171421'; ctx.fill(); ctx.strokeStyle = '#8c8194'; ctx.lineWidth = 1; ctx.stroke();
-    }
-    // Большой палец складывается к атакуемой полосе.
-    ctx.beginPath();
-    ctx.moveTo(-8, 17); ctx.quadraticCurveTo(3, 41, 20, 36);
-    ctx.lineTo(30, 28);
-    ctx.lineWidth = 11; ctx.strokeStyle = '#554b63'; ctx.stroke();
-    ctx.lineWidth = 7; ctx.strokeStyle = '#171420'; ctx.stroke();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = '#aba0b2'; ctx.stroke();
+    ctx.drawImage(this.ensureVoidPalm(), -64, -48, 128, 96);
     ctx.restore();
   }
 
@@ -1259,19 +1271,40 @@ export class Renderer {
       }
     }
     ctx.restore();
-    // Реальные суставчатые кисти, а не прямоугольники.
-    const width=z.right-z.left;
-    for (let i=0;i<a.hands.length;i++) {
-      const b=a.hands[i];
-      if(b.state===4)continue;
-      const cy=(b.y0+b.y1)/2, edge=b.side<0?z.left:z.right;
-      const bx=edge+b.side*380, by=cy+110+(i%2?30:-25);
-      const rest=edge+b.side*(180-128*a.emerge);
-      const lunge=b.state===2 ? Math.min(1,b.t/.15) :
-        b.state===1 ? .12*Math.min(1,b.t/Math.max(.01,H.telegraph)) : 0;
-      const palmX=rest+(edge-b.side*width*.67-rest)*lunge;
-      const elbowX=edge+b.side*(195-35*a.emerge);
-      this.drawVoidHand(ctx,palmX,cy,bx,by,elbowX,cy+20+(i%2?-28:28),b.side<0?0:Math.PI,.92);
+  }
+
+  /** Трёхмерные руки поверх врагов, но под героем; телеграф остаётся на полу. */
+  drawHandsForeground() {
+    const a = this.apotheosis, z = this.arena.zone;
+    if (!a || !z || !a.hands.length || !a.H) return;
+    const ctx = this.ctx, H = a.H;
+    const width = z.right - z.left;
+    for (let i = 0; i < a.hands.length; i++) {
+      const b = a.hands[i];
+      if (b.state === 4 && a.state !== 'retract' && b.t >= H.slamHold + H.retractTime) continue;
+      const cy = (b.y0 + b.y1) / 2, edge = b.side < 0 ? z.left : z.right;
+      const bx = edge + b.side * 380, by = cy + 110 + (i % 2 ? 30 : -25);
+      const rest = edge + b.side * (180 - 128 * a.emerge);
+      let lunge = 0;
+      if (b.state === 1) {
+        // В конце телеграфа пальцы уже почти достигли удара, а не долетают после нанесения урона.
+        const t = Math.max(0, Math.min(1, (b.t / Math.max(.01, H.telegraph) - .58) / .42));
+        lunge = .10 + .88 * t * t * (3 - 2 * t);
+      } else if (b.state === 2 || b.state === 3) {
+        lunge = 1 - .15 * Math.min(1, b.t / Math.max(.01, H.slamHold));
+      } else if (b.state === 4) {
+        const t = Math.min(1, Math.max(0, (b.t - H.slamHold) / Math.max(.01, H.retractTime)));
+        lunge = .85 * (1 - t * t * (3 - 2 * t));
+        if (a.state === 'retract') {
+          const rt = Math.min(1, a.t / Math.max(.01, H.retractTime));
+          lunge = Math.min(lunge, .85 * (1 - rt * rt * (3 - 2 * rt)));
+        }
+        if (lunge < .01) continue;
+      }
+      const palmX = rest + (edge - b.side * width * .67 - rest) * lunge;
+      const elbowX = edge + b.side * (195 - 35 * a.emerge);
+      this.drawVoidHand(ctx, palmX, cy, bx, by, elbowX, cy + 20 + (i % 2 ? -28 : 28),
+        b.side < 0 ? 0 : Math.PI, .92);
     }
   }
 
@@ -1390,12 +1423,16 @@ export class Renderer {
       const r=b.r;
       ctx.globalAlpha=.8;
       ctx.drawImage(glow,b.x-r*3.6,b.y-r*3.6,r*7.2,r*7.2);
-      const tail=ctx.createLinearGradient(b.x-vx*r*4,b.y-vy*r*4,b.x,b.y);
-      tail.addColorStop(0,'rgba(75,130,230,0)');
-      tail.addColorStop(.55,'rgba(117,191,255,.42)');
-      tail.addColorStop(1,'rgba(231,249,255,.96)');
-      ctx.strokeStyle=tail;ctx.lineWidth=r*.9;
-      ctx.beginPath();ctx.moveTo(b.x-vx*r*4,b.y-vy*r*4);ctx.quadraticCurveTo(b.px,b.py,b.x,b.y);ctx.stroke();
+      // След повторяет изгиб самонаведения: без прямой «палочки» от снаряда.
+      if(b.trailCount>0) {
+        ctx.beginPath();ctx.moveTo(b.x,b.y);
+        for(let j=0;j<b.trailCount;j++) {
+          const k=(b.trailIndex-j+b.trailX.length)%b.trailX.length;
+          ctx.lineTo(b.trailX[k],b.trailY[k]);
+        }
+        ctx.strokeStyle='rgba(87,168,255,.30)';ctx.lineWidth=r*1.45;ctx.stroke();
+        ctx.strokeStyle='rgba(206,242,255,.77)';ctx.lineWidth=r*.45;ctx.stroke();
+      }
       ctx.fillStyle='rgba(80,140,215,.75)';
       ctx.beginPath();ctx.arc(b.x,b.y,r*1.13,0,TAU);ctx.fill();
       ctx.fillStyle='#bce5ff';ctx.beginPath();ctx.arc(b.x,b.y,r*.82,0,TAU);ctx.fill();
@@ -1415,11 +1452,51 @@ export class Renderer {
   /** Руки разрывают остров: костяные пальцы тянут край, по поверхности идут разветвлённые трещины. */
   drawGrip(l, r, t, b) {
     const a=this.apotheosis, f=a&&a.tf;
-    if(!f||(a.state!=='tf-grab'&&a.state!=='tf-turn'&&a.state!=='tf-tear'))return;
+    if(!f||(a.state!=='tf-grab'&&a.state!=='tf-turn'&&a.state!=='tf-tear'&&a.state!=='tf-form'))return;
     const T=a.boss.def.transform,ctx=this.ctx,reach=f.handK*(1-f.apart);
+    const forming=a.state==='tf-form';
+    const dissolve=forming?Math.max(0,1-a.t/Math.max(.01,T.formTime)):1;
+    const separation=forming?1:Math.max(0,f.apart);
     ctx.save();
+    // Остров распадается на отдельные каменные клинья, а не только покрывается линиями.
+    if(separation>.001&&dissolve>.002) {
+      ctx.save();
+      ctx.globalAlpha=dissolve;
+      ctx.fillStyle='#090712';
+      ctx.beginPath();ctx.arc(f.cx,f.cy,T.fragmentRadius*1.15,0,TAU);ctx.fill();
+      const n=T.handCount;
+      for(let i=0;i<n;i++) {
+        const a0=-Math.PI+i*TAU/n+.025,a1=-Math.PI+(i+1)*TAU/n-.025,am=(a0+a1)*.5;
+        const dx=Math.cos(am),dy=Math.sin(am);
+        const displacement=(9+38*separation)*(i%2?1.15:.9);
+        const ox=dx*displacement,oy=dy*displacement+(i%3===0?8:-3)*separation;
+        const r0=T.fragmentRadius*(.75+(i%3)*.09),r1=T.fragmentRadius*(.91+((i+1)%3)*.035);
+        ctx.beginPath();
+        ctx.moveTo(f.cx+ox+dx*8,f.cy+oy+dy*8);
+        ctx.lineTo(f.cx+ox+Math.cos(a0)*r0*.54,f.cy+oy+Math.sin(a0)*r0*.54);
+        ctx.lineTo(f.cx+ox+Math.cos(a0)*r0,f.cy+oy+Math.sin(a0)*r0);
+        ctx.lineTo(f.cx+ox+Math.cos(am)*r1,f.cy+oy+Math.sin(am)*r1);
+        ctx.lineTo(f.cx+ox+Math.cos(a1)*r0,f.cy+oy+Math.sin(a1)*r0);
+        ctx.lineTo(f.cx+ox+Math.cos(a1)*r0*.50,f.cy+oy+Math.sin(a1)*r0*.50);
+        ctx.closePath();
+        ctx.fillStyle=i%2?'#4b4254':'#5a5060';ctx.fill();
+        ctx.strokeStyle='#171320';ctx.lineWidth=7;ctx.stroke();
+        ctx.strokeStyle='rgba(186,171,188,.67)';ctx.lineWidth=1.8;ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(f.cx+ox+Math.cos(am)*r1*.27,f.cy+oy+Math.sin(am)*r1*.27);
+        ctx.lineTo(f.cx+ox+Math.cos(a0)*r0*.86,f.cy+oy+Math.sin(a0)*r0*.86);
+        ctx.lineTo(f.cx+ox+Math.cos(am)*r1,f.cy+oy+Math.sin(am)*r1);
+        ctx.closePath();ctx.fillStyle='rgba(185,167,171,.19)';ctx.fill();
+        // Боковая грань: сегмент визуально имеет толщину над бездной.
+        const x=f.cx+ox+Math.cos(am)*r1,y=f.cy+oy+Math.sin(am)*r1;
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+6*dx,y+11+5*separation);
+        ctx.lineTo(f.cx+ox+Math.cos(a1)*r0+5*dx,f.cy+oy+Math.sin(a1)*r0+11);
+        ctx.closePath();ctx.fillStyle='#211b30';ctx.fill();
+      }
+      ctx.restore();
+    }
     if(f.crack>0) {
-      const k=f.crack;
+      const k=f.crack*dissolve;
       // Отломленные фасеты, раскрытый шов и несколько ответвлений с разной толщиной.
       for(let i=0;i<10;i++) {
         const ang=i*TAU/10+.17;
@@ -1439,7 +1516,7 @@ export class Renderer {
         }
       }
     }
-    for(let i=0;i<T.handCount;i++) {
+    if(!forming) for(let i=0;i<T.handCount;i++) {
       const ang=.35+i*TAU/T.handCount;
       const dx=Math.cos(ang),dy=Math.sin(ang);
       const tx=dx>0?(r-f.cx)/dx:dx<0?(l-f.cx)/dx:Infinity;
@@ -6100,7 +6177,8 @@ export class Renderer {
     }
     const boss = this.boss && this.boss.enemy && this.boss.enemy.active ? this.boss.enemy : null;
     const bossT = boss ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0;
-    const apostleGuard = !!(boss && this.apotheosis?.boss === boss && this.apostles?.alive() > 0);
+    const guardCount = boss && this.apotheosis?.boss === boss ? this.apostles?.alive() || 0 : 0;
+    const apostleGuard = guardCount > 0;
     const showBoss = !!boss && !(hud.bossTitleAlpha > 0);
     U.bossK += ((showBoss ? 1 : 0) - U.bossK) * k(0.18);
     if (boss) {
@@ -6176,6 +6254,11 @@ export class Renderer {
       this.rhomb(x - 8, y + 3.5, 3.5, null);
       this.rhomb(x + bw + 8, y + 3.5, 3.5, null);
       this.rhomb(cx, y + 13, 3.5, null);
+      if (apostleGuard) {
+        ctx.font = '500 10px ' + SERIF;
+        ctx.fillStyle = 'rgba(166,222,255,.91)';
+        this.tracked('ЩИТ АПОСТОЛОВ · ' + guardCount, cx, y + 27, 1.1, 'center');
+      }
       ctx.globalAlpha = 1;
     }
 

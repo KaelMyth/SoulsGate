@@ -164,7 +164,7 @@ export class ApoFinaleFx {
       for (let i = 0; i < p.started.length; i++) {
         if (p.started[i] && !this.seen[i]) {
           this.seen[i] = true;
-          this.spawnBreak(p, i);
+          if(i % 2 === 0) this.spawnBreak(p, i); // меньше объектов, крупнее читаются отдельные осколки
         }
       }
     } else this.pathRef = null;
@@ -277,7 +277,7 @@ export class ApoFinaleFx {
     const R = p.R0[i];
     const x = p.cx + c * R;
     const y = p.cy + s * R;
-    if (this.debris.length > 160) return;
+    if (this.debris.length > 112) return;
     const n = 2 + ((i * 7) % 2); // меньше обломков, но каждый крупнее и с читаемой фасеткой
     for (let k = 0; k < n; k++) { // обломки: грани с вершинами по кругу, летят наружу, потом падают
       const sides = 5 + (k % 2);
@@ -293,7 +293,7 @@ export class ApoFinaleFx {
         rot: hash(i + k) * TAU, vr: (hash(i * 2 + k) - 0.5) * 6, r: 12 + 14 * hash(i * 13 + k), age: 0, life: 1.1 + 0.8 * hash(i + k * 5), v, dust: false,
       });
     }
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 2; k++) {
       this.debris.push({ x: x + (hash(i + k) - 0.5) * 30, y: y + (hash(i * 3 + k) - 0.5) * 20, vx: c * 25, vy: -20 - 10 * k, rot: 0, vr: 0, r: 12 + 6 * k, age: 0, life: 0.9 + 0.3 * k, v: null, dust: true });
     }
     const pts = [x, y];

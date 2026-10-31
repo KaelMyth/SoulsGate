@@ -352,7 +352,7 @@ export class Game {
         { group: 'Боссы', label: 'Апофеоз: Руки', run: () => this.apotheosis.force('hands') },
         { group: 'Боссы', label: 'Апофеоз: Лучи', run: () => this.apotheosis.force('beams') },
         { group: 'Боссы', label: 'Апофеоз: Распад острова', run: () => this.apotheosis.force('crumble') },
-        { group: 'Боссы', label: 'Апофеоз: Вспышка', run: () => this.apotheosis.force('flash') },
+        { group: 'Боссы', label: 'Апофеоз: Световые снаряды', run: () => this.apotheosis.force('flash') },
         { group: 'Боссы', label: 'Апофеоз: Превращение (конец фазы 1)', run: () => this.apotheosis.force('transform') },
         { group: 'Боссы', label: 'Апофеоз: Фаза 2, негативные апостолы', run: () => this.apotheosis.force('negApostles') },
         { group: 'Боссы', label: 'Апофеоз: Фаза 2, восстание апостолов', run: () => this.apotheosis.force('rise') },
