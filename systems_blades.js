@@ -162,7 +162,7 @@ export class Blades {
     }
     if (!hero.active) return;
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
-    const attackRate = Math.max(0.1, bm.rate);
+    const attackRate = Math.max(0.1, bm.rate); // также включает Ускорение из связанной ветки Гравитации
     const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
     // В связке Гравитация + Клинки существующие клинки возвращаются вместо удаления.
     // При активном Лазере сохраняем прежнее поведение сфер-лучей.
@@ -220,7 +220,14 @@ export class Blades {
         // Поглощения засчитывается в его тройку попаданий.
         const linked = m.blades.linkedAbsorption || 0;
         const isAbsorptionBlade = linked > 0 && slot % m.blades.count < linked;
-        this.items.push({ x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit, a, off, state: 'orbit', target: null, vx: 0, vy: 0, age: 0, absorptionLinked: isAbsorptionBlade });
+        this.items.push({
+          x: hero.x + Math.cos(a) * B.orbit, y: hero.y + Math.sin(a) * B.orbit,
+          // С гравитацией клинок изначально ориентирован по касательной,
+          // без «зависшего» радиального вида первого кадра.
+          a: gravityReturn ? a + Math.PI / 2 : a, off,
+          state: 'orbit', target: null, vx: 0, vy: 0, age: 0,
+          absorptionLinked: isAbsorptionBlade
+        });
         if (gravityReturn) this.gravitySpawned++;
         orbit++;
       }
@@ -235,6 +242,7 @@ export class Blades {
     const kind = m.frost && m.burn ? 3 : m.burn ? 2 : m.frost ? 1 : 0;
     for (const b of this.items) {
       b.sphere = sphere;
+      b.gravityOrbiting = gravityReturn; // рендер видит движение даже у ожидающего на орбите клинка
       b.kind = kind;
       b.zap = m.lightning ? m.lightning.mult : 0; // с Молнией клинки это молнии (на орбите тоже): только вид, урон не меняется
       if (b.state === 'fire') { // луч светит из сферы: она продолжает кружить
@@ -252,6 +260,7 @@ export class Blades {
       const want = this.spin + b.off;
       const k = Math.min(1, dt * 12 * (gravityReturn ? attackRate : 1));
       if (gravityReturn) {
+        b.age += dt; // у вращающегося клинка постепенно проявляется светящийся след
         const tx = hero.x + Math.cos(want) * B.orbit;
         const ty = hero.y + Math.sin(want) * B.orbit;
         b.x += (tx - b.x) * k;
@@ -277,6 +286,7 @@ export class Blades {
       let readyCandidates = null;
       for (const b of this.items) {
         if (b.state === 'return') {
+          b.age += dt;
           // Каждый возвращается в собственную движущуюся точку орбиты,
           // а не в центр героя: попадание по одной цели не склеивает клинки.
           const angle = this.spin + b.off;
@@ -301,6 +311,7 @@ export class Blades {
             b.state = 'gravityOrbit';
           }
         } else if (b.state === 'gravityOrbit') {
+          b.age += dt;
           // Полный круг отсчитывается отдельно для каждого клинка, однако
           // визуально ВСЕ летят по одним и тем же равномерным секторам.
           const step = orbitSpeed * dt;
@@ -342,22 +353,38 @@ export class Blades {
       if (!t || !t.active) {
         t = this.nearest(b.x, b.y, B.range * 1.5);
         b.target = t;
+        if (!t && gravityReturn) {
+          // Не летим три секунды в пустоту, если цель погибла: сразу
+          // возвращаемся на свой сектор. Иначе один клинок «зависает».
+          b.state = 'return';
+          b.age = 0;
+          continue;
+        }
       }
       if (t) {
         const want = Math.atan2(t.y - b.y, t.x - b.x);
-        const maxTurn = B.turn * dt;
+        const maxTurn = B.turn * dt * (gravityReturn ? attackRate : 1);
         const d = angDiff(b.a, want);
         b.a += Math.max(-maxTurn, Math.min(maxTurn, d));
       }
       b.vx = Math.cos(b.a) * flightSpeed;
       b.vy = Math.sin(b.a) * flightSpeed;
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
+      const oldX = b.x, oldY = b.y;
+      const stepX = b.vx * dt, stepY = b.vy * dt;
+      b.x += stepX;
+      b.y += stepY;
       if (t) {
+        // Быстрые клинки не должны пролетать сквозь врага между кадрами.
+        // При Ускорении длина шага растёт, поэтому проверяем ВЕСЬ отрезок.
         const r = B.size + t.radius;
-        const dx = t.x - b.x;
-        const dy = t.y - b.y;
+        const lenSq = stepX * stepX + stepY * stepY;
+        const u = lenSq > 1e-9
+          ? Math.max(0, Math.min(1, ((t.x - oldX) * stepX + (t.y - oldY) * stepY) / lenSq))
+          : 0;
+        const dx = t.x - (oldX + stepX * u);
+        const dy = t.y - (oldY + stepY * u);
         if (dx * dx + dy * dy <= r * r) {
+          b.x = oldX + stepX * u; b.y = oldY + stepY * u;
           const bd = b.mul ? dmg * b.mul : dmg; // фантомный клинок бьёт чуть иначе (phantom.damageFrac)
           this.source.kind = b.kind | 0; // для эффекта попадания (только вид)
           this.source.gen = b.gen | 0;

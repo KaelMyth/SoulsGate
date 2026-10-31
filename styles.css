@@ -26,8 +26,8 @@ html, body {
 body {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  /* Панельные окна могут прокручиваться; жесты игрового canvas по-прежнему отключены через #game. */
-  touch-action: pan-y;
+  /* Веб-страница не листается. Внутри настоящих прокручиваемых меню остаётся pan-y. */
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -41,6 +41,8 @@ body {
 #stage {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 #game {
   display: block;

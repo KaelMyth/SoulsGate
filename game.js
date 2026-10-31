@@ -48,9 +48,9 @@ import { ModeScreen } from './ui_mode-screen.js';
 import { TutorialUI } from './ui_tutorial.js';
 import { SettingsScreen } from './ui_settings.js';
 import { getPath, setPath } from './debug_tunables.js';
-import { BuildGrid } from './build_grid.js';
+import { BuildGrid } from './build_grid.js?v=209';
 import { Storage } from './build_storage.js';
-import { Blades } from './systems_blades.js';
+import { Blades } from './systems_blades.js?v=209';
 import { Incarnation } from './systems_incarnation.js';
 import { Inspiration } from './systems_inspiration.js';
 import { Pellets } from './systems_pellets.js';
@@ -308,6 +308,7 @@ export class Game {
     this.pendingLevels = 0; // повышений уровня, по которым ещё не выбрана награда
     this.modHelpSeen = false;
     this.modBuilderHelpSeen = false;
+    this.tutorialEnabled = false; // выбор «Нет» отключает все обучающие окна, в том числе после рестарта
     this.levelUpOffers = [];
     this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward(), (offer) => this.previewReward(offer));
     this.build = new BuildGrid(config.build.size);
@@ -1759,7 +1760,7 @@ export class Game {
     this.stick.cancel();
     this.levelUpOffers = this.rewards.draw(R.choices).map((o) => ({ ...o, def: this.config.mods[o.key] })).filter((o) => o.def);
     const need = Math.round(this.xp.need * R.exchangeFrac);
-    const showHelp = this.mode === 'game' && !this.modHelpSeen;
+    const showHelp = this.mode === 'game' && this.tutorialEnabled && !this.modHelpSeen;
     if (showHelp) this.modHelpSeen = true;
     this.levelUpScreen.show(this.xp.level, this.levelUpOffers, 'Обменять на ' + Math.round(R.exchangeFrac * 100) + '% опыта' + (need ? ' (+' + need + ')' : ''), showHelp);
   }
@@ -1788,7 +1789,7 @@ export class Game {
     this.pauseUI.builder.select({ kind: 'shelf', index });
     this.pauseUI.builder.fresh = index;
     this.pauseUI.builder.refresh();
-    if (this.mode === 'game' && !this.modBuilderHelpSeen) {
+    if (this.mode === 'game' && this.tutorialEnabled && !this.modBuilderHelpSeen) {
       this.modBuilderHelpSeen = true;
       this.pauseUI.showModHint(true);
     }
@@ -2468,6 +2469,7 @@ export class Game {
       cfg.waves.crash.startWave = this.testValues['waves.crash.startWave'];
     }
     this.mode = mode;
+    this.tutorialEnabled = mode === 'game' && withTutorial;
     this.hud.gameMode = mode === 'game';
     this.panel.setAvailable(mode === 'test');
     this.pauseUI.setTestTools(mode === 'test');

@@ -399,6 +399,22 @@ export class BuildGrid {
     const res = {};
     const gravityNodes = [];
     const gravityElementNodes = new Set(); // стихии ветки Гравитации не усиливают соседние Клинки и Ауру
+    // Ускорение на Гравитации относится к той же механической ветке: если
+    // Клинки вложены в Гравитацию (или наоборот), ускоряются и их атаки.
+    const gravityHaste = (node) => {
+      let boost = 0;
+      for (const child of kids.get(node) || []) {
+        const e = this.cells[child].mod.def.effect;
+        if (e.kind === 'double') boost += gravityHaste(child);
+        else if (e.kind === 'stat' && e.stat === 'rate') boost += walk(child, 0);
+      }
+      return boost;
+    };
+    const descendsFrom = (node, ancestor) => {
+      for (let p = node; p >= 0; p = parent.get(p) ?? -1)
+        if (p === ancestor) return true;
+      return false;
+    };
     for (let i = 0; i < this.cells.length; i++)
       if (this.cells[i].mod && this.cells[i].mod.def.effect.kind === 'gravity' && owner.get(i) === coreId) gravityNodes.push(i);
     if (gravityNodes.length) {
@@ -418,15 +434,6 @@ export class BuildGrid {
         // а не влияют на радиус Ауры или число ударов Поглощения.
         res.gravity.pressureMult = gravityFactor;
         // Ускорение только из ветки Гравитации — на обычный щит и Клинки не влияет.
-        const gravityHaste = (node) => {
-          let boost = 0;
-          for (const child of kids.get(node) || []) {
-            const e = this.cells[child].mod.def.effect;
-            if (e.kind === 'double') boost += gravityHaste(child);
-            else if (e.kind === 'stat' && e.stat === 'rate') boost += walk(child, 0);
-          }
-          return boost;
-        };
         let haste = 0;
         for (const i of gravityNodes) haste += gravityHaste(i);
         res.gravity.cooldownRate = Math.max(1, 1 + haste * 3);
@@ -690,7 +697,13 @@ export class BuildGrid {
       }
       kMax += f;
       kDam += 1 + d;
-      kRate += 1 + r;
+      // Ускорение на Гравитации влияет на клинки ТОЛЬКО внутри общей
+      // ветки. Соседний мод Гравитации на щите не ускоряет чужие клинки.
+      let linkedGravityHaste = 0;
+      for (const gravityNode of gravityNodes)
+        if (descendsFrom(i, gravityNode) || descendsFrom(gravityNode, i))
+          linkedGravityHaste += gravityHaste(gravityNode);
+      kRate += 1 + r + linkedGravityHaste;
     }
     if (blades) res.blades = { count: blades, linkedAbsorption: absorptionLinkedBlades, max: kMax / blades, damage: kDam / blades, rate: kRate / blades };
     // Х2/Х3 поверх «Лазера» и «Дроби» (на ядре снаряда) увеличивают число снарядов так же, как Х2 на самом ядре.
