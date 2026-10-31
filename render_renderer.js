@@ -5400,19 +5400,19 @@ export class Renderer {
     if(!e._spiritTrail||e._spiritTrailGen!==e.gen){
       e._spiritTrail=[];e._spiritTrailGen=e.gen;e._spiritTrailAt=0;
     }
-    if(t-e._spiritTrailAt>.055){
+    if(t-e._spiritTrailAt>.11){ // вдвое реже и вдвое меньше точек: след тот же, а закрашенных пикселей в два раза меньше
       e._spiritTrailAt=t;
       e._spiritTrail.push({x,y,t});
-      if(e._spiritTrail.length>20)e._spiritTrail.shift();
+      if(e._spiritTrail.length>11)e._spiritTrail.shift();
     }
+    const glow=this.getGlow('blue');
     c.save();c.globalCompositeOperation='screen';
     for(const p of e._spiritTrail){
       const age=t-p.t;if(age>1.25)continue;
       const a=1-age/1.25,r=e.radius*(.6+age*.8);
-      const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,r*2.1);
-      g.addColorStop(0,'rgba(137,210,255,'+(a*.19)+')');
-      g.addColorStop(1,'rgba(108,158,248,0)');
-      c.fillStyle=g;c.beginPath();c.arc(p.x,p.y,r*2.1,0,TAU);c.fill();
+      // Один кэшированный ореол вместо нового градиента на каждую точку каждого духа в каждом кадре.
+      c.globalAlpha=a*.28;
+      c.drawImage(glow,p.x-r*2.1,p.y-r*2.1,r*4.2,r*4.2);
     }
     c.restore();
   }
@@ -5420,7 +5420,10 @@ export class Renderer {
   drawSpectralSerpent(e,x,y,hit){
     const c=this.ctx,t=this.clock,angle=Math.atan2(e.hy||0,e.hx||1);
     c.save();c.translate(x,y);c.rotate(angle);
-    c.globalAlpha=hit?.95:.78;c.shadowColor='#78c9ff';c.shadowBlur=10;
+    // shadowBlur на каждом из десятков сегментов перегружал GPU (у духов его уже заменили ореолом): здесь тоже один кэшированный ореол.
+    c.globalAlpha=.3;
+    c.drawImage(this.getGlow('blue'),-70,-34,110,68);
+    c.globalAlpha=hit?.95:.78;
     const sway=t*7+e.gen;
     // Длинное чешуйчатое тело, сегменты с плавной линией хребта.
     for(let j=13;j>=0;j--){
