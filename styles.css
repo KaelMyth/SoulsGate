@@ -766,3 +766,62 @@ body { font-family: var(--serif); }
 
 /* Номер и название актуальной сборки на главном экране, без изменения меню. */
 #mode-screen .menu-release { position:absolute; left:50%; bottom:max(12px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(94%,520px); text-align:center; font:500 clamp(10px,2.4vw,13px)/1.4 Georgia,serif; letter-spacing:.035em; color:#cbb89a; text-shadow:0 2px 4px #080a0d; pointer-events:none; z-index:5; }
+
+
+/* Обучение: готическая карточка того же материала, что игровые меню. */
+#tutorial-choice, #tutorial-guide { position: fixed; box-sizing: border-box; }
+#tutorial-choice[hidden], #tutorial-guide[hidden] { display: none; }
+#tutorial-choice {
+  inset: 0; z-index: 48; display: flex; align-items: center; justify-content: center;
+  padding: calc(var(--safe-top) + 18px) calc(var(--safe-right) + 16px)
+           calc(var(--safe-bottom) + 18px) calc(var(--safe-left) + 16px);
+  background: rgba(5, 9, 17, .84); touch-action: manipulation;
+}
+.tutorial-card {
+  box-sizing: border-box; width: min(90vw, 380px); margin: auto;
+  border: 1px solid rgba(192, 158, 108, .62); border-radius: 12px;
+  background: linear-gradient(145deg, rgba(43, 38, 39, .97), rgba(14, 20, 36, .98) 65%, rgba(24, 29, 40, .98));
+  box-shadow: 0 15px 40px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(224, 190, 141, .09);
+  padding: 20px 18px; color: #e6dace; text-align: center;
+}
+.tutorial-card h2 { margin: 5px 0 8px; font: 500 23px/1.2 var(--serif); color: #f4dbac; }
+.tutorial-card p { margin: 0 0 14px; font: 14px/1.48 var(--serif); color: #c9d5e6; }
+.tutorial-ornament { color: #ba9357; font-size: 18px; letter-spacing: .2em; }
+.tutorial-count { font: 500 11px/1.3 var(--serif); letter-spacing: .17em; color: #bc9d73; }
+.tutorial-card .tutorial-action { font-size: 12px; color: #91afc7; }
+.tutorial-actions { display: flex; justify-content: center; gap: 10px; }
+.tutorial-actions button, .mod-build-guide button {
+  flex: 1; min-height: 40px; max-width: 150px; border-radius: 7px; padding: 8px 12px;
+  border: 1px solid #ad8753; background: rgba(98, 66, 39, .46);
+  color: #f4dfb8; font: 500 16px var(--serif); touch-action: manipulation;
+}
+.tutorial-actions button.secondary { border-color: #526176; color: #bacbe0; background: rgba(27, 37, 53, .74); }
+#tutorial-guide {
+  z-index: 23; left: 0; right: 0;
+  top: calc(var(--safe-top) + 55px); display: flex; justify-content: center;
+  padding: 0 12px; pointer-events: none;
+}
+#tutorial-guide .tutorial-card {
+  width: min(96vw, 415px); padding: 12px 16px;
+  background: linear-gradient(140deg, rgba(28, 31, 44, .92), rgba(12, 18, 31, .93));
+  pointer-events: auto;
+}
+#tutorial-guide .tutorial-card h2 { font-size: 20px; }
+#tutorial-guide .tutorial-card p { margin-bottom: 8px; font-size: 13px; }
+#tutorial-guide .tutorial-card .tutorial-action { font-size: 11px; color: #c9a66d; }
+.lu-mod-guide {
+  padding: 8px 12px; margin: 0 5px 12px;
+  border: 1px solid rgba(194, 163, 116, .42); border-radius: 7px;
+  background: rgba(61, 46, 31, .46); color: #e5d4bd;
+  font: 13px/1.4 var(--serif); text-align: left;
+}
+.lu-mod-guide[hidden], .mod-build-guide[hidden] { display: none; }
+.mod-build-guide {
+  border: 1px solid rgba(180, 153, 111, .58); border-radius: 8px;
+  background: linear-gradient(130deg, rgba(70, 52, 37, .91), rgba(29, 33, 45, .93));
+  padding: 10px 12px; color: #e7d2b0; text-align: left;
+}
+.mod-build-guide strong { display: block; font: 500 17px var(--serif); }
+#pause-screen .mod-build-guide p { margin: 4px 0 8px; font: 13px/1.36 var(--serif); color: #cfd8e7; }
+.mod-build-guide button { width: 100%; max-width: none; min-height: 32px; font-size: 13px; }
+@media (max-height: 700px) { #tutorial-guide { top: calc(var(--safe-top) + 14px); } }

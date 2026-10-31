@@ -45,6 +45,7 @@ import { SlotUI } from './ui_slot.js';
 import { Oracle } from './oracle.js';
 import { OracleScreen } from './ui_oracle.js';
 import { ModeScreen } from './ui_mode-screen.js';
+import { TutorialUI } from './ui_tutorial.js';
 import { SettingsScreen } from './ui_settings.js';
 import { getPath, setPath } from './debug_tunables.js';
 import { BuildGrid } from './build_grid.js';
@@ -305,6 +306,8 @@ export class Game {
     this.deathScreen = new DeathScreen(o.uiRoot, () => this.restart());
     this.rewards = new Rewards({ config, rnd: this.rnd });
     this.pendingLevels = 0; // повышений уровня, по которым ещё не выбрана награда
+    this.modHelpSeen = false;
+    this.modBuilderHelpSeen = false;
     this.levelUpOffers = [];
     this.levelUpScreen = new LevelUpScreen(o.uiRoot, (offer) => this.pickReward(offer), () => this.exchangeReward(), (offer) => this.previewReward(offer));
     this.build = new BuildGrid(config.build.size);
@@ -327,7 +330,15 @@ export class Game {
     this.settings = new SettingsScreen(o.uiRoot, config); // временные настройки: число модов в пуле наград
     this.oracle = new Oracle(this); // ОРАКЛ: временный сбор данных (удалить вместе с oracle.js)
     this.oracleScreen = new OracleScreen(o.uiRoot, this.oracle, config);
-    this.modeScreen = new ModeScreen(o.uiRoot, (m) => this.startMode(m), () => this.settings.show(), () => this.oracleScreen.show());
+    this.tutorial = new TutorialUI(o.uiRoot,
+      (yes) => this.startMode('game', yes),
+      () => { this.stick.cancel(); this.stepper.reset(); this.meter.interrupt(); });
+    this.bus.on('stick:move', ({ mag }) => this.tutorial.progress('move', mag));
+    this.bus.on('block:started', () => this.tutorial.progress('block'));
+    this.modeScreen = new ModeScreen(o.uiRoot, (m) => {
+      if (m === 'game') this.tutorial.offer();
+      else this.startMode(m);
+    }, () => this.settings.show(), () => this.oracleScreen.show());
 
     this.stepper = new FixedStepper(config.step);
     this.meter = new FpsMeter();
@@ -1748,7 +1759,9 @@ export class Game {
     this.stick.cancel();
     this.levelUpOffers = this.rewards.draw(R.choices).map((o) => ({ ...o, def: this.config.mods[o.key] })).filter((o) => o.def);
     const need = Math.round(this.xp.need * R.exchangeFrac);
-    this.levelUpScreen.show(this.xp.level, this.levelUpOffers, 'Обменять на ' + Math.round(R.exchangeFrac * 100) + '% опыта' + (need ? ' (+' + need + ')' : ''));
+    const showHelp = this.mode === 'game' && !this.modHelpSeen;
+    if (showHelp) this.modHelpSeen = true;
+    this.levelUpScreen.show(this.xp.level, this.levelUpOffers, 'Обменять на ' + Math.round(R.exchangeFrac * 100) + '% опыта' + (need ? ' (+' + need + ')' : ''), showHelp);
   }
 
   closeLevelUp() {
@@ -1775,6 +1788,10 @@ export class Game {
     this.pauseUI.builder.select({ kind: 'shelf', index });
     this.pauseUI.builder.fresh = index;
     this.pauseUI.builder.refresh();
+    if (this.mode === 'game' && !this.modBuilderHelpSeen) {
+      this.modBuilderHelpSeen = true;
+      this.pauseUI.showModHint(true);
+    }
   }
 
   exchangeReward() {
@@ -1904,7 +1921,7 @@ export class Game {
       this.blackSun.update(attackDt);
       this.updateSynergyCasts(attackDt);
       this.hitShotsOnBlock();
-      if(!this.introWalk)this.spawner.update(worldDt);
+      if(!this.introWalk && !this.tutorial.active) this.spawner.update(worldDt); // в обучении можно безопасно освоить управление
       this.syncWaveHud();
       this.watchCrash(dt);
     } else {
@@ -2367,7 +2384,10 @@ export class Game {
     this.hud.skillFrac1 = 1;
     this.rewards.reset();
     this.pendingLevels = 0;
+    this.modHelpSeen = false;
+    this.modBuilderHelpSeen = false;
     this.levelUpScreen.hide();
+    this.tutorial.stop();
     this.fireLast = null;
     this.lasers.length = 0;
     this.gems.clear();
@@ -2431,7 +2451,7 @@ export class Game {
    * Выбор режима. «game»: настоящий игрок, стартовые значения без ползунков, без панели и краш-теста.
    * «test»: панель и ползунки, как раньше (сохранённые ползунки возвращаются). Начинается новый забег.
    */
-  startMode(mode) {
+  startMode(mode, withTutorial = false) {
     const cfg = this.config;
     if (mode === 'game' && this.mode !== 'game') {
       this.testValues = {};
@@ -2449,6 +2469,15 @@ export class Game {
     this.pauseUI.setTestTools(mode === 'test');
     this.modeScreen.hide();
     this.restart();
+    if (mode === 'game' && withTutorial) {
+      // Во время практики игрок сам ведёт героя: не смешиваем с автоматическим входом в локацию.
+      this.introWalk = null;
+      this.hero.place(0, 0);
+      this.camera.snapTo(this.hero.x, this.hero.y, this.arena);
+      // Не включать блок сам по себе до первой попытки управления.
+      this.defense.armed = false;
+      this.tutorial.start();
+    }
   }
 
   /** Записать значения ползунков в конфиг; src: объект конфига или { путь: значение }. */
@@ -2467,6 +2496,7 @@ export class Game {
     this.bus.emit('run:ended', { result: 'abort' });
     this.stick.cancel();
     this.pauseUI.setPaused(false);
+    this.tutorial.stop();
     this.state = 'menu';
     this.panel.setAvailable(false);
     this.modeScreen.show();

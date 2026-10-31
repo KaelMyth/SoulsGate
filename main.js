@@ -17,7 +17,7 @@ const defaults = JSON.parse(JSON.stringify(CONFIG));
 loadOverrides(CONFIG, TUNABLES, storage, storageKey);
 
 // Оракл и Настройки — прокручиваемые окна: их свайпы нельзя блокировать обработчиком жестов.
-lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen, #mode-screen, #settings-screen, #oracle-screen');
+lockBrowserGestures(document, '#dbg-panel, #dbg-btn, #death-screen, #pause-btn, #pause-screen, #mode-screen, #settings-screen, #oracle-screen, #tutorial-choice, #tutorial-guide');
 
 const game = new Game({
   canvas: document.getElementById('game'),

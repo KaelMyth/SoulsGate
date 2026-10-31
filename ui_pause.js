@@ -39,11 +39,15 @@ export class PauseUI {
       type: 'button', id: 'tools-toggle', class: 'tools-toggle', onclick: () => this.showTools(this.toolsList.hidden),
     }, '＋ Добавить мод (тест) ▴');
     this.tools = h('div', { class: 'test-tools' }, this.toolsBtn, this.toolsList);
+    this.modHint = h('aside', { class: 'mod-build-guide', hidden: '' },
+      h('strong', {}, 'Как работают моды'),
+      h('p', {}, 'Новый мод лежит в хранилище. Перетащи его на ядро или другой совместимый мод. Пассивные моды можно разместить в угловых ячейках.'),
+      h('button', { type: 'button', onclick: () => this.showModHint(false) }, 'Понятно'));
     this.previewRow = h('div', { class: 'row', hidden: '' });
     this.mainRow = h('div', { class: 'row' },
         h('button', { id: 'pause-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
         h('button', { id: 'pause-menu', class: 'secondary', type: 'button', onclick: () => this.showMenu(true) }, 'Меню'));
-    this.main = h('div', { class: 'card', id: 'pause-main' }, this.builder.root, this.tools, this.mainRow, this.previewRow);
+    this.main = h('div', { class: 'card', id: 'pause-main' }, this.modHint, this.builder.root, this.tools, this.mainRow, this.previewRow);
     this.menu = h('div', { class: 'card', id: 'menu-card', hidden: '' },
       h('h2', {}, 'Меню'),
       h('button', { id: 'menu-resume', type: 'button', onclick: () => handlers.onResume() }, 'Продолжить'),
@@ -85,6 +89,11 @@ export class PauseUI {
     this.builder.refresh();
   }
 
+  /** Подсказка по установке первого мода при первом повышении уровня. */
+  showModHint(show) {
+    this.modHint.hidden = !show;
+  }
+
   /** Набор для тестов виден только в режиме «Тестирование». */
   setTestTools(on) {
     this.testTools = on;
@@ -103,6 +112,7 @@ export class PauseUI {
 
   setPaused(on) {
     this.screen.hidden = !on;
+    if (!on) this.showModHint(false);
     this.button.classList.toggle('on', on);
     this.showMenu(false);
     this.showTools(false);

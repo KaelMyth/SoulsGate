@@ -13,17 +13,20 @@ export class LevelUpScreen {
     this.onExchange = onExchange;
     this.title = h('h2', {});
     this.subtitle = h('p', { class: 'lu-subtitle' }, 'ВЫБЕРИТЕ ДАР');
+    this.modGuide = h('p', { class: 'lu-mod-guide', hidden: '' },
+      'Моды усиливают и меняют умения. Выбери один, затем перетащи его из хранилища на ядро или совместимый мод в меню билда. Цвет указывает редкость.');
     this.list = h('div', { class: 'lu-list' });
     this.exchange = h('button', { type: 'button', class: 'lu-exchange', onclick: () => this.choose(() => this.onExchange()) });
     this.el = h('div', { id: 'levelup-screen', hidden: '' },
-      h('div', { class: 'card' }, this.title, this.subtitle, this.list, this.exchange));
+      h('div', { class: 'card' }, this.title, this.subtitle, this.modGuide, this.list, this.exchange));
     root.append(this.el);
     this.armedAt = 0;
   }
 
   /** offers: [{ token, key, def }], level: новый уровень, exchangeText: подпись кнопки обмена. */
-  show(level, offers, exchangeText) {
+  show(level, offers, exchangeText, showModGuide = false) {
     this.title.textContent = 'Уровень ' + level;
+    this.modGuide.hidden = !showModGuide;
     this.list.replaceChildren();
     for (const o of offers) {
       const rarity = o.def.rarity || 'common';

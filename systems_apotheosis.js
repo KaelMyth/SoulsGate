@@ -167,7 +167,7 @@ export class ApotheosisAI {
     this.fin.reset();
   }
 
-  get H() { return this.boss ? this.boss.def.hands : null; }
+  get H() { return this.boss?.def?.hands || null; }
 
   /** Центр головы-солнца в мире (отсюда бьют лучи). */
   headPos() {

@@ -857,19 +857,19 @@ export const CONFIG = {
     // Апостолы Апофеоза (атака «Призыв апостолов», systems_apostles.js): высокие создания по углам острова.
     // Стоят на месте (speed 0), умения применяют по очереди. apostle: вид умения. Цвета: ЗАГЛУШКА ГРАФИКИ.
     apostleFaith: {
-      hp: 304, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 500, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'faith', color: '#f4f0d8', edge: '#ffffff',   // Вера: лечит остальных
     },
     apostleTruth: {
-      hp: 336, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 550, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'truth', color: '#e9b93a', edge: '#fff0b0',   // Правда: золотые клинки
     },
     apostleForce: {
-      hp: 384, speed: 0, radius: 18, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 630, speed: 0, radius: 18, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'force', color: '#c8503c', edge: '#ffc0b0',   // Сила: притягивает героя
     },
     apostleLove: {
-      hp: 272, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
+      hp: 450, speed: 0, radius: 16, touchDamage: 8, touchCooldown: 1.0, knockbackScale: 0, drop: 'red', swarm: false,
       apostle: 'love', color: '#e58ab8', edge: '#ffd6ea',    // Любовь: усиливает остальных
     },
     // Апофеоз: финальный босс 20-й волны. Шаг 1: только арена (остаток карты рушится, герой на острове, босс в разрушенной зоне).

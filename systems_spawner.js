@@ -310,7 +310,7 @@ export class Spawner {
    */
   spawnBoss(def) {
     const e = this.enemies.spawn();
-    initEnemy(e, def, 0, 0, this.arena.location === 'sanctum');
+    initEnemy(e, def, 0, 0, this.arena.location === 'sanctum' && def !== this.cfg.enemies.apotheosis);
     e.hp = e.maxHp = def.hp; // здоровье босса не растёт от номера волны
     if (def === this.cfg.enemies.tartas && this.arena.location === 'hall') {
       e.x = 0;

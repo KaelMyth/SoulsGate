@@ -1316,7 +1316,7 @@ export class Renderer {
     const a = this.apotheosis;
     const z = this.arena.zone;
     if (!a || !z || !a.patches.length) return;
-    const C = a.boss && a.boss.def.crumble;
+    const C = a.boss?.active && a.boss.def?.crumble;
     if (!C) return;
     const ctx = this.ctx;
     ctx.save();
@@ -1360,7 +1360,7 @@ export class Renderer {
    */
   drawBeams() {
     const a = this.apotheosis;
-    if (!a || !a.boss || (a.state !== 'beams-tele' && a.state !== 'beams-fire')) return;
+    if (!a?.boss?.active || !a.boss.def?.beams || (a.state !== 'beams-tele' && a.state !== 'beams-fire')) return;
     const B = a.boss.def.beams;
     const o = a.headPos();
     const ang = a.beamAngles();
@@ -1393,7 +1393,8 @@ export class Renderer {
   /** Голубовато-золотые снаряды: объёмное ядро, мягкая аура, завихрения и след по траектории. */
   drawFlash() {
     const a=this.apotheosis;
-    if(!a||!a.boss)return;
+    // После победы объект босса возвращается в пул: active=false, def=null.
+    if(!a?.boss?.active || !a.boss.def?.flash) return;
     const ctx=this.ctx;
     const F=a.boss.def.flash;
     if(a.state==='flash-charge') {
@@ -1452,7 +1453,7 @@ export class Renderer {
   /** Руки разрывают остров: костяные пальцы тянут край, по поверхности идут разветвлённые трещины. */
   drawGrip(l, r, t, b) {
     const a=this.apotheosis, f=a&&a.tf;
-    if(!f||(a.state!=='tf-grab'&&a.state!=='tf-turn'&&a.state!=='tf-tear'&&a.state!=='tf-form'))return;
+    if(!f || !a.boss?.active || !a.boss.def?.transform || (a.state!=='tf-grab'&&a.state!=='tf-turn'&&a.state!=='tf-tear'&&a.state!=='tf-form'))return;
     const T=a.boss.def.transform,ctx=this.ctx,reach=f.handK*(1-f.apart);
     const forming=a.state==='tf-form';
     const dissolve=forming?Math.max(0,1-a.t/Math.max(.01,T.formTime)):1;
@@ -1581,7 +1582,7 @@ export class Renderer {
    */
   drawOmni() {
     const a = this.apotheosis;
-    if (!a || !a.boss || a.state !== 'omni-charge') return;
+    if (!a?.boss?.active || !a.boss.def?.omni || a.state !== 'omni-charge') return;
     const o = a.headPos();
     const k = Math.min(1, a.t / Math.max(0.01, a.boss.def.omni.castTime));
     const cols = ['#ffffff', '#ffd24a', '#ff8a6a', '#ff9fcf'];

@@ -51,7 +51,7 @@ export class ApoFinaleFx {
   scream() {
     const r = this.r;
     const a = r.apotheosis;
-    if (!a || !a.boss) return;
+    if (!a?.boss?.active || !a.boss.def?.scream) return;
     const ctx = r.ctx;
     const o = a.headPos();
     const hr = a.boss.radius * 0.5;
