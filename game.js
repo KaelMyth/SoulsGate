@@ -2176,6 +2176,7 @@ export class Game {
     if (!def) return;
     this.enemies.clear();
     this.renderer.isoEnemies?.reset();
+    this.renderer.hitfx.clear(); // эффекты прежнего забега/локации, включая отложенные фрагменты
     this.heroShots.clear();
     this.enemyShots.clear();
     this.pellets.clear();
@@ -2220,6 +2221,7 @@ export class Game {
     this.arena.setLocation('hall');
     this.enemies.clear();
     this.renderer.isoEnemies?.reset();
+    this.renderer.hitfx.clear(); // эффекты прежнего забега/локации, включая отложенные фрагменты
     this.heroShots.clear();
     this.enemyShots.clear();
     this.gems.clear();
@@ -2254,6 +2256,7 @@ export class Game {
     this.gems.clear();this.effects.clear();this.pellets.clear();
     this.barriers?.reset();this.blades.reset();this.absorption.reset();
     this.renderer.isoEnemies?.reset();
+    this.renderer.hitfx.clear(); // эффекты прежнего забега/локации, включая отложенные фрагменты
     this.hero.place(0,this.arena.bottom-this.hero.radius-18);
     this.beginLocationEntrance();
     this.nav.buildBlocked();this.nav.source=-1;
@@ -2338,6 +2341,7 @@ export class Game {
     this.stepper.reset();
     this.enemies.clear();
     this.renderer.isoEnemies?.reset();
+    this.renderer.hitfx.clear(); // эффекты прежнего забега/локации, включая отложенные фрагменты
     this.heroShots.clear();
     this.pellets.clear();
     this.enemyShots.clear();

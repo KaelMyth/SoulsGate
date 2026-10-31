@@ -611,6 +611,7 @@ export class Renderer {
     this.dashKind = 0;     // стихия кинетического рывка (0 нет, 1 огонь, 2 мороз, 3 пар): выставляет игра
     this.dashKinetic = false;
     this.hitfx = new HitFx(this); // частицы попаданий по врагам (render_hitfx.js)
+    this.getPuff(); // прогреваем маленький спрайт дымки до первого убийства, не в боевом кадре
     this.beetleState = new WeakMap();
     this.fxSeed = new WeakMap(); // зерно врага для внешнего вида его состояний (лёд, огонь) // у каждого жука свой угол поворота и фаза анимации (только для вида)
   }

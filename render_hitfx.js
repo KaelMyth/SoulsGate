@@ -44,10 +44,80 @@ export class HitFx {
     this.cur = 0;
     this.rnd = Math.random;
     this.glows = [];
+    this.live = 0;                  // живые частицы; при нуле не трогаем Canvas вообще
+    this.deathFrame = -1;           // номер кадра: несколько смертей делят один бюджет
+    this.deathSpawned = 0;
+    this.spawningDeath = false;
+    this.deathBits = { rot: 0, spin: 0, drag: 3.2, col: '#fff', edge: '#fff' };
+    this.deathAround = { drag: 3, rot: 0, spin: 0 };
+    this.deathAtlas = null;
+    this.bitAtlasIndex = new Map();
+    this.shardAtlasIndex = -1;
+    this.prepareDeathAtlas(); // один маленький атлас, заранее, не в момент смерти
+  }
+
+  /** Низкополигональные грани прежней формы, запечённые в одной текстуре.
+   *  Тот же силуэт и цвет, но Canvas больше не строит многоугольник в каждом кадре смерти.
+   *  Если нет поддержки Canvas (тесты/нестандартное окружение), рисование остаётся векторным.
+   */
+  prepareDeathAtlas() {
+    if (typeof OffscreenCanvas !== 'function' && typeof document === 'undefined') return;
+    const enemies = this.r.cfg?.enemies;
+    if (!enemies) return;
+    const variants = [];
+    const keyOf = (col, edge) => col + '|' + edge;
+    for (const def of Object.values(enemies)) {
+      const col = def?.color || '#2a3a5a', edge = def?.edge || '#9fc0ff';
+      const key = keyOf(col, edge);
+      if (this.bitAtlasIndex.has(key)) continue;
+      this.bitAtlasIndex.set(key, variants.length);
+      variants.push({col, edge});
+    }
+    const tile = 64, cols = 8, count = variants.length + 1;
+    const w = cols * tile, h = Math.ceil(count / cols) * tile;
+    const atlas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : document.createElement('canvas');
+    if (typeof OffscreenCanvas !== 'function') { atlas.width = w; atlas.height = h; }
+    const g = atlas.getContext('2d');
+    if (!g) return;
+    for (let i = 0; i < variants.length; i++) {
+      const {col} = variants[i];
+      g.save();
+      g.translate((i % cols) * tile + tile * .5, Math.floor(i / cols) * tile + tile * .5);
+      g.scale(20, 20);
+      g.fillStyle = col;
+      g.beginPath();
+      poly(g, [1, 0, -.2, -.75, -.85, .1, -.1, .65], 1);
+      g.fill();
+      g.restore();
+    }
+    // Те же две ледяные грани, которые раньше строились каждый кадр.
+    this.shardAtlasIndex = variants.length;
+    g.save();
+    g.translate((this.shardAtlasIndex % cols) * tile + tile * .5,
+      Math.floor(this.shardAtlasIndex / cols) * tile + tile * .5);
+    g.scale(20, 20);
+    g.fillStyle = '#7fcfff';
+    g.beginPath(); poly(g, [1, 0, -.4, -.38, -.4, .38], 1); g.fill();
+    g.fillStyle = '#eaf9ff';
+    g.beginPath(); poly(g, [1, 0, -.4, -.38, -.1, 0], 1); g.fill();
+    g.restore();
+    this.deathAtlas = atlas;
+  }
+
+  /** Отрисовать спрайт из атласа с теми же мировыми координатами, что у poly(). */
+  drawDeathTile(ctx, tileIndex, size) {
+    const tile = 64, cols = 8;
+    const x = (tileIndex % cols) * tile, y = Math.floor(tileIndex / cols) * tile;
+    const span = size * (tile / 20);
+    ctx.drawImage(this.deathAtlas, x, y, tile, tile, -span * .5, -span * .5, span, span);
   }
 
   clear() {
     for (const q of this.p) q.on = false;
+    this.live = 0;
+    this.deathFrame = -1;
+    this.deathSpawned = 0;
+    this.spawningDeath = false;
   }
 
   add(type, el, x, y, vx, vy, life, size, o) {
@@ -57,9 +127,15 @@ export class HitFx {
       if (q.on) continue;
       this.cur = (this.cur + i + 1) % n;
       q.on = true;
+      this.live++;
+      // Полная геометрия смерти остаётся прежней, но пачки выходят за несколько
+      // кадров. Это сглаживает резкий пик Canvas на слабых iPhone/Android.
+      // Яркое ядро смерти видно сразу, остальные грани догоняют его.
+      q.t = this.spawningDeath && type !== T_FLASH && type !== T_RIPPLE
+        ? -((this.deathSpawned++ / 8 | 0) / 60) : 0; // без скачка в конце очереди
+      q.death = this.spawningDeath;
       q.type = type;
       q.el = el;
-      q.t = 0;
       q.life = life;
       q.x = x;
       q.y = y;
@@ -83,6 +159,11 @@ export class HitFx {
    */
   spawn(d) {
     const { kind, el, x, y } = d;
+    if (kind === 'death') {
+      const frame = this.r.frameNo || 0;
+      if (frame !== this.deathFrame) { this.deathFrame = frame; this.deathSpawned = 0; }
+      this.spawningDeath = true;
+    }
     const dx = d.dx;
     const dy = d.dy;
     const pw = d.power || 0;
@@ -303,17 +384,22 @@ export class HitFx {
         const ox = x;
         const oy = y;
         const bits = (n, spd, sz, spread, aim) => { // обломки цвета врага: сами грани летят в стороны
+          const opts = this.deathBits; // один переиспользуемый буфер вместо объекта на каждый осколок
+          opts.col = col; opts.edge = edge;
           for (let i = 0; i < n; i++) {
             const a = aim === undefined ? R() * TAU : aim + (R() - 0.5) * 2 * spread;
             const s2 = spd * (0.45 + R() * 0.8);
-            this.add(T_BIT, el, ox + Math.cos(a) * d.r * 0.3, oy + Math.sin(a) * d.r * 0.3, Math.cos(a) * s2, Math.sin(a) * s2 * 0.85 - 18, 0.42 + R() * 0.3, sz * (0.7 + R() * 0.7) * sc, { rot: R() * TAU, spin: (R() - 0.5) * 16, drag: 3.2, col, edge });
+            opts.rot = R() * TAU; opts.spin = (R() - 0.5) * 16;
+            this.add(T_BIT, el, ox + Math.cos(a) * d.r * 0.3, oy + Math.sin(a) * d.r * 0.3, Math.cos(a) * s2, Math.sin(a) * s2 * 0.85 - 18, 0.42 + R() * 0.3, sz * (0.7 + R() * 0.7) * sc, opts);
           }
         };
         const around = (type, e2, n, spd, sz, life, o) => {
+          const opts = this.deathAround;
           for (let i = 0; i < n; i++) {
             const a = R() * TAU;
             const s2 = spd * (0.4 + R() * 0.8);
-            this.add(type, e2, ox + Math.cos(a) * d.r * 0.4, oy + Math.sin(a) * d.r * 0.4, Math.cos(a) * s2, Math.sin(a) * s2 - 10, life * (0.7 + R() * 0.6), sz * (0.7 + R() * 0.6), o || { drag: 3, rot: R() * TAU, spin: (R() - 0.5) * 12 });
+            if (!o) { opts.rot = R() * TAU; opts.spin = (R() - 0.5) * 12; }
+            this.add(type, e2, ox + Math.cos(a) * d.r * 0.4, oy + Math.sin(a) * d.r * 0.4, Math.cos(a) * s2, Math.sin(a) * s2 - 10, life * (0.7 + R() * 0.6), sz * (0.7 + R() * 0.6), o || opts);
           }
         };
         const flash = (e2, s2) => this.add(T_FLASH, e2, ox, oy, 0, 0, 0.22, s2 * sc);
@@ -380,14 +466,24 @@ export class HitFx {
       }
       default: break;
     }
+    if (kind === 'death') this.spawningDeath = false;
   }
 
   draw(ctx, dt) {
+    if (!this.live) return;
     const P = this.p;
     const r = this.r;
     const puff = r.getPuff();
     const glows = this.glows;
     const gl = (el) => glows[el] || (glows[el] = r.getGlow(GLOW[el]));
+    // Частицы с далёкой смерти обновляются, но не заставляют GPU рисовать за камерой.
+    // Другие (длинные лучи и росчерки) не обрезаем.
+    const cam = r.camera;
+    const cull = !!(cam && Number.isFinite(cam.viewW) && Number.isFinite(cam.viewH));
+    const vl = cull ? cam.x - cam.viewW * 0.5 - 110 : -Infinity;
+    const vr = cull ? cam.x + cam.viewW * 0.5 + 110 : Infinity;
+    const vt = cull ? cam.y - cam.viewH * 0.5 - 110 : -Infinity;
+    const vb = cull ? cam.y + cam.viewH * 0.5 + 110 : Infinity;
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -395,7 +491,21 @@ export class HitFx {
       const q = P[i];
       if (!q.on) continue;
       q.t += dt;
-      if (q.t >= q.life) { q.on = false; continue; }
+      if (q.t <= 0) continue; // ещё не наступила волна этого осколка
+      if (q.t >= q.life) { q.on = false; this.live--; continue; }
+      if (q.death && (q.x < vl || q.x > vr || q.y < vt || q.y > vb)) {
+        // Без визуальной потери: за краями экрана продолжаем движение и гравитацию,
+        // чтобы частицы корректно появлялись при возвращении камеры.
+        const dr = Math.exp(-q.drag * dt);
+        q.x += q.vx * dt; q.y += q.vy * dt;
+        q.vx *= dr; q.vy *= dr;
+        if (q.type === T_BIT) q.vy += 60 * dt;
+        else if (q.type === T_EMBER) q.vy -= 35 * dt;
+        else if (q.type === T_LICK) q.vy -= 10 * dt;
+        else if (q.type === T_WISP) q.vy -= 8 * dt;
+        if (q.type === T_BIT || q.type === T_SHARD || q.type === T_CHIP) q.rot += q.spin * dt;
+        continue;
+      }
       const k = q.t / q.life;
       const e = q.el;
       if (q.type !== T_FLASH && q.type !== T_SLASH && q.type !== T_RIPPLE && q.type !== T_STREAK && q.type !== T_CHANNEL && q.type !== T_CONE && q.type !== T_ARCW) {
@@ -438,10 +548,13 @@ export class HitFx {
           ctx.translate(q.x, q.y);
           ctx.rotate(q.rot);
           const s = q.size;
-          ctx.fillStyle = '#7fcfff';
-          ctx.beginPath(); poly(ctx, [s, 0, -s * 0.4, -s * 0.38, -s * 0.4, s * 0.38], 1); ctx.fill();
-          ctx.fillStyle = '#eaf9ff';
-          ctx.beginPath(); poly(ctx, [s, 0, -s * 0.4, -s * 0.38, -s * 0.1, 0], 1); ctx.fill();
+          if (this.deathAtlas) this.drawDeathTile(ctx, this.shardAtlasIndex, s);
+          else {
+            ctx.fillStyle = '#7fcfff';
+            ctx.beginPath(); poly(ctx, [s, 0, -s * 0.4, -s * 0.38, -s * 0.4, s * 0.38], 1); ctx.fill();
+            ctx.fillStyle = '#eaf9ff';
+            ctx.beginPath(); poly(ctx, [s, 0, -s * 0.4, -s * 0.38, -s * 0.1, 0], 1); ctx.fill();
+          }
           ctx.restore();
           break;
         }
@@ -655,8 +768,12 @@ export class HitFx {
           ctx.rotate(q.rot);
           ctx.globalCompositeOperation = 'source-over';
           ctx.globalAlpha = Math.min(1, a1 * 1.6);
-          ctx.fillStyle = q.col;
-          ctx.beginPath(); poly(ctx, [s2, 0, -s2 * 0.2, -s2 * 0.75, -s2 * 0.85, s2 * 0.1, -s2 * 0.1, s2 * 0.65], 1); ctx.fill();
+          const atlasIndex = this.bitAtlasIndex.get(q.col + '|' + q.edge);
+          if (this.deathAtlas && atlasIndex !== undefined) this.drawDeathTile(ctx, atlasIndex, s2);
+          else {
+            ctx.fillStyle = q.col;
+            ctx.beginPath(); poly(ctx, [s2, 0, -s2 * 0.2, -s2 * 0.75, -s2 * 0.85, s2 * 0.1, -s2 * 0.1, s2 * 0.65], 1); ctx.fill();
+          }
           ctx.strokeStyle = q.edge;
           ctx.globalAlpha = 0.85 * a1;
           ctx.lineWidth = 0.9;
