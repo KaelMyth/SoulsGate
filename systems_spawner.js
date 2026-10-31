@@ -311,6 +311,17 @@ export class Spawner {
     const e = this.enemies.spawn();
     initEnemy(e, def, 0, 0);
     e.hp = e.maxHp = def.hp; // здоровье босса не растёт от номера волны
+    if (def === this.cfg.enemies.tartas && this.arena.location === 'hall') {
+      e.x = 0;
+      e.y = this.arena.top + 183;
+      this.arena.resolveCircle(e);
+      e.prevX = e.x;
+      e.prevY = e.y;
+      this.phase = 'boss';
+      this.alive = this.countAlive();
+      if (this.bus) this.bus.emit('boss:spawned', { enemy: e });
+      return;
+    }
     const cx = this.hero ? this.hero.x : this.camera.x;
     const cy = this.hero ? this.hero.y : this.camera.y;
     const dist = def.spawnDistance || 280;

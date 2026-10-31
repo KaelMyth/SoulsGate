@@ -5479,10 +5479,14 @@ export class Renderer {
 
   drawSpirit(e,x,y,hit){
     const c=this.ctx;
-    c.save();c.globalAlpha=.67;
-    c.shadowColor='#72c9ff';c.shadowBlur=12;
+    c.save();
+    // Призраки многочисленны: размытие каждой грани доспехов на Canvas перегружало GPU.
+    // Один кэшированный ореол сохраняет свечение без shadowBlur на десятках контуров.
+    const glow=this.getGlow('blue');
+    c.globalAlpha=.22;
+    c.drawImage(glow,x-37,y-57,74,90);
+    c.globalAlpha=.67;
     this.drawFrozenTroop(e,x,y,hit,'soldier');
-    c.shadowBlur=0;
     // Призрачные парадные доспехи: высокий воротник и холодная геральдика.
     const a=Math.atan2(e.hy||0,e.hx||1);
     c.translate(x,y+Math.sin(this.clock*3+e.gen)*2);c.rotate(a);

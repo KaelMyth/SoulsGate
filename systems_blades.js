@@ -165,6 +165,8 @@ export class Blades {
     if (gravityReturn !== this.gravityMode) {
       this.gravityMode = gravityReturn;
       if (gravityReturn) {
+        this.items.forEach((blade, index) => { blade.off = TAU * index / max; });
+        this.slot = this.items.length;
         if (this.items.length > max) this.items.length = max;
         this.gravitySpawned = this.items.length;
         this.wave = false;
