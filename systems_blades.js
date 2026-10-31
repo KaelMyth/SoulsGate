@@ -161,12 +161,18 @@ export class Blades {
       return;
     }
     if (!hero.active) return;
-    this.spin += B.spin * dt;
     const bm = { max: m.blades.max || 1, damage: m.blades.damage || 1, rate: m.blades.rate || 1 };
+    const attackRate = Math.max(0.1, bm.rate);
     const max = Math.max(1, Math.round(B.max * bm.max));      // множители Х2/Х3 на клинках
     // В связке Гравитация + Клинки существующие клинки возвращаются вместо удаления.
     // При активном Лазере сохраняем прежнее поведение сфер-лучей.
     const gravityReturn = !!m.gravity && !m.laser;
+    // В гравитационной связке скорость атаки ускоряет ВСЮ цепь:
+    // формирование, облёт, возвращение и повторный вылет.
+    // Одна глобальная фаза окружности удерживает все сектора вместе, даже
+    // если клинки вернулись в разное время.
+    const gravityOrbitSpeed = Math.max(0.1, this.cfg.gravity.bladeOrbitSpeed) * attackRate;
+    this.spin += (gravityReturn ? gravityOrbitSpeed : B.spin) * dt;
     if (gravityReturn !== this.gravityMode) {
       this.gravityMode = gravityReturn;
       if (gravityReturn) {
@@ -193,8 +199,9 @@ export class Blades {
       this.gravityMax = max;
       for (let i = 0; i < this.items.length; i++) this.items[i].off = TAU * i / max;
     }
-    const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
-    const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                          // Мощь на клинках
+    const interval = Math.max(0.03, bladeInterval(this.cfg, max) / attackRate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
+    const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);
+    const flightSpeed = B.speed * (gravityReturn ? attackRate : 1);                          // Мощь на клинках
 
     // Копим клинки, пока их на орбите меньше максимума. Когда их много, залп начинается не дожидаясь полного набора:
     // первые уже летят, пока последние ещё появляются (launchAt).
@@ -218,7 +225,7 @@ export class Blades {
         orbit++;
       }
     } else this.timer = 0;
-    if (orbit > 0 && (this.wave || orbit >= (max >= (B.overlapFrom || 16) ? Math.min(max, B.launchAt || max) : max))) this.launch(m, dmg, max, bm.rate); // нет врагов в зоне: остаёмся на орбите и ждём
+    if (orbit > 0 && (this.wave || orbit >= (max >= (B.overlapFrom || 16) ? Math.min(max, B.launchAt || max) : max))) this.launch(m, dmg, max, attackRate); // нет врагов в зоне: остаёмся на орбите и ждём
 
     let w = 0; // убираем погасшие на месте: на этот массив смотрит отрисовка
     for (let r = 0; r < this.items.length; r++) if (this.items[r].state !== 'gone') this.items[w++] = this.items[r];
@@ -237,24 +244,37 @@ export class Blades {
       }
     }
 
-    // Орбита: клинки равномерно по кругу, плавно занимают место.
+    // Каждый клинок занимает собственный сектор, в том числе во время возврата
+    // остальных. У гравитационных клинков угол клинка (b.a) — направление
+    // касательной, а положение определяется только общей фазой + сектором.
     for (const b of this.items) {
       if (b.state !== 'orbit') continue;
-      const want = this.spin + b.off; // у каждого клинка своё место на круге
-      const k = Math.min(1, dt * 12);
-      b.a += angDiff(b.a, want) * k;
-      const tx = hero.x + Math.cos(b.a) * B.orbit;
-      const ty = hero.y + Math.sin(b.a) * B.orbit;
-      b.x += (tx - b.x) * k;
-      b.y += (ty - b.y) * k;
+      const want = this.spin + b.off;
+      const k = Math.min(1, dt * 12 * (gravityReturn ? attackRate : 1));
+      if (gravityReturn) {
+        const tx = hero.x + Math.cos(want) * B.orbit;
+        const ty = hero.y + Math.sin(want) * B.orbit;
+        b.x += (tx - b.x) * k;
+        b.y += (ty - b.y) * k;
+        b.a = Math.atan2(b.y - hero.y, b.x - hero.x) + Math.PI / 2;
+      } else {
+        b.a += angDiff(b.a, want) * k;
+        const tx = hero.x + Math.cos(b.a) * B.orbit;
+        const ty = hero.y + Math.sin(b.a) * B.orbit;
+        b.x += (tx - b.x) * k;
+        b.y += (ty - b.y) * k;
+      }
     }
 
     // Гравитационный цикл: путь обратно → целый оборот вокруг героя → новая цель.
     // Ни один из этих этапов не создаёт новый клинок.
     if (gravityReturn) {
       const G = this.cfg.gravity;
-      const returnSpeed = B.speed * Math.max(0.1, G.bladeReturnSpeed);
-      const orbitSpeed = Math.max(0.1, G.bladeOrbitSpeed);
+      const returnSpeed = B.speed * Math.max(0.1, G.bladeReturnSpeed) * attackRate;
+      const orbitSpeed = gravityOrbitSpeed;
+      // При 24 клинках без целей достаточно одного поиска за кадр,
+      // а не 24 одинаковых запросов по сетке и сортировок.
+      let readyCandidates = null;
       for (const b of this.items) {
         if (b.state === 'return') {
           // Каждый возвращается в собственную движущуюся точку орбиты,
@@ -281,9 +301,11 @@ export class Blades {
             b.state = 'gravityOrbit';
           }
         } else if (b.state === 'gravityOrbit') {
+          // Полный круг отсчитывается отдельно для каждого клинка, однако
+          // визуально ВСЕ летят по одним и тем же равномерным секторам.
           const step = orbitSpeed * dt;
-          b.gravTheta += step;
           b.gravProgress = Math.min(TAU, b.gravProgress + step);
+          b.gravTheta = this.spin + b.off;
           b.x = hero.x + Math.cos(b.gravTheta) * B.orbit;
           b.y = hero.y + Math.sin(b.gravTheta) * B.orbit;
           b.a = b.gravTheta + Math.PI / 2;
@@ -291,7 +313,7 @@ export class Blades {
             // Цели делим между клинками: каждый берёт ближайшего врага, которого ещё никто не атакует,
             // иначе вся стая летела бы в одного и выглядела как один клинок.
             let target = null;
-            const cand = this.gather(B.range);
+            const cand = readyCandidates || (readyCandidates = this.gather(B.range));
             for (const c of cand) {
               let load = 0;
               for (const o of this.items) if (o !== b && o.state === 'fly' && o.target === c.e) load++;
@@ -327,8 +349,8 @@ export class Blades {
         const d = angDiff(b.a, want);
         b.a += Math.max(-maxTurn, Math.min(maxTurn, d));
       }
-      b.vx = Math.cos(b.a) * B.speed;
-      b.vy = Math.sin(b.a) * B.speed;
+      b.vx = Math.cos(b.a) * flightSpeed;
+      b.vy = Math.sin(b.a) * flightSpeed;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       if (t) {
