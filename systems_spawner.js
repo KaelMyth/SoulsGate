@@ -552,7 +552,8 @@ export class Spawner {
   spawnAt(kind, x, y) {
     const e = this.enemies.spawn();
     initEnemy(e, this.cfg.enemies[kind], x, y, this.arena.location === 'sanctum');
-    e.hp = e.maxHp = this.hpFor(this.cfg.enemies[kind].hp);
+    // Охотники всегда имеют 20 HP: прогрессия волн не должна усиливать их.
+    e.hp = e.maxHp = kind === 'hunter' ? this.cfg.enemies.hunter.hp : this.hpFor(this.cfg.enemies[kind].hp);
     if(e.def.summon)e.summonTimer=e.def.summon.firstDelay;
     this.arena.resolveCircle(e); // не внутри скалы
     e.prevX = e.x;
