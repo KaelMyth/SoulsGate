@@ -721,10 +721,19 @@ export class Renderer {
       } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
       ctx.fill('evenodd');
       ctx.globalAlpha = 1;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = C.snowLight;
-      if (z.poly) ctx.stroke();
-      else ctx.strokeRect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+      // Срез массива камня: тёмная глубина под кромкой, средний скол и холодная грань.
+      const edgePath=()=>{
+        ctx.beginPath();
+        if(z.poly){ctx.moveTo(z.poly[0].x,z.poly[0].y);for(let i=1;i<z.poly.length;i++)ctx.lineTo(z.poly[i].x,z.poly[i].y);ctx.closePath();}
+        else ctx.rect(z.left,z.top,z.right-z.left,z.bottom-z.top);
+      };
+      ctx.save();ctx.translate(0,8);
+      edgePath();ctx.lineWidth=14;ctx.strokeStyle='rgba(6,5,14,.92)';ctx.stroke();
+      edgePath();ctx.lineWidth=7;ctx.strokeStyle='rgba(55,48,68,.95)';ctx.stroke();
+      ctx.restore();
+      edgePath();ctx.lineWidth=6;ctx.strokeStyle='rgba(34,28,48,.92)';ctx.stroke();
+      edgePath();ctx.lineWidth=2;ctx.strokeStyle='rgba(214,196,177,.82)';ctx.stroke();
+      edgePath();ctx.lineWidth=.8;ctx.strokeStyle='rgba(252,235,205,.7)';ctx.stroke();
       ctx.restore();
     }
 
@@ -1152,61 +1161,118 @@ export class Renderer {
    * Земля Тартаса: всё, что босс кладёт на пол, в ледяном стиле. Данные из systems_boss.js:
    * fissures (разломы), tele (линия рывка), blast (область взрыва), blades (клинки), state/enemy (круг призыва).
    */
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Руки». По бокам острова чёрные худые руки (тонкая линия и квадратная ладонь), на очереди
-   * полоса с красным телеграфом, упавшая полоса закрашена чёрным и тает. Всё внутри острова обрезано по его кромке.
-   */
-  drawHands() {
-    const a = this.apotheosis;
-    const z = this.arena.zone;
-    if (!a || !z || !a.hands.length) return;
-    const ctx = this.ctx;
-    const H = a.H;
-    if (!H) return;
-    const e = a.emerge;
-    // Руки по бокам: вылезают наружу из пустоты, тянутся к своей полосе.
+  /** Костлявая объёмная рука с суставами, когтями и подсвеченными рёбрами.
+   * Используется и в ударе с двух сторон, и при разрыве острова. */
+  drawVoidHand(ctx, wx, wy, bx, by, ex, ey, facing, size = 1) {
     ctx.save();
-    ctx.strokeStyle = '#07070b';
-    ctx.fillStyle = '#07070b';
+    ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    for (let i = 0; i < a.hands.length; i++) {
-      const b = a.hands[i];
-      if (b.state === 4) continue;
-      const cy = (b.y0 + b.y1) / 2;
-      const edge = b.side < 0 ? z.left : z.right;
-      const reach = b.state === 2 ? 1 : b.state === 1 ? 0.85 : 0.55;
-      const palmX = edge + b.side * (230 - 200 * e * reach);
-      ctx.lineWidth = 12;
+    const arm = () => {
       ctx.beginPath();
-      ctx.moveTo(edge + b.side * 420, cy + 120);
-      ctx.lineTo(edge + b.side * 320, cy + 40 * (1 - e));
-      ctx.lineTo(palmX, cy);
-      ctx.stroke();
-      ctx.fillRect(palmX - 22 * b.side - 22, cy - 34, 44, 68);
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo((bx + ex) * .5, (by + ey) * .5 - 13 * size, ex, ey);
+      ctx.quadraticCurveTo((ex + wx) * .5 + 9 * size, (ey + wy) * .5, wx, wy);
+    };
+    arm(); ctx.strokeStyle = '#55506c'; ctx.lineWidth = 31 * size; ctx.stroke();
+    arm(); ctx.strokeStyle = '#11101c'; ctx.lineWidth = 26 * size; ctx.stroke();
+    arm(); ctx.strokeStyle = '#292436'; ctx.lineWidth = 19 * size; ctx.stroke();
+    arm(); ctx.strokeStyle = 'rgba(148,140,169,.44)'; ctx.lineWidth = 3 * size; ctx.stroke();
+    ctx.translate(wx, wy);
+    ctx.rotate(facing);
+    ctx.scale(size, size);
+    // Ладонь: от сужающегося запястья к рельефу четырёх костяшек.
+    ctx.beginPath();
+    ctx.moveTo(-31, -14);
+    ctx.bezierCurveTo(-10, -23, -3, -28, 14, -23);
+    ctx.bezierCurveTo(26, -17, 29, 13, 14, 24);
+    ctx.bezierCurveTo(-3, 27, -12, 18, -31, 13);
+    ctx.closePath();
+    ctx.fillStyle = '#161321'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#797189'; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-22, -12); ctx.quadraticCurveTo(2, -24, 17, -14);
+    ctx.moveTo(-23, 10); ctx.quadraticCurveTo(4, 21, 16, 12);
+    ctx.lineWidth = 2; ctx.strokeStyle = '#403a50'; ctx.stroke();
+    // Четыре шарнирных пальца, каждый из двух сегментов и кончика-когтя.
+    for (let k = 0; k < 4; k++) {
+      const yy = -18 + k * 11.5;
+      const bend = k === 0 ? -10 : k === 3 ? 8 : 0;
+      ctx.beginPath();
+      ctx.moveTo(11, yy); ctx.quadraticCurveTo(28, yy + bend * .2, 35, yy + bend);
+      ctx.quadraticCurveTo(45, yy + bend * 1.2, 49 - k * 2, yy + bend + 2);
+      ctx.lineWidth = 10 - k * .7; ctx.strokeStyle = '#4c4359'; ctx.stroke();
+      ctx.lineWidth = 7 - k * .5; ctx.strokeStyle = '#15131f'; ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = '#aaa1ad'; ctx.stroke();
+      ctx.fillStyle = '#c5bbcb'; ctx.beginPath();
+      ctx.arc(35, yy + bend, 2.1, 0, TAU); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(49 - k * 2, yy + bend + 2);
+      ctx.lineTo(61 - k * 3, yy + bend + (k % 2 ? 7 : -5));
+      ctx.lineTo(47 - k * 2, yy + bend + 7);
+      ctx.closePath(); ctx.fillStyle = '#171421'; ctx.fill(); ctx.strokeStyle = '#8c8194'; ctx.lineWidth = 1; ctx.stroke();
     }
+    // Большой палец складывается к атакуемой полосе.
+    ctx.beginPath();
+    ctx.moveTo(-8, 17); ctx.quadraticCurveTo(3, 41, 20, 36);
+    ctx.lineTo(30, 28);
+    ctx.lineWidth = 11; ctx.strokeStyle = '#554b63'; ctx.stroke();
+    ctx.lineWidth = 7; ctx.strokeStyle = '#171420'; ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#aba0b2'; ctx.stroke();
     ctx.restore();
-    // Полосы: клип по острову.
+  }
+
+  /** Серия ударов рук с двух сторон: у каждого удара видимый замах и телеграф полосы. */
+  drawHands() {
+    const a = this.apotheosis, z = this.arena.zone;
+    if (!a || !z || !a.hands.length || !a.H) return;
+    const ctx = this.ctx, H = a.H;
+    // Сначала нанесённые на пол телеграфы и следы с прорезями от пальцев.
     ctx.save();
     ctx.beginPath();
-    if (z.poly) {
-      ctx.moveTo(z.poly[0].x, z.poly[0].y);
-      for (let i = 1; i < z.poly.length; i++) ctx.lineTo(z.poly[i].x, z.poly[i].y);
-      ctx.closePath();
-    } else ctx.rect(z.left, z.top, z.right - z.left, z.bottom - z.top);
+    if (z.poly) { ctx.moveTo(z.poly[0].x, z.poly[0].y); for (let i=1;i<z.poly.length;i++) ctx.lineTo(z.poly[i].x,z.poly[i].y); ctx.closePath(); }
+    else ctx.rect(z.left,z.top,z.right-z.left,z.bottom-z.top);
     ctx.clip();
-    for (let i = 0; i < a.hands.length; i++) {
-      const b = a.hands[i];
-      if (b.state === 1) {
-        const k = Math.min(1, b.t / Math.max(0.01, H.telegraph));
-        ctx.fillStyle = 'rgba(190,30,40,' + (0.2 + 0.3 * k).toFixed(3) + ')';
-        ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
-      } else if (b.state === 2 || b.state === 3) {
-        const k = Math.min(1, b.t / Math.max(0.01, H.slamHold));
-        ctx.fillStyle = 'rgba(5,5,9,' + (0.9 * (1 - 0.7 * k)).toFixed(3) + ')';
-        ctx.fillRect(z.left, b.y0, z.right - z.left, b.y1 - b.y0);
+    for (let i=0;i<a.hands.length;i++) {
+      const b=a.hands[i], span=b.y1-b.y0;
+      if (b.state===1) {
+        const k=Math.min(1,b.t/Math.max(.01,H.telegraph));
+        ctx.fillStyle='rgba(119,28,54,'+(0.12+.32*k)+')';
+        ctx.fillRect(z.left,b.y0,z.right-z.left,span);
+        const phase=Math.sin(this.clock*8+i)*.5+.5;
+        ctx.strokeStyle='rgba(242,145,160,'+(.3+.4*k+.1*phase)+')';
+        ctx.lineWidth=2.3;
+        for (let c=0;c<3;c++) {
+          ctx.beginPath();ctx.moveTo(z.left,b.y0+span*(c+.5)/3);
+          ctx.lineTo(z.right,b.y0+span*(c+.5)/3);ctx.stroke();
+        }
+      } else if (b.state===2 || b.state===3) {
+        const k=Math.min(1,b.t/Math.max(.01,H.slamHold));
+        ctx.fillStyle='rgba(12,8,24,'+(.68*(1-.6*k))+')';
+        ctx.fillRect(z.left,b.y0,z.right-z.left,span);
+        ctx.strokeStyle='rgba(120,100,141,'+(.65*(1-k))+')';
+        ctx.lineWidth=2;
+        for(let j=0;j<4;j++) {
+          const y=b.y0+span*(j+1)/5;
+          ctx.beginPath();ctx.moveTo(b.side<0?z.left:z.right,y);
+          ctx.lineTo(b.side<0?z.right-35:z.left+35,y+((j%2)?-7:7));ctx.stroke();
+        }
       }
     }
     ctx.restore();
+    // Реальные суставчатые кисти, а не прямоугольники.
+    const width=z.right-z.left;
+    for (let i=0;i<a.hands.length;i++) {
+      const b=a.hands[i];
+      if(b.state===4)continue;
+      const cy=(b.y0+b.y1)/2, edge=b.side<0?z.left:z.right;
+      const bx=edge+b.side*380, by=cy+110+(i%2?30:-25);
+      const rest=edge+b.side*(180-128*a.emerge);
+      const lunge=b.state===2 ? Math.min(1,b.t/.15) :
+        b.state===1 ? .12*Math.min(1,b.t/Math.max(.01,H.telegraph)) : 0;
+      const palmX=rest+(edge-b.side*width*.67-rest)*lunge;
+      const elbowX=edge+b.side*(195-35*a.emerge);
+      this.drawVoidHand(ctx,palmX,cy,bx,by,elbowX,cy+20+(i%2?-28:28),b.side<0?0:Math.PI,.92);
+    }
   }
 
   /**
@@ -1291,99 +1357,100 @@ export class Renderer {
     ctx.restore();
   }
 
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: умение Апофеоза «Вспышка». Зарядка: голова разгорается, экран темнеет; вспышка: белый экран. Рисуется по всему
-   * видимому полю (границы кадра в мировых координатах).
-   */
-  drawFlash(l, r, t, b) {
-    const a = this.apotheosis;
-    if (!a || !a.boss || (a.flashDim <= 0 && a.flashWhite <= 0 && a.state !== 'flash-charge')) return;
-    const ctx = this.ctx;
+  /** Голубовато-золотые снаряды: объёмное ядро, мягкая аура, завихрения и след по траектории. */
+  drawFlash() {
+    const a=this.apotheosis;
+    if(!a||!a.boss)return;
+    const ctx=this.ctx;
+    const F=a.boss.def.flash;
+    if(a.state==='flash-charge') {
+      const o=a.headPos(), k=Math.min(1,a.t/Math.max(.01,F.charge));
+      ctx.save();
+      ctx.strokeStyle='rgba(190,230,255,'+(.25+.6*k)+')';
+      ctx.lineWidth=2.5;
+      for(let i=0;i<3;i++) {
+        const angle=this.clock*(i%2?-.9:1)+i*TAU/3;
+        const r=19+28*(1-k)+(i%2)*12;
+        ctx.beginPath();ctx.ellipse(o.x,o.y,r,r*.55,angle,0,TAU);ctx.stroke();
+      }
+      const g=this.getGlow('blue'), sz=68*k+32;
+      ctx.globalAlpha=.35+.45*k;
+      ctx.drawImage(g,o.x-sz,o.y-sz,sz*2,sz*2);
+      ctx.restore();
+    }
+    if(!a.flashBolts.length)return;
+    const glow=this.getGlow('blue');
     ctx.save();
-    if (a.flashDim > 0) {
-      ctx.fillStyle = 'rgba(2,2,14,' + a.flashDim.toFixed(3) + ')';
-      ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
-    }
-    if (a.state === 'flash-charge') { // свечение головы растёт
-      const o = a.headPos();
-      const F = a.boss.def.flash;
-      const k = Math.min(1, a.t / Math.max(0.01, F.charge));
-      ctx.fillStyle = 'rgba(255,240,170,' + (0.25 + 0.5 * k).toFixed(3) + ')';
-      ctx.beginPath();
-      ctx.arc(o.x, o.y, a.boss.radius * (0.5 + 0.9 * k), 0, TAU);
-      ctx.fill();
-    }
-    if (a.flashWhite > 0) {
-      ctx.fillStyle = 'rgba(255,250,225,' + (0.9 * a.flashWhite).toFixed(3) + ')';
-      ctx.fillRect(l - 20, t - 20, r - l + 40, b - t + 40);
+    ctx.lineCap='round';
+    for(const b of a.flashBolts) {
+      if(!b.active)continue;
+      const vx=Math.cos(b.angle),vy=Math.sin(b.angle);
+      const phase=this.clock*7+b.age*5;
+      // Не заливаем весь экран: мягкое свечение относится только к самому снаряду.
+      const r=b.r;
+      ctx.globalAlpha=.8;
+      ctx.drawImage(glow,b.x-r*3.6,b.y-r*3.6,r*7.2,r*7.2);
+      const tail=ctx.createLinearGradient(b.x-vx*r*4,b.y-vy*r*4,b.x,b.y);
+      tail.addColorStop(0,'rgba(75,130,230,0)');
+      tail.addColorStop(.55,'rgba(117,191,255,.42)');
+      tail.addColorStop(1,'rgba(231,249,255,.96)');
+      ctx.strokeStyle=tail;ctx.lineWidth=r*.9;
+      ctx.beginPath();ctx.moveTo(b.x-vx*r*4,b.y-vy*r*4);ctx.quadraticCurveTo(b.px,b.py,b.x,b.y);ctx.stroke();
+      ctx.fillStyle='rgba(80,140,215,.75)';
+      ctx.beginPath();ctx.arc(b.x,b.y,r*1.13,0,TAU);ctx.fill();
+      ctx.fillStyle='#bce5ff';ctx.beginPath();ctx.arc(b.x,b.y,r*.82,0,TAU);ctx.fill();
+      ctx.fillStyle='#ffedbc';ctx.beginPath();ctx.arc(b.x-vx*r*.24,b.y-vy*r*.24,r*.46,0,TAU);ctx.fill();
+      ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(b.x-vx*r*.4,b.y-vy*r*.4,r*.19,0,TAU);ctx.fill();
+      ctx.strokeStyle='rgba(219,239,255,.83)';ctx.lineWidth=1.3;
+      ctx.beginPath();ctx.ellipse(b.x,b.y,r*1.65,r*.59,phase,0,TAU);ctx.stroke();
+      for(let i=0;i<3;i++) {
+        const v=phase+i*TAU/3;
+        ctx.fillStyle='rgba(241,251,255,.73)';
+        ctx.beginPath();ctx.arc(b.x+Math.cos(v)*r*1.65,b.y+Math.sin(v)*r*1.2,1.6,0,TAU);ctx.fill();
+      }
     }
     ctx.restore();
   }
 
-  /**
-   * ЗАГЛУШКА ГРАФИКИ: «Превращение» Апофеоза. Руки из краёв экрана тянутся к центру клочка и хватают его; когда рвут,
-   * расходятся к краям, а по клочку бегут трещины. Края экрана берутся из границ кадра (l, r, t, b) в мировых координатах.
-   */
+  /** Руки разрывают остров: костяные пальцы тянут край, по поверхности идут разветвлённые трещины. */
   drawGrip(l, r, t, b) {
-    const a = this.apotheosis;
-    const f = a && a.tf;
-    if (!f || (a.state !== 'tf-grab' && a.state !== 'tf-turn' && a.state !== 'tf-tear')) return;
-    const T = a.boss.def.transform;
-    const ctx = this.ctx;
-    const reach = f.handK * (1 - f.apart);
+    const a=this.apotheosis, f=a&&a.tf;
+    if(!f||(a.state!=='tf-grab'&&a.state!=='tf-turn'&&a.state!=='tf-tear'))return;
+    const T=a.boss.def.transform,ctx=this.ctx,reach=f.handK*(1-f.apart);
     ctx.save();
-    ctx.strokeStyle = '#07070b';
-    ctx.fillStyle = '#07070b';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    const n = T.handCount;
-    for (let i = 0; i < n; i++) {
-      const ang = 0.35 + (i / n) * TAU;
-      const dx = Math.cos(ang);
-      const dy = Math.sin(ang);
-      const tx = dx > 0 ? (r - f.cx) / dx : dx < 0 ? (l - f.cx) / dx : Infinity;
-      const ty = dy > 0 ? (b - f.cy) / dy : dy < 0 ? (t - f.cy) / dy : Infinity;
-      const far = Math.min(tx, ty) + 80; // за краем экрана
-      const near = T.fragmentRadius * 0.35;
-      const d = far + (near - far) * reach;
-      const shake = a.state === 'tf-tear' ? 5 * Math.sin(this.clock * 40 + i * 2) : 0;
-      const px = f.cx + dx * d + -dy * shake;
-      const py = f.cy + dy * d + dx * shake;
-      const mx = f.cx + dx * (d + far) / 2 + -dy * 26 * Math.sin(i * 1.7 + 1);
-      const my = f.cy + dy * (d + far) / 2 + dx * 26 * Math.sin(i * 1.7 + 1);
-      for (let pass = 0; pass < 2; pass++) { // сначала светлая кайма, чтобы рука читалась на тёмной пустоте, потом чёрная рука
-        ctx.strokeStyle = pass ? '#07070b' : '#4a4468';
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.lineWidth = pass ? 16 : 22;
+    if(f.crack>0) {
+      const k=f.crack;
+      // Отломленные фасеты, раскрытый шов и несколько ответвлений с разной толщиной.
+      for(let i=0;i<10;i++) {
+        const ang=i*TAU/10+.17;
+        const dx=Math.cos(ang),dy=Math.sin(ang);
+        const len=T.fragmentRadius*(.7+(i%3)*.15)*k;
         ctx.beginPath();
-        ctx.moveTo(f.cx + dx * far, f.cy + dy * far);
-        ctx.lineTo(mx, my);
-        ctx.lineTo(px, py);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(px, py, pass ? 20 : 25, 0, TAU);
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#07070b';
-      ctx.fillStyle = '#07070b';
-      ctx.lineWidth = 7;
-      for (let k = -1; k <= 1; k++) { // пальцы
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.lineTo(px - dx * 26 + -dy * k * 16, py - dy * 26 + dx * k * 16);
-        ctx.stroke();
+        ctx.moveTo(f.cx+dx*5,f.cy+dy*5);
+        ctx.lineTo(f.cx+dx*len*.38-dy*11,f.cy+dy*len*.38+dx*11);
+        ctx.lineTo(f.cx+dx*len*.67+dy*9,f.cy+dy*len*.67-dx*9);
+        ctx.lineTo(f.cx+dx*len,f.cy+dy*len);
+        ctx.lineWidth=5.2;ctx.strokeStyle='rgba(3,2,10,'+(.85*k)+')';ctx.stroke();
+        ctx.lineWidth=1.5;ctx.strokeStyle='rgba(215,196,240,'+(.74*k)+')';ctx.stroke();
+        if(i%2===0) {
+          ctx.beginPath();ctx.moveTo(f.cx+dx*len*.67+dy*9,f.cy+dy*len*.67-dx*9);
+          ctx.lineTo(f.cx+dx*len*.79+dy*20,f.cy+dy*len*.79-dx*20);
+          ctx.lineWidth=2.7;ctx.strokeStyle='rgba(17,10,32,'+k+')';ctx.stroke();
+        }
       }
     }
-    if (f.crack > 0) { // трещины по клочку
-      ctx.strokeStyle = '#05050a';
-      ctx.lineWidth = 3;
-      for (let i = 0; i < 7; i++) {
-        const ang = i * 0.9 + 0.2;
-        ctx.beginPath();
-        ctx.moveTo(f.cx, f.cy);
-        ctx.lineTo(f.cx + Math.cos(ang) * T.fragmentRadius * 1.1 * f.crack, f.cy + Math.sin(ang) * T.fragmentRadius * 1.1 * f.crack);
-        ctx.stroke();
-      }
+    for(let i=0;i<T.handCount;i++) {
+      const ang=.35+i*TAU/T.handCount;
+      const dx=Math.cos(ang),dy=Math.sin(ang);
+      const tx=dx>0?(r-f.cx)/dx:dx<0?(l-f.cx)/dx:Infinity;
+      const ty=dy>0?(b-f.cy)/dy:dy<0?(t-f.cy)/dy:Infinity;
+      const far=Math.min(tx,ty)+85,near=T.fragmentRadius*.42;
+      const d=far+(near-far)*reach;
+      const shake=a.state==='tf-tear'?4*Math.sin(this.clock*37+i*2):0;
+      const px=f.cx+dx*d-dy*shake,py=f.cy+dy*d+dx*shake;
+      const ex=f.cx+dx*(d+far)*.5-dy*25*Math.sin(i*1.7+1);
+      const ey=f.cy+dy*(d+far)*.5+dx*25*Math.sin(i*1.7+1);
+      this.drawVoidHand(ctx,px,py,f.cx+dx*far,f.cy+dy*far,ex,ey,ang+Math.PI,.88);
     }
     ctx.restore();
   }
@@ -6033,6 +6100,7 @@ export class Renderer {
     }
     const boss = this.boss && this.boss.enemy && this.boss.enemy.active ? this.boss.enemy : null;
     const bossT = boss ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0;
+    const apostleGuard = !!(boss && this.apotheosis?.boss === boss && this.apostles?.alive() > 0);
     const showBoss = !!boss && !(hud.bossTitleAlpha > 0);
     U.bossK += ((showBoss ? 1 : 0) - U.bossK) * k(0.18);
     if (boss) {
@@ -6096,11 +6164,11 @@ export class Renderer {
       this.hairline(cx + tw / 2 + 12, x + bw - 4, y - 13, 0.34);
       ctx.fillStyle = 'rgba(5,9,20,0.78)';
       ctx.fillRect(x, y, bw, 7);
-      ctx.fillStyle = 'rgba(255,190,180,0.55)';
+      ctx.fillStyle = apostleGuard ? 'rgba(161,224,255,0.56)' : 'rgba(255,190,180,0.55)';
       ctx.fillRect(x, y, bw * U.bossTrail, 7);
-      ctx.fillStyle = '#d63f3a';
+      ctx.fillStyle = apostleGuard ? '#409fda' : '#d63f3a';
       ctx.fillRect(x, y, bw * U.boss, 7);
-      ctx.fillStyle = 'rgba(255,140,125,0.55)';
+      ctx.fillStyle = apostleGuard ? 'rgba(225,249,255,0.76)' : 'rgba(255,140,125,0.55)';
       ctx.fillRect(x, y, bw * U.boss, 2.5);
       ctx.strokeStyle = 'rgba(190,215,250,0.4)';
       ctx.lineWidth = 1;

@@ -460,7 +460,11 @@ export class Game {
     this.bus.on('apostle:risen', ({ x, y }) => { this.burst(x, y, 0.4, 14, 60, '#8a8aa8'); this.sparks(x, y, 8, '#ff6a6a'); });
     this.bus.on('apostle:rain-hit', ({ x, y }) => { this.burst(x, y, 0.4, 14, 70, '#fff6c8'); this.sparks(x, y, 6, '#ffe58a'); });
     this.bus.on('apotheosis:crumble', ({ x, y, r }) => { this.burst(x, y, 0.5, 16, r * 1.4, '#3a3050'); this.sparks(x, y, 6, '#8a7aa8'); });
-    this.bus.on('apotheosis:flash', ({ parried }) => { const b = this.apotheosis.boss; if (b) { const h = this.apotheosis.headPos(); this.burst(h.x, h.y, 0.6, 24, 200, parried ? '#a8d8ff' : '#fff0b0'); this.sparks(h.x, h.y, 14, '#ffe58a'); } });
+    this.bus.on('apotheosis:bolt-fired', ({ x, y }) => this.burst(x, y, 0.25, 8, 28, '#d5eaff'));
+    this.bus.on('apotheosis:bolt-impact', ({ x, y, parried }) => {
+      this.burst(x, y, parried ? 0.4 : 0.24, 12, parried ? 60 : 38, parried ? '#b3ecff' : '#ffe5a6');
+      if (parried) this.sparks(x, y, 7, '#e4f8ff');
+    });
     // Апостолы (ЗАГЛУШКИ вспышек): призыв, лечение, взрыв Силы, вылет золотого клинка.
     this.bus.on('apostle:summon', ({ x, y }) => this.burst(x, y, 0.5, 10, 50, config.render.colors.snowLight));
     this.bus.on('apostle:heal', ({ enemy }) => this.burst(enemy.x, enemy.y, 0.4, enemy.radius, enemy.radius * 2.2, '#9cffb0'));

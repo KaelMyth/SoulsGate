@@ -168,6 +168,36 @@ export class ApoFinaleFx {
         }
       }
     } else this.pathRef = null;
+    // На платформе проступают разветвлённые линии напряжения до отрыва сегментов.
+    // Считаем только каждое третье ребро: выразительнее и дешевле на телефоне.
+    if (p) {
+      const P=a.boss.def.pathbreak;
+      const u=Math.min(1,f.t/Math.max(.01,P.time));
+      const span=Math.max(.05,1-P.spread);
+      ctx.save();
+      ctx.lineJoin='round';ctx.lineCap='round';
+      for(let i=0;i<p.ang.length;i+=3) {
+        const progress=Math.max(0,Math.min(1,(u-p.delay[i])/span));
+        if(progress<=0||p.R1[i]>=p.R0[i])continue;
+        const eased=progress*progress*(3-2*progress);
+        const angle=p.ang[i],dx=Math.cos(angle),dy=Math.sin(angle);
+        const outer=p.R0[i],r1=outer+(p.R1[i]-outer)*eased;
+        const k=Math.min(1,eased*4);
+        const x=p.cx+dx*r1,y=p.cy+dy*r1;
+        const back=25+35*hash(i*23);
+        ctx.beginPath();
+        ctx.moveTo(x,y);
+        ctx.lineTo(x+dx*back*.42-dy*9,y+dy*back*.42+dx*9);
+        ctx.lineTo(x+dx*back+dy*7,y+dy*back-dx*7);
+        ctx.lineWidth=5;ctx.strokeStyle=this.nc([9,7,22],.8*k);ctx.stroke();
+        ctx.lineWidth=1.4;ctx.strokeStyle=this.nc([238,210,174],.74*k);ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x+dx*back*.42-dy*9,y+dy*back*.42+dx*9);
+        ctx.lineTo(x+dx*back*.55-dy*22,y+dy*back*.55+dx*22);
+        ctx.lineWidth=1.4;ctx.strokeStyle=this.nc([105,85,116],.85*k);ctx.stroke();
+      }
+      ctx.restore();
+    }
     if (!this.debris.length && !this.cracks.length) return;
     ctx.save();
     for (let i = this.cracks.length - 1; i >= 0; i--) { // трещины: рваная светлая линия вглубь платформы
@@ -177,15 +207,23 @@ export class ApoFinaleFx {
       const u = c.age / c.life;
       ctx.globalAlpha = 1 - u;
       ctx.lineJoin = 'miter';
-      ctx.strokeStyle = this.nc([255, 238, 200], 1);
-      ctx.lineWidth = 2.2 * (1 - u * 0.6);
+      ctx.strokeStyle = this.nc([255, 222, 185], 1);
+      ctx.lineWidth = 2.6 * (1 - u * 0.6);
       ctx.beginPath();
       ctx.moveTo(c.pts[0], c.pts[1]);
       for (let k = 2; k < c.pts.length; k += 2) ctx.lineTo(c.pts[k], c.pts[k + 1]);
       ctx.stroke();
       ctx.strokeStyle = this.nc([20, 12, 30], 1);
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.1;
       ctx.stroke();
+      // Боковые сколы не повторяют прямую линию первичной трещины.
+      ctx.strokeStyle = this.nc([143, 128, 158], .8 * (1-u));
+      for(let k=4;k+3<c.pts.length;k+=6) {
+        const px=c.pts[k],py=c.pts[k+1],qx=c.pts[k+2],qy=c.pts[k+3];
+        ctx.beginPath();ctx.moveTo(px,py);
+        ctx.lineTo((px+qx)*.5+(qy-py)*.85,(py+qy)*.5-(qx-px)*.85);
+        ctx.lineWidth=1.3;ctx.stroke();
+      }
     }
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
@@ -240,9 +278,9 @@ export class ApoFinaleFx {
     const x = p.cx + c * R;
     const y = p.cy + s * R;
     if (this.debris.length > 160) return;
-    const n = 3 + ((i * 7) % 3);
+    const n = 2 + ((i * 7) % 2); // меньше обломков, но каждый крупнее и с читаемой фасеткой
     for (let k = 0; k < n; k++) { // обломки: грани с вершинами по кругу, летят наружу, потом падают
-      const sides = 4 + (k % 2);
+      const sides = 5 + (k % 2);
       const v = [];
       for (let q = 0; q < sides; q++) {
         const aa = (q / sides) * TAU + hash(i * 5 + k * 3 + q) * 0.7;
@@ -252,7 +290,7 @@ export class ApoFinaleFx {
       const sp = 40 + 90 * hash(i * 3 + k);
       this.debris.push({
         x: x - c * 6 * k, y: y - s * 6 * k + k * 2, vx: c * sp + (hash(i + k * 11) - 0.5) * 60, vy: s * sp - 70 - 40 * hash(i + k * 7),
-        rot: hash(i + k) * TAU, vr: (hash(i * 2 + k) - 0.5) * 6, r: 9 + 12 * hash(i * 13 + k), age: 0, life: 1.1 + 0.8 * hash(i + k * 5), v, dust: false,
+        rot: hash(i + k) * TAU, vr: (hash(i * 2 + k) - 0.5) * 6, r: 12 + 14 * hash(i * 13 + k), age: 0, life: 1.1 + 0.8 * hash(i + k * 5), v, dust: false,
       });
     }
     for (let k = 0; k < 3; k++) {
@@ -267,7 +305,7 @@ export class ApoFinaleFx {
       py -= s * (9 + 8 * hash(i + k * 3)) + (hash(i * 6 + k) - 0.5) * 12;
       pts.push(px, py);
     }
-    this.cracks.push({ pts, age: 0, life: 0.7 });
+    this.cracks.push({ pts, age: 0, life: 1.1 });
   }
 
   // ---------- Эпилог ----------

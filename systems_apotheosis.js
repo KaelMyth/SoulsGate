@@ -74,7 +74,7 @@ export class ApotheosisAI {
     this.src = { x: 0, y: 0, active: true, parryable: true, enemy: null };       // удар руки
     this.beamSrc = { x: 0, y: 0, active: true, parryable: false, enemy: null };  // тик луча
     this.holeSrc = { x: 0, y: 0, active: true, parryable: false, enemy: null };  // обвал и тик провала
-    this.flashSrc = { x: 0, y: 0, active: true, parryable: true, enemy: null };  // вспышка
+    this.flashBolts = []; // отдельные парируемые самонаводящиеся заряды
     this.hands = [];       // полосы: { state 0 ждёт | 1 телеграф | 2 упала | 3 тёмная | 4 ушла, t, y0, y1, side }
     this.bandH = 0;
     this.emerge = 0;       // 0..1: насколько руки вылезли (для отрисовки)
@@ -84,13 +84,15 @@ export class ApotheosisAI {
     this.cT = 0;
     this.cTick = 0;
     this.flashDim = 0;     // 0..1 затемнение экрана при зарядке вспышки (для отрисовки)
-    this.flashWhite = 0;   // 0..1 белая вспышка (для отрисовки)
+    this.flashWhite = 0;   // больше не используется для глобальной вспышки
+    this.flashFired = 0;
+    this.flashNext = 0;
     this.deferred = [];    // умения пула, не вошедшие в первую фазу (на вторую)
     this.tf = null;        // данные «Превращения» (для отрисовки рук и клочка)
     this.madTurn = false;  // идёт последний, медленный проворот головы
     this.fog = 0;          // 0..1 туман на платформе (для отрисовки)
     this.negative = 0;     // 0..1 негатив картинки (для отрисовки)
-    this.p2seq = ['negApostles', 'rise', 'omni', 'scream', 'pathbreak', 'ending']; // умения второй фазы по порядку (enemies.apotheosis.abilities.p2)
+    this.p2seq = ['negApostles', 'rise', 'omni', 'scream', 'pathbreak']; // умения второй фазы по порядку (enemies.apotheosis.abilities.p2)
     this.p2i = 0;
     this.rings = [];       // «Крик»: кольца-волны { r, gap, gapW, solid, hit, src }
     this.screamT = 0;
@@ -102,7 +104,9 @@ export class ApotheosisAI {
     this.bus.on('apostles:risen-defeated', () => { if (this.boss && this.ability === 'rise') this.finishP2Ability(); });
     this.bus.on('enemy:killed', ({ enemy }) => { if (enemy === this.boss) this.reset(); });
     this.bus.on('enemy:hit-incoming', (inc) => { // оглушённый босс получает больше урона
-      if (this.stunT > 0 && inc.enemy === this.boss) inc.amount *= this.boss.def.flash.stunDamageMult;
+      if (inc.enemy !== this.boss || !this.boss) return;
+      if (this.apostles.boss === this.boss && this.apostles.alive() > 0) inc.amount *= 0.1; // апостолы гасят 90% урона
+      if (this.stunT > 0) inc.amount *= this.boss.def.flash.stunDamageMult;
       // Во второй фазе босс ударами не умирает: здоровье не опускается ниже 1, конец игры только по эпилогу.
       if (this.phase2 && inc.enemy === this.boss && inc.amount >= this.boss.hp) inc.amount = Math.max(0, this.boss.hp - 1);
     });
@@ -153,6 +157,9 @@ export class ApotheosisAI {
     this.cT = 0;
     this.flashDim = 0;
     this.flashWhite = 0;
+    this.flashBolts.length = 0;
+    this.flashFired = 0;
+    this.flashNext = 0;
     this.deferred = [];
     this.tf = null;
     this.madTurn = false;
@@ -236,6 +243,7 @@ export class ApotheosisAI {
     if (this.phase2) { // вторая фаза: по списку p2seq; когда он кончился, босс стоит
       const id = this.p2seq[this.p2i];
       if (id) this.start(id);
+      else if (this.p2i === this.p2seq.length) this.start(this.boss.def.abilities.p2Transition || 'ending');
       else { this.ability = null; this.state = 'done'; }
       return;
     }
@@ -285,6 +293,9 @@ export class ApotheosisAI {
     this.spin = 0;
     this.flashDim = 0;
     this.flashWhite = 0;
+    this.flashBolts.length = 0;
+    this.flashFired = 0;
+    this.flashNext = 0;
     if (id === 'transform') { // отладка: «Превращение» всегда пятое, голова уже на 4 деления
       this.turns = this.boss.def.head.phaseAfter - 1;
       this.boss.headAngle = this.turns * (TAU / this.boss.def.head.rays);
@@ -563,48 +574,73 @@ export class ApotheosisAI {
     }
   }
 
-  // ---------- Вспышка ----------
-
+  // ---------- Световые самонаводящиеся заряды ----------
   startFlash() {
-    this.state = 'flash-charge';
+    this.state = 'flash-charge'; // прежнее имя для совместимости с тестовой кнопкой
     this.t = 0;
-    this.flashDim = 0;
-    this.flashWhite = 0;
+    this.flashDim = this.flashWhite = 0;
+    this.flashFired = 0;
+    this.flashNext = 0;
+    this.flashBolts.length = 0;
+  }
+
+  spawnFlashBolt(F) {
+    const o = this.headPos(), h = this.hero;
+    if (!o) return;
+    const direction = Math.atan2(h.y - o.y, h.x - o.x);
+    this.flashBolts.push({
+      x:o.x, y:o.y, px:o.x, py:o.y, angle:direction + (this.flashFired % 2 ? .12 : -.12),
+      r:F.radius, age:0, active:true, parryable:F.parryable !== false, enemy:this.boss,
+    });
+    this.flashFired++;
+    this.bus.emit('apotheosis:bolt-fired', {x:o.x, y:o.y});
   }
 
   updateFlash(dt) {
     const F = this.boss.def.flash;
     if (this.state === 'flash-charge') {
-      this.flashDim = F.dim * Math.min(1, this.t / Math.max(0.01, F.charge));
-      if (this.t >= F.charge) this.burstFlash(F);
+      if (this.t >= F.charge) {
+        this.state = 'flash-burst';
+        this.t = 0;
+        this.flashNext = 0;
+      }
       return;
     }
-    this.flashWhite = Math.max(0, 1 - this.t / Math.max(0.01, F.burstTime));
-    this.flashDim = F.dim * this.flashWhite;
-    if (this.t >= F.burstTime) {
-      this.flashDim = 0;
-      this.flashWhite = 0;
-      this.finishAbility();
+    this.flashNext -= dt;
+    if (this.flashFired < F.count && this.flashNext <= 0) {
+      this.spawnFlashBolt(F);
+      this.flashNext += F.interval;
     }
-  }
-
-  burstFlash(F) {
-    this.state = 'flash-burst';
-    this.t = 0;
     const hero = this.hero;
-    let parried = false;
-    if (hero.active) {
-      this.flashSrc.x = hero.x;
-      this.flashSrc.y = hero.y;
-      this.flashSrc.active = true;
-      this.flashSrc.parryable = !!F.parryable;
-      this.combat.damageHero(F.damage, this.flashSrc); // блок гасит часть, парирование гасит всё (источник гаснет)
-      parried = !this.flashSrc.active;
+    let flying = 0;
+    for (const b of this.flashBolts) {
+      if (!b.active) continue;
+      b.age += dt;
+      if (b.age >= F.lifetime) { b.active = false; continue; }
+      b.px = b.x;
+      b.py = b.y;
+      if (hero.active) {
+        const target = Math.atan2(hero.y - b.y, hero.x - b.x);
+        const diff = Math.atan2(Math.sin(target - b.angle), Math.cos(target - b.angle));
+        b.angle += Math.max(-F.turnRate * dt, Math.min(F.turnRate * dt, diff));
+      }
+      b.x += Math.cos(b.angle) * F.speed * dt;
+      b.y += Math.sin(b.angle) * F.speed * dt;
+      if (hero.active && Math.hypot(hero.x - b.x, hero.y - b.y) < hero.radius + b.r) {
+        b.parryable = F.parryable !== false;
+        this.combat.damageHero(F.damage, b);
+        const parried = !b.active; // защита отключает источник парированного удара
+        b.active = false;
+        this.bus.emit('apotheosis:bolt-impact', {x:b.x, y:b.y, parried});
+        if (parried) {
+          this.stunT = Math.max(this.stunT, F.stunTime);
+          this.bus.emit('apotheosis:stun', {});
+        }
+      } else flying++;
     }
-    this.bus.emit('apotheosis:flash', { parried });
-    if (parried) {
-      this.stunT = F.stunTime;
-      this.bus.emit('apotheosis:stun', {});
+    if (this.flashFired >= F.count && flying === 0) {
+      this.flashBolts.length = 0;
+      this.finishAbility();
     }
   }
 
