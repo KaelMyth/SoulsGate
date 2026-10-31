@@ -288,7 +288,16 @@ export class Blades {
           b.y = hero.y + Math.sin(b.gravTheta) * B.orbit;
           b.a = b.gravTheta + Math.PI / 2;
           if (b.gravProgress >= TAU) {
-            const target = this.nearest(hero.x, hero.y, B.range);
+            // Цели делим между клинками: каждый берёт ближайшего врага, которого ещё никто не атакует,
+            // иначе вся стая летела бы в одного и выглядела как один клинок.
+            let target = null;
+            const cand = this.gather(B.range);
+            for (const c of cand) {
+              let load = 0;
+              for (const o of this.items) if (o !== b && o.state === 'fly' && o.target === c.e) load++;
+              if (load === 0) { target = c.e; break; }
+            }
+            if (!target && cand.length) target = cand[0].e;
             if (target) {
               b.target = target;
               b.age = 0;
