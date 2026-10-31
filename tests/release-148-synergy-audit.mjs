@@ -100,7 +100,7 @@ test('Kinetic dash emits exactly five blades, three left/two right, X2 emits ten
     g.config=CONFIG;g.hero={x:0,y:0,active:true,dashing:true,glideTime:0};
     g.defense={kinetic:true,dashSeq:1,kineticBladeDistanceMul:mult,dashX:1,dashY:0};
     g.lightdash={active:false};g.kineticMods={blades:{damage:1},bounces:{percent:(mult-1)*100}};
-    g.kineticBlades=[];g.kineticBladeTrail=null;
+    g.kineticBlades=[];g.kineticBladeTrail=null;g.enemies={items:[]};
     g.beginKineticBladeTrail();
     const distance=CONFIG.dash.distance*CONFIG.kinetic.distanceScale*mult;
     for(let i=1;i<=5;i++){g.hero.x=distance*i/5;g.spawnKineticBlades();}

@@ -61,7 +61,7 @@ test('Молния ставится прямо на Горение, её мес�
   assert.equal(m.lightning.count, 1);
 });
 
-test('Горение → Молния: разряд по двум целям добавляет каждой ровно один стак огня', () => {
+test('Горение → Молния: разряд по двум целям сразу даёт каждой максимум стаков огня (красные дуги, №134)', () => {
   const build = equipBurnLightning();
   build.placeMod({ key: 'lightning', def: CONFIG.mods.lightning }, 3, 5);
   const { g, enemies, hits } = setupCombat();
@@ -72,19 +72,19 @@ test('Горение → Молния: разряд по двум целям д�
   g.zap(enemies[0], burnDamage, burnInterval, 0, 0, m.lightning.mult);
   assert.equal(enemies[0].shockStacks, 0);
   assert.equal(g.zapBolts.length, 2);
-  assert.deepEqual(enemies.slice(1, 3).map(e => e.burnStacks), [1, 1]);
+  assert.deepEqual(enemies.slice(1, 3).map(e => e.burnStacks), [CONFIG.burn.maxStacks, CONFIG.burn.maxStacks]);
   assert.equal(enemies[3].burnStacks, 0);
   assert.ok(enemies.slice(1, 3).every(e => e.burnDmg === burnDamage));
   assert.equal(hits.filter(h => h.source === g.shockSource).length, 3); // исходный разряд + 2 прыжка
 });
 
-test('Повторные разряды добавляют по одному стакy, максимум три, без умножения стаков', () => {
+test('Повторные разряды держат максимум стаков огня на соседях и не превышают его', () => {
   const { g, enemies } = setupCombat();
   for (let k = 1; k <= 5; k++) {
     enemies[0].shockStacks = CONFIG.shock.maxStacks - 1;
     g.zap(enemies[0], 10, CONFIG.burn.interval);
-    assert.equal(enemies[1].burnStacks, Math.min(k, 3));
-    assert.equal(enemies[2].burnStacks, Math.min(k, 3));
+    assert.equal(enemies[1].burnStacks, CONFIG.burn.maxStacks);
+    assert.equal(enemies[2].burnStacks, CONFIG.burn.maxStacks);
   }
   g.updateBurning(0.5);
   const dmg = 10 * (1 + (CONFIG.burn.maxStacks - 1) * CONFIG.burn.stackBonus);
@@ -104,7 +104,7 @@ test('Х2 на Молнии под Горением увеличивает чи�
   enemies[0].shockStacks = CONFIG.shock.maxStacks - 1;
   g.zap(enemies[0], 10, 0.5, 0, 0, m.lightning.mult);
   assert.equal(g.zapBolts.length, 3); // только три соседних врага в радиусе 140
-  assert.deepEqual(enemies.slice(1, 4).map(e => e.burnStacks), [1, 1, 1]);
+  assert.deepEqual(enemies.slice(1, 4).map(e => e.burnStacks), [CONFIG.burn.maxStacks, CONFIG.burn.maxStacks, CONFIG.burn.maxStacks]);
 });
 
 test('Молния без Горения не поджигает соседей', () => {
@@ -120,17 +120,17 @@ test('Отменённый цепной удар не наносит стак Г
   enemies[0].shockStacks = CONFIG.shock.maxStacks - 1;
   g.zap(enemies[0], 10, 0.5);
   assert.equal(enemies[1].burnStacks, 0);
-  assert.equal(enemies[2].burnStacks, 1);
+  assert.equal(enemies[2].burnStacks, CONFIG.burn.maxStacks);
 });
 
-test('Мёртвая от цепной молнии цель не загорается, выжившая получает один стак', () => {
+test('Мёртвая от цепной молнии цель не загорается, выжившая получает максимум стаков', () => {
   const { g, enemies } = setupCombat();
   enemies[1].hp = 1;
   enemies[0].shockStacks = CONFIG.shock.maxStacks - 1;
   g.zap(enemies[0], 10, 0.5);
   assert.equal(enemies[1].active, false);
   assert.equal(enemies[1].burnStacks, 0);
-  assert.equal(enemies[2].burnStacks, 1);
+  assert.equal(enemies[2].burnStacks, CONFIG.burn.maxStacks);
 });
 
 test('Ветка Горение → Молния доступна и при Поглощении и фиксирует оба эффекта', () => {
@@ -155,7 +155,7 @@ test('Старые связки Горение+Мороз и Молния на �
   assert.equal(canPlace(build, CONFIG.mods.x2, 3, 5).ok, false);
 });
 
-test('Поглощение → Горение → Молния: основной враг получает 3 стака, два соседа по одному', () => {
+test('Поглощение → Горение → Молния: основной враг получает 3 стака, два соседа тоже максимум', () => {
   const build = new BuildGrid(7);
   build.placeCore('shield', CONFIG.cores.shield, 3, 3);
   build.placeMod({ key: 'absorption', def: CONFIG.mods.absorption }, 3, 4);
@@ -173,9 +173,9 @@ test('Поглощение → Горение → Молния: основной
   });
   for (let i = 0; i < Math.ceil(3.05 * 60); i++) absorption.update(1 / 60);
   assert.equal(enemies[0].burnStacks, 3);
-  assert.deepEqual(enemies.slice(1, 3).map(e => e.burnStacks), [1, 1]);
+  assert.deepEqual(enemies.slice(1, 3).map(e => e.burnStacks), [CONFIG.burn.maxStacks, CONFIG.burn.maxStacks]);
   assert.equal(enemies[3].burnStacks, 0);
   assert.equal(g.zapBolts.length, 2);
-  assert.equal(absorption.color, '255,172,80');
+  assert.equal(absorption.color, '172,84,136');
   assert.equal(absorption.flashes.length, 1);
 });

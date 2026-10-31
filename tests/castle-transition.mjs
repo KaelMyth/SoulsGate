@@ -98,7 +98,7 @@ test('Игровой переход сохраняет прогрессию, с�
   const g=Object.create(Game.prototype);
   g.config=CONFIG;g.arena=new Arena(CONFIG.arena);
   const counters={cleared:0,resets:0,advanced:0};
-  g.hero={x:32,y:13,prevX:32,prevY:13,hp:31,maxHp:100,active:true};
+  g.hero={x:32,y:13,prevX:32,prevY:13,hp:31,maxHp:100,active:true,radius:12,place(x,y){this.x=this.prevX=x;this.y=this.prevY=y;}};
   g.xp={level:8,total:322};
   g.build={items:['my build']};
   g.spawner={advanceAfterGate(){counters.advanced++;return true;}};
@@ -108,12 +108,13 @@ test('Игровой переход сохраняет прогрессию, с�
     g[name]={reset(){counters.resets++;}};
   g.steamClouds=[1];g.synergyCasts=[1];g.synergyFlashes=[1];
   g.nav={buildBlocked(){this.rebuilt=true;},source:5};
-  g.camera={snapTo(x,y){this.x=x;this.y=y;}};
+  g.camera={viewH:800,snapTo(x,y){this.x=x;this.y=y;}};
   g.renderer={floor:'outdoor',details:[1],rockSprites:[1]};
   g.syncWaveHud=()=>{};g.burst=()=>{};
   assert.equal(g.enterCastleHall(),true);
   assert.equal(g.arena.location,'hall');
-  assert.equal(g.hero.y,CONFIG.arena.castleTransition.hallStartY);
+  assert.ok(g.hero.y>0,'герой входит в холл снизу и идёт к центру');
+  assert.equal(g.introWalk.targetY,0);
   assert.equal(g.hero.hp,31);
   assert.equal(g.xp.level,8);
   assert.equal(g.build.items[0],'my build');
@@ -153,7 +154,7 @@ test('Canvas: обе большие створки анимируются, те�
     assert.equal(hall.floor,floor);
     assert.ok(stats.gradients>=10);
     assert.ok(stats.images>=4);
-    assert.equal(hall.torches.length,2,'в холле остались только две погасшие чаши у решётки');
+    assert.equal(hall.torches.length,8,'факелы горят вдоль боковых стен холла');
     assert.equal(hall.columns.length,8,'стройные колонны стоят редкими рядами');
     assert.equal(a.hallCrypts.length,10,'боковые ниши заменены криптами');
   } finally {

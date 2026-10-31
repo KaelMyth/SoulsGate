@@ -35,7 +35,7 @@ function setup(gravity = 'sibling') {
   game.config = CONFIG;
   game.hero = hero; game.lasers = lasers;
   game.enemies = { items: enemies };
-  game.arena = { segmentBlocked: () => false };
+  game.arena = { segmentBlocked: () => false, circleHitsRock: () => false };
   game.swarm = { grid: { query(x, y, r, indices) {
     for (let i = 0; i < enemies.length; i++) indices[i] = i;
     return enemies.length;
@@ -144,8 +144,8 @@ test('Обычный Лазер без Гравитации стреляет с�
 
 test('Горение + Мороз + Молния применяются после зарядки, не до неё', () => {
   const s = setup();
-  s.equip('burn', 4, 3);
-  s.equip('frost', 5, 3); // на Горении, без замыкания соседней ветки
+  s.equip('burn', 4, 4);
+  s.equip('frost', 5, 4); // на Горении, без замыкания соседней ветки
   s.equip('lightning', 3, 5); // на Лазере, не касается Гравитации
   assert.deepEqual(s.build.orphans(), []);
   s.fire();
@@ -162,8 +162,8 @@ test('Горение + Мороз + Молния применяются посл
 test('Гравитация усиливает также урон Горения от Лазера на 25%', () => {
   const withGravity = setup();
   const plain = setup('none');
-  withGravity.equip('burn', 4, 3);
-  plain.equip('burn', 4, 3);
+  withGravity.equip('burn', 4, 4);
+  plain.equip('burn', 4, 4);
   withGravity.fire(); plain.fire();
   assert.ok(Math.abs(withGravity.lasers[0].burnDmg / plain.lasers[0].burnDmg - 1.25) < 1e-9);
 });

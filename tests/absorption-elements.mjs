@@ -68,8 +68,8 @@ test('Поглощение + Горение: сразу три стака и у�
   assert.equal(s.enemies[0].burnStacks, 3);
   assert.equal(s.enemies[0].burnT, CONFIG.burn.duration);
   assert.ok(s.enemies[0].burnDmg > 0);
-  assert.equal(s.absorption.color, '255,138,61');
-  assert.equal(s.absorption.flashes[0].color, '255,138,61');
+  assert.equal(s.absorption.color, '172,84,136');
+  assert.equal(s.absorption.flashes[0].color, '172,84,136');
 });
 
 test('Поглощение + Мороз: сразу пять стаков запускают заморозку', () => {
@@ -78,7 +78,7 @@ test('Поглощение + Мороз: сразу пять стаков зап
   assert.equal(s.calls.frost, CONFIG.frost.maxStacks);
   assert.equal(s.enemies[0].freezeT, CONFIG.frost.freezeTime);
   assert.equal(s.enemies[0].speedMul, 0);
-  assert.equal(s.absorption.color, '143,216,255');
+  assert.equal(s.absorption.color, '172,84,136');
 });
 
 test('Поглощение + Молния: максимум стаков запускает один разряд', () => {
@@ -87,7 +87,7 @@ test('Поглощение + Молния: максимум стаков зап�
   assert.equal(s.calls.lightning, CONFIG.shock.maxStacks);
   assert.equal(s.discharges.length, 1);
   assert.equal(s.enemies[0].shockStacks, 0);
-  assert.equal(s.absorption.color, '255,228,90');
+  assert.equal(s.absorption.color, '172,84,136');
 });
 
 test('Существующие стаки добираются до максимума без лишней Молнии', () => {
@@ -113,7 +113,7 @@ test('Поглощение + Горение + Мороз запускает Па
   assert.equal(s.enemies[0].burnStacks, 3);
   assert.equal(s.clouds.length, 1);
   assert.equal(s.enemies[0].freezeT, 0);
-  assert.equal(s.absorption.color, '217,230,242');
+  assert.equal(s.absorption.color, '172,84,136');
 });
 
 test('Все три стихии: 3/5/4 стака, Пар и Молния, белая вспышка', () => {
@@ -124,7 +124,7 @@ test('Все три стихии: 3/5/4 стака, Пар и Молния, бе
   assert.equal(s.calls.lightning, 4);
   assert.equal(s.clouds.length, 1);
   assert.equal(s.discharges.length, 1);
-  assert.equal(s.absorption.color, '255,255,255');
+  assert.equal(s.absorption.color, '172,84,136');
 });
 
 test('Х2: стихии полностью накладываются на каждую из двух целей', () => {
@@ -168,15 +168,15 @@ test('Без стихий прежняя графика и отсутствие 
   const s = setup();
   s.advance(3.05);
   assert.equal(s.calls.burn + s.calls.frost + s.calls.lightning, 0);
-  assert.equal(s.absorption.color, '215,230,255');
+  assert.equal(s.absorption.color, '172,84,136');
 });
 
 test('Вампиризм сохраняет красный цвет поверх огня', () => {
   const s = setup(['burn']);
   s.build.placeMod({ key: 'vamp', def: CONFIG.mods.vamp }, 3, 5);
   s.advance(3.05);
-  assert.equal(s.absorption.color, '255,50,75');
-  assert.equal(s.absorption.flashes[0].color, '255,50,75');
+  assert.equal(s.absorption.color, '197,73,110');
+  assert.equal(s.absorption.flashes[0].color, '197,73,110');
   assert.equal(s.hero.hp, 59);
 });
 
@@ -231,8 +231,8 @@ test('Цвет Молнии с Огнём — оранжевый, с Мороз�
   const fire = setup(['burn', 'lightning']);
   const ice = setup(['frost', 'lightning']);
   fire.advance(3.05); ice.advance(3.05);
-  assert.equal(fire.absorption.color, '255,172,80');
-  assert.equal(ice.absorption.color, '123,215,255');
+  assert.equal(fire.absorption.color, '172,84,136');
+  assert.equal(ice.absorption.color, '172,84,136');
   assert.equal(fire.discharges.length, 1);
   assert.equal(ice.discharges.length, 1);
 });

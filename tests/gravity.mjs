@@ -8,7 +8,7 @@ import { AutoAttack } from '../systems_autoattack.js';
 import { Game } from '../game.js';
 import { createProjectile, resetProjectile, initProjectile, updateProjectile } from '../world_projectile.js';
 
-const arena = { left: -2000, right: 2000, top: -2000, bottom: 2000,
+const arena = { segmentBlocked() { return false; }, left: -2000, right: 2000, top: -2000, bottom: 2000,
   circleHitsRock: () => false };
 const advance = (p, t) => {
   const n = Math.round(t * 60);

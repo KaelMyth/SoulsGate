@@ -11,9 +11,9 @@ import { CastleHallArt } from '../render_castle_hall.js';
 test('С 6-й волны спавнятся только замёрзшие после входа в холл',()=>{
   assert.equal(CONFIG.spawn.frozen.fromWave,6);
   const sp=Object.create(Spawner.prototype);
-  sp.cfg=CONFIG;sp.rnd=()=>.52;
+  sp.cfg=CONFIG;sp.rnd=()=>.52;sp.arena={location:'hall'};
   const frozen=Object.keys(CONFIG.spawn.frozen.weights);
-  for(const wave of [6,7,8,9,10,11,12]){
+  for(const wave of [6,7,8,9,10]){ // с 11-й волны начинается третья локация (духи)
     sp.wave=wave;
     for(let i=0;i<4;i++){
       const pat=CONFIG.waves.patterns?.[wave]||null;
@@ -21,7 +21,7 @@ test('С 6-й волны спавнятся только замёрзшие по
       assert.ok(frozen.includes(kind),'волна '+wave+': '+kind);
     }
   }
-  sp.wave=5;
+  sp.wave=5;sp.arena={location:'courtyard'};
   const normal=sp.pickKind(CONFIG.waves.patterns[5]);
   assert.ok(!frozen.includes(normal),'в 5-й волне ещё прежние враги, включая битву с Архом');
   assert.equal(CONFIG.waves.boss.wave,5,'Пепельный Арх остаётся на 5 волне');
@@ -34,12 +34,14 @@ test('Построение отряда девятой волны тоже вы�
   s.spawnAt=(kind)=>{kinds.push(kind);return{kind};};
   s.guards={assign(){}};
   const pat={formation:{leader:'shooter',guard:'beetle'}};
-  s.wave=9;
-  s.spawnFormation(6,pat,0);
+  // Начиная с холла, построения заданы прямо в волнах (7–8): с замёрзшими.
+  const hallPat=CONFIG.waves.patterns[7];
+  s.wave=7;s.arena={location:'hall'};
+  s.spawnFormation(6,hallPat,0);
   assert.equal(kinds[0],'frozenArcher');
   assert.deepEqual(kinds.slice(1),Array(5).fill('frozenSoldier'));
   kinds.length=0;
-  s.wave=4;
+  s.wave=4;s.arena={location:'courtyard'};
   s.spawnFormation(3,pat,0);
   assert.equal(kinds[0],'shooter');
   assert.deepEqual(kinds.slice(1),['beetle','beetle']);

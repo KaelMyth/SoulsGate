@@ -25,9 +25,9 @@ function renderBoss(isometricTartas) {
   return marks;
 }
 
-test('Тартас по умолчанию плоский, объём рыцарей остаётся включённым',()=>{
+test('Тартас по умолчанию плоский, рыцари тоже плоские (Релиз 176), объём остаётся резервом',()=>{
   assert.equal(CONFIG.render.isometricTartas,false);
-  assert.equal(CONFIG.render.isometricIceEnemies,true);
+  assert.equal(CONFIG.render.isometricIceEnemies,false);
   assert.equal(CONFIG.render.iceModelVersion,2);
   const actual=renderBoss(CONFIG.render.isometricTartas);
   assert.equal(actual.iso,0,'не вызывается объёмная модель Тартаса');

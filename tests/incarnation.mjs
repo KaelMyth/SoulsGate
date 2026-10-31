@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { CONFIG } from '../config_game.js';
 import { Game } from '../game.js';
 import { Hero } from '../world_hero.js';
+import { Incarnation } from '../systems_incarnation.js';
 import { Combat } from '../systems_combat.js';
 import { HeroDefense } from '../systems_defense.js';
 import { BuildGrid } from '../build_grid.js';
@@ -23,7 +24,7 @@ function fakeGame(ready = true) {
   const hero = new Hero(CONFIG.hero);
   const build = buildSkill();
   return {
-    state: 'playing', hero, build, config: CONFIG,
+    state: 'playing', hero, build, config: CONFIG, incarnation: new Incarnation({ config: CONFIG, hero, enemies: { items: [] }, combat: { damageEnemy() { return true; } } }),
     skillCd: [0, ready ? 0 : 15, 0],
     hud: { slotFlash: 0, rainOn: false, rainT: 0 },
   };
@@ -134,7 +135,7 @@ test('Умение отрабатывает ровно 5 секунд игров
     secondaryId(kind) { return kind === 'incarnation' ? grid.secondaryId(kind) : null; },
     modifiersFor(id) { return grid.modifiersFor(id); }, // как реальная сетка билда, для цвета слота
   };
-  g.build = rain;
+  g.build = rain; g.inspiration = { active: false, remaining: 0 };
   Game.prototype.updateSkills.call(g, 1);
   assert.equal(g.skillCd[1], 29);
   assert.equal(g.skillCd[0], 0);

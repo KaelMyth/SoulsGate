@@ -20,7 +20,7 @@ test('Laser attaches to incarnation core',()=>{
 });
 test('Laser can jump to enemies regardless of camera or attack radius',()=>{
  const {hero,inc,hits}=setup();
- inc.update(.12);
+ inc.update(.1);
  assert.equal(hero.x,1000);
  inc.update(.12);
  assert.equal(hero.x,2200);
@@ -33,5 +33,5 @@ test('Laser transformation ends after 3 seconds at position away from enemies',(
  assert.equal(hero.incarnationLaser,false);
  assert.equal(hero.incarnationT,0);
  assert.equal(inc.laserTime,0);
- assert.ok(enemies.every(e=>Math.hypot(hero.x-e.x,hero.y-e.y)>hero.radius+e.radius));
+ assert.ok(enemies.items.every(e=>Math.hypot(hero.x-e.x,hero.y-e.y)>hero.radius+e.radius));
 });

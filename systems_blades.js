@@ -200,7 +200,7 @@ export class Blades {
     // первые уже летят, пока последние ещё появляются (launchAt).
     let orbit = this.orbiting();
     this.dtNow = dt;
-    if (this.wave && orbit === 0) { this.wave = false; this.slot = 0; } // пачка ушла целиком: можно копить заново
+    if (this.wave && orbit === 0) { this.wave = false; if (!gravityReturn) this.slot = 0; } // в гравитации сектора круга закреплены за клинками, номер не сбрасываем; // пачка ушла целиком: можно копить заново
     if (gravityReturn ? this.gravitySpawned < max && this.items.length < max : orbit < max) {
       this.timer += dt;
       while (this.timer >= interval && (gravityReturn ? this.gravitySpawned < max && this.items.length < max : orbit < max)) {

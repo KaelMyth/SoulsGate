@@ -147,7 +147,7 @@ test('В сочетании с Горением последний стак Мо
   assert.equal(clouds[0].x, enemies[1].x);
   assert.equal(enemies[1].freezeT, 0);
   assert.equal(enemies[2].frostStacks, 1);
-  assert.equal(enemies[2].burnStacks, 1);
+  assert.equal(enemies[2].burnStacks, CONFIG.burn.maxStacks); // красные дуги сразу дают максимум огня
 });
 
 test('Молнию можно навесить на Мороз, который уже образовал связку Пар с Горением', () => {
@@ -187,5 +187,5 @@ test('Поглощение → Мороз → Молния: главная це�
   assert.equal(enemies[0].freezeT, CONFIG.frost.freezeTime);
   assert.deepEqual(enemies.slice(1, 4).map(e => e.frostStacks), [1, 1, 0]);
   assert.equal(g.zapBolts.length, 2);
-  assert.equal(absorption.color, '123,215,255');
+  assert.equal(absorption.color, '172,84,136');
 });

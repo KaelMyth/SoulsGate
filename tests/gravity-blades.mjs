@@ -137,15 +137,17 @@ test('Возвращающиеся из общей точки клинки за�
 
 test('Множитель на гравитационных клинках перестраивает орбиту без смены внешнего вида', () => {
   const s = setup();
-  for (let i = 0; i < 45; i++) s.blades.update(1 / 60);
+  for (let i = 0; i < 900 && s.blades.items.length < 2; i++) s.blades.update(1 / 60);
   assert.equal(s.blades.items.length, 2);
   const originals = [...s.blades.items];
   s.mods.blades.max = 3;
-  for (let i = 0; i < 110; i++) s.blades.update(1 / 60);
+  for (let i = 0; i < 1800 && s.blades.items.length < 6; i++) s.blades.update(1 / 60);
+  s.blades.update(1 / 60); // кадр на пересчёт секторов
   assert.equal(s.blades.items.length, 6);
   assert.equal(s.blades.gravityMax, 6);
+  const offs6 = s.blades.items.map(b => b.off).sort((a, z) => a - z);
+  for (let i = 0; i < 6; i++) assert.ok(Math.abs(offs6[i] - i*Math.PI/3) < 1e-9, 'сектора круга заняты по одному: ' + offs6.join());
   for (let i = 0; i < 6; i++) {
-    assert.ok(Math.abs(s.blades.items[i].off - i*Math.PI/3) < 1e-9);
     assert.equal(s.blades.items[i].kind, 0);
     assert.equal(s.blades.items[i].sphere, false);
   }

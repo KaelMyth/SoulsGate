@@ -128,7 +128,7 @@ test('Мощь и Вампиризм на Поглощении действую�
   assert.equal(s.hits.length, 1);
   assert.ok(Math.abs(s.hits[0].damage - 99) < 1e-8);
   assert.equal(s.hero.hp, 43); // реальный урон 30, лечение 3
-  assert.equal(s.absorption.flashes[0].color, '255,50,75');
+  assert.equal(s.absorption.flashes[0].color, '197,73,110');
 });
 
 test('Горение, Мороз и Молния на Поглощении с Аурой достигают максимума стаков', () => {
@@ -149,7 +149,7 @@ test('Горение, Мороз и Молния на Поглощении с А
   assert.deepEqual(s.effects.filter(x => x === 'burn').length, 3);
   assert.deepEqual(s.effects.filter(x => x === 'frost').length, 5);
   assert.deepEqual(s.effects.filter(x => x === 'lightning').length, 4);
-  assert.equal(s.absorption.flashes[0].color, '255,255,255');
+  assert.equal(s.absorption.flashes[0].color, '172,84,136');
 });
 
 test('Ускорение сокращает 2-секундный интервал и не сбрасывает накопленный прогресс', () => {

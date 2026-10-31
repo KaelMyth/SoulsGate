@@ -46,7 +46,7 @@ function pose(f,angle,opts={}){
 }
 
 test('Вторая версия включена, прежняя и старая модели доступны переключателем',()=>{
-  assert.equal(CONFIG.render.isometricIceEnemies,true);
+  assert.equal(CONFIG.render.isometricIceEnemies,false); // с Релиза 176 по умолчанию плоские 2D рыцари
   assert.equal(CONFIG.render.iceModelVersion,2);
   const f=fixture('frozenSoldier');
   assert.equal(f.art.kind(f.enemy),'soldier');

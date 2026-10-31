@@ -11,9 +11,9 @@ function setup(mods) {
  return {inc,hero,enemies};
 }
 test('Power, haste and root X2/X3 compatible with Incarnation',()=>{
- assert.equal(parentAccepts(CONFIG.mods.power,CONFIG.mods.incarnation,null),true);
- assert.equal(parentAccepts(CONFIG.mods.haste,CONFIG.mods.incarnation,null),true);
- assert.equal(parentAccepts(CONFIG.mods.x2,CONFIG.mods.incarnation,null),true);
+ assert.equal(parentAccepts(CONFIG.mods.power,{def:CONFIG.mods.incarnation},null),true);
+ assert.equal(parentAccepts(CONFIG.mods.haste,{def:CONFIG.mods.incarnation},null),true);
+ assert.equal(parentAccepts(CONFIG.mods.x2,{def:CONFIG.mods.incarnation},null),true);
 });
 test('All requested multipliers scale incarnation sphere count',()=>{
  for(const count of [2,3,4,6,8,9,12,24]) {
@@ -25,7 +25,7 @@ test('All requested multipliers scale incarnation sphere count',()=>{
 test('Haste speeds the blade volley and power increases its damage',()=>{
  const base=setup({blades:{max:1}});
  const boost=setup({blades:{max:1},rate:{percent:100},damage:{percent:20},incarnationCount:{percent:100}});
- assert.equal(boost.inc.bladeGap,base.inc.bladeGap);
+ assert.ok(Math.abs(boost.inc.bladeGap-base.inc.bladeGap/2)<1e-9); // Скорость +100% вдвое сокращает паузу между клинками
  assert.equal(boost.inc.splitCount,2);
  assert.ok(boost.inc.damageMultiplier>base.inc.damageMultiplier);
 });
