@@ -42,6 +42,14 @@ export class HitFx {
       this.p.push({ on: false, type: 0, el: 0, t: 0, life: 0.3, x: 0, y: 0, vx: 0, vy: 0, size: 6, rot: 0, spin: 0, drag: 0, seed: 0, col: '#fff', edge: '#fff' });
     }
     this.cur = 0;
+    // Плотный список активных частиц: не сканируем все 720 за каждый кадр смерти.
+    // Свободные слоты выдаются без поиска, в том числе при массовой гибели.
+    this.activeSlots = new Uint32Array(size);
+    this.freeSlots = new Uint32Array(size);
+    this.activeCount = 0;
+    this.freeCount = size;
+    for (let i = 0; i < size; i++) this.freeSlots[i] = size - 1 - i;
+    this.warmStep = 0;
     this.rnd = Math.random;
     this.glows = [];
     this.live = 0;                  // живые частицы; при нуле не трогаем Canvas вообще
@@ -113,21 +121,53 @@ export class HitFx {
   }
 
   clear() {
-    for (const q of this.p) q.on = false;
+    for (let i = 0; i < this.activeCount; i++) this.p[this.activeSlots[i]].on = false;
     this.live = 0;
+    this.activeCount = 0;
+    this.freeCount = this.p.length;
+    for (let i = 0; i < this.freeCount; i++) this.freeSlots[i] = this.freeCount - 1 - i;
     this.deathFrame = -1;
     this.deathSpawned = 0;
     this.spawningDeath = false;
   }
 
+  /** Удалить частицу без splice и без выделения памяти; список всегда плотный. */
+  retire(slotPosition) {
+    const index = this.activeSlots[slotPosition];
+    this.p[index].on = false;
+    this.activeSlots[slotPosition] = this.activeSlots[--this.activeCount];
+    this.freeSlots[this.freeCount++] = index;
+    this.live--;
+  }
+
+  /** Прогреть GPU-ресурсы до первой смерти, по одному небольшому изображению за кадр.
+   *  Невидимый прогрев выполняется до заливки фона, поэтому картинка не изменяется.
+   */
+  warmGpu(ctx) {
+    if (this.warmStep >= 6) return;
+    let sprite;
+    if (this.warmStep === 0) sprite = this.deathAtlas;
+    else {
+      const variant = [undefined, 'blue', 'red', 'gold', true][this.warmStep - 1];
+      sprite = this.r.getGlow(variant);
+    }
+    this.warmStep++;
+    if (!sprite) return;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 0.02;
+    ctx.drawImage(sprite, 0, 0, 4, 4);
+    ctx.restore();
+  }
+
   add(type, el, x, y, vx, vy, life, size, o) {
-    const n = this.p.length;
-    for (let i = 0; i < n; i++) {
-      const q = this.p[(this.cur + i) % n];
-      if (q.on) continue;
-      this.cur = (this.cur + i + 1) % n;
-      q.on = true;
-      this.live++;
+    if (!this.freeCount) return null;
+    const slot = this.freeSlots[--this.freeCount];
+    const q = this.p[slot];
+    this.activeSlots[this.activeCount++] = slot;
+    this.cur = slot;
+    q.on = true;
+    this.live++;
       // Полная геометрия смерти остаётся прежней, но пачки выходят за несколько
       // кадров. Это сглаживает резкий пик Canvas на слабых iPhone/Android.
       // Яркое ядро смерти видно сразу, остальные грани догоняют его.
@@ -148,9 +188,7 @@ export class HitFx {
       q.seed = this.rnd() * 100;
       q.col = o && o.col ? o.col : '#fff';
       q.edge = o && o.edge ? o.edge : '#fff';
-      return q;
-    }
-    return null;
+    return q;
   }
 
   /**
@@ -487,12 +525,13 @@ export class HitFx {
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    for (let i = 0; i < P.length; i++) {
-      const q = P[i];
-      if (!q.on) continue;
+    const active = this.activeSlots;
+    for (let i = 0; i < this.activeCount;) {
+      const q = P[active[i]];
+      if (!q.on) { this.retire(i); continue; } // внешний сброс источника
       q.t += dt;
-      if (q.t <= 0) continue; // ещё не наступила волна этого осколка
-      if (q.t >= q.life) { q.on = false; this.live--; continue; }
+      if (q.t <= 0) { i++; continue; } // ещё не наступила волна этого осколка
+      if (q.t >= q.life) { this.retire(i); continue; }
       if (q.death && (q.x < vl || q.x > vr || q.y < vt || q.y > vb)) {
         // Без визуальной потери: за краями экрана продолжаем движение и гравитацию,
         // чтобы частицы корректно появлялись при возвращении камеры.
@@ -504,6 +543,7 @@ export class HitFx {
         else if (q.type === T_LICK) q.vy -= 10 * dt;
         else if (q.type === T_WISP) q.vy -= 8 * dt;
         if (q.type === T_BIT || q.type === T_SHARD || q.type === T_CHIP) q.rot += q.spin * dt;
+        i++;
         continue;
       }
       const k = q.t / q.life;
@@ -795,6 +835,7 @@ export class HitFx {
         }
         default: break;
       }
+      i++;
     }
     ctx.restore();
     ctx.globalAlpha = 1;

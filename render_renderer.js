@@ -641,6 +641,9 @@ export class Renderer {
     const camX = camera.prevX + (camera.x - camera.prevX) * alpha;
     const camY = camera.prevY + (camera.y - camera.prevY) * alpha;
 
+    // Первые шесть кадров прогревают по одному эффекту: при первой смерти
+    // не возникает синхронной загрузки атласа и свечений в GPU.
+    this.hitfx.warmGpu(ctx);
     // Пустота за ареной.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = C.void;
