@@ -313,7 +313,7 @@ export class Spawner {
     e.hp = e.maxHp = def.hp; // здоровье босса не растёт от номера волны
     if (def === this.cfg.enemies.tartas && this.arena.location === 'hall') {
       e.x = 0;
-      e.y = this.arena.top + 183;
+      e.y = this.arena.walkTop + e.radius + 1; // у самой решётки, не внутри коллизии стены
       this.arena.resolveCircle(e);
       e.prevX = e.x;
       e.prevY = e.y;

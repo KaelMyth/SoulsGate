@@ -131,3 +131,15 @@ test('После полной зачистки 10-й волны выходит �
     }
   }
 });
+
+test('Тартас появляется у решётки без столкновения с северной стеной', () => {
+  const f=fixture(10);
+  f.arena.location='hall';
+  f.arena.walkTop=f.arena.top+166;
+  f.sp.spawnBoss(CONFIG.enemies.tartas);
+  const e=f.enemies.items.at(-1);
+  assert.equal(e.x,0);
+  assert.equal(e.y,f.arena.walkTop+e.radius+1);
+  assert.equal(f.sp.phase,'boss');
+  assert.ok(f.events.some(([name])=>name==='boss:spawned'));
+});

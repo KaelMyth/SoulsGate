@@ -63,6 +63,7 @@ export class Blades {
     this.dtNow = 0;
     this.gravityMode = false;
     this.gravitySpawned = 0; // сколько постоянных клинков создано: никогда не больше обычного максимума
+    this.gravityMax = 0; // текущий размер кольца, пересчитывается при смене множителя
   }
 
   orbiting() {
@@ -144,6 +145,7 @@ export class Blades {
       this.timer = 0;
       this.gravityMode = false;
       this.gravitySpawned = 0;
+      this.gravityMax = 0;
       return;
     }
     const hero = this.hero;
@@ -153,6 +155,9 @@ export class Blades {
       this.timer = 0;
       this.wave = false;
       this.gravitySpawned = 0;
+      this.gravityMax = 0;
+      this.gravityMode = false;
+      this.slot = 0;
       return;
     }
     if (!hero.active) return;
@@ -165,20 +170,28 @@ export class Blades {
     if (gravityReturn !== this.gravityMode) {
       this.gravityMode = gravityReturn;
       if (gravityReturn) {
-        this.items.forEach((blade, index) => { blade.off = TAU * index / max; });
-        this.slot = this.items.length;
         if (this.items.length > max) this.items.length = max;
+        this.slot = this.items.length;
         this.gravitySpawned = this.items.length;
+        this.gravityMax = 0;
         this.wave = false;
         this.gap = 0;
       } else {
         this.gravitySpawned = 0;
+        this.gravityMax = 0;
         for (const b of this.items) if (b.state === 'return' || b.state === 'gravityOrbit') b.state = 'orbit';
       }
     }
     if (gravityReturn && this.items.length > max) {
       this.items.length = max;
       this.gravitySpawned = Math.min(this.gravitySpawned, max);
+      this.slot = this.items.length;
+    }
+    // Постоянные клинки получают собственные сектора; множители изменяют
+    // весь круг, не только позиции новых клинков.
+    if (gravityReturn && this.gravityMax !== max) {
+      this.gravityMax = max;
+      for (let i = 0; i < this.items.length; i++) this.items[i].off = TAU * i / max;
     }
     const interval = Math.max(0.03, bladeInterval(this.cfg, max) / bm.rate); // чем больше клинков, тем чаще; плюс Ускорение на клинках
     const dmg = B.damage * bm.damage + (m.lightning ? this.cfg.shock.attackBonus * m.lightning.count : 0);                          // Мощь на клинках
@@ -194,7 +207,7 @@ export class Blades {
         this.timer -= interval;
         // Следующий клинок появляется на противоположной стороне от предыдущего (доли круга 0, 1/2, 1/4, 3/4, 1/8 ...).
         const slot = this.slot++;
-        const off = vdc(slot) * TAU;
+        const off = gravityReturn ? TAU * slot / max : vdc(slot) * TAU;
         const a = this.spin + off;
         // Если несколько модов Клинков сидят на щите, только доля клинков из ветки
         // Поглощения засчитывается в его тройку попаданий.
@@ -244,19 +257,27 @@ export class Blades {
       const orbitSpeed = Math.max(0.1, G.bladeOrbitSpeed);
       for (const b of this.items) {
         if (b.state === 'return') {
-          const dx = hero.x - b.x, dy = hero.y - b.y;
+          // Каждый возвращается в собственную движущуюся точку орбиты,
+          // а не в центр героя: попадание по одной цели не склеивает клинки.
+          const angle = this.spin + b.off;
+          const tx = hero.x + Math.cos(angle) * B.orbit;
+          const ty = hero.y + Math.sin(angle) * B.orbit;
+          const dx = tx - b.x, dy = ty - b.y;
           const dist = Math.hypot(dx, dy);
-          if (dist > B.orbit) {
-            const step = Math.min(dist - B.orbit, returnSpeed * dt);
+          const step = returnSpeed * dt;
+          if (dist > step) {
             b.a = Math.atan2(dy, dx);
-            b.vx = Math.cos(b.a) * returnSpeed;
-            b.vy = Math.sin(b.a) * returnSpeed;
-            b.x += dx / dist * step;
-            b.y += dy / dist * step;
-          }
-          if (Math.hypot(hero.x - b.x, hero.y - b.y) <= B.orbit + 0.01) {
-            b.gravTheta = Math.atan2(b.y - hero.y, b.x - hero.x);
+            b.vx = dx / dist * returnSpeed;
+            b.vy = dy / dist * returnSpeed;
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+          } else {
+            b.x = tx;
+            b.y = ty;
+            b.vx = b.vy = 0;
+            b.gravTheta = angle;
             b.gravProgress = 0;
+            b.a = angle + Math.PI / 2;
             b.state = 'gravityOrbit';
           }
         } else if (b.state === 'gravityOrbit') {
@@ -321,6 +342,7 @@ export class Blades {
           if (gravityReturn) {
             b.state = 'return';
             b.target = null;
+            b.pc = undefined; // след предыдущего полёта не меняет внешний вид
             b.age = 0;
             continue;
           }

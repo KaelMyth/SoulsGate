@@ -117,3 +117,42 @@ test('Гравитационный режим отключается, если �
   assert.equal(s.blades.gravityMode, false);
   assert.ok(s.blades.items.every(b => b.state !== 'return' && b.state !== 'gravityOrbit'));
 });
+
+test('Возвращающиеся из общей точки клинки занимают разные сектора', () => {
+  const s = setup({ maxMultiplier: 3 });
+  for (let i = 0; i < 200; i++) s.blades.update(1 / 60);
+  assert.equal(s.blades.items.length, 6);
+  s.target.active = false;
+  for (const b of s.blades.items) {
+    b.x = 170; b.y = 0; b.state = 'return'; b.age = 0;
+  }
+  for (let i = 0; i < 75; i++) s.blades.update(1 / 60);
+  assert.ok(s.blades.items.every(b => b.state === 'gravityOrbit'));
+  const angles = s.blades.items.map(b => Math.atan2(b.y-s.hero.y,b.x-s.hero.x));
+  for (let i = 0; i < angles.length; i++) for (let j = i+1; j < angles.length; j++) {
+    const sep = Math.abs(Math.atan2(Math.sin(angles[i]-angles[j]),Math.cos(angles[i]-angles[j])));
+    assert.ok(sep > 0.25, 'клинки не должны собираться в одну точку');
+  }
+});
+
+test('Множитель на гравитационных клинках перестраивает орбиту без смены внешнего вида', () => {
+  const s = setup();
+  for (let i = 0; i < 45; i++) s.blades.update(1 / 60);
+  assert.equal(s.blades.items.length, 2);
+  const originals = [...s.blades.items];
+  s.mods.blades.max = 3;
+  for (let i = 0; i < 110; i++) s.blades.update(1 / 60);
+  assert.equal(s.blades.items.length, 6);
+  assert.equal(s.blades.gravityMax, 6);
+  for (let i = 0; i < 6; i++) {
+    assert.ok(Math.abs(s.blades.items[i].off - i*Math.PI/3) < 1e-9);
+    assert.equal(s.blades.items[i].kind, 0);
+    assert.equal(s.blades.items[i].sphere, false);
+  }
+  assert.ok(originals.every(b => s.blades.items.includes(b)));
+  s.mods.blades.max = 2;
+  s.blades.update(1 / 60);
+  assert.equal(s.blades.items.length, 4);
+  assert.equal(s.blades.gravityMax, 4);
+  for (let i = 0; i < 4; i++) assert.ok(Math.abs(s.blades.items[i].off-i*Math.PI/2)<1e-9);
+});

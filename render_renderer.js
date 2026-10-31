@@ -5460,10 +5460,13 @@ export class Renderer {
 
   drawElderSpirit(e,x,y,hit){
     const c=this.ctx,t=this.clock;
-    c.save();c.globalAlpha=.76;
-    c.shadowColor='#a0baff';c.shadowBlur=17;
+    c.save();
+    // Большие духи призывают много мобов: вместо дорогой тени на каждой
+    // детали магических доспехов используем мягкий кэшированный ореол.
+    c.globalAlpha=.32;
+    c.drawImage(this.getGlow('blue'),x-62,y-70,124,140);
+    c.globalAlpha=.76;
     this.drawBattleMage(e,x,y,hit);
-    c.shadowBlur=0;
     // Ритуальный нимб из фрагментов рунической печати.
     c.translate(x,y);
     const phase=t*.65+e.gen;
