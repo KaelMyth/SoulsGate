@@ -3,11 +3,13 @@
 // Управление: мод можно перетащить из хранилища на поле, а можно выбрать и нажать на зелёную клетку.
 // Поставленный мод возвращается в хранилище перетаскиванием на ряд хранилища или кнопкой в карточке.
 import { h, clear } from './ui_dom.js';
+import { icon } from './ui_icons.js';
 import { piece, tileOfMod, tileOfCore, slab } from './ui_stone.js';
 import { coreStats } from './build_cores.js';
 import { canPlace, canPlacePassive, highlight } from './build_rules.js';
 
 const DRAG_START_PX = 8;
+const RARITY_NAMES = { common:'Обычный', rare:'Редкий', epic:'Эпический', legendary:'Легендарный' };
 
 export class BuilderUI {
   constructor(grid, config, storage) {
@@ -230,7 +232,7 @@ export class BuilderUI {
       if (mod) {
         el.classList.toggle('has', true);
         el.setAttribute('data-mod', mod.key);
-        el.append(piece(tileOfMod(mod.key, mod.def), mod.def.icon));
+        el.append(piece(tileOfMod(mod.key, mod.def), mod.def.icon, mod.def.rarity));
         this.attachDrag(el, { from: 'shelf', index: i }, mod, () => this.select({ kind: 'shelf', index: i }));
       }
       this.slotEls.push(el);
@@ -253,7 +255,7 @@ export class BuilderUI {
       } else if (c.mod) {
         el.classList.toggle('mod', true);
         el.setAttribute('data-mod', c.mod.key);
-        el.append(piece(tileOfMod(c.mod.key, c.mod.def), c.mod.def.icon));
+        el.append(piece(tileOfMod(c.mod.key, c.mod.def), c.mod.def.icon, c.mod.def.rarity));
         this.attachDrag(el, { from: 'placed', x: c.x, y: c.y }, c.mod, () => this.select({ kind: 'placed', x: c.x, y: c.y }));
       } else {
         el.addEventListener('click', () => this.tapEmpty(c.x, c.y));
@@ -269,7 +271,7 @@ export class BuilderUI {
       if (p.mod) {
         el.classList.toggle('has', true);
         el.setAttribute('data-mod', p.mod.key);
-        el.append(piece(tileOfMod(p.mod.key, p.mod.def), p.mod.def.icon));
+        el.append(piece(tileOfMod(p.mod.key, p.mod.def), p.mod.def.icon, p.mod.def.rarity));
         this.attachDrag(el, { from: 'pplaced', id: p.id }, p.mod, () => this.select({ kind: 'pplaced', id: p.id }));
       } else {
         el.addEventListener('click', () => this.tapPassive(p.id));
@@ -328,7 +330,14 @@ export class BuilderUI {
 
     clear(this.info);
     if (mod) {
-      this.info.append(h('h3', { class: 'mod-title' }, mod.def.name), h('p', { class: 'mod-desc' }, mod.def.description));
+      const rarity = mod.def.rarity || 'common';
+      this.info.append(
+        h('div',{class:'mod-identity rarity-'+rarity},
+          h('span',{class:'mod-emblem'},icon(mod.def.icon)),
+          h('div',{class:'mod-identity-text'},
+            h('small',{class:'mod-grade'},RARITY_NAMES[rarity] || RARITY_NAMES.common),
+            h('h3',{class:'mod-title'},mod.def.name))),
+        h('p',{class:'mod-desc'},mod.def.description));
       this.info.append(h('p', { class: 'hint' }, sel.kind === 'preview'
         ? 'Так выглядит поле: зелёные клетки это места, куда этот мод можно поставить. Красные грани: не подходит'
         : sel.kind === 'shelf'
@@ -409,7 +418,7 @@ export class BuilderUI {
       if (!start) return;
       if (!start.drag && Math.hypot(e.clientX - start.x, e.clientY - start.y) > DRAG_START_PX) {
         start.drag = true;
-        ghost = h('div', { class: 'drag-ghost' }, piece(tileOfMod(mod.key, mod.def), mod.def.icon));
+        ghost = h('div', { class: 'drag-ghost' }, piece(tileOfMod(mod.key, mod.def), mod.def.icon, mod.def.rarity));
         if (document.body) document.body.append(ghost);
       }
       if (ghost && ghost.style) ghost.style.transform = 'translate(' + (e.clientX - 24) + 'px,' + (e.clientY - 24) + 'px)';

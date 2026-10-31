@@ -762,3 +762,212 @@ body { font-family: var(--serif); }
   #levelup-screen .lu-card .lu-icon { width: 43px; height: 43px; padding: 7px; }
   #levelup-screen .lu-subtitle { margin-bottom: 9px; }
 }
+
+
+/* №197. Пергаментные экраны наград, гримуара и паузы. Главное меню и бой не затрагивать. */
+#levelup-screen, #pause-screen {
+  background: radial-gradient(ellipse at 50% 38%,rgba(19,19,26,.85),rgba(5,7,13,.98) 83%);
+}
+#levelup-screen .card, #pause-screen .card {
+  --paper-ink:#34271c;--paper-muted:#68513b;
+  position:relative;box-sizing:border-box;color:var(--paper-ink);
+  border:2px solid #654b33;border-radius:9px;clip-path:none;
+  background:
+    radial-gradient(ellipse at 6% 8%,rgba(244,218,166,.32),transparent 45%),
+    radial-gradient(ellipse at 95% 94%,rgba(91,64,39,.24),transparent 50%),
+    repeating-linear-gradient(93deg,transparent 0 16px,rgba(70,48,26,.018) 16px 18px),
+    linear-gradient(100deg,#8c7656,#bfa985 10%,#d0bc98 48%,#baa17d 89%,#80694d);
+  box-shadow:0 18px 52px rgba(0,0,0,.7),inset 0 0 25px rgba(80,55,28,.28),inset 0 0 0 4px rgba(239,212,159,.14);
+}
+#levelup-screen .card::before, #levelup-screen .card::after,
+#pause-screen .card::before, #pause-screen .card::after {
+  display:block;content:'';position:absolute;left:0;right:0;
+  width:auto;height:12px;margin:0;border:0;border-radius:6px;
+  pointer-events:none;z-index:2;transform:none;
+  background:linear-gradient(180deg,#38271d,#806042 30%,#b79565 49%,#664630 74%,#36251d);
+  box-shadow:0 2px 5px rgba(32,20,13,.45),inset 0 1px rgba(255,225,172,.43);
+}
+#levelup-screen .card::before, #pause-screen .card::before {top:0;}
+#levelup-screen .card::after, #pause-screen .card::after {top:auto;bottom:0;}
+#levelup-screen .card h2,#pause-screen .card h2 {
+  color:#36261b;text-shadow:0 1px rgba(252,233,197,.56);
+  font-weight:600;letter-spacing:.065em;
+}
+
+/* Награды за уровень: гравированная печать + название + понятное описание. */
+#levelup-screen {
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+}
+#levelup-screen .card {
+  width:min(94vw,520px);max-height:calc(100vh - var(--safe-top) - var(--safe-bottom) - 16px);max-height:calc(100dvh - var(--safe-top) - var(--safe-bottom) - 16px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+  padding:29px 16px 28px;margin:auto;
+}
+#levelup-screen h2 {margin:0 0 5px;font-size:clamp(24px,5vw,32px);}
+#levelup-screen .lu-subtitle {margin:0 0 15px;color:#73583b;font-size:11px;letter-spacing:.16em;}
+#levelup-screen .lu-list {gap:9px;}
+#levelup-screen .lu-card {
+  --rarity:#85847c;--wash:rgba(97,96,87,.07);
+  display:flex;align-items:center;min-height:88px;height:auto;
+  gap:12px;padding:10px 12px;overflow:hidden;
+  border:1px solid rgba(91,72,48,.48);border-left:4px solid var(--rarity);
+  border-radius:3px;box-shadow:inset 0 1px rgba(255,240,202,.57);
+  background:linear-gradient(100deg,var(--wash),rgba(236,215,177,.34) 60%,rgba(99,78,52,.08));
+  color:#2d241b;transition:background .15s,border-color .15s;
+}
+#levelup-screen .lu-card.rarity-common {--rarity:#73736f;--wash:rgba(100,100,97,.13);}
+#levelup-screen .lu-card.rarity-rare {--rarity:#54799c;--wash:rgba(78,114,146,.13);}
+#levelup-screen .lu-card.rarity-epic {--rarity:#79618c;--wash:rgba(111,75,132,.14);}
+#levelup-screen .lu-card.rarity-legendary {--rarity:#a9783e;--wash:rgba(165,113,47,.13);}
+#levelup-screen .lu-card .lu-icon {
+  width:58px;height:58px;box-sizing:border-box;flex:none;
+  padding:9px;color:var(--rarity);--hi:#f5ecd8;--rune:#bba47e;
+  border:2px solid var(--rarity);border-radius:5px;
+  background:radial-gradient(circle at 45% 25%,#63503c,#3b3029 85%);
+  box-shadow:inset 0 0 0 2px rgba(13,10,8,.3),0 2px 4px rgba(37,23,12,.25);
+}
+#levelup-screen .lu-text {gap:4px;}
+#levelup-screen .lu-text b {color:#30241b;font-size:clamp(17px,3.5vw,21px);}
+#levelup-screen .lu-text small {
+  color:#574636;font-size:12px;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+#levelup-screen .lu-rarity {color:var(--rarity);font-size:11px;font-weight:700;letter-spacing:.12em;}
+#levelup-screen .lu-card:focus-visible,#levelup-screen .lu-card:active {
+  outline:2px solid var(--rarity);outline-offset:0;border-color:var(--rarity);
+  background:linear-gradient(90deg,rgba(255,241,207,.5),var(--wash));
+}
+@media (hover:hover) {
+  #levelup-screen .lu-card:hover {border-color:var(--rarity);background:rgba(245,225,192,.55);transform:none;}
+}
+#levelup-screen .lu-hint {
+  margin:12px 0 3px;font:italic 12px/1.4 var(--serif);color:#765c43;
+}
+#levelup-screen .lu-exchange {
+  margin-top:9px;min-height:44px;border:1px dashed #866d4c;border-radius:3px;
+  color:#46372a;background:rgba(110,79,49,.08);
+}
+#levelup-screen .lu-exchange:active {color:#2b2117;border-color:#4b3827;}
+
+/* Гримуар: сохранены 7x7 поле, магические плитки и зоны пассивов. */
+#pause-screen {overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;}
+#pause-screen .card {padding:28px 14px 26px;}
+#pause-screen #pause-main {
+  width:min(95vw,540px);max-height:calc(100vh - var(--safe-top) - var(--safe-bottom) - 12px);max-height:calc(100dvh - var(--safe-top) - var(--safe-bottom) - 12px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;margin:auto;
+}
+#pause-screen #menu-card {width:min(86vw,330px);margin:auto;padding:33px 20px 28px;}
+#pause-screen .grimoire-head {margin:0 0 10px;text-align:center;}
+#pause-screen .grimoire-head small,
+#pause-screen .pause-chapter {
+  display:block;color:#755738;letter-spacing:.19em;font:600 10px/1.4 var(--serif);
+}
+#pause-screen .grimoire-head h2 {margin:4px 0 6px;font-size:24px;}
+#pause-screen .pause-chapter {margin:8px 0 6px;text-align:center;}
+#pause-screen #menu-card h2 {margin:0 0 18px;font-size:27px;}
+#pause-screen .builder {--fit:min(82vw,38vh);}
+#pause-screen .shelf {
+  border:2px solid #715c46;border-radius:5px;
+  background:linear-gradient(180deg,#7b644b,#a28b68 13%,#584530);
+  box-shadow:inset 0 2px 9px rgba(37,25,13,.55);
+}
+#pause-screen .shelf .slot-cell:not(.has) {
+  background:linear-gradient(135deg,#2c2826,#4b3f32);
+}
+#pause-screen .core-info {padding:8px 10px 0;color:#30251c;}
+#pause-screen .core-info h3,#pause-screen .core-info .mod-title {color:#33251b;}
+#pause-screen .core-info .hint,#pause-screen .core-info .mod-desc {color:#594532;font-size:13px;}
+#pause-screen .core-info .stat {color:#614e3c;}
+#pause-screen .core-info .stat b {color:#332318;}
+#pause-screen .core-info .stat em {color:#6b4a2c;}
+#pause-screen .mod-identity {
+  --rarity:#77766f;display:flex;align-items:center;justify-content:center;
+  gap:10px;margin:0 0 6px;padding:5px 8px;border-bottom:1px solid rgba(87,64,41,.32);
+}
+#pause-screen .mod-identity.rarity-rare {--rarity:#658ab2;}
+#pause-screen .mod-identity.rarity-epic {--rarity:#8b6fa5;}
+#pause-screen .mod-identity.rarity-legendary {--rarity:#b18147;}
+#pause-screen .mod-emblem {
+  display:block;width:38px;height:38px;box-sizing:border-box;flex:none;padding:5px;
+  background:#3d332b;border:2px solid var(--rarity);border-radius:3px;
+  color:var(--rarity);--hi:#f6efdd;--rune:#a08e75;
+}
+#pause-screen .mod-emblem svg {width:100%;height:100%;display:block;}
+#pause-screen .mod-identity-text {text-align:left;}
+#pause-screen .mod-grade {display:block;color:#554133;font:700 10px/1.2 var(--serif);letter-spacing:.1em;text-transform:uppercase;}
+#pause-screen .mod-identity h3 {text-align:left;margin:2px 0;}
+#pause-screen .core-info button.small {
+  color:#36281c;border:1px solid #7d6345;background:rgba(235,204,154,.23);
+}
+#pause-screen .piece {--rune:#a58a62;}
+#pause-screen .piece .icon-svg {filter:drop-shadow(0 0 2px rgba(249,229,190,.23));}
+#pause-screen .piece.rarity-common {color:#beb9ac;--hi:#f0e9d9;}
+#pause-screen .piece.rarity-rare {color:#8caed0;--hi:#e9f1fb;}
+#pause-screen .piece.rarity-epic {color:#b4a0cf;--hi:#f5edff;}
+#pause-screen .piece.rarity-legendary {color:#d1ad73;--hi:#fff1d6;}
+#pause-screen .row button:not(.cell):not(.pcell):not(.small):not(.tools-toggle):not(.tool-item) {
+  color:#463321;text-shadow:0 1px rgba(252,234,193,.56);
+}
+#pause-screen .row button::before {
+  border-color:#876641;background:#c1a37a;box-shadow:none;
+}
+#pause-screen .row button::after {
+  background:linear-gradient(90deg,transparent,#8a6b48 30%,transparent 44%,transparent 56%,#8a6b48 70%,transparent);
+}
+#pause-screen .row button.secondary {color:#65503c!important;}
+#pause-screen #menu-card button {
+  color:#3a291c;text-shadow:0 1px rgba(251,233,191,.45);
+}
+#pause-screen #menu-card button.secondary {color:#69513d;}
+#pause-screen #menu-card button::before {border-color:#8a6a46;background:#c9aa7d;box-shadow:none;}
+#pause-screen #menu-card button::after {
+  background:linear-gradient(90deg,transparent,#886846 28%,transparent 45%,transparent 55%,#886846 72%,transparent);
+}
+
+/* Тестовая библиотека модов раскрывается внутри прокручиваемого листа, не обрезается сверху. */
+#pause-screen .test-tools {margin:7px 4px 4px;}
+#pause-screen .test-tools .tools-toggle {
+  border:1px solid #735b3d;border-radius:3px;
+  background:rgba(98,67,40,.14);color:#423021;
+}
+#pause-screen .tools-list {
+  position:relative;left:auto;right:auto;bottom:auto;z-index:auto;
+  margin:5px 0 0;max-height:31vh;padding:6px;
+  border:1px solid #72583d;border-radius:4px;
+  background:linear-gradient(120deg,#b09a77,#d0b995,#a88d68);
+  box-shadow:inset 0 2px 5px rgba(61,40,22,.3);
+}
+#pause-screen .tools-list .tool-item {
+  --rarity:#858077;display:flex;flex-direction:row;align-items:center;gap:9px;
+  min-height:52px;padding:7px 9px;text-align:left;
+  border:1px solid rgba(81,63,43,.4);border-left:3px solid var(--rarity);
+  border-radius:3px;color:#37291d;background:rgba(237,219,183,.28);
+}
+#pause-screen .tools-list .tool-item.rarity-rare {--rarity:#567c9f;}
+#pause-screen .tools-list .tool-item.rarity-epic {--rarity:#81669b;}
+#pause-screen .tools-list .tool-item.rarity-legendary {--rarity:#a97940;}
+#pause-screen .tool-icon {
+  flex:none;display:block;box-sizing:border-box;width:38px;height:38px;padding:5px;
+  border:1px solid var(--rarity);background:#433629;color:var(--rarity);--hi:#eee2ca;
+}
+#pause-screen .tool-icon svg {display:block;width:100%;height:100%;}
+#pause-screen .tool-copy {display:flex;flex-direction:column;gap:2px;min-width:0;}
+#pause-screen .tools-list .tool-copy b {font:600 15px/1.2 var(--serif);}
+#pause-screen .tools-list .tool-copy small {font:12px/1.25 var(--serif);color:#5e4936;}
+#pause-screen .tools-list .tool-item:focus-visible {outline:2px solid var(--rarity);outline-offset:-2px;}
+
+@media (max-height:650px) {
+  #levelup-screen, #pause-screen {align-items:flex-start;}
+  #levelup-screen .card {margin:8px auto;padding:23px 12px 22px;}
+  #levelup-screen .lu-card {min-height:74px;padding:8px 10px;}
+  #levelup-screen .lu-card .lu-icon {width:46px;height:46px;padding:6px;}
+  #levelup-screen .lu-subtitle {margin-bottom:8px;}
+  #levelup-screen .lu-hint {margin:7px 0 1px;}
+  #pause-screen .card {margin:8px auto;padding:23px 9px 22px;}
+  #pause-screen .builder {--fit:min(80vw,35vh);}
+  #pause-screen .grimoire-head {margin-bottom:4px;}
+}
+@media (prefers-reduced-motion:reduce) {
+  #levelup-screen .lu-card,#pause-screen .piece {transition:none;animation:none;}
+}

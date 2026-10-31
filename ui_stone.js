@@ -131,11 +131,11 @@ function ensureSprite() {
 }
 
 /** Плитка-основание со значком: <div class="piece t-вид"> для ячейки поля, хранилища или перетаскивания. */
-export function piece(tile, iconName) {
+export function piece(tile, iconName, rarity = '') {
   ensureSprite();
   const t = svg('svg', { viewBox: '0 0 64 64', class: 'tile', 'aria-hidden': 'true' });
   t.append(svg('use', { href: '#t-' + tile }));
-  return h('div', { class: 'piece t-' + tile }, t, icon(iconName));
+  return h('div', { class: 'piece t-' + tile + (rarity ? ' rarity-' + rarity : '') }, t, icon(iconName));
 }
 
 /** Каменная плита поля: грани, скошенные края и фаски по углам. Растягивается под размер, поэтому рисунок в процентах. */

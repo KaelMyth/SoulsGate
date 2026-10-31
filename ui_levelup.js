@@ -12,11 +12,11 @@ export class LevelUpScreen {
     this.onPick = onPick;
     this.onExchange = onExchange;
     this.title = h('h2', {});
-    this.subtitle = h('p', { class: 'lu-subtitle' }, 'ВЫБЕРИТЕ ДАР');
+    this.subtitle = h('p', { class: 'lu-subtitle' }, 'ВЫБЕРИ ПЕЧАТЬ СИЛЫ');
     this.list = h('div', { class: 'lu-list' });
     this.exchange = h('button', { type: 'button', class: 'lu-exchange', onclick: () => this.choose(() => this.onExchange()) });
     this.el = h('div', { id: 'levelup-screen', hidden: '' },
-      h('div', { class: 'card' }, this.title, this.subtitle, this.list, this.exchange));
+      h('div', { class: 'card' }, this.title, this.subtitle, this.list, h('p',{class:'lu-hint'},'Удерживай дар для предпросмотра'), this.exchange));
     root.append(this.el);
     this.armedAt = 0;
   }
