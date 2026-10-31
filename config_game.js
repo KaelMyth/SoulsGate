@@ -782,7 +782,7 @@ export const CONFIG = {
     elderSpirit: {
       hp: 350, speed: 0, radius: 31, touchDamage: 18, touchCooldown: 1.1, knockbackScale: 0.15,
       drop: 'red', swarm: false, spectral: true, pauseBeforeRush: 0,
-      summon: { kind: 'spirit', count: 3, interval: 5.5, firstDelay: 1.2, radius: 72 },
+      summon: { kind: 'spirit', count: 2, interval: 7.5, firstDelay: 1.8, radius: 72 },
       color: '#a8c5ff', edge: '#ffffff',
     },
     spectralSerpent: {
@@ -1330,11 +1330,11 @@ export const CONFIG = {
       { count: 38, interval: 0.5, maxAlive: 30 },
       { count: 46, interval: 0.4, maxAlive: 36 },
       { count: 50, interval: 0.4, maxAlive: 38 },
-      { count: 54, interval: 0.4, maxAlive: 40 },
-      { count: 58, interval: 0.38, maxAlive: 42 },
-      { count: 62, interval: 0.36, maxAlive: 44 },
-      { count: 66, interval: 0.34, maxAlive: 46 },
-      { count: 70, interval: 0.32, maxAlive: 48 },
+      { count: 30, interval: 0.55, maxAlive: 18 },
+      { count: 3, interval: 2.8, maxAlive: 9 },
+      { count: 16, interval: 1.5, maxAlive: 10 },
+      { count: 6, interval: 2.5, maxAlive: 6 },
+      { count: 24, interval: 1.2, maxAlive: 16 },
       { count: 74, interval: 0.3, maxAlive: 50 },
       { count: 78, interval: 0.3, maxAlive: 52 },
       { count: 82, interval: 0.28, maxAlive: 54 },
@@ -1372,11 +1372,13 @@ export const CONFIG = {
         { formation: { leader: 'frozenArcher', guard: 'frozenSoldier' }, groupSize: 6 },
         { mix: { frozenRam: 1 }, groupSize: 3, spread: 30 },
       ] },
-      11: { mix: { spirit: 1 }, groupSize: 1, sides: 'varied', count: 12, interval: 1.6, maxAlive: 12 },
-      12: { mix: { elderSpirit: 1 }, groupSize: 1, sides: 'varied', count: 4, interval: 4.5, maxAlive: 30 },
-      13: { mix: { spectralSerpent: 1 }, groupSize: 1, sides: 'varied', count: 14, interval: 1.8, maxAlive: 14 },
+      11: { mix: { spirit: 1 }, groupSize: 3, sides: 'varied', spread: 38, count: 30, interval: 1.5, maxAlive: 18 },
+      12: { mix: { elderSpirit: 1 }, groupSize: 1, sides: 'varied', count: 3, interval: 2.8, maxAlive: 9 },
+      13: { mix: { spectralSerpent: 1 }, groupSize: 1, sides: 'varied', count: 16, interval: 1.5, maxAlive: 10 },
+      14: { mix: { spectralSerpent: 1 }, groupSize: 1, sides: 'varied', count: 6, interval: 2.5, maxAlive: 6 },
+      15: { mix: { spirit: 6, elderSpirit: 1, spectralSerpent: 2 }, groupSize: 2, sides: 'varied', spread: 32, count: 24, interval: 1.2, maxAlive: 16 },
     },
-    total: 20,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
+    total: 15,        // всего волн в забеге: после зачистки последней забег пройден (событие 'run:completed')
     // Миниборс: когда на этой волне убиты все враги, появляется босс (enemy: ключ из enemies).
     // Игра замирает, камера плавно уходит на босса, появляется его имя, имя гаснет, камера возвращается на героя.
     // После победы над боссом идут обычные волны дальше. Времена в секундах.
@@ -1394,9 +1396,9 @@ export const CONFIG = {
     // Финальный босс: после зачистки волны выходит Апофеоз. Игра замирает, камера отдаляется, остаток карты рушится,
     // герой остаётся на острове (zone), босс в разрушенной зоне (finale). Потом бой идёт с отдалённой камерой.
     boss2: { wave: 10, enemy: 'tartas' }, // второй мини-босс (вступление то же, waves.boss.intro)
-    finalBoss: { wave: 20, enemy: 'apotheosis' },
+    finalBoss: { wave: 15, enemy: 'apotheosis' },
     finale: {
-      zoom: 1.4,           // во сколько раз отдалена камера на время боя (остров 520 шириной и босс над ним помещаются; было 2.0: всё мелко)
+      zoom: 1.22,          // камера ближе к герою и Апофеозу, чем раньше на время боя (остров 520 шириной и босс над ним помещаются; было 2.0: всё мелко)
       zoneWidth: 520,      // остров, где можно двигаться (многоугольник): размеры и центр, считая от центра карты
       zoneHeight: 640,
       zoneCenterX: 0,
@@ -1404,7 +1406,7 @@ export const CONFIG = {
       jag: 55,             // насколько ломаные три стороны острова заходят внутрь; верхняя (к боссу) плоская
       jagStep: 80,         // шаг вершин по ломаным сторонам
       bossGap: 45,         // единиц от плоской верхней стороны острова до центра босса: нижняя часть тела скрыта полем (он вылез из пустоты)
-      // Портал: после зачистки 20-й волны в центре карты. Игрока к нему ведёт стрелка на краю экрана. Подошёл
+      // Портал: после зачистки 15-й волны в центре карты. Игрока к нему ведёт стрелка на краю экрана. Подошёл
       // ближе closeDist: портал гаснет за fade секунд, и начинается ролик с разрушением мира.
       portal: { x: 0, y: 0, radius: 46, closeDist: 70, fade: 0.7, rise: 0.8 },
       zoomTime: 1.3,       // с: камера отдаляется

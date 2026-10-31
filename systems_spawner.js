@@ -189,10 +189,11 @@ export class Spawner {
 
     // Призывы больших духов не расходуют счётчик запланированных врагов волны.
     if(this.arena.location==='sanctum' && this.wave>=12 && this.phase==='active'){
-      const alive=this.countAlive(),cap=Math.min(36,this.cap());
+      const alive=this.countAlive(),cap=Math.min(18,this.cap());
       let slots=Math.max(0,cap-alive);
       for(const parent of this.enemies.items){
         if(!parent.active||!parent.def.summon)continue;
+        if(slots<=0)break;
         parent.summonTimer-=dt;
         if(parent.summonTimer>0)continue;
         parent.summonTimer+=parent.def.summon.interval;
@@ -387,7 +388,7 @@ export class Spawner {
       if(k)return k;
     }
     const fz=sp.frozen;
-    if(this.arena.location==='sanctum')return this.wave===12?'elderSpirit':this.wave>=13?'spectralSerpent':'spirit';
+    if(this.arena.location==='sanctum')return this.wave===12?'elderSpirit':this.wave===13||this.wave===14?'spectralSerpent':'spirit';
     if(fz&&this.arena.location==='hall'&&this.wave>=fz.fromWave)return this.pickSkeleton(fz.weights)||sp.enemy;
     // Смесь врагов: быки и стрелки с своих волн, остальное жуки. Доли в config.spawn.
     const bullShare = this.wave >= sp.bullFromWave ? sp.bullShare : 0;
