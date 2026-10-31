@@ -269,15 +269,16 @@ body {
 .piece .tile { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); }
 .piece .icon-svg {
   position: absolute; left: 50%; top: 50%; width: 52%; height: 52%; transform: translate(-50%, -50%) rotate(var(--rot)); pointer-events: none; overflow: visible;
-  filter: drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 6px var(--glow));
+  filter: drop-shadow(0 0 1px var(--glow)) drop-shadow(0 0 3px var(--glow));
 }
-.piece.t-stone { color: #d4e6ff; --glow: rgba(120, 180, 255, 0.85); --hi: #ffffff; --dark: #222b40; }
-.piece.t-iron { color: #e8f7ff; --glow: rgba(110, 215, 255, 0.9); --hi: #7fe0ff; --dark: #1d2430; }
-.piece.t-gold { color: #ffe9a6; --glow: rgba(255, 196, 70, 0.95); --hi: #fffbe6; --dark: #3a2c0c; }
+.piece.t-stone { color:#d9d8d1; --glow:rgba(190,190,175,.32); --hi:#f1ede2; --dark:#292c33; }
+.piece.t-iron { color:#d2e0e9; --glow:rgba(97,145,174,.48); --hi:#f1f7fa; --dark:#1b2834; }
+.piece.t-gold { color:#f2d99c; --glow:rgba(201,153,68,.48); --hi:#fff2d0; --dark:#38281b; }
+.piece.t-gem { color:#f2d5ae; --glow:rgba(184,125,187,.58); --hi:#fff0d7; --dark:#291f3b; }
 .piece.t-core-bolt { color: #c4e8ff; --glow: rgba(70, 150, 255, 0.95); --hi: #ffffff; --dark: #18203a; }
 .piece.t-core-shield { color: #ffdca8; --glow: rgba(255, 170, 80, 0.85); --hi: #fff3dc; --dark: #3a2616; }
 .piece.t-dash-steel { color: #e0e8f2; --glow: rgba(150, 175, 210, 0.85); --hi: #ffffff; --dark: #1b2230; }
-.piece .icon-svg.i-flame { color: #ffb36a; --hi: #fff0c0; --glow: rgba(255, 120, 30, 0.95); }
+/* Единая окраска гравировки по материалу, включая стихии. */
 
 #pause-screen .row { display: flex; gap: 8px; }
 #pause-screen .row button { flex: 1; margin-top: 6px; }

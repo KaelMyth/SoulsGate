@@ -3,11 +3,10 @@
 import { h, svg } from './ui_dom.js';
 import { icon } from './ui_icons.js';
 
-/** Вид плитки для мода: вторичные ядра имеют свой дизайн, остальные: камень, железо или золото по редкости. */
+/** Материал модов всегда определяется редкостью, включая вторичные умения. */
 export function tileOfMod(key, def) {
-  if (def && def.effect && def.effect.secondary) return 'dash-steel';
-  const r = (def && def.rarity) || 'common';
-  return r === 'legendary' ? 'gold' : r === 'rare' || r === 'epic' ? 'iron' : 'stone';
+  const rarity = def && def.rarity || 'common';
+  return rarity === 'legendary' ? 'gem' : rarity === 'epic' ? 'gold' : rarity === 'rare' ? 'iron' : 'stone';
 }
 
 /** Вид плитки для ядра. */
@@ -36,37 +35,88 @@ function frame(rim, light, dark, field, fieldEdge, mid) {
   ];
 }
 
+// Четыре самостоятельных, детализированных материала. Символы умений остаются читаемыми.
 function tileStone() {
-  return svg('symbol', { id: 't-stone', viewBox: '0 0 64 64' },
-    ...frame('#4a5671', '#93a3c6', '#161c2e', '#202839', '#7384aa', [
-      poly('0,5 5,0 30,0 22,13 0,18', '#5a6886', { opacity: 0.9 }),
-      poly('30,0 59,0 64,5 64,22 46,14 22,13', '#3c4760', { opacity: 0.9 }),
-      poly('0,18 22,13 26,64 5,64 0,59', '#364058', { opacity: 0.85 }),
-      poly('46,14 64,22 64,59 59,64 40,64 36,40', '#566380', { opacity: 0.8 }),
-      ln('M22 13L16 22M46 14L52 24M26 64L30 56M64 40L56 44', '#12182a', 1.2, { opacity: 0.8 })]),
-    ln('M2 30l6-2M56 6l5 2M30 60l5-1', '#9aa9ca', 1, { opacity: 0.35 }));
+  return svg('symbol', { id:'t-stone', viewBox:'0 0 64 64' },
+    ...frame('#52545a','#989ba1','#1d222a','#292d34','#757980', [
+      poly('0,5 5,0 31,0 23,12 0,19','#686b71'),
+      poly('31,0 59,0 64,5 64,22 48,15 23,12','#434850'),
+      poly('0,19 23,12 28,64 5,64 0,59','#40454b',{opacity:.86}),
+      poly('48,15 64,22 64,59 59,64 39,64 35,41','#5e626a',{opacity:.9}),
+      poly('0,5 5,0 9,7 2,13','#a6a6a0',{opacity:.43}),
+      poly('59,0 64,5 57,11 53,4','#20252b',{opacity:.72}),
+      poly('59,64 64,59 55,53 51,61','#292d33',{opacity:.87}),
+      poly('5,64 0,59 7,53 12,60','#868887',{opacity:.6}),
+      ln('M3 32L8 28L12 32M54 6L48 15L52 22M5 50L13 43L17 48M60 38L54 41L51 49','#20242b',1.2,{opacity:.85}),
+      ln('M6 7L12 13M48 3L44 8M56 55L50 49','#b1ada4',.9,{opacity:.46}),
+    ]),
+    ln('M13 17L17 14M47 54L51 48M2 35L6 37M57 27L61 24','#c0bfb4',.9,{opacity:.36}));
 }
 
 function tileIron() {
-  const rivet = (x, y) => [svg('circle', { cx: x, cy: y, r: 2.4, fill: '#2b323d' }), svg('circle', { cx: x - 0.5, cy: y - 0.5, r: 1.5, fill: '#c3ced9' })];
-  return svg('symbol', { id: 't-iron', viewBox: '0 0 64 64' },
-    ...frame('#6b7684', '#e1ebf5', '#1b2029', '#1a212c', '#8fa2bb', [
-      poly('0,5 5,0 59,0 64,5 64,12 0,26', '#8794a5', { opacity: 0.55 }),
-      poly('0,50 64,34 64,59 59,64 5,64 0,59', '#434c59', { opacity: 0.65 }),
-      ln('M3 3.5H61M3 6H61M3 58H61M3 60.5H61M3 15H8M56 15H61M3 49H8M56 49H61', '#ffffff', 0.7, { opacity: 0.2 })]),
-    ...rivet(6.2, 6.2), ...rivet(57.8, 6.2), ...rivet(6.2, 57.8), ...rivet(57.8, 57.8),
-    ln('M12 9.6H52', '#6fd6ff', 1, { opacity: 0.35 }));
+  const rivet=(x,y)=>[
+    svg('circle',{cx:x,cy:y,r:2.6,fill:'#202b36',stroke:'#8599a8','stroke-width':.65}),
+    svg('circle',{cx:x-.55,cy:y-.6,r:1.4,fill:'#d0d8dd'})
+  ];
+  return svg('symbol',{id:'t-iron',viewBox:'0 0 64 64'},
+    ...frame('#596874','#d0dbe3','#151e29','#192731','#7b9cad',[
+      poly('0,5 5,0 59,0 64,5 64,12 0,27','#879ba7',{opacity:.55}),
+      poly('0,49 64,34 64,59 59,64 5,64 0,59','#344450',{opacity:.8}),
+      poly('4,9 9,4 54,4 60,10 55,14 10,14','#b0c0cb',{opacity:.17}),
+      poly('4,55 10,50 54,50 60,55 56,60 8,60','#283844',{opacity:.48}),
+      ln('M3 18V46M61 18V46M18 3H46M18 61H46','#bed2da',.8,{opacity:.44}),
+      ln('M14 12L21 7M43 57L50 52M14 52L21 57M43 7L50 12','#bed7e6',1,{opacity:.4}),
+      ln('M3 33L8 31M56 26L61 24M16 61L19 58','#101b25',.9,{opacity:.8}),
+    ]),
+    ...rivet(6,6),...rivet(58,6),...rivet(6,58),...rivet(58,58),
+    ln('M12 10H52M12 54H52','#83a8bf',.9,{opacity:.48}));
 }
 
 function tileGold() {
-  const gem = (x, y) => poly((x) + ',' + (y - 3) + ' ' + (x + 3) + ',' + y + ' ' + x + ',' + (y + 3) + ' ' + (x - 3) + ',' + y, '#fff3c0', { stroke: '#7a5a14', 'stroke-width': 0.8 });
-  return svg('symbol', { id: 't-gold', viewBox: '0 0 64 64' },
-    ...frame('#c39a34', '#fff1b8', '#4d3608', '#2c2209', '#e8c35c', [
-      poly('0,5 5,0 59,0 64,5 64,14 0,28', '#f1d27a', { opacity: 0.6 }),
-      poly('0,48 64,32 64,59 59,64 5,64 0,59', '#8a6518', { opacity: 0.6 }),
-      ln('M3 20L20 3M44 61L61 44', '#fff6cf', 1, { opacity: 0.55 })]),
-    ln('M13 10.5H51M10.5 13V51', '#ffe08a', 0.9, { opacity: 0.55 }),
-    gem(5.4, 5.4), gem(58.6, 5.4), gem(5.4, 58.6), gem(58.6, 58.6));
+  const rosette=(x,y)=>[
+    poly(x+','+(y-3.5)+' '+(x+3.5)+','+y+' '+x+','+(y+3.5)+' '+(x-3.5)+','+y,
+      '#e6c584',{stroke:'#684625','stroke-width':.8}),
+    svg('circle',{cx:x,cy:y,r:1.05,fill:'#fff0c4'})
+  ];
+  return svg('symbol',{id:'t-gold',viewBox:'0 0 64 64'},
+    ...frame('#b1894b','#fae5ac','#4e321a','#382819','#c7a96f',[
+      poly('0,5 5,0 59,0 64,5 64,14 0,29','#ebc374',{opacity:.48}),
+      poly('0,49 64,32 64,59 59,64 5,64 0,59','#886236',{opacity:.67}),
+      poly('4,13 13,4 51,4 60,13 56,17 8,17','#ffe6aa',{opacity:.16}),
+      ln('M3 21L21 3M43 61L61 43M4 45L19 61M45 3L60 18','#ffdd9a',1,{opacity:.47}),
+      ln('M15 7H49M15 57H49M7 15V49M57 15V49','#f0ce88',.9,{opacity:.65}),
+      ln('M14 13L20 17L24 13M40 13L44 17L50 13M14 51L20 47L24 51M40 51L44 47L50 51','#b38952',.8,{opacity:.8}),
+    ]),
+    ln('M12 10H52M10 12V52M12 54H52M54 12V52','#f2cf84',1,{opacity:.7}),
+    ...rosette(5.5,5.5),...rosette(58.5,5.5),
+    ...rosette(5.5,58.5),...rosette(58.5,58.5));
+}
+
+function tileGem() {
+  // Огранка по ободу, тёмная сердцевина под читаемый знак и золотые лапки оправы.
+  const mount=(x,y)=>[
+    svg('circle',{cx:x,cy:y,r:3.5,fill:'#aa8054',stroke:'#30233d','stroke-width':.85}),
+    poly(x+','+(y-2.4)+' '+(x+2.3)+','+y+' '+x+','+(y+2.4)+' '+(x-2.3)+','+y,
+      '#e3bd82',{stroke:'#f7e1a9','stroke-width':.45})
+  ];
+  return svg('symbol',{id:'t-gem',viewBox:'0 0 64 64'},
+    ...frame('#675379','#c5aad5','#211a2f','#29213a','#b392be',[
+      poly('0,5 5,0 30,0 21,13 0,25','#9c83b3',{opacity:.75}),
+      poly('30,0 59,0 64,5 64,25 44,13 21,13','#493b64',{opacity:.95}),
+      poly('0,25 21,13 27,64 5,64 0,59','#413650',{opacity:.84}),
+      poly('44,13 64,25 64,59 59,64 37,64 36,43','#785a88',{opacity:.78}),
+      poly('5,5 17,4 11,13 3,18','#dac2e4',{opacity:.53}),
+      poly('47,2 59,5 61,18 54,13','#dfc0bd',{opacity:.32}),
+      poly('2,49 9,45 16,56 5,59','#ad93bf',{opacity:.54}),
+      poly('57,50 62,55 59,62 49,59','#d9a6a5',{opacity:.26}),
+      ln('M2 29L11 18M53 4L47 13M6 57L19 51M52 49L61 38','#eddaef',1,{opacity:.47}),
+      ln('M21 13L13 20M44 13L51 20M27 64L23 54M37 64L41 54','#24192f',1.3,{opacity:.88}),
+    ]),
+    ln('M3 19L10 13M54 13L61 19M3 45L10 51M54 51L61 45','#f0c788',1.6,{opacity:.91}),
+    ln('M13 10H51M13 54H51','#d8ab71',.9,{opacity:.57}),
+    ...mount(6,6),...mount(58,6),...mount(6,58),...mount(58,58),
+    poly('28,4 32,1 36,4 32,8','#efd199',{opacity:.9}),
+    poly('28,60 32,56 36,60 32,63','#ae7955',{opacity:.91}));
 }
 
 function tileCoreBolt() {
@@ -125,7 +175,7 @@ let sprite = null;
 function ensureSprite() {
   if (sprite || typeof document === 'undefined' || !document.body) return;
   sprite = svg('svg', { width: 0, height: 0, style: 'position:absolute', 'aria-hidden': 'true' },
-    svg('defs', {}, tileStone(), tileIron(), tileGold(), tileCoreBolt(), tileCoreShield(),
+    svg('defs', {}, tileStone(), tileIron(), tileGold(), tileGem(), tileCoreBolt(), tileCoreShield(),
       tileDash('t-dash-steel', ['#c3ced9', '#8fa2bb'], '#8fa2bb', '')));
   document.body.append(sprite);
 }
