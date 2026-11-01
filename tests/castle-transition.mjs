@@ -109,7 +109,7 @@ test('Игровой переход сохраняет прогрессию, с�
   g.steamClouds=[1];g.synergyCasts=[1];g.synergyFlashes=[1];
   g.nav={buildBlocked(){this.rebuilt=true;},source:5};
   g.camera={viewH:800,snapTo(x,y){this.x=x;this.y=y;}};
-  g.renderer={floor:'outdoor',details:[1],rockSprites:[1]};
+  g.renderer={floor:'outdoor',details:[1],rockSprites:[1],hitfx:{clear(){}}};
   g.syncWaveHud=()=>{};g.burst=()=>{};
   assert.equal(g.enterCastleHall(),true);
   assert.equal(g.arena.location,'hall');
