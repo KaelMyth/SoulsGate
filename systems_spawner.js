@@ -114,12 +114,12 @@ export class Spawner {
 
   /** Сколько врагов в волне (с множителем численности). В краш-тесте не ограничено. */
   waveCount() {
-    return this.crash ? Infinity : Math.ceil(this.val('count') * this.cfg.spawn.countMult);
+    return this.crash ? Infinity : Math.ceil(this.val('count') * this.cfg.spawn.countMult * (this.arena.location === 'sanctum' ? 1.3 : 1));
   }
 
   /** Потолок живых врагов сейчас: по таблице, в краш-тесте растёт со временем, всегда под жёстким потолком. */
   cap() {
-    const base = Math.ceil(this.val('maxAlive') * this.cfg.spawn.countMult);
+    const base = Math.ceil(this.val('maxAlive') * this.cfg.spawn.countMult * (this.arena.location === 'sanctum' ? 1.3 : 1));
     const grow = this.crash ? Math.floor(this.crashTime * this.cfg.waves.crash.capGrowth) : 0;
     return Math.min(base + grow, this.cfg.limits.maxEnemies);
   }
@@ -561,7 +561,6 @@ export class Spawner {
       }
     }
     initEnemy(e, this.cfg.enemies[kind], x, y, this.arena.location === 'sanctum');
-    if(this.arena.location==='sanctum')e.radius*=1.3;
     // Охотники всегда имеют 20 HP: прогрессия волн не должна усиливать их.
     e.hp = e.maxHp = kind === 'hunter' ? this.cfg.enemies.hunter.hp : this.hpFor(this.cfg.enemies[kind].hp);
     if(e.def.summon)e.summonTimer=e.def.summon.firstDelay;
