@@ -419,7 +419,7 @@ body { font-family: var(--serif); }
 /* В меню билда кнопка умения не нужна. */
 #pause-screen:not([hidden]) ~ #slot-row { display: none; }
 .slot-btn.off { pointer-events: none; }
-.potion-btn { width:44px; height:52px; padding:0; border:0; background:transparent; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.potion-btn { position:absolute; left:calc(100% + 5px); top:4px; width:44px; height:52px; padding:0; border:0; background:transparent; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 
 /* ---------- Экран смерти ---------- */
 #death-screen {
