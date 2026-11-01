@@ -4,7 +4,7 @@ import { h } from './ui_dom.js';
 
 export class SlotUI {
   /** onPress(число нажатий, номер слота 0..2): вызывается при нажатии. */
-  constructor(root, onPress) {
+  constructor(root, onPress, onPotion) {
     this.presses = 0;
     this.buttons = [0, 1, 2].map((i) => h('button', {
       class: 'slot-btn', type: 'button', 'aria-label': 'Слот умения ' + (i + 1),
@@ -14,7 +14,8 @@ export class SlotUI {
         onPress(this.presses, i);
       },
     }));
-    this.row = h('div', { id: 'slot-row' }, ...this.buttons);
+    this.potion = h('button', { class:'potion-btn', type:'button', 'aria-label':'Выпить зелье здоровья', onpointerdown:(e)=>{if(e.cancelable)e.preventDefault();onPotion?.();} });
+    this.row = h('div', { id: 'slot-row' }, ...this.buttons, this.potion);
     root.append(this.row);
   }
 }

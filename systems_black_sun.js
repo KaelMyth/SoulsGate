@@ -25,6 +25,7 @@ export class BlackSun {
     this.burstY=0;
     this.burstRadius=0;
     this.soulsConsumed=0;
+    this.cooldown=0;
   }
 
   sync() {
@@ -39,7 +40,9 @@ export class BlackSun {
 
   /** Душа появляется на месте смерти и втягивается к солнцу. Одновременно летят до 10 душ. */
   onEnemyKilled(enemy) {
-    if(!this.sync() || this.phase!=='passive' || !enemy) return false;
+    if(!this.sync() || !enemy) return false;
+    this.cooldown=Math.max(0,this.cooldown-(this.cfg.blackSun.killReduction||2));
+    if(this.phase!=='passive') return false;
     const limit=Math.max(1,this.cfg.blackSun.soulsRequired|0);
     if(this.soulsStored+this.souls.length>=limit) return false;
     const dx=enemy.x-this.hero.x,dy=enemy.y-this.hero.y;
@@ -61,6 +64,7 @@ export class BlackSun {
     this.soulsStored=0;
     this.soulPulse=1;
     this.soulsConsumed++;
+    this.cooldown=Math.max(0,B.cooldown||20);
     const source=this.source;
     for(const enemy of this.enemies.items) {
       if(!enemy?.active) continue;
@@ -73,6 +77,7 @@ export class BlackSun {
   update(dt) {
     if(!this.sync()) return;
     this.soulPulse=Math.max(0,this.soulPulse-dt*2.7);
+    this.cooldown=Math.max(0,this.cooldown-dt);
     if(this.phase==='passive') {
       const lifetime=Math.max(.05,this.cfg.blackSun.soulTime);
       for(let i=this.souls.length-1;i>=0;i--) {
@@ -83,7 +88,7 @@ export class BlackSun {
         this.soulsStored++;
         this.soulPulse=1;
       }
-      if(this.soulsStored>=Math.max(1,this.cfg.blackSun.soulsRequired|0)) {
+      if(this.cooldown<=0 && this.soulsStored+this.souls.length>0) {
         this.souls.length=0;
         this.phase='collapse';
         this.time=0;

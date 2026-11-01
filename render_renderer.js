@@ -6338,6 +6338,18 @@ export class Renderer {
         !!this.inspiration?.active,'gold',U.slots[2]);
     }else this.drawAbility(cx+64,rowY,0,'#6fb6ff','#d6efff',0,false,undefined,0,true);
 
+    // Малое зелье справа от умений, с числом оставшихся флаконов.
+    const px=cx+125,py=rowY;
+    ctx.save();
+    ctx.translate(px,py);
+    ctx.fillStyle='rgba(17,14,25,.85)';ctx.strokeStyle='#977c70';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.roundRect(-20,-22,40,44,8);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#c6a77c';ctx.fillRect(-5,-16,10,5);
+    ctx.fillStyle='#d5bcb0';ctx.fillRect(-7,-12,14,4);
+    ctx.fillStyle='#a52c48';ctx.beginPath();ctx.moveTo(-9,-8);ctx.lineTo(9,-8);ctx.lineTo(12,11);ctx.quadraticCurveTo(0,18,-12,11);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#ffe0d9';ctx.font='bold 12px '+SERIF;ctx.textAlign='center';ctx.fillText(String(hud.potions??3),0,30);
+    ctx.restore();
+
     // Повышение уровня: надпись плавно гаснет.
     if (hud.levelFlash > 0) {
       const a = Math.min(1, hud.levelFlash);

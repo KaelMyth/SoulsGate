@@ -33,6 +33,7 @@ export class Xp {
     this.rnd = o.rnd || Math.random;
     this.inspiration = null; // третье умение: задаётся Game после создания объектов
     this.level = 1;
+    this.potions = 3;
     this.xp = 0;        // накоплено в текущем уровне
     this.total = 0;     // всего за забег
     this.levelFlash = 0; // сколько ещё показывать «Уровень N!»
@@ -40,6 +41,7 @@ export class Xp {
   }
 
   reset() {
+    this.potions = 3;
     this.level = 1;
     this.xp = 0;
     this.total = 0;
@@ -102,6 +104,7 @@ export class Xp {
   collect(g) {
     g.active = false;
     if (g.def.heal) {
+      if (this.hero.hp >= this.hero.maxHp) { this.potions++; return; }
       this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + g.def.heal);
       this.bus.emit('hero:healed', { x:g.x, y:g.y, amount:g.def.heal });
       return;
@@ -110,6 +113,14 @@ export class Xp {
     this.inspiration?.collectedGem(g);
     this.bus.emit('gem:collected', { gem: g, value });
     this.add(value);
+  }
+
+  usePotion() {
+    if(this.potions<=0 || !this.hero.active || this.hero.hp>=this.hero.maxHp)return false;
+    this.potions--;
+    this.hero.hp=Math.min(this.hero.maxHp,this.hero.hp+25);
+    this.bus.emit('hero:healed',{x:this.hero.x,y:this.hero.y,amount:25});
+    return true;
   }
 
   /** Добавить опыт (с множителем скорости набора). Возвращает, сколько уровней взято. */

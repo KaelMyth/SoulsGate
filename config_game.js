@@ -541,7 +541,9 @@ export const CONFIG = {
   },
   // Тройка Щита «Чёрное солнце»: смерть внутри Ауры -> растворение души -> схлопывание.
   blackSun: {
-    soulsRequired: 10,   // заряд на один взрыв: десять поглощённых душ
+    soulsRequired: 10,
+    cooldown: 20, // базовая перезарядка; каждое убийство сокращает на 2 секунды
+    killReduction: 2,   // заряд на один взрыв: десять поглощённых душ
     damage: 115,        // однократный удар всем врагам в области имплозии
     radiusMul: 2.3,     // относительно текущей Ауры (учитывает Х2/Х3 на Ауре)
     minRadius: 210,     // минимум большого радиуса имплозии
@@ -775,7 +777,7 @@ export const CONFIG = {
       color: '#5aa9e6', edge: '#d6efff',
     },
     spirit: {
-      hp: 19.2, speed: 245, radius: 13, touchDamage: 12, touchCooldown: 0.8, knockbackScale: 0.65,
+      hp: 19.2, speed: 165, radius: 13, touchDamage: 12, touchCooldown: 0.8, knockbackScale: 0.65,
       drop: 'green', swarm: false, spectral: true, pauseBeforeRush: 0.85,
       color: '#c4eaff', edge: '#f3ffff',
     },
@@ -1224,7 +1226,7 @@ export const CONFIG = {
   // Камни опыта. value: сколько опыта даёт. Красный (бык) даёт в 5 раз больше зелёного.
   gems: {
     healDropChance: 0.02,
-    heal: { value: 0, heal: 20, radius: 7, color: '#f24e70', edge: '#ffc1cc' },
+    heal: { value: 0, heal: 25, radius: 7, color: '#f24e70', edge: '#ffc1cc' },
     green: { value: 1, radius: 4, color: '#4fd18b', edge: '#b9f5d4' },
     red: { value: 5, radius: 6, color: '#e5534b', edge: '#ffb3a8' },
   },

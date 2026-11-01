@@ -551,11 +551,26 @@ export class Spawner {
 
   spawnAt(kind, x, y) {
     const e = this.enemies.spawn();
+    if(this.arena.location==='sanctum' && this.hero?.active && this.cfg.enemies[kind]?.spectral){
+      const safe=125+this.hero.radius+(this.cfg.enemies[kind].radius||0)*1.3;
+      const dx=x-this.hero.x,dy=y-this.hero.y;
+      if(dx*dx+dy*dy<safe*safe){
+        const angle=dx||dy?Math.atan2(dy,dx):this.rnd()*TAU;
+        x=this.hero.x+Math.cos(angle)*safe;
+        y=this.hero.y+Math.sin(angle)*safe;
+      }
+    }
     initEnemy(e, this.cfg.enemies[kind], x, y, this.arena.location === 'sanctum');
+    if(this.arena.location==='sanctum')e.radius*=1.3;
     // Охотники всегда имеют 20 HP: прогрессия волн не должна усиливать их.
     e.hp = e.maxHp = kind === 'hunter' ? this.cfg.enemies.hunter.hp : this.hpFor(this.cfg.enemies[kind].hp);
     if(e.def.summon)e.summonTimer=e.def.summon.firstDelay;
     this.arena.resolveCircle(e); // не внутри скалы
+    if(this.arena.location==='sanctum' && e.def.spectral && this.hero?.active){
+      const safe=125+this.hero.radius+e.radius;
+      const dx=e.x-this.hero.x,dy=e.y-this.hero.y;
+      if(dx*dx+dy*dy<safe*safe){const a=dx||dy?Math.atan2(dy,dx):this.rnd()*TAU;e.x=this.hero.x+Math.cos(a)*safe;e.y=this.hero.y+Math.sin(a)*safe;this.arena.resolveCircle(e);}
+    }
     e.prevX = e.x;
     e.prevY = e.y;
     return e;

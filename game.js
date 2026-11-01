@@ -322,7 +322,7 @@ export class Game {
       onExit: () => this.exitToMenu(),
     }, this.build, this.inventory, config);
 
-    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); else if (i === 1) this.castIncarnation(); else if (i === 2) this.castInspiration(); });
+    this.slot = new SlotUI(o.uiRoot, (n, i) => { if (i === 0) this.castRain(); else if (i === 1) this.castIncarnation(); else if (i === 2) this.castInspiration(); }, () => { if(this.state==='playing')this.xp.usePotion(); });
 
     // Экран выбора режима (в тестах и без o.menu игра сразу идёт, как раньше).
     this.burnSource = { burn: true, active: true };
@@ -2123,6 +2123,7 @@ export class Game {
     hud.intermissionTotal = this.config.waves.intermission;
     hud.alive = sp.alive;
     hud.cap = sp.phase === 'active' ? sp.cap() : 0;
+    hud.potions = this.xp.potions;
     hud.level = this.xp.level;
     hud.xpFraction = this.xp.fraction;
     hud.xpMax = this.xp.need === 0;
