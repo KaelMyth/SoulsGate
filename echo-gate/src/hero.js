@@ -147,6 +147,9 @@ export class Hero {
       this.arms.push(arm);
     }
 
+    this.buildStaff(glowTex, matBelt);
+    this.buildTome(glowTex);
+
     // Мягкая тень под ногами (круг-градиент).
     this.shadow = new THREE.Mesh(
       new THREE.PlaneGeometry(1.7, 1.7),
@@ -169,6 +172,87 @@ export class Hero {
     this.prevVz = 0;
     this.squash = 0;         // рывок: вытягивание
     this.group.rotation.y = this.yaw;
+  }
+
+  /** Посох в руке +x (у персонажа левая): ствол с хватом на высоте руки, у земли обойма, наверху завиток и бирюзовый кристалл. */
+  buildStaff(glowTex, matBelt) {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.85 });
+    const woodDark = new THREE.MeshStandardMaterial({ color: 0x5a3c28, roughness: 0.9 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xc9a25a, roughness: 0.45, metalness: 0.5 });
+    const staff = new THREE.Group();
+    // Хват в начале координат группы; низ посоха на 0.42 ниже, верх на 1.5 выше.
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.044, 1.92, 12), wood);
+    shaft.position.y = (1.5 - 0.42) / 2;
+    const ferrule = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 12), woodDark);
+    ferrule.rotation.x = Math.PI;
+    ferrule.position.y = -0.42 - 0.02;
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 12), matBelt);
+    // Завиток: дуга тора вокруг кристалла.
+    const curl = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 8, 22, Math.PI * 1.5), wood);
+    curl.position.y = 1.58;
+    curl.rotation.z = Math.PI * 0.75;
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.04, 0.07, 12), gold);
+    collar.position.y = 1.5;
+    this.crystal = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.095, 0),
+      new THREE.MeshStandardMaterial({ color: COLORS.eye, emissive: COLORS.eye, emissiveIntensity: 1.2, roughness: 0.2 }),
+    );
+    this.crystal.scale.y = 1.4;
+    this.crystal.position.y = 1.62;
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: COLORS.eye, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    glow.scale.set(0.75, 0.75, 1);
+    glow.position.y = 1.62;
+    this.staffGlow = glow;
+    staff.add(shaft, ferrule, grip, curl, collar, this.crystal, glow);
+    // Хват в ладони перчатки правой руки модели (+x).
+    staff.position.set(0.2, -0.5, 0.04);
+    this.arms[1].add(staff);
+    this.staff = staff;
+  }
+
+  /** Фолиант в руке -x: тёмная обложка с золотыми уголками, светящаяся руна, блок страниц. Парит над ладонью. */
+  buildTome(glowTex) {
+    const cover = new THREE.MeshStandardMaterial({ color: 0x3a2a3d, roughness: 0.8 });
+    const pages = new THREE.MeshStandardMaterial({ color: 0xe9e2cf, roughness: 0.95 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xc9a25a, roughness: 0.45, metalness: 0.5 });
+    const tome = new THREE.Group();
+    const W = 0.27;
+    const H = 0.36;
+    const T = 0.085;
+    tome.add(new THREE.Mesh(new THREE.BoxGeometry(W, H, T), cover));
+    const block = new THREE.Mesh(new THREE.BoxGeometry(W - 0.03, H - 0.03, T - 0.03), pages);
+    block.position.set(0.012, 0, 0);
+    tome.add(block);
+    // Корешок и уголки.
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.035, H + 0.01, T + 0.012), cover);
+    spine.position.x = -W / 2;
+    tome.add(spine);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, T + 0.014), gold);
+      c.position.set(sx * (W / 2 - 0.02), sy * (H / 2 - 0.02), 0);
+      tome.add(c);
+    }
+    // Руна на лицевой стороне (+z).
+    const rune = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.17, 0.17),
+      new THREE.MeshBasicMaterial({ map: makeRuneTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    rune.position.z = T / 2 + 0.004;
+    tome.add(rune);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: COLORS.eye, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    glow.scale.set(0.5, 0.5, 1);
+    glow.position.z = T / 2 + 0.02;
+    tome.add(glow);
+    this.runeGlow = glow;
+    // Над ладонью (рука -x), лицом вперёд-наружу.
+    tome.position.set(-0.2, -0.3, 0.1);
+    tome.scale.setScalar(1.35);
+    this.arms[0].add(tome);
+    this.tome = tome;
   }
 
   /** Добавить фигуру и тень в сцену. */
@@ -232,12 +316,32 @@ export class Hero {
     this.hat.rotation.z = Math.max(-0.4, Math.min(0.4, -accS * 0.012));
     this.head.rotation.x = -this.lean * 0.5;
 
-    // Руки качаются в противофазе, при рывке отведены назад.
-    const swing = stepS * 0.7 * frac + this.squash * 0.9;
-    this.arms[0].rotation.x = -swing + Math.sin(this.t * 2) * 0.03;
-    this.arms[1].rotation.x = swing + Math.sin(this.t * 2 + 1) * 0.03;
-    this.arms[0].rotation.z = -0.05 - frac * 0.1;
-    this.arms[1].rotation.z = 0.05 + frac * 0.1;
+    // Руки. Рука с фолиантом (arms[0]) согнута вперёд и держит книгу на уровне пояса, книга пружинит на шагах.
+    // Рука с посохом (arms[1]) качается слабо, посох наклонён вперёд на беге (низ отрывается от земли),
+    // в рывке его уводят назад, фолиант прижимают к груди.
+    const dashK = this.squash;
+    const idleBreath = Math.sin(this.t * 2);
+    const stepBounce = Math.abs(Math.sin(this.walk * 2));
+    const tomeArm = -0.7 - 0.2 * frac - 0.5 * dashK + idleBreath * 0.03;
+    const staffArm = stepS * 0.32 * frac - 0.15 * dashK + Math.sin(this.t * 2 + 1) * 0.02;
+    this.arms[0].rotation.x = tomeArm;
+    this.arms[1].rotation.x = staffArm;
+    this.arms[0].rotation.z = -0.05 - frac * 0.05;
+    this.arms[1].rotation.z = 0.05 + frac * 0.06;
+    // Посох держит собственный наклон независимо от руки (компенсируем поворот руки).
+    const staffTilt = frac * 0.42 + stepS * 0.06 * frac - dashK * 1.35 + (1 - frac) * Math.sin(this.t * 1.3) * 0.015;
+    this.staff.rotation.x = staffTilt - staffArm;
+    this.staff.rotation.z = -0.05;
+    // Фолиант держит себя ровно (тоже компенсируем) и парит.
+    this.tome.rotation.x = -tomeArm - 0.35 + stepBounce * 0.05 * frac;
+    this.tome.rotation.y = 0.35 - dashK * 0.3;
+    this.tome.position.y = -0.3 + idleBreath * 0.012 + stepBounce * 0.03 * frac;
+    // Кристалл и руна пульсируют, сильнее на бегу.
+    const pulse = 0.5 + 0.5 * Math.sin(this.t * 3 + (frac + dashK) * 2);
+    this.crystal.material.emissiveIntensity = 1.0 + pulse * 0.6 + frac * 0.3 + dashK * 0.6;
+    this.staffGlow.material.opacity = 0.55 + pulse * 0.25 + dashK * 0.2;
+    this.runeGlow.material.opacity = 0.25 + pulse * 0.2 + dashK * 0.25;
+    this.crystal.rotation.y += dt * (1.2 + frac * 2);
 
     // Сапоги шагают.
     this.boots[0].position.z = 0.3 + stepS * 0.17 * frac;
@@ -274,6 +378,24 @@ function makeGlowTexture() {
   r.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = r;
   g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Руна на обложке: кольцо, треугольник и точка, светящиеся бирюзой. */
+function makeRuneTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.strokeStyle = '#7ff7ff';
+  g.lineWidth = 6;
+  g.shadowColor = '#35f2ff';
+  g.shadowBlur = 10;
+  g.beginPath(); g.arc(64, 64, 46, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(64, 28); g.lineTo(98, 86); g.lineTo(30, 86); g.closePath(); g.stroke();
+  g.fillStyle = '#c9fcff';
+  g.beginPath(); g.arc(64, 70, 7, 0, Math.PI * 2); g.fill();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
