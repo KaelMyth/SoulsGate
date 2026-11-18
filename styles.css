@@ -67,7 +67,7 @@ body {
   position: fixed;
   z-index: 20;
   top: calc(var(--safe-top) + 8px);
-  right: calc(var(--safe-right) + 8px);
+  left: calc(var(--safe-left) + 60px); /* справа от кнопки паузы (она в самом углу) */
   width: 44px;
   height: 44px;
   padding: 0;
@@ -83,7 +83,7 @@ body {
   position: fixed;
   z-index: 20;
   top: calc(var(--safe-top) + 8px);
-  right: calc(var(--safe-right) + 60px);
+  left: calc(var(--safe-left) + 112px);
   height: 44px;
   box-sizing: border-box;
   padding: 0 10px;
@@ -102,7 +102,7 @@ body {
   position: fixed;
   z-index: 20;
   top: calc(var(--safe-top) + 60px);
-  right: calc(var(--safe-right) + 8px);
+  left: calc(var(--safe-left) + 8px);
   box-sizing: border-box;
   width: min(88vw, 330px);
   max-height: calc(100% - var(--safe-top) - var(--safe-bottom) - 72px);
@@ -206,6 +206,15 @@ body {
   text-transform: uppercase;
   color: var(--accent);
 }
+
+/* Вкладки категорий окна настроек: лента прокручивается вбок, страница видна одна. */
+.dbg-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 8px; padding-bottom: 4px; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+.dbg-tab {
+  flex: 0 0 auto; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--ink); font-size: 12px; touch-action: manipulation;
+}
+.dbg-tab.on { border-color: var(--accent); color: var(--accent); }
+.dbg-page[hidden] { display: none; }
 
 /* Разделы ползунков сворачиваются: открывается один нажатием на заголовок. */
 #dbg-panel .dbg-sect { border-bottom: 1px solid var(--line); }
