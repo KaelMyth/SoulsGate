@@ -69,11 +69,14 @@ export class World {
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.renderer.domElement.parentElement);
   }
 
   resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    // Размер берём у рамки «телефона», а не у окна браузера.
+    const box = this.renderer.domElement.parentElement;
+    const w = Math.max(1, box.clientWidth);
+    const h = Math.max(1, box.clientHeight);
     this.renderer.setSize(w, h, false);
     const a = w / h;
     const span = this.cfg.camera.viewSpan;
