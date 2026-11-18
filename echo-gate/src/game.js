@@ -29,32 +29,30 @@ export class Game {
     this.keys = new Keys(() => this.dashFromInput());
     this.tmp = { x: 0, z: 0 };
     this.kv = { x: 0, y: 0 };
-    this.ui = o.ui; // { base, knob, hint }
+    this.ui = o.ui; // { base, knob, start }
     this.acc = 0;
     this.last = 0;
     this.running = true;
-    this.moved = false;
+    this.playing = false; // пока не нажали Play, герой не слушается
 
-    this.bus.on('stick:press', () => this.hideHint());
     window.addEventListener('blur', () => this.stick.cancel());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.stick.cancel(); });
     this.world.follow(0, 0, 0, true);
   }
 
-  hideHint() {
-    if (this.moved) return;
-    this.moved = true;
-    if (this.ui.hint) this.ui.hint.classList.add('gone');
+  /** Кнопка Play: убрать стартовый экран и включить управление. */
+  play() {
+    this.playing = true;
+    if (this.ui.start) this.ui.start.classList.add('gone');
   }
 
   dash(wx, wz) {
+    if (!this.playing) return;
     if (this.motion.startDash(wx, wz)) this.bus.emit('dash:started', { x: wx, z: wz });
   }
 
   /** Рывок без свайпа (Пробел): по текущему стику, иначе вперёд по взгляду. */
   dashFromInput() {
-    this.hideHint();
-    const m = this.motion;
     const d = this.readInput(this.tmp);
     if (d.x !== 0 || d.z !== 0) this.dash(d.x, d.z);
     else this.dash(Math.sin(this.hero.yaw), Math.cos(this.hero.yaw));
@@ -62,8 +60,9 @@ export class Game {
 
   /** Мировой вектор ввода (стик или клавиши), длина 0..1. */
   readInput(out) {
-    if (this.stick.active) screenToWorld(this.stick.x, this.stick.y, out);
-    else if (this.keys.read(this.kv)) { this.hideHint(); screenToWorld(this.kv.x, this.kv.y, out); }
+    if (!this.playing) { out.x = 0; out.z = 0; }
+    else if (this.stick.active) screenToWorld(this.stick.x, this.stick.y, out);
+    else if (this.keys.read(this.kv)) screenToWorld(this.kv.x, this.kv.y, out);
     else { out.x = 0; out.z = 0; }
     return out;
   }

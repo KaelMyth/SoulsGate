@@ -2,6 +2,7 @@
 // 30 единиц SoulsGate = 1 метр. Правятся здесь, читаются каждый кадр.
 export const CONFIG = {
   title: 'Echo Gate',
+  repo: 'KaelMyth/SoulsGate', // откуда стартовый экран берёт хеш последнего коммита
 
   hero: {
     speed: 6,        // м/с при полностью отклонённом стике (в SoulsGate 180 ед./с)
