@@ -1,5 +1,5 @@
 {
-  "build": 26,
-  "commit": "8796805",
+  "build": 28,
+  "commit": "282c4b3",
   "notes": "Staff screen: 3D staff and crystal, smooth fade, translucent backdrop over paused game."
 }

@@ -19,6 +19,8 @@ import { Stats } from './stats.js';
 import { Hud } from './hud.js';
 import { Settings } from './settings.js';
 import { Hub, PopButton } from './hub.js';
+import { Inventory } from './inventory.js';
+import { InventoryUi } from './inventory_ui.js';
 
 export class Game {
   constructor(o) {
@@ -66,6 +68,12 @@ export class Game {
     this.shopBtn = new PopButton(o.ui.shopBtn, { radius: H.shopRadius, hysteresis: H.shopHysteresis, rise: H.shopButtonRise }, () => this.bus.emit('shop:open', {}));
     this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
     this.anchor = { x: 0, y: 0, z: 0 };
+    this.inventory = new Inventory(this.cfg.inventory);
+    this.invOpen = false;
+    if (o.ui.root) {
+      this.invUi = new InventoryUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.inventory, () => { this.invOpen = false; });
+      this.bus.on('gear:open', () => this.openInventory());
+    }
     this.paused = false;
     this.pauseBtn = o.ui.pauseBtn;
     this.pauseEl = o.ui.pause;
@@ -190,6 +198,14 @@ export class Game {
     u.knob.style.transform = `translate(${s.baseX + s.kx - R * 0.42}px, ${s.baseY + s.ky - R * 0.42}px)`;
   }
 
+  /** Окно инвентаря из хаба: хаб замирает, вместо мира рисуется витрина мага. */
+  openInventory() {
+    if (!this.inHub || this.switching || this.invOpen || !this.invUi) return;
+    this.invOpen = true;
+    this.stick.cancel();
+    this.invUi.show();
+  }
+
   /** Пауза боя: логика стоит, кадр рисуется, поверх окно с кнопкой продолжить. Только в забеге. */
   setPaused(on) {
     if (on && !this.playing) return;
@@ -218,12 +234,13 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.paused) advance(dt, (s) => this.step(s));
+    if (!this.paused && !this.invOpen) advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused) this.hub.update(dt, this.motion.x, this.motion.z);
-    this.world.render();
+    if (!this.paused && !this.invOpen) this.hub.update(dt, this.motion.x, this.motion.z);
+    if (this.invOpen) this.invUi.render(dt);
+    else this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
-    const hubOn = this.inHub && !this.switching;
+    const hubOn = this.inHub && !this.switching && !this.invOpen;
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
