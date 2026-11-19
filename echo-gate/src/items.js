@@ -12,7 +12,7 @@ export const KINDS = {
   staff: { label: 'Staff', slot: 'staff' },
 };
 
-export const ELEMENTS = { fire: 'Fire', ice: 'Ice', electric: 'Electric' };
+export const ELEMENTS = { fire: 'Fire', ice: 'Ice', electric: 'Electric', gravity: 'Gravity', laser: 'Laser', blades: 'Blades' };
 
 let nextId = 1;
 
@@ -73,4 +73,14 @@ export function iceStaff() {
 }
 export function electricStaff() {
   return new Item({ kind: 'staff', element: 'electric', name: 'Storm Staff', rarity: 'rare', level: 1, desc: 'A fork of steel that crackles with lightning. Its element will reshape your basic attack.' });
+}
+
+export function gravityStaff() {
+  return new Item({ kind: 'staff', element: 'gravity', name: 'Void Staff', rarity: 'rare', level: 1, desc: 'A caged singularity that bends everything toward it. Its element will reshape your basic attack.' });
+}
+export function laserStaff() {
+  return new Item({ kind: 'staff', element: 'laser', name: 'Prism Staff', rarity: 'rare', level: 1, desc: 'A precision emitter with a red lens. Its element will reshape your basic attack.' });
+}
+export function bladesStaff() {
+  return new Item({ kind: 'staff', element: 'blades', name: 'Bladestorm Staff', rarity: 'rare', level: 1, desc: 'A crown of steel with blades circling it. Its element will reshape your basic attack.' });
 }
