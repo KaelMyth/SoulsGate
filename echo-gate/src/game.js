@@ -15,6 +15,8 @@ import { StaffUi } from './staff_ui.js';
 import { staffStats } from './staff.js';
 import { Beetle } from './beetle.js';
 import { Shooter } from './shooter.js';
+import { Bull } from './bull.js';
+import { Telegraphs } from './telegraph.js';
 import { EnemyShots } from './enemy_shots.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
@@ -36,8 +38,10 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
     this.scatter.setVisible(false);
-    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : new Beetle()));
+    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : kind === 'bull' ? new Bull() : new Beetle()));
     this.enemyShots = new EnemyShots(this.world.scene);
+    this.telegraphs = new Telegraphs(this.world.scene);
+    this.spawner.onAttack = (e, dmg) => this.hurtHero(dmg);
     this.spawner.onShot = (e, dx, dz) => this.enemyShots.fire(e, dx, dz, this.cfg.shooter.shot);
     this.heroBody = { x: 0, z: 0, radius: this.cfg.hero.radius };
     this.invuln = 0; // с неуязвимости героя после удара
@@ -110,6 +114,7 @@ export class Game {
     this.stats.reset();
     this.spawner.reset();
     this.enemyShots.clear();
+    this.telegraphs.update({ alive: [] });
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
@@ -233,6 +238,7 @@ export class Game {
     if (this.playing) {
       this.spawner.update(dt, this.heroBody, this.world.groundRadius());
       this.enemyShots.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
+      this.telegraphs.update(this.spawner);
     }
     if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);

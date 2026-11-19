@@ -52,6 +52,27 @@ export const CONFIG = {
     shot: { damage: 14, speed: 5, radius: 0.2, range: 14 }, // шар: урон герою, м/с, м, м (150/6/420 ед.)
   },
 
+  // Бык (SoulsGate enemies.bull): подходит, замирает, показывает на земле красную полосу и прорывается по ней. Не в стае.
+  bull: {
+    hp: 3.2,             // здоровье на первой волне, в выстрелах (SoulsGate 38.4 при уроне выстрела 12)
+    speed: 2.5,          // м/с (75 ед./с)
+    radius: 0.62,        // м (в SoulsGate 0.5, здесь крупнее)
+    touchDamage: 8,
+    touchCooldown: 0.9,
+    knockbackScale: 0.6, // тяжёлый: от выстрелов откидывается меньше
+    attack: {
+      range: 10,         // м: с какого расстояния начинает замах (300 ед.)
+      length: 8.67,      // м: на сколько прорывается (260 ед.)
+      width: 1,          // м: ширина полосы (не меньше тела)
+      windup: 0.9,       // с: замах, полоса заполняется (по ней видно, куда придёт удар)
+      strike: 0.28,      // с: сам рывок
+      recovery: 0.8,     // с: стоит после рывка
+      cooldown: 2.0,     // с: пауза до следующего замаха
+      firstDelay: 1.2,   // с: до первого замаха после появления
+      damage: 20,        // урон героя, если рывок достал
+    },
+  },
+
   // Охрана стрелка (SoulsGate config.guards): жуки кольцом вокруг стрелка, бросаются в бой, когда герой подошёл или стрелок убит.
   guards: {
     ringDist: 1.53,   // м: радиус кольца (46 ед.)
@@ -75,14 +96,15 @@ export const CONFIG = {
     margin: 1.33,    // м: насколько дальше края экрана появляются (40 ед.)
     countMult: 1,    // множитель численности и потолка живых
     shooterShare: 0.2, // доля стрелков среди жуков волн 6+ (в SoulsGate с волны 2)
+    bullShare: 0.12,   // доля быков среди жуков волн 6+ (в SoulsGate с волны 3)
     maxAlive: 100,   // жёсткий потолок жуков на поле (защита от тормозов)
     patterns: [      // волны 1-5 (formation: стрелок в кольце охраны, остальные в пачке жуки-охранники): groupSize (пачка), sides ('varied' с разных сторон, 'ring' по всему кольцу), spread (м, куча)
       { count: 16, interval: 2.6, maxAlive: 16, groupSize: 4, sides: 'varied', spread: 0.8 },
       { count: 24, interval: 3.4, maxAlive: 24, groupSize: 6, sides: 'varied', formation: true },
-      { count: 30, interval: 3.0, maxAlive: 30, groupSize: 6, sides: 'varied', formation: true },
+      { count: 30, interval: 3.0, maxAlive: 30, groupSize: 6, sides: 'varied', formation: true, support: { kind: 'bull', every: 2 } },
       { count: 36, interval: 2.7, maxAlive: 36, groupSize: 12, sides: 'ring', spread: 0 },
       { count: 32, interval: 3.0, maxAlive: 32, groupSize: 8, sides: 'ring', spread: 0,
-        lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'beetle', 'beetle', 'beetle'] },
+        lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'bull', 'beetle', 'beetle'] },
     ],
     table: [         // волны 6-10 (строки таблицы SoulsGate); дальше +4 жука, интервал короче на 0,01 и потолок +2 за волну
       { count: 25, interval: 0.7, maxAlive: 20 },

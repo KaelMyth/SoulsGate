@@ -173,10 +173,27 @@ export class World {
     c.updateProjectionMatrix();
   }
 
-  /** Радиус (м) от центра кадра до самого дальнего угла экрана на земле: жуки появляются за ним. Изометрия растягивает вертикаль. */
+  /** Радиус (м) от центра кадра до самого дальнего угла экрана на земле (по настоящему лучу камеры): жуки появляются за ним. */
   groundRadius() {
     const c = this.camera;
-    return Math.hypot(c.right, c.top * 1.8);
+    c.updateMatrixWorld();
+    const p0 = this._g0 || (this._g0 = new THREE.Vector3());
+    const p1 = this._g1 || (this._g1 = new THREE.Vector3());
+    const ground = (nx, ny, out) => { // точка земли (y = 0) под точкой экрана (nx, ny) в долях -1..1
+      p0.set(nx, ny, -1).unproject(c);
+      p1.set(nx, ny, 1).unproject(c);
+      const t = p0.y / (p0.y - p1.y || 1e-9);
+      out.x = p0.x + (p1.x - p0.x) * t; out.z = p0.z + (p1.z - p0.z) * t;
+    };
+    const o = this._go || (this._go = { x: 0, z: 0 });
+    ground(0, 0, o);
+    const cx = o.x, cz = o.z;
+    let m = 0;
+    for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ground(x, y, o);
+      m = Math.max(m, Math.hypot(o.x - cx, o.z - cz));
+    }
+    return m;
   }
 
   /** Камера следует за точкой (x, z) с плавностью smoothTime. snap: без сглаживания. */
