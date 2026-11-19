@@ -4,7 +4,9 @@
 //   Здоровье жука растёт с волной (hpFor). Жук бежит к герою со стаей (swarm.js), при касании бьёт (beetle.touchDamage) с паузой touchCooldown.
 //   Стрелок (CONFIG.shooter) держит дистанцию, замирает на прицеливании и стреляет шаром (onShot). В волнах 2-3 стрелок выходит в кольце охраны
 //   из жуков (CONFIG.guards); охрана бросается в бой, когда герой подошёл или стрелок убит.
-// Числа: CONFIG.waves, CONFIG.beetle, CONFIG.shooter, CONFIG.guards, CONFIG.swarm. Для тестов фабрику жуков можно подменить (make).
+//   Бык (CONFIG.bull): подходит, на дистанции attack.range замирает на замах windup (на земле красная полоса), потом рывок по полосе
+//   на length за strike; достал героя: урон attack.damage. После рывка стоит recovery, затем пауза cooldown. В волне 3 каждая вторая пачка несёт быка вместо охранника.
+// Числа: CONFIG.waves, CONFIG.beetle, CONFIG.shooter, CONFIG.bull, CONFIG.guards, CONFIG.swarm. Для тестов фабрику жуков можно подменить (make).
 import { Swarm } from './swarm.js';
 
 const TAU = Math.PI * 2;
@@ -21,6 +23,7 @@ export class Spawner {
     this.pool = [];      // все созданные жуки (переиспользуются)
     this.alive = [];     // активные
     this.enabled = false;
+    this.onAttack = null; // (бык, урон) => герой получил рывок
     this.onShot = null;  // (стрелок, dirX, dirZ) => выпустить шар
     this.onTouch = null; // (жук) => true, если герой получил урон (тогда у жука пауза touchCooldown)
     this.reset();
@@ -94,24 +97,32 @@ export class Spawner {
     b.aim = 0; b.aimTotal = def.aimTime || 0; b.fireTimer = def.firstShotDelay || 0;
     b.guardOf = null; b.goalOn = false; b.goalX = b.goalZ = 0;
     b.gen = ++this.gen;
+    const A = def.attack;
+    b.atk = { state: 'idle', t: 0, cd: A ? A.firstDelay : 0, dirX: 0, dirZ: 0, hit: false };
     this.alive.push(b);
     return b;
   }
 
-  /** Тип жука волны: по lineup рисунка, иначе стрелок с шансом shooterShare (только волны 6+). */
+  /** Тип жука волны: по lineup рисунка, иначе в волнах 6+ бык с шансом bullShare и стрелок с шансом shooterShare. */
   pickKind(pat, index, rnd) {
     if (pat.lineup) return pat.lineup[index % pat.lineup.length];
-    if (!pat.formation && this.wave > this.cfg.waves.patterns.length && rnd() < this.cfg.waves.shooterShare) return 'shooter';
+    if (!pat.formation && this.wave > this.cfg.waves.patterns.length) {
+      const r = rnd(), W = this.cfg.waves;
+      if (r < W.bullShare) return 'bull';
+      if (r < W.bullShare + W.shooterShare) return 'shooter';
+    }
     return 'beetle';
   }
 
   /** Пачка со стрелком: стрелок в точке, size-1 охранников кольцом вокруг него. */
-  spawnFormation(size, x, z, hx, hz) {
+  spawnFormation(size, x, z, hx, hz, pat, groupIndex) {
     const G = this.cfg.guards;
     const leader = this.spawnAt(x, z, hx, hz, 'shooter');
     for (let i = 0; i < size - 1; i++) {
       const ang = (i / (size - 1)) * TAU;
-      const g = this.spawnAt(x + Math.cos(ang) * G.ringDist, z + Math.sin(ang) * G.ringDist, hx, hz, 'beetle');
+      const bull = pat.support && i === size - 2 && (groupIndex + 1) % pat.support.every === 0; // свободный бык вместо охранника
+      const g = this.spawnAt(x + Math.cos(ang) * G.ringDist, z + Math.sin(ang) * G.ringDist, hx, hz, bull ? pat.support.kind : 'beetle');
+      if (bull) continue;
       g.guardOf = leader; g.guardGen = leader.gen; g.guardAng = ang;
       g.goalOn = true; g.goalX = g.x; g.goalZ = g.z;
     }
@@ -126,7 +137,7 @@ export class Spawner {
     const ring0 = rnd() * TAU;
     if (pat.formation) {
       this.lastAngle = base;
-      this.spawnFormation(size, hx + Math.cos(base) * r, hz + Math.sin(base) * r, hx, hz);
+      this.spawnFormation(size, hx + Math.cos(base) * r, hz + Math.sin(base) * r, hx, hz, pat, Math.floor(this.spawned / Math.max(1, pat.groupSize)));
       return size;
     }
     for (let i = 0; i < size; i++) {
@@ -161,8 +172,9 @@ export class Spawner {
     if (len < 1e-9 || B.knockback <= 0) return;
     const t = Math.max(0.01, B.knockbackTime);
     b.kbTau = t;
-    b.kbVx += (dx / len) * B.knockback / t;
-    b.kbVz += (dz / len) * B.knockback / t;
+    const sc = b.def && b.def.knockbackScale !== undefined ? b.def.knockbackScale : 1;
+    b.kbVx += (dx / len) * B.knockback * sc / t;
+    b.kbVz += (dz / len) * B.knockback * sc / t;
     b.flash = 0.12;
   }
 
@@ -229,6 +241,43 @@ export class Spawner {
     if (e.fireTimer <= 0) e.aim = def.aimTime;
   }
 
+  /** Рывок быка (systems_attacks.js): idle → windup → strike → recovery → idle. d: расстояние до героя. */
+  updateBull(e, dt, hero, d) {
+    const A = e.def.attack, a = e.atk;
+    if (a.state === 'idle') {
+      if (a.cd > 0) a.cd -= dt;
+      if (a.cd > 0 || d > A.range || d < 1e-6) return;
+      a.state = 'windup'; a.t = 0; a.hit = false;
+      a.dirX = (hero.x - e.x) / d; a.dirZ = (hero.z - e.z) / d; // направление запоминается: от рывка можно уйти
+    } else if (a.state === 'windup') {
+      a.t += dt;
+      if (a.t >= A.windup) { a.state = 'strike'; a.t = 0; }
+    } else if (a.state === 'strike') {
+      a.t += dt;
+      e.x += a.dirX * (A.length / A.strike) * dt;
+      e.z += a.dirZ * (A.length / A.strike) * dt;
+      const dx = hero.x - e.x, dz = hero.z - e.z, reach = hero.radius + e.radius;
+      if (!a.hit && dx * dx + dz * dz <= reach * reach) {
+        a.hit = true;
+        if (this.onAttack) this.onAttack(e, A.damage);
+        a.state = 'recovery'; a.t = 0; // достал и встал
+      } else if (a.t >= A.strike) { a.state = 'recovery'; a.t = 0; }
+    } else {
+      a.t += dt;
+      if (a.t >= A.recovery) { a.state = 'idle'; a.t = 0; a.cd = A.cooldown; }
+    }
+  }
+
+  /** Что рисовать на земле: { x, z, dirX, dirZ, length, width, progress } пока бык замахивается, иначе null. */
+  telegraph(e, out = {}) {
+    if (!e.def.attack || e.atk.state !== 'windup') return null;
+    const A = e.def.attack;
+    out.x = e.x; out.z = e.z; out.dirX = e.atk.dirX; out.dirZ = e.atk.dirZ;
+    out.length = A.length; out.width = Math.max(A.width, e.radius * 2);
+    out.progress = Math.min(1, e.atk.t / Math.max(0.01, A.windup));
+    return out;
+  }
+
   /** Движение жуков к герою (стрелки держат дистанцию, охрана идёт на место в кольце) с учётом стаи, откидывания и касаний. hero: { x, z, radius }. */
   moveBeetles(dt, hero) {
     const list = this.alive;
@@ -240,12 +289,13 @@ export class Spawner {
       const hdx = hero.x - e.x, hdz = hero.z - e.z;
       const d = Math.hypot(hdx, hdz) || 1e-4;
       if (def.shot) this.updateShooter(e, dt, hero, d);
+      if (def.attack) this.updateBull(e, dt, hero, d);
       const tx = e.goalOn ? e.goalX : hero.x, tz = e.goalOn ? e.goalZ : hero.z;
       let dx = tx - e.x, dz = tz - e.z;
       const dist = Math.hypot(dx, dz) || 1e-4;
       dx /= dist; dz /= dist;
       const gap = e.goalOn ? dist - 0.1 : d - (hero.radius + e.radius - 0.07);
-      const hold = def.keepDistance > 0 && (e.aim > 0 || (!e.goalOn && d <= def.keepDistance));
+      const hold = (def.keepDistance > 0 && (e.aim > 0 || (!e.goalOn && d <= def.keepDistance))) || (def.attack && e.atk.state !== 'idle');
       let vx = 0, vz = 0;
       if (gap > 0 && !hold) {
         let mx = dx + e.swX, mz = dz + e.swZ; // к цели + подсказка стаи
@@ -261,8 +311,10 @@ export class Spawner {
       }
       e.state.vx = vx; e.state.vz = vz;
       e.state.face = Math.atan2(hdx, hdz); // стрелок смотрит на героя, пока стоит
+      if (def.attack && e.atk.state !== 'idle') e.state.face = Math.atan2(e.atk.dirX, e.atk.dirZ); // бык смотрит туда, куда прорвётся
       e.x += (vx + e.kbVx) * dt;
       e.z += (vz + e.kbVz) * dt;
+      if (def.attack && e.atk.state === 'strike') { e.state.vx = e.atk.dirX * def.attack.length / def.attack.strike; e.state.vz = e.atk.dirZ * def.attack.length / def.attack.strike; } // для анимации
       const decay = Math.exp(-dt / Math.max(0.01, e.kbTau));
       e.kbVx *= decay; e.kbVz *= decay;
     }

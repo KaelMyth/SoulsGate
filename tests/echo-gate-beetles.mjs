@@ -144,3 +144,56 @@ test('волны 6+: часть жуков стрелки (шанс 0.2); вол
   sp.spawnGroup(12, sp.row(4), 0, 0, 12, rnd);
   assert.equal(count(sp, 'shooter'), 0);
 });
+
+test('бык: здоровье 3.2, идёт к герою, на 10 м замирает на замах 0.9 с, рывок бьёт на 20', () => {
+  const { sp } = mk();
+  sp.enabled = true; sp.phase = 'active'; sp.spawned = 999;
+  const b = sp.spawnAt(9, 0, 0, 0, 'bull');
+  assert.ok(Math.abs(b.hp - 3.2) < 1e-9);
+  const hits = [];
+  sp.onAttack = (e, dmg) => hits.push(dmg);
+  const states = new Set();
+  let sawLine = null;
+  for (let t = 0; t < 4 && !hits.length; t += 1 / 60) {
+    sp.moveBeetles(1 / 60, hero);
+    states.add(b.atk.state);
+    const g = sp.telegraph(b);
+    if (g && !sawLine) sawLine = { ...g };
+  }
+  assert.deepEqual(hits, [20]);
+  assert.ok(states.has('windup') && states.has('strike'));
+  assert.ok(sawLine && Math.abs(sawLine.length - 8.67) < 0.01 && sawLine.width >= 1);
+});
+
+test('бык: от рывка можно уйти, направление запоминается на замахе', () => {
+  const { sp } = mk();
+  sp.enabled = true; sp.phase = 'active'; sp.spawned = 999;
+  const b = sp.spawnAt(9, 0, 0, 0, 'bull');
+  b.atk.cd = 0;
+  const hits = [];
+  sp.onAttack = (e, dmg) => hits.push(dmg);
+  let h = { x: 0, z: 0, radius: 0.47 };
+  for (let t = 0; t < 3; t += 1 / 60) {
+    sp.moveBeetles(1 / 60, h);
+    if (b.atk.state === 'windup' && b.atk.t > 0.5) h = { x: 0, z: 6, radius: 0.47 }; // герой отошёл вбок
+  }
+  assert.equal(hits.length, 0);
+});
+
+test('волна 3: в каждой второй пачке один свободный бык вместо охранника', () => {
+  const { sp } = mk();
+  sp.wave = 3;
+  sp.spawned = 0; sp.spawnGroup(6, sp.row(3), 0, 0, 12, rnd);
+  assert.equal(count(sp, 'bull'), 0);
+  sp.spawned = 6; sp.spawnGroup(6, sp.row(3), 0, 0, 12, rnd);
+  assert.equal(count(sp, 'bull'), 1);
+  assert.equal(count(sp, 'shooter'), 2);
+  assert.ok(!sp.alive.find((b) => b.kind === 'bull').guardOf);
+});
+
+test('быки: откидывание выстрела 0.6 от обычного', () => {
+  const { sp } = mk();
+  const b = sp.spawnAt(5, 0, 0, 0, 'bull');
+  sp.knock(b, 1, 0);
+  assert.ok(Math.abs(b.kbVx * 0.07 - 0.47 * 0.6) < 1e-6);
+});
