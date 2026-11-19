@@ -23,7 +23,7 @@
     (async () => {
       let build = '0';
       try { build = String((await (await fetch('version.json', { cache: 'no-store' })).json()).build || '0'); } catch (e) { /* без сети с кешем */ }
-      const files = ['attack', 'beetle', 'config', 'events', 'game', 'hero', 'input_keys', 'input_stick', 'input_swipe', 'iso', 'main', 'motion', 'spawner', 'version', 'world'];
+      const files = ['attack', 'beetle', 'config', 'events', 'game', 'hero', 'input_keys', 'input_stick', 'input_swipe', 'iso', 'main', 'motion', 'spawner', 'timestep', 'version', 'world'];
       const imports = { three: './vendor/three.module.js' };
       for (const f of files) imports[new URL('./src/' + f + '.js', location.href).href] = './src/' + f + '.js?v=' + build;
       const map = document.createElement('script');
