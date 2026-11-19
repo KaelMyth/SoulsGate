@@ -1,5 +1,5 @@
 {
-  "build": 43,
-  "commit": "417e7c4",
-  "notes": "Upgrade screen shows the equipped staff model from the showcase."
+  "build": 44,
+  "commit": "dcf0ecb",
+  "notes": "Gravity, Laser and Blades staffs: models in the inventory, equip on the mage."
 }

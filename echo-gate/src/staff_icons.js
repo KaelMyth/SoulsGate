@@ -40,7 +40,7 @@ export function makeStaffIcons(size = 192) {
     camera.position.set(0, 0, 5);
     const glowTex = glowTexture();
     const belt = new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 });
-    for (const variant of ['basic', 'fire', 'ice', 'electric']) {
+    for (const variant of ['basic', 'fire', 'ice', 'electric', 'gravity', 'laser', 'blades']) {
       const model = buildStaffModel(variant, glowTex, belt);
       model.update(1.3, 0.4);
       const holder = new THREE.Group();

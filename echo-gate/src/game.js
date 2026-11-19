@@ -29,7 +29,7 @@ import { Hud } from './hud.js';
 import { Settings } from './settings.js';
 import { Hub, PopButton } from './hub.js';
 import { Inventory } from './inventory.js';
-import { fireStaff, iceStaff, electricStaff } from './items.js';
+import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff } from './items.js';
 import { InventoryUi } from './inventory_ui.js';
 
 export class Game {
@@ -90,7 +90,7 @@ export class Game {
     this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
     this.anchor = { x: 0, y: 0, z: 0 };
     this.inventory = new Inventory(this.cfg.inventory);
-    for (const make of [fireStaff, iceStaff, electricStaff]) this.inventory.add(make()); // пока выдаются сразу: на выбор и примерку
+    for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff]) this.inventory.add(make()); // пока выдаются сразу: на выбор и примерку
     this.invOpen = false;
     if (o.ui.root) {
       this.invUi = new InventoryUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.inventory, () => { this.invOpen = false; });

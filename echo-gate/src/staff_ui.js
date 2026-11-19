@@ -9,7 +9,7 @@ import { buildGem, makeEnvironment } from './staff_model.js'; // старый п
 import { buildStaffModel } from './staff_models.js';
 import { glowTexture } from './staff_icons.js';
 
-const HALO = { basic: 0x35f2ff, fire: 0xff8a2a, ice: 0x9fdcff, electric: 0xffe45a };
+const HALO = { basic: 0x35f2ff, fire: 0xff8a2a, ice: 0x9fdcff, electric: 0xffe45a, gravity: 0xb06bff, laser: 0xff3345, blades: 0xa8d4ff };
 const PART_Y = { power: 1.75, speed: 0.9, range: -0.05 };
 
 /** Посох с витрины (staff_models.js) для экрана прокачки: тот же вид, плюс по ореолу у каждой из трёх частей для подсветки. */
