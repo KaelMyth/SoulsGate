@@ -1,5 +1,5 @@
 {
-  "build": 40,
+  "build": 41,
   "commit": "7917c32",
-  "notes": "Level-up choice window (2 empty cards), staff speed limit 0.05 s."
+  "notes": "Fire, Ice and Electric staffs: models in the inventory, equip on the mage."
 }

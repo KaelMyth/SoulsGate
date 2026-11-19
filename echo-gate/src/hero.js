@@ -2,6 +2,7 @@
 // с бирюзовыми глазами, шарф, пояс, чёрные перчатки, коричневые сапоги). Собран из примитивов Three.js, без внешних файлов.
 // Модель смотрит в +z. Графика готова к замене: всё, что снаружи нужно игре, это Hero.group и Hero.update().
 import * as THREE from 'three';
+import { buildStaffModel } from './staff_models.js';
 
 // Палитра: бордовая мантия и шляпа, тёплый тан и золото, коричневая кожа. Тёплые цвета отделяют мага
 // от холодного сине-серого снега и камней (раньше мантия была синей и сливалась с полем).
@@ -335,42 +336,28 @@ export class Hero {
     return this.crystal.getWorldPosition(out);
   }
 
-  /** Посох в руке +x (у персонажа левая): ствол с хватом на высоте руки, у земли обойма, наверху завиток и бирюзовый кристалл. */
+  /** Посох в руке +x (у персонажа левая): модель берётся из staff_models.js по виду (variant). Хват в ладони перчатки. */
   buildStaff(glowTex, matBelt) {
-    const wood = new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.85 });
-    const woodDark = new THREE.MeshStandardMaterial({ color: 0x5a3c28, roughness: 0.9 });
-    const gold = new THREE.MeshStandardMaterial({ color: 0xc9a25a, roughness: 0.45, metalness: 0.5 });
+    this.glowTex = glowTex;
+    this.matBelt = matBelt;
     const staff = new THREE.Group();
-    // Хват в начале координат группы; низ посоха на 0.42 ниже, верх на 1.5 выше.
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.044, 1.92, 12), wood);
-    shaft.position.y = (1.5 - 0.42) / 2;
-    const ferrule = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 12), woodDark);
-    ferrule.rotation.x = Math.PI;
-    ferrule.position.y = -0.42 - 0.02;
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 12), matBelt);
-    // Завиток: дуга тора вокруг кристалла.
-    const curl = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 8, 22, Math.PI * 1.5), wood);
-    curl.position.y = 1.58;
-    curl.rotation.z = Math.PI * 0.75;
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.04, 0.07, 12), gold);
-    collar.position.y = 1.5;
-    this.crystal = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.095, 0),
-      new THREE.MeshStandardMaterial({ color: COLORS.eye, emissive: COLORS.eye, emissiveIntensity: 1.2, roughness: 0.2 }),
-    );
-    this.crystal.scale.y = 1.4;
-    this.crystal.position.y = 1.62;
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowTex, color: COLORS.eye, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false,
-    }));
-    glow.scale.set(0.75, 0.75, 1);
-    glow.position.y = 1.62;
-    this.staffGlow = glow;
-    staff.add(shaft, ferrule, grip, curl, collar, this.crystal, glow);
-    // Хват в ладони перчатки правой руки модели (+x).
     staff.position.set(0.2, -0.5, 0.04);
     this.arms[1].add(staff);
     this.staff = staff;
+    this.staffVariant = null;
+    this.setStaff('basic');
+  }
+
+  /** Сменить посох в руке: 'basic' | 'fire' | 'ice' | 'electric' (всё остальное считается обычным). */
+  setStaff(variant) {
+    const v = variant || 'basic';
+    if (v === this.staffVariant) return;
+    this.staffVariant = v;
+    if (this.staffModel) this.staff.remove(this.staffModel.group);
+    this.staffModel = buildStaffModel(v, this.glowTex, this.matBelt);
+    this.staff.add(this.staffModel.group);
+    this.crystal = this.staffModel.crystal;   // камень на верхушке: отсюда вылетает снаряд
+    this.staffGlow = this.staffModel.glow;
   }
 
   /** Фолиант в руке -x: тёмная обложка с золотыми уголками, светящаяся руна, блок страниц. Парит над ладонью. */
@@ -528,6 +515,7 @@ export class Hero {
     this.staffGlow.material.opacity = Math.min(1, 0.55 + pulse * 0.25 + dashK * 0.2 + castK * 0.35);
     this.runeGlow.material.opacity = 0.25 + pulse * 0.2 + dashK * 0.25;
     this.crystal.rotation.y += dt * (1.2 + frac * 2);
+    this.staffModel.update(this.t, Math.min(1, frac + dashK));
 
     // Сапоги шагают.
     this.boots[0].position.z = 0.3 + stepS * 0.17 * frac;
