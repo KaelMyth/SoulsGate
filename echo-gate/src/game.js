@@ -16,6 +16,9 @@ import { staffStats } from './staff.js';
 import { Beetle } from './beetle.js';
 import { Shooter } from './shooter.js';
 import { Bull } from './bull.js';
+import { Rock } from './rock.js';
+import { Midges } from './midges.js';
+import { MidgeView } from './midge_view.js';
 import { Telegraphs } from './telegraph.js';
 import { EnemyShots } from './enemy_shots.js';
 import { Attack } from './attack.js';
@@ -38,15 +41,19 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
     this.scatter.setVisible(false);
-    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : kind === 'bull' ? new Bull() : new Beetle()));
+    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : kind === 'bull' ? new Bull() : kind === 'rock' ? new Rock() : new Beetle()));
     this.enemyShots = new EnemyShots(this.world.scene);
     this.telegraphs = new Telegraphs(this.world.scene);
+    this.midges = new Midges(this.cfg);
+    this.midgeView = new MidgeView(this.world.scene);
+    this.spawner.onSlam = (e) => this.midges.burst(e.x, e.z, this.heroBody, e.def.slam.midges, this.cfg.rock.midge);
     this.spawner.onAttack = (e, dmg) => this.hurtHero(dmg);
     this.spawner.onShot = (e, dx, dz) => this.enemyShots.fire(e, dx, dz, this.cfg.shooter.shot);
     this.heroBody = { x: 0, z: 0, radius: this.cfg.hero.radius };
     this.invuln = 0; // с неуязвимости героя после удара
     this.spawner.onTouch = (e) => this.hurtHero(this.cfg.beetle.touchDamage);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
+    this.attack.midges = this.midges; // выстрел сбивает мошек
     this.stats = new Stats(this.cfg);
     this.loot = new Loot(this.world.scene, this.cfg.loot);
     this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades);
@@ -115,6 +122,8 @@ export class Game {
     this.spawner.reset();
     this.enemyShots.clear();
     this.telegraphs.update({ alive: [] });
+    this.midges.clear();
+    this.midgeView.update(0, this.midges.items);
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
@@ -239,6 +248,8 @@ export class Game {
       this.spawner.update(dt, this.heroBody, this.world.groundRadius());
       this.enemyShots.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
       this.telegraphs.update(this.spawner);
+      this.midges.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
+      this.midgeView.update(dt, this.midges.items);
     }
     if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);

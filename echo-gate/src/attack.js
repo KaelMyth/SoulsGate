@@ -81,6 +81,7 @@ export class Attack {
     this.bolts = [];   // пул шариков
     this.fx = [];      // пул вспышек и колец попадания
     this.cool = 0;
+    this.midges = null; // Midges: выстрел сбивает мошку
     this.onKill = null; // (жук) => void, вызывается при убийстве
     this.tip = new THREE.Vector3();
     this.dir = new THREE.Vector3();
@@ -180,20 +181,20 @@ export class Attack {
       if (target) { this.fire(target); this.cool = this.cur().interval; }
       else this.cool = 0.1; // нет цели: проверяем чаще, чтобы выстрел вышел сразу, как жук появится
     }
-    const r2 = (c.hitRadius + 0.4) * (c.hitRadius + 0.4);
     for (const b of this.bolts) {
       if (!b.active) continue;
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.life -= dt;
       // Попадание: жук ближе радиуса и шарик не выше его спины.
       let hitE = null;
-      if (b.y < 1.0) {
-        for (const e of this.spawner.alive) {
-          const dx = e.state.x - b.x, dz = e.state.z - b.z;
-          if (dx * dx + dz * dz < r2) { hitE = e; break; }
-        }
+      for (const e of this.spawner.alive) {
+        if (b.y >= 1.0 + e.radius) continue; // выше спины жука: пролетает
+        const dx = e.state.x - b.x, dz = e.state.z - b.z, r = c.hitRadius + e.radius;
+        if (dx * dx + dz * dz < r * r) { hitE = e; break; }
       }
       if (hitE) { this.hit(b, hitE); continue; }
+      const mid = this.midges && this.midges.hitTest(b.x, b.z, c.hitRadius);
+      if (mid) { this.midges.kill(mid, 'shot'); this.burst(mid.x, 0.7, mid.z, c.hitSize * 0.7, 0.25); this.deactivate(b); continue; }
       if (b.life <= 0 || b.y < 0.05) {
         this.burst(b.x, Math.max(0.1, b.y), b.z, c.hitSize * 0.6, 0.22); // промах: тихо гаснет
         this.deactivate(b);
