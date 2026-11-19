@@ -1,5 +1,5 @@
 {
-  "build": 26,
+  "build": 27,
   "commit": "9df560a",
-  "notes": "Inventory window: opens from the gear pile; the mage with his staff and a floating open tome on top, spirit power / item count / coins strip and 100 slots below."
+  "notes": "Inventory: the mage now stands in a wider pose across the whole window: raised hand under the floating open tome, staff held out to the side."
 }
