@@ -53,6 +53,49 @@ function spike(p, dir, rad, len, mat) {
   return m;
 }
 
+
+// Склейка: у жука было ~55 мешей (по вызову отрисовки на каждый). Статические куски склеиваем в два меша на узел
+// (освещаемые и светящиеся), цвета уходят в цвета вершин. Материалы общие для всех жуков.
+const LIT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.55, side: THREE.DoubleSide });
+const EMI = new THREE.MeshBasicMaterial({ vertexColors: true });
+
+function bake(root) {
+  const lit = [];
+  const emi = [];
+  for (const m of [...root.children]) {
+    if (!m.isMesh) continue;
+    m.updateMatrix();
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+    g.applyMatrix4(m.matrix);
+    g.computeVertexNormals();
+    const n = g.attributes.position.count;
+    let colors = g.attributes.color ? Array.from(g.attributes.color.array) : null;
+    if (!colors) {
+      const c = m.material.color;
+      colors = [];
+      for (let i = 0; i < n; i++) colors.push(c.r, c.g, c.b);
+    }
+    (m.material.isMeshBasicMaterial ? emi : lit).push({ g, colors });
+    root.remove(m);
+  }
+  for (const [list, mat] of [[lit, LIT], [emi, EMI]]) {
+    if (!list.length) continue;
+    const pos = [];
+    const nor = [];
+    const col = [];
+    for (const { g, colors } of list) {
+      pos.push(...g.attributes.position.array);
+      nor.push(...g.attributes.normal.array);
+      col.push(...colors);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    root.add(new THREE.Mesh(geo, mat));
+  }
+}
+
 const PROFILE = { base: 0.16 * R, up: 0.78 * R, apex: 0.98 * R };
 
 /** Панцирь: грани с плоским затенением, высокий горб. Верхние грани светлее. */
@@ -234,6 +277,13 @@ export class Beetle {
     this.shadow.rotation.x = -Math.PI / 2;
     this.shadow.position.y = 0.008;
     this.group.add(this.shadow);
+
+    // Склейка статических деталей: тело, ноги, жвалы, усики, пламя.
+    bake(this.body);
+    for (const L of this.legs) bake(L.g);
+    for (const M of this.mand) bake(M.g);
+    for (const A of this.ants) bake(A.g);
+    bake(this.flame);
 
     this.yaw = 0;
     this.t = Math.random() * 10;

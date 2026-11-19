@@ -38,7 +38,7 @@ function merge(parts) {
 const UP = new THREE.Vector3(0, 1, 0);
 function seg(a, b, r0, r1, color) {
   const d = new THREE.Vector3().subVectors(b, a);
-  const geo = new THREE.CylinderGeometry(r1, r0, d.length(), 4);
+  const geo = new THREE.CylinderGeometry(r1, r0, d.length(), 4, 1, true);
   const m = new THREE.Matrix4().compose(
     a.clone().addScaledVector(d, 0.5), new THREE.Quaternion().setFromUnitVectors(UP, d.clone().normalize()), new THREE.Vector3(1, 1, 1));
   return { geo, color, matrix: m };
@@ -94,68 +94,54 @@ export class Scatter {
     this.meshes = this.kinds.map((k) => {
       const m = new THREE.InstancedMesh(k.geo, mat, this.slots);
       m.frustumCulled = false;
-      m.count = this.slots;
+      m.count = 0;
       scene.add(m);
       return m;
     });
     this.ci = NaN;
     this.cj = NaN;
     this.tmp = new THREE.Object3D();
-    this.zero = new THREE.Matrix4().makeScale(0, 0, 0);
   }
 
-  place(ci, cj) {
+  /** Описание детали в клетке (ci, cj): вид и матрица, либо null. Всё считается хешем, без состояния. */
+  describe(ci, cj) {
     const c = this.cfg;
-    const W = this.W;
-    const slot = (((cj % W) + W) % W) * W + (((ci % W) + W) % W);
     const r = hash(ci, cj, 1);
     const cx = (ci + 0.5) * c.cell;
     const cz = (cj + 0.5) * c.cell;
     let kind = -1;
     if (r < c.bushes) kind = Math.floor(hash(ci, cj, 2) * 3);
     else if (r < c.bushes + c.stones) kind = 3 + Math.floor(hash(ci, cj, 3) * 2);
-    // Вокруг старта чисто.
-    if (Math.hypot(cx, cz) < c.clear) kind = -1;
-    for (let k = 0; k < this.meshes.length; k++) {
-      if (k !== kind) this.meshes[k].setMatrixAt(slot, this.zero);
-    }
-    if (kind < 0) return;
+    if (kind < 0 || Math.hypot(cx, cz) < c.clear) return null; // вокруг старта чисто
     const o = this.tmp;
     o.position.set(cx + (hash(ci, cj, 4) - 0.5) * c.cell * 0.8, 0, cz + (hash(ci, cj, 5) - 0.5) * c.cell * 0.8);
     o.rotation.set(0, hash(ci, cj, 6) * Math.PI * 2, 0);
     const sc = (kind < 3 ? 0.8 : 0.7) + hash(ci, cj, 7) * 0.6;
     o.scale.set(sc, sc * (kind < 3 ? 0.9 + hash(ci, cj, 8) * 0.4 : 1), sc);
     o.updateMatrix();
-    this.meshes[kind].setMatrixAt(slot, o.matrix);
+    return { kind, matrix: o.matrix };
   }
 
   /** Показ деталей: в хабе у костра свои камни, поэтому там их нет. */
   setVisible(on) { for (const m of this.meshes) m.visible = on; }
 
+  /** Пересобрать списки при переходе героя в другую клетку. Рисуются только реально существующие экземпляры. */
   update(x, z) {
     const c = this.cfg;
     const ci = Math.floor(x / c.cell);
     const cj = Math.floor(z / c.cell);
     if (ci === this.ci && cj === this.cj) return;
-    const h = this.W >> 1;
-    const full = Number.isNaN(this.ci) || Math.abs(ci - this.ci) >= this.W || Math.abs(cj - this.cj) >= this.W;
-    if (full) {
-      for (let j = cj - h; j < cj - h + this.W; j++) for (let i = ci - h; i < ci - h + this.W; i++) this.place(i, j);
-    } else {
-      // Сдвиг: пересчитать вошедшие столбцы и строки.
-      const di = ci - this.ci;
-      const dj = cj - this.cj;
-      for (let s = 1; s <= Math.abs(di); s++) {
-        const i = di > 0 ? this.ci + s + h - 1 : this.ci - s - h;
-        for (let j = cj - h; j < cj - h + this.W; j++) this.place(i + (di > 0 ? 0 : 0), j);
-      }
-      for (let s = 1; s <= Math.abs(dj); s++) {
-        const j = dj > 0 ? this.cj + s + h - 1 : this.cj - s - h;
-        for (let i = ci - h; i < ci - h + this.W; i++) this.place(i, j);
-      }
-    }
     this.ci = ci;
     this.cj = cj;
-    for (const m of this.meshes) m.instanceMatrix.needsUpdate = true;
+    const h = this.W >> 1;
+    const n = new Array(this.meshes.length).fill(0);
+    for (let j = cj - h; j < cj - h + this.W; j++) {
+      for (let i = ci - h; i < ci - h + this.W; i++) {
+        const d = this.describe(i, j);
+        if (!d) continue;
+        this.meshes[d.kind].setMatrixAt(n[d.kind]++, d.matrix);
+      }
+    }
+    this.meshes.forEach((m, k) => { m.count = n[k]; m.instanceMatrix.needsUpdate = true; });
   }
 }
