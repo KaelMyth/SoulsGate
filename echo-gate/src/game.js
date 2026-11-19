@@ -11,6 +11,8 @@ import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
 import { Scatter } from './scatter.js';
 import { Loot } from './loot.js';
+import { StaffUi } from './staff_ui.js';
+import { staffStats } from './staff.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
 import { Stats } from './stats.js';
@@ -33,7 +35,12 @@ export class Game {
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
     this.stats = new Stats(this.cfg);
     this.loot = new Loot(this.world.scene, this.cfg.loot);
-    this.loot.onCollect = (type, v) => { this.stats.collect(type, v); this.bus.emit('loot:collected', { type, value: v }); };
+    this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades);
+    this.loot.onCollect = (type, v) => {
+      this.stats.collect(type, v);
+      this.bus.emit('loot:collected', { type, value: v });
+      if (type === 'power' && this.staffUi) this.staffUi.open(); // кристалл усиления: открыть экран посоха
+    };
     this.attack.onKill = (e) => {
       this.stats.kills++; // опыт даёт камешек, а не само убийство
       this.loot.drop(e.state.x, e.state.z, this.cfg.xp.perKill);
@@ -72,6 +79,8 @@ export class Game {
     this.world.follow(0, 0, 0, true);
     if (o.ui.root) {
       this.hud = new Hud(o.ui.root, this.stats, this.world, this.cfg);
+      this.staffUi = new StaffUi(o.ui.root, this, this.cfg);
+      this.hud.onPowerTap = () => this.staffUi.open(); // тап по счётчику кристаллов усиления
       this.settings = new Settings(o.ui.root, { config: this.cfg, stats: this.stats, world: this.world, game: this });
       this.settings.show(); // шестерёнка и счётчик fps доступны и в хабе
     }
@@ -82,6 +91,7 @@ export class Game {
     this.stats.reset();
     this.spawner.reset();
     this.loot.clear();
+    if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
   }
 
