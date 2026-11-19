@@ -1,5 +1,5 @@
 {
-  "build": 15,
+  "build": 16,
   "commit": "5d678de",
-  "notes": "Hub: a Chinese-style shop wagon with a husky shopkeeper and a SHOP sign above the campfire."
+  "notes": "FPS counter next to the settings gear; the gear is also available in the hub."
 }

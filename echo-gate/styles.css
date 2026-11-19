@@ -72,3 +72,8 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 .cfg-btns { margin-top: 10px; }
 .cfg-btns button, .cfg-act { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 13px var(--serif); touch-action: manipulation; }
 .cfg-btns button:active, .cfg-act:active { border-color: var(--accent); color: var(--accent); }
+
+/* Счётчик fps справа от шестерёнки. */
+#fps { position: absolute; z-index: 20; top: max(8px, env(safe-area-inset-top)); left: calc(max(8px, env(safe-area-inset-left)) + 52px); height: 44px; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; border: 1px solid #3b5675; border-radius: 12px; background: rgba(8, 13, 26, 0.78); font: 600 13px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; color: #7fe3a0; pointer-events: none; }
+#fps[data-q="mid"] { color: #ffd36b; }
+#fps[data-q="low"] { color: #ff7a6b; }
