@@ -1,5 +1,5 @@
 {
-  "build": 28,
+  "build": 29,
   "commit": "282c4b3",
-  "notes": "Staff screen: 3D staff and crystal, smooth fade, translucent backdrop over paused game."
+  "notes": "Real equipment: the staff and tome vanish from the hero when unequipped, and Play says you can't leave without a weapon."
 }

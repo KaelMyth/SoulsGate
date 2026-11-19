@@ -74,6 +74,9 @@ export class Game {
       this.invUi = new InventoryUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.inventory, () => { this.invOpen = false; });
       this.bus.on('gear:open', () => this.openInventory());
     }
+    // Экипировка настоящая: что снято в инвентаре, того нет и на модели героя в мире.
+    this.inventory.listen(() => this.syncEquipment());
+    this.syncEquipment();
     this.paused = false;
     this.pauseBtn = o.ui.pauseBtn;
     this.pauseEl = o.ui.pause;
@@ -124,9 +127,30 @@ export class Game {
     this.world.follow(0, this.motion.x, this.motion.z, true);
   }
 
+  /** Показать или спрятать посох и фолиант на модели героя по тому, что надето. */
+  syncEquipment() {
+    const eq = this.inventory.equipped;
+    this.hero.staff.visible = !!eq.staff;
+    this.hero.tome.visible = !!eq.tome;
+  }
+
+  /** Короткое сообщение посреди экрана (исчезает само). */
+  toast(text) {
+    const el = this.ui.toast;
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('on');
+    void el.offsetWidth; // перезапуск анимации, если сообщение показали повторно
+    el.classList.add('on');
+  }
+
   /** Кнопка Play из костра: затемнение, и на середине переход из хаба в забег. */
   play() {
     if (!this.inHub || this.switching) return;
+    if (!this.inventory.armed) { // без посоха и фолианта в забег не выпустим
+      this.toast("You can't leave without a weapon");
+      return;
+    }
     this.switching = true;
     const fade = this.ui.fade;
     const ms = this.cfg.hub.fadeMs;

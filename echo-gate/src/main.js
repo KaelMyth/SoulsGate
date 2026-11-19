@@ -10,6 +10,7 @@ const ui = {
   root: document.getElementById('phone'),
   playBtn: document.getElementById('play'),
   fade: document.getElementById('fade'),
+  toast: document.getElementById('toast'),
   fps: document.getElementById('fps'),
   shopBtn: document.getElementById('shop-btn'),
   gearBtn: document.getElementById('gear-btn'),

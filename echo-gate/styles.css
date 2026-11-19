@@ -198,3 +198,8 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #inv .card .acts button { min-height: 42px; border: 1px solid #3b5675; border-radius: 10px; background: transparent; color: #dbe7f7; font: 15px "Iowan Old Style", Georgia, serif; touch-action: manipulation; cursor: pointer; }
 #inv .card .acts button:active { border-color: #ffb14a; color: #ffb14a; }
 #inv .inv-hint.staff { left: auto; right: 5%; top: 12%; width: 20%; aspect-ratio: 0.5; }
+
+/* Короткое сообщение посреди экрана (например, «нельзя уйти без оружия»). */
+#toast { position: absolute; left: 50%; top: 24%; z-index: 22; max-width: 82%; box-sizing: border-box; padding: 11px 18px; border: 1px solid #c2410c; border-radius: 12px; background: rgba(20, 10, 8, 0.88); color: #ffd9a0; font: 500 16px/1.25 "Iowan Old Style", Georgia, serif; text-align: center; letter-spacing: 0.02em; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 120, 40, 0.25); opacity: 0; pointer-events: none; transform: translate(-50%, 8px); }
+#toast.on { animation: toast-in 2.4s ease forwards; }
+@keyframes toast-in { 0% { opacity: 0; transform: translate(-50%, 8px); } 8% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -6px); } }
