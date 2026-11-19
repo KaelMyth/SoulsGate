@@ -12,6 +12,8 @@ export const KINDS = {
   staff: { label: 'Staff', slot: 'staff' },
 };
 
+export const ELEMENTS = { fire: 'Fire', ice: 'Ice', electric: 'Electric' };
+
 let nextId = 1;
 
 export class Item {
@@ -25,6 +27,7 @@ export class Item {
     this.sharpen = o.sharpen || 0;     // уровень заточки
     this.durability = o.durability == null ? 1 : o.durability; // 0..1, при заточке возможна поломка
     this.desc = o.desc || '';
+    this.element = o.element || null;  // стихия посоха: 'fire' | 'ice' | 'electric' (внешний вид; на атаку пока не влияет)
   }
 
   get kindInfo() { return KINDS[this.kind] || { label: this.kind, slot: null }; }
@@ -36,6 +39,7 @@ export class Item {
   details() {
     return [
       ['Type', this.kindInfo.label],
+      ...(this.element ? [['Element', ELEMENTS[this.element]]] : []),
       ['Rarity', this.rarityInfo.label],
       ['Level', String(this.level)],
       ['Sharpening', `+${this.sharpen}`],
@@ -58,4 +62,15 @@ export function startingStaff() {
     kind: 'staff', name: 'Apprentice Staff', rarity: 'common',
     desc: 'A plain staff with a turquoise crystal. It channels every shot you fire.',
   });
+}
+
+/** Стихийные посохи (пока только модели и экипировка: на базовую атаку они повлияют позже). */
+export function fireStaff() {
+  return new Item({ kind: 'staff', element: 'fire', name: 'Flame Staff', rarity: 'rare', level: 1, desc: 'A charred staff that burns without fuel. Its element will reshape your basic attack.' });
+}
+export function iceStaff() {
+  return new Item({ kind: 'staff', element: 'ice', name: 'Frost Staff', rarity: 'rare', level: 1, desc: 'A staff crowned with eternal ice. Its element will reshape your basic attack.' });
+}
+export function electricStaff() {
+  return new Item({ kind: 'staff', element: 'electric', name: 'Storm Staff', rarity: 'rare', level: 1, desc: 'A fork of steel that crackles with lightning. Its element will reshape your basic attack.' });
 }
