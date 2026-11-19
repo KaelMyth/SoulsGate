@@ -10,8 +10,15 @@ export class Inventory {
     this.equipped = { tome: startingTome(), staff: startingStaff() };     // по названию места экипировки (Item.slot)
     this.spirit = 0;     // сила духа: растёт с каждым забегом
     this.coins = 0;
-    this.onChange = null;
+    this.onChange = null; // один главный слушатель (окно инвентаря)
+    this.listeners = [];  // остальные слушатели: listen(fn)
   }
+
+  /** Подписаться на любые изменения инвентаря и экипировки. */
+  listen(fn) { this.listeners.push(fn); }
+
+  /** Надеты ли посох и фолиант: без них в забег не выйти. */
+  get armed() { return !!(this.equipped.staff && this.equipped.tome); }
 
   get count() { return this.slots.reduce((n, s) => n + (s ? 1 : 0), 0); }
   get full() { return this.count >= this.limit; }
@@ -65,5 +72,8 @@ export class Inventory {
 
   addCoins(n) { this.coins = Math.max(0, this.coins + n); this.changed(); }
   addSpirit(n) { this.spirit = Math.max(0, this.spirit + n); this.changed(); }
-  changed() { if (this.onChange) this.onChange(this); }
+  changed() {
+    if (this.onChange) this.onChange(this);
+    for (const fn of this.listeners) fn(this);
+  }
 }

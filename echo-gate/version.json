@@ -1,5 +1,5 @@
 {
-  "build": 30,
+  "build": 31,
   "commit": "9df560a",
-  "notes": "Inventory: a calmer, natural pose for the mage (staff upright in one hand, open tome floating above the other)."
+  "notes": "Real equipment: the staff and tome vanish from the hero when unequipped, and Play says you can't leave without a weapon."
 }
