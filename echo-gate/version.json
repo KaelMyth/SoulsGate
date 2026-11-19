@@ -1,5 +1,5 @@
 {
-  "build": 42,
-  "commit": "9b462b4",
-  "notes": "Staff icons in the inventory are rendered from the 3D models."
+  "build": 43,
+  "commit": "417e7c4",
+  "notes": "Upgrade screen shows the equipped staff model from the showcase."
 }

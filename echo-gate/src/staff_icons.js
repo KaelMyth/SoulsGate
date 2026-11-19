@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 
-function glowTexture() {
+export function glowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d');
