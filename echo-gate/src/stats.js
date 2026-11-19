@@ -13,6 +13,7 @@ export class Stats {
     this.level = 1;
     this.xp = 0;
     this.kills = 0;
+    this.loot = { power: 0, skill: 0, page: 0 }; // подобранные кристаллы усиления, умения и обрывки страниц
     this.levelFlash = 0; // с: сколько ещё показывать «Уровень N»
   }
 
@@ -58,5 +59,11 @@ export class Stats {
   kill() {
     this.kills++;
     this.addXp(this.cfg.xp.perKill);
+  }
+
+  /** Подобрана добыча: опыт сразу в шкалу, остальное в счётчики. */
+  collect(type, value = 1) {
+    if (type === 'xp') this.addXp(value);
+    else if (type in this.loot) this.loot[type] += value;
   }
 }

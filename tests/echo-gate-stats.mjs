@@ -76,3 +76,13 @@ test('лечение со временем и сброс', () => {
   assert.equal(s.level, 1);
   assert.equal(s.kills, 0);
 });
+
+test('collect: xp gem gives xp, crystals and pages go to counters', () => {
+  const s = new Stats(JSON.parse(JSON.stringify(CONFIG)));
+  s.collect('xp', 2);
+  assert.equal(s.xp, 2);
+  s.collect('power'); s.collect('power'); s.collect('skill'); s.collect('page');
+  assert.deepEqual(s.loot, { power: 2, skill: 1, page: 1 });
+  s.reset();
+  assert.deepEqual(s.loot, { power: 0, skill: 0, page: 0 });
+});

@@ -40,6 +40,13 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #hud-xp { position: absolute; left: 16px; right: 16px; bottom: max(8px, env(safe-area-inset-bottom)); height: 3px; background: rgba(5, 9, 20, 0.78); outline: 1px solid rgba(190, 215, 250, 0.38); }
 #hud-xp i { display: block; height: 100%; width: 0; background: linear-gradient(#a9d3ff, #4f93ee 40%); }
 #hud-level { position: absolute; left: 16px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 14px); font: italic 12px var(--serif); color: var(--ink); opacity: 0.8; text-shadow: 0 1px 3px rgba(5, 9, 20, 0.8); }
+#hud-loot { position: absolute; right: 16px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 12px); display: flex; gap: 12px; font: 600 13px var(--serif); color: var(--ink); text-shadow: 0 1px 3px rgba(5, 9, 20, 0.8); }
+#hud-loot span { display: flex; align-items: center; gap: 5px; }
+#hud-loot i { width: 9px; height: 12px; background: currentColor; clip-path: polygon(50% 0, 100% 35%, 50% 100%, 0 35%); filter: drop-shadow(0 0 4px currentColor); }
+#hud-loot .loot-power { color: #ffa33a; }
+#hud-loot .loot-skill { color: #b57bff; }
+#hud-loot .loot-page { color: #f0e0b0; }
+#hud-loot .loot-page i { width: 10px; height: 11px; clip-path: polygon(0 10%, 45% 0, 100% 8%, 92% 60%, 100% 100%, 20% 92%, 8% 55%); }
 #hud-flash { position: absolute; left: 0; right: 0; top: 24%; text-align: center; opacity: 0; font: 500 30px/1.1 var(--serif); letter-spacing: 0.12em; text-transform: uppercase; color: #ffd9a0; text-shadow: 0 0 20px rgba(255, 177, 74, 0.55); }
 #hud-hp { position: absolute; left: 0; top: 0; overflow: visible; font-family: var(--serif); will-change: transform; }
 
