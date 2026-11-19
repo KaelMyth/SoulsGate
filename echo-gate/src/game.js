@@ -1,4 +1,4 @@
-// Echo Gate: цикл игры. Фиксированный шаг 1/60, как в SoulsGate. Управление перенесено оттуда же:
+// Echo Gate: цикл игры. Шаг по реальному времени кадра (timestep.js). Управление перенесено из SoulsGate:
 // стик по касанию (Stick), двойной свайп = рывок (SwipeDetector), клавиатура для компьютера.
 import { EventBus } from './events.js';
 import { Stick } from './input_stick.js';
@@ -10,8 +10,7 @@ import { World } from './world.js';
 import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
 import { Attack } from './attack.js';
-
-const STEP = 1 / 60;
+import { advance } from './timestep.js';
 
 export class Game {
   constructor(o) {
@@ -34,7 +33,6 @@ export class Game {
     this.tmp = { x: 0, z: 0 };
     this.kv = { x: 0, y: 0 };
     this.ui = o.ui; // { base, knob, start }
-    this.acc = 0;
     this.last = 0;
     this.running = true;
     this.playing = false; // пока не нажали Play, герой не слушается
@@ -99,10 +97,9 @@ export class Game {
   frame(now) {
     if (!this.running) return;
     const t = now / 1000;
-    const dt = Math.min(0.1, this.last ? t - this.last : STEP);
+    const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
-    this.acc += dt;
-    while (this.acc >= STEP) { this.step(STEP); this.acc -= STEP; }
+    advance(dt, (s) => this.step(s));
     this.drawStick();
     this.world.render();
     requestAnimationFrame((n) => this.frame(n));
