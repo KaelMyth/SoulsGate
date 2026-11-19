@@ -3,6 +3,7 @@
 // Снаружи нужно: Hub.group, Hub.update(dt, героX, героZ) и Hub.setActive(bool).
 import * as THREE from 'three';
 import { Shop } from './shop.js';
+import { GearPile } from './gear.js';
 
 function mat(color, rough = 0.95) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, flatShading: true }); }
 function glowMat(color, opacity) {
@@ -150,20 +151,15 @@ export class Hub {
     this.shop.group.position.set(0, 0, cfg.shopZ);
     this.group.add(this.shop.group);
 
+    // Куча снаряжения слева от костра на экране (местная ось -x).
+    this.gear = new GearPile();
+    this.gear.group.position.set(cfg.gearX, 0, cfg.gearZ);
+    this.gear.group.rotation.y = cfg.gearRot;
+    this.gear.group.scale.setScalar(cfg.gearScale);
+    this.group.add(this.gear.group);
+
     const hx = cfg.halfW;
     const hz = cfg.halfD;
-
-    // Пустота за краем поля: большая плоскость с прямоугольной дырой. Цвет близок к земле, но заметно темнее.
-    const shape = new THREE.Shape();
-    const B = 300;
-    shape.moveTo(-B, -B); shape.lineTo(B, -B); shape.lineTo(B, B); shape.lineTo(-B, B); shape.closePath();
-    const hole = new THREE.Path();
-    hole.moveTo(-hx, -hz); hole.lineTo(-hx, hz); hole.lineTo(hx, hz); hole.lineTo(hx, -hz); hole.closePath();
-    shape.holes.push(hole);
-    const void_ = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color: cfg.voidColor }));
-    void_.rotation.x = -Math.PI / 2;
-    void_.position.y = 0.01;
-    this.group.add(void_);
 
     // Камни по периметру: неровная ограда без жёстких линий.
     const rockMat = mat(0x4a5873);
@@ -217,6 +213,7 @@ export class Hub {
     const a = this.group.rotation.y;
     const lx = px * Math.cos(a) - pz * Math.sin(a);
     const lz = px * Math.sin(a) + pz * Math.cos(a);
+    this.gear.update(dt);
     this.shop.update(dt, lx - this.shop.group.position.x, lz - this.shop.group.position.z);
   }
 }
