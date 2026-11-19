@@ -1,5 +1,5 @@
 {
-  "build": 27,
+  "build": 28,
   "commit": "9df560a",
-  "notes": "Inventory: the mage now stands in a wider pose across the whole window: raised hand under the floating open tome, staff held out to the side."
+  "notes": "Items: an Item class and rarities; drag the tome from the showcase into a slot and back to equip it; tap an item to see its main data."
 }

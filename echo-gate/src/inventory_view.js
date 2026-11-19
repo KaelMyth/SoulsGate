@@ -3,6 +3,9 @@
 import * as THREE from 'three';
 import { Hero } from './hero.js';
 
+const _ray = new THREE.Raycaster();
+const _ndc = new THREE.Vector2();
+
 function pageTexture(flip) {
   const c = document.createElement('canvas');
   c.width = 128; c.height = 168;
@@ -94,6 +97,8 @@ export class InventoryView {
     const glowTex = glowTexture();
     this.tome = openTome(glowTex);
     sc.add(this.tome);
+    this.tomeMeshes = [];
+    this.tome.traverse((o) => { if (o.isMesh) this.tomeMeshes.push(o); });
 
     // Мягкое пятно света под героем и пылинки вокруг.
     const spot = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -108,6 +113,21 @@ export class InventoryView {
       sc.add(m);
     }
     this.bg = new THREE.Color(0x0b1120);
+  }
+
+  /** Показать или спрятать парящий фолиант (спрятан, когда он снят или его тащат). */
+  setTomeVisible(on) {
+    this.tome.visible = on;
+    this.tomeLight.visible = on;
+  }
+
+  /** Попадает ли точка экрана (cx, cy) в фолиант? rect: прямоугольник витрины. Нужен хотя бы один кадр render. */
+  hitTome(cx, cy, rect) {
+    if (!this.tome.visible) return false;
+    _ndc.set(((cx - rect.left) / rect.width) * 2 - 1, -(((cy - rect.top) / rect.height) * 2 - 1));
+    _ray.setFromCamera(_ndc, this.camera);
+    this.scene.updateMatrixWorld(true);
+    return _ray.intersectObjects(this.tomeMeshes, false).length > 0;
   }
 
   /** dt; rect: DOM-прямоугольник витрины (px относительно окна); box: DOM-прямоугольник канваса. */
