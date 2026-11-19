@@ -9,6 +9,7 @@ export const RARITY = {
 // slot: в какое место экипировки предмет надевается (null: просто лежит в инвентаре).
 export const KINDS = {
   tome: { label: 'Tome', slot: 'tome' },
+  staff: { label: 'Staff', slot: 'staff' },
 };
 
 let nextId = 1;
@@ -48,5 +49,13 @@ export function startingTome() {
   return new Item({
     kind: 'tome', name: 'Worn Tome', rarity: 'common',
     desc: 'A weathered leather tome. It keeps the spells you have learned.',
+  });
+}
+
+/** Стартовый посох игрока. */
+export function startingStaff() {
+  return new Item({
+    kind: 'staff', name: 'Apprentice Staff', rarity: 'common',
+    desc: 'A plain staff with a turquoise crystal. It channels every shot you fire.',
   });
 }

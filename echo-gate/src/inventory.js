@@ -1,13 +1,13 @@
 // Данные инвентаря и метапрогресса: ячейки с предметами (лимит из конфига), надетые предметы, сила духа, монеты.
 // Без графики и DOM. onChange вызывается при любом изменении. Надетые предметы в лимит ячеек не входят.
-import { startingTome } from './items.js';
+import { startingTome, startingStaff } from './items.js';
 
 export class Inventory {
   /** cfg: CONFIG.inventory { limit } */
   constructor(cfg) {
     this.limit = cfg.limit;
     this.slots = new Array(cfg.limit).fill(null); // Item или null
-    this.equipped = { tome: startingTome() };     // по названию места экипировки (Item.slot)
+    this.equipped = { tome: startingTome(), staff: startingStaff() };     // по названию места экипировки (Item.slot)
     this.spirit = 0;     // сила духа: растёт с каждым забегом
     this.coins = 0;
     this.onChange = null;

@@ -3,7 +3,8 @@
 import { InventoryView } from './inventory_view.js';
 
 const TOME_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="4" width="19" height="24" rx="2.500" fill="#3a2a3d" stroke="#c9a25a" stroke-width="1.400"/><rect x="9.500" y="6.500" width="14" height="19" rx="1.500" fill="#e9e2cf"/><rect x="7" y="4" width="4" height="24" rx="2" fill="#2a1d2d"/><path d="M17.500 11.500l3.200 4.200-3.200 4.200-3.200-4.200z" fill="none" stroke="#1fc8e6" stroke-width="1.600"/><circle cx="17.500" cy="15.700" r="1.100" fill="#35f2ff"/></svg>`;
-const ICONS = { tome: TOME_ICON };
+const STAFF_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21.500 9.500" stroke="#9a6a3e" stroke-width="3" stroke-linecap="round"/><path d="M9 28L21.500 9.500" stroke="#c9a25a" stroke-width="1" stroke-linecap="round" opacity=".7"/><path d="M17 7.200a6 6 0 0 1 9 5" fill="none" stroke="#c9a25a" stroke-width="2.200" stroke-linecap="round"/><path d="M22.500 3.500l3.200 4.500-3.200 4.500-3.200-4.500z" fill="#5ee6ff" stroke="#d8f8ff" stroke-width="1"/></svg>`;
+const ICONS = { tome: TOME_ICON, staff: STAFF_ICON };
 const DRAG_PX = 7;        // на сколько сдвинуть палец или мышь, чтобы началось перетаскивание
 const HOLD_MS = 170;      // долгое касание начинает перетаскивание, а короткое сдвигание прокручивает сетку
 
@@ -40,8 +41,11 @@ export class InventoryUi {
     this.drag = null;    // идущее перетаскивание: { src, item, ghost }
 
     this.close = el('button', { id: 'inv-close', type: 'button', 'aria-label': 'Close' }, '✕');
-    this.hint = el('div', { class: 'inv-hint' }, 'Drag the tome here');
-    this.stage = el('div', { class: 'inv-stage' }, this.hint);
+    this.hints = {
+      tome: el('div', { class: 'inv-hint tome' }, 'Drag the tome here'),
+      staff: el('div', { class: 'inv-hint staff' }, 'Drag the staff here'),
+    };
+    this.stage = el('div', { class: 'inv-stage' }, this.hints.tome, this.hints.staff);
     this.spirit = el('b', {}, '0');
     this.count = el('b', {}, '0 / 0');
     this.coins = el('b', {}, '0');
@@ -91,9 +95,11 @@ export class InventoryUi {
       c.style.setProperty('--rar', it ? it.rarityInfo.color : 'transparent');
       c.innerHTML = it ? `<span class="it">${ICONS[it.kind] || ''}</span>` : '';
     });
-    const carrying = !!(this.drag && this.drag.src.type === 'equip');
-    if (this.view) this.view.setTomeVisible(!!inv.equipped.tome && !carrying);
-    this.hint.classList.toggle('on', !inv.equipped.tome || carrying || !!(this.drag && this.drag.item.slot === 'tome'));
+    for (const slot of ['tome', 'staff']) {
+      const carrying = !!(this.drag && this.drag.src.type === 'equip' && this.drag.src.slot === slot);
+      if (this.view) this.view.setVisible(slot, !!inv.equipped[slot] && !carrying);
+      this.hints[slot].classList.toggle('on', !inv.equipped[slot] || carrying || !!(this.drag && this.drag.item.slot === slot));
+    }
   }
 
   show() {
@@ -127,9 +133,11 @@ export class InventoryUi {
     const cell = e.target.closest && e.target.closest('.inv-cell');
     if (cell && this.inv.slots[+cell.dataset.i]) return { type: 'slot', i: +cell.dataset.i };
     const r = this.stage.getBoundingClientRect();
-    if (this.view && this.inv.equipped.tome && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
-        && !(e.target.closest && e.target.closest('button')) && this.view.hitTome(e.clientX, e.clientY, r)) {
-      return { type: 'equip', slot: 'tome' };
+    if (this.view && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+        && !(e.target.closest && e.target.closest('button'))) {
+      for (const slot of ['tome', 'staff']) {
+        if (this.inv.equipped[slot] && this.view.hit(slot, e.clientX, e.clientY, r)) return { type: 'equip', slot };
+      }
     }
     return null;
   }
