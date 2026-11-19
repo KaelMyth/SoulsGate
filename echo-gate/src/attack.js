@@ -1,7 +1,7 @@
 // Автоатака мага: раз в attack.interval секунд выстрел синим светящимся шариком в ближайшего жука.
 // Шарик это точка с эффектами: светлое ядро, синий ореол, хвост из затухающих следов, вспышка у кристалла посоха,
-// искры и кольцо при попадании. Всё из спрайтов с обычным смешиванием (пол белый, аддитивное свечение на нём не видно),
-// без света и теней, объекты из пула.
+// искры и кольцо при попадании. Всё из спрайтов с аддитивным смешиванием (пол тёмный, на нём свечение видно;
+// на белом полу оно бы пропало), без света и теней, объекты из пула.
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 
@@ -58,7 +58,7 @@ function ringTexture() {
 
 function sprite(map, color, opacity) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({
-    map, color, transparent: true, opacity, depthWrite: false, depthTest: false,
+    map, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
   }));
   s.renderOrder = 5;
   s.visible = false;
