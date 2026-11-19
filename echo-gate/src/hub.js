@@ -2,6 +2,7 @@
 // Когда герой подходит к костру, из огня выходит кнопка Play (DOM, см. HubUi). Всё собрано из примитивов Three.js.
 // Снаружи нужно: Hub.group, Hub.update(dt, героX, героZ) и Hub.setActive(bool).
 import * as THREE from 'three';
+import { Shop } from './shop.js';
 
 function mat(color, rough = 0.95) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, flatShading: true }); }
 function glowMat(color, opacity) {
@@ -144,6 +145,11 @@ export class Hub {
     this.fire.group.scale.setScalar(1.35);
     this.group.add(this.fire.group);
 
+    // Торговый вагончик выше костра на экране (местная ось -z). Лицом к камере.
+    this.shop = new Shop();
+    this.shop.group.position.set(0, 0, cfg.shopZ);
+    this.group.add(this.shop.group);
+
     const hx = cfg.halfW;
     const hz = cfg.halfD;
 
@@ -184,7 +190,7 @@ export class Hub {
   }
 
   update(dt) {
-    if (this.active) this.fire.update(dt);
+    if (this.active) { this.fire.update(dt); this.shop.update(dt); }
   }
 }
 

@@ -19,7 +19,7 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 .stick.knob { border: none; background: rgba(60, 76, 120, 0.55); }
 #start { position: absolute; inset: 0; pointer-events: none; transition: opacity 0.4s; }
 #start.gone { opacity: 0; }
-#start .logo { position: absolute; left: 0; right: 0; top: 9%; font-size: 36px; line-height: 1.05; font-weight: 800; letter-spacing: 0.28em; text-align: center; color: #dbe7f7; text-shadow: 0 2px 14px rgba(8, 13, 26, 0.7); text-indent: 0.28em; }
+#start .logo { position: absolute; left: 0; right: 0; bottom: 15%; font-size: 36px; line-height: 1.05; font-weight: 800; letter-spacing: 0.28em; text-align: center; color: #dbe7f7; text-shadow: 0 2px 14px rgba(8, 13, 26, 0.7); text-indent: 0.28em; }
 /* Кнопка Play выходит из костра (позицию и размер ставит PlayButton), якорь: левый верх рамки. */
 #play {
   position: absolute; left: 0; top: 0; z-index: 10; width: 76px; height: 76px; padding: 0; border: 2px solid #ffb14a; border-radius: 50%;
