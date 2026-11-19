@@ -32,8 +32,10 @@ export class World {
     // Пол.
     const F = cfg.floor;
     this.floorMat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide, // порядок вершин в шейдере не привязан к обходу
       uniforms: {
         uCenter: { value: new THREE.Vector2() },
+        uOrigin: { value: new THREE.Vector2() },
         uCell: { value: F.cell },
         uJitter: { value: F.jitter },
         uFade: { value: F.fade },
@@ -48,47 +50,42 @@ export class World {
         uDark: { value: new THREE.Color(F.dark) },
         uLight: { value: new THREE.Color(F.light) },
       },
+      // Грани считаются в вершинном шейдере (сетка мелкая, ~4 тыс. треугольников): пиксель получает готовый тон грани.
       vertexShader: `
-        varying vec2 vW;
+        attribute vec3 aT; // x,y: клетка в окне, z: номер вершины 0..5 (два треугольника клетки)
+        uniform vec2 uOrigin; uniform float uCell, uJitter, uNoise;
+        varying vec2 vW; varying float vT;
+        float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        vec2 corner(vec2 ij) { return (ij + vec2(0.5) + (vec2(h21(ij), h21(ij + 17.3)) - 0.5) * uJitter * 2.0) * uCell; }
+        float tone(vec2 p) {
+          return 0.5 + 0.17 * sin(p.x * 0.183 + 1.3) + 0.15 * sin(p.y * 0.141 + 0.4) + 0.08 * sin((p.x + p.y) * 0.339);
+        }
         void main() {
-          vec4 w = modelMatrix * vec4(position, 1.0);
-          vW = w.xz;
-          gl_Position = projectionMatrix * viewMatrix * w;
+          vec2 id = aT.xy + uOrigin;
+          vec2 p00 = corner(id), p10 = corner(id + vec2(1, 0)), p01 = corner(id + vec2(0, 1)), p11 = corner(id + vec2(1, 1));
+          bool d = h21(id + 91.7) < 0.5;
+          int k = int(aT.z + 0.5);
+          // Треугольник 1: p00, p10, (d ? p11 : p01); треугольник 2: (d ? p00 : p10), p11, p01.
+          vec2 a, b, c; float seed;
+          if (k < 3) { a = p00; b = p10; c = d ? p11 : p01; seed = h21(id * 2.0 + (d ? 1.3 : 2.7)); }
+          else { a = d ? p00 : p10; b = p11; c = p01; seed = h21(id * 2.0 + (d ? 5.1 : 6.9)); k -= 3; }
+          vec2 cen = (a + b + c) / 3.0;
+          vT = clamp(tone(cen) + (seed - 0.5) * uNoise, 0.0, 1.0);
+          vW = k == 0 ? a : (k == 1 ? b : c);
+          gl_Position = projectionMatrix * viewMatrix * vec4(vW.x, 0.0, vW.y, 1.0);
         }`,
       fragmentShader: `
-        varying vec2 vW;
-        uniform vec2 uCenter, uPatch; uniform float uCell, uJitter, uFade, uNoise, uSpeckle; uniform vec3 uSnow;
+        varying vec2 vW; varying float vT;
+        uniform vec2 uCenter, uPatch; uniform float uFade, uSpeckle; uniform vec3 uSnow;
         uniform vec3 uSnowCol;
         uniform vec3 uBase, uDark, uLight, uFlat; uniform vec4 uHub;
         float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-        vec2 corner(vec2 ij) { return (ij + vec2(0.5) + (vec2(h21(ij), h21(ij + 17.3)) - 0.5) * uJitter * 2.0) * uCell; }
         float vnoise(vec2 p) {
           vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y);
         }
-        bool inTri(vec2 p, vec2 a, vec2 b, vec2 c) {
-          float d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
-          float d2 = (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
-          float d3 = (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y);
-          return !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0));
-        }
-        float tone(vec2 p) { // плавные волны тона, как в SoulsGate (числа пересчитаны в метры)
-          return 0.5 + 0.17 * sin(p.x * 0.183 + 1.3) + 0.15 * sin(p.y * 0.141 + 0.4) + 0.08 * sin((p.x + p.y) * 0.339);
-        }
         void main() {
-          vec2 cellId = floor(vW / uCell);
-          vec2 cen = vW;
-          float seed = 0.0;
-          for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
-            vec2 id = cellId + vec2(float(i), float(j));
-            vec2 p00 = corner(id), p10 = corner(id + vec2(1, 0)), p01 = corner(id + vec2(0, 1)), p11 = corner(id + vec2(1, 1));
-            bool d = h21(id + 91.7) < 0.5;
-            vec2 a1 = p00, b1 = d ? p10 : p10, c1 = d ? p11 : p01;
-            vec2 a2 = d ? p00 : p10, b2 = d ? p11 : p11, c2 = d ? p01 : p01;
-            if (inTri(vW, a1, b1, c1)) { cen = (a1 + b1 + c1) / 3.0; seed = h21(id * 2.0 + (d ? 1.3 : 2.7)); }
-            else if (inTri(vW, a2, b2, c2)) { cen = (a2 + b2 + c2) / 3.0; seed = h21(id * 2.0 + (d ? 5.1 : 6.9)); }
-          }
-          float t = clamp(tone(cen) + (seed - 0.5) * uNoise, 0.0, 1.0);
+          float t = vT;
           vec3 c = mix(uDark, uLight, t);
           // Снежные зоны: крупные пятна с неровным краем; снег светлее и чуть гладче, грани проступают слабее.
           float zn = vnoise(vW * uSnow.x + 7.0) * 0.7 + vnoise(vW * uSnow.x * 4.0 + 19.0) * 0.3;
@@ -114,8 +111,17 @@ export class World {
           gl_FragColor = linearToOutputTexel(vec4(c, 1.0));
         }`,
     });
-    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(F.size, F.size), this.floorMat);
-    this.floor.rotation.x = -Math.PI / 2;
+    // Сетка клеток вокруг героя: вершины только в «локальных» номерах клеток, положение считает шейдер по uOrigin.
+    const N = Math.ceil((F.fade * 2.1) / F.cell);
+    this.floorN = N;
+    const aT = new Float32Array(N * N * 6 * 3);
+    let o = 0;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) for (let v = 0; v < 6; v++) { aT[o++] = i; aT[o++] = j; aT[o++] = v; }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('aT', new THREE.BufferAttribute(aT, 3));
+    fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * N * 6 * 3), 3)); // для three; не используется
+    this.floor = new THREE.Mesh(fg, this.floorMat);
+    this.floor.frustumCulled = false;
     this.scene.add(this.floor);
 
     this.resize();
@@ -188,7 +194,8 @@ export class World {
       this.target.z + horiz * Math.SQRT1_2,
     );
     this.camera.lookAt(this.target);
-    this.floor.position.set(this.target.x, 0, this.target.z);
+    const cell = this.cfg.floor.cell;
+    this.floorMat.uniforms.uOrigin.value.set(Math.floor(this.target.x / cell) - (this.floorN >> 1), Math.floor(this.target.z / cell) - (this.floorN >> 1));
     this.floorMat.uniforms.uCenter.value.set(this.target.x, this.target.z);
   }
 
