@@ -1,9 +1,33 @@
-// Отладочная панель: FPS, число объектов, ползунки параметров.
-// Открывается кнопкой ⚙ (на компьютере ещё клавишей `). Игра при открытой панели не останавливается:
+// Окно настроек: ползунки параметров по вкладкам-категориям, вкладка «Отладка» с FPS и числом объектов.
+// Открывается кнопкой ⚙ слева сверху (на компьютере ещё клавишей `). Игра при открытой панели не останавливается:
 // ощущение настраивается на ходу.
 import { getPath, setPath, formatValue, snapshot, saveOverrides } from './debug_tunables.js';
 import { h } from './ui_dom.js';
 import { RELEASE } from './release_notes.js';
+
+// Категории окна настроек. Раздел ползунков (group из config_tunables.js) попадает в категорию по началу названия;
+// новый раздел без совпадения уходит в «Прочее», ничего не теряется. Порядок вкладок = порядок здесь.
+const CATEGORIES = ['Персонаж', 'Оружие и навыки', 'Моды и стихии', 'Враги', 'Боссы', 'Волны и опыт', 'Экран и управление'];
+const DEBUG_CATEGORY = 'Отладка';
+const OTHER_CATEGORY = 'Прочее';
+const CATEGORY_PREFIXES = [
+  ['Герой', 'Персонаж'], ['Рывок', 'Персонаж'], ['Блок и парирование', 'Персонаж'],
+  ['Гравитация — Рывок', 'Персонаж'], ['Кинетический рывок', 'Персонаж'],
+  ['Автоатака', 'Оружие и навыки'], ['Импакт', 'Оружие и навыки'], ['Воплощение', 'Оружие и навыки'],
+  ['Магический дождь', 'Оружие и навыки'], ['Лазер', 'Оружие и навыки'], ['Дробь', 'Оружие и навыки'],
+  ['Спектральные клинки', 'Оружие и навыки'], ['Фантомный выстрел', 'Оружие и навыки'],
+  ['Гравитация', 'Моды и стихии'], ['Облако пара', 'Моды и стихии'], ['Новые реакции', 'Моды и стихии'],
+  ['Электризация', 'Моды и стихии'], ['Смертельная аура', 'Моды и стихии'],
+  ['Жук', 'Враги'], ['Бык', 'Враги'], ['Стая', 'Враги'],
+  ['Миниборс', 'Боссы'],
+  ['Волны', 'Волны и опыт'], ['Краш-тест', 'Волны и опыт'], ['Опыт', 'Волны и опыт'], ['Награды', 'Волны и опыт'],
+  ['Управление', 'Экран и управление'], ['Камера', 'Экран и управление'], ['Поле билда', 'Экран и управление'],
+];
+
+function categoryOf(group) {
+  for (const [prefix, cat] of CATEGORY_PREFIXES) if (group.startsWith(prefix)) return cat;
+  return OTHER_CATEGORY;
+}
 
 export class DebugPanel {
   /**
@@ -21,12 +45,16 @@ export class DebugPanel {
     this.fpsLabel = h('div', { id: 'dbg-fps' }, '№' + RELEASE.number + ' · FPS …');
     this.stats = h('pre', { id: 'dbg-stats' });
     this.copyBox = h('textarea', { id: 'dbg-copy', readonly: '', hidden: '' });
+    this.pages = new Map(); // категория -> страница с её разделами
+    this.tabs = h('div', { class: 'dbg-tabs' });
+    this.buildSliders();
+    this.buildDebugPage();
+    this.buildTabs();
     this.panel = h('div', { id: 'dbg-panel', hidden: '' },
-      h('h3', {}, 'Отладка'),
+      h('h3', {}, 'Настройки'),
       h('div', { class: 'dbg-release' }, 'Обновление №' + RELEASE.number + ' — ' + RELEASE.title),
-      this.stats,
-      this.buildActions(),
-      this.buildSliders(),
+      this.tabs,
+      ...this.pages.values(),
       h('div', { class: 'dbg-btns' },
         h('button', { type: 'button', onclick: () => o.meter.resetMin() }, 'Сбросить мин. FPS'),
         h('button', { type: 'button', onclick: () => this.copyParams() }, 'Скопировать параметры'),
@@ -72,16 +100,54 @@ export class DebugPanel {
     return wrap;
   }
 
+  /** Страница категории: создаётся при первом обращении, порядок страниц задаёт CATEGORIES. */
+  page(cat) {
+    let p = this.pages.get(cat);
+    if (!p) {
+      p = h('div', { class: 'dbg-page', 'data-cat': cat, hidden: '' });
+      this.pages.set(cat, p);
+    }
+    return p;
+  }
+
+  /** Страница «Отладка»: цифры, быстрые действия. */
+  buildDebugPage() {
+    this.page(DEBUG_CATEGORY).append(this.stats, this.buildActions());
+  }
+
+  /** Вкладки категорий; открыта первая («Персонаж»). */
+  buildTabs() {
+    const order = [...CATEGORIES, DEBUG_CATEGORY];
+    const sorted = new Map();
+    for (const c of order) if (this.pages.has(c)) sorted.set(c, this.pages.get(c));
+    for (const [c, p] of this.pages) if (!sorted.has(c)) sorted.set(c, p); // «Прочее» и новые
+    this.pages = sorted;
+    this.tabButtons = new Map();
+    for (const cat of this.pages.keys()) {
+      const b = h('button', { type: 'button', class: 'dbg-tab', onclick: () => this.selectTab(cat) }, cat);
+      this.tabButtons.set(cat, b);
+      this.tabs.append(b);
+    }
+    this.selectTab(this.pages.keys().next().value);
+  }
+
+  selectTab(cat) {
+    for (const [c, p] of this.pages) {
+      p.hidden = c !== cat;
+      this.tabButtons.get(c).classList.toggle('on', c === cat);
+    }
+  }
+
   buildSliders() {
-    const wrap = h('div', {});
     let group = null;
-    let body = wrap; // ползунки лежат внутри раздела, раздел открывается нажатием на заголовок
+    let body = null; // ползунки лежат внутри раздела, раздел открывается нажатием на заголовок
     for (const def of this.o.tunables) {
       if (def.group && def.group !== group) {
         group = def.group;
         body = h('div', { class: 'dbg-body' });
-        wrap.append(h('details', { class: 'dbg-sect' }, h('summary', { class: 'dbg-group' }, group), body));
+        this.page(categoryOf(group)).append(h('details', { class: 'dbg-sect' }, h('summary', { class: 'dbg-group' }, group), body));
       }
+      if (!body) { body = h('div', { class: 'dbg-body' }); this.page(OTHER_CATEGORY).append(body); }
       const value = getPath(this.o.config, def.path);
       const valueEl = h('span', { class: 'val' }, formatValue(def, value));
       const input = h('input', {
@@ -101,7 +167,6 @@ export class DebugPanel {
       body.append(h('div', { class: 'dbg-row' }, h('div', { class: 'top' }, h('span', {}, def.label), valueEl), input));
       this.rows.push({ def, input, valueEl });
     }
-    return wrap;
   }
 
   save() {
