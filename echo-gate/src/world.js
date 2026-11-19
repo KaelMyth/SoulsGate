@@ -45,7 +45,6 @@ export class World {
         uSpeckle: { value: F.speckle },
         uPatch: { value: new THREE.Vector2(F.patchDark, F.patchLight) },
         uHub: { value: new THREE.Vector4(0, 0, 1.4, 0) }, // x,y: полуразмеры поля хаба (повёрнуто на 45°), z: мягкость края, w: включено
-        uFlat: { value: new THREE.Color(F.base) },
         uBase: { value: new THREE.Color(F.base) },
         uDark: { value: new THREE.Color(F.dark) },
         uLight: { value: new THREE.Color(F.light) },
@@ -78,7 +77,7 @@ export class World {
         varying vec2 vW; varying float vT;
         uniform vec2 uCenter, uPatch; uniform float uFade, uSpeckle; uniform vec3 uSnow;
         uniform vec3 uSnowCol;
-        uniform vec3 uBase, uDark, uLight, uFlat; uniform vec4 uHub;
+        uniform vec3 uBase, uDark, uLight; uniform vec4 uHub;
         float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vnoise(vec2 p) {
           vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -89,7 +88,11 @@ export class World {
           vec3 c = mix(uDark, uLight, t);
           // Снежные зоны: крупные пятна с неровным краем; снег светлее и чуть гладче, грани проступают слабее.
           float zn = vnoise(vW * uSnow.x + 7.0) * 0.7 + vnoise(vW * uSnow.x * 4.0 + 19.0) * 0.3;
-          float snow = smoothstep(1.0 - uSnow.y - 0.012, 1.0 - uSnow.y + 0.012, zn);
+          // Внутри поля хаба (повёрнуто на 45°, как и камера) снега нет: земля с обычным узором граней, снег только за краем.
+          vec2 hl = vec2(vW.x - vW.y, vW.x + vW.y) * 0.70711;
+          vec2 hq = uHub.xy - abs(hl);
+          float inHub = uHub.w * smoothstep(-0.3, uHub.z, min(hq.x, hq.y));
+          float snow = smoothstep(1.0 - uSnow.y - 0.012, 1.0 - uSnow.y + 0.012, zn) * (1.0 - inHub);
           vec3 sc = mix(uSnowCol, c, 0.2) * (0.8 + 0.34 * t);
           c = mix(c, sc, snow * uSnow.z * 1.6);
           // Крошка и камешки: мелкие тёмные пятна на земле, в снегу светлые ямки.
@@ -102,10 +105,6 @@ export class World {
           float drift = smoothstep(0.6, 0.92, vnoise(vW * 0.09 + 41.0));
           c = mix(c, vec3(0.03, 0.05, 0.09), dep * uPatch.x * 2.0);
           c = mix(c, vec3(0.78, 0.84, 0.93), drift * uPatch.y * 2.0);
-          // Внутри поля хаба земля однотонная, снег и узор только снаружи (поле повёрнуто на 45°, как и камера).
-          vec2 l = vec2(vW.x - vW.y, vW.x + vW.y) * 0.70711;
-          vec2 q = uHub.xy - abs(l);
-          c = mix(c, uFlat, uHub.w * smoothstep(-0.3, uHub.z, min(q.x, q.y)));
           float d = length(vW - uCenter) / uFade;
           c = mix(c, uBase, smoothstep(0.55, 1.0, d));
           gl_FragColor = linearToOutputTexel(vec4(c, 1.0));
@@ -129,11 +128,10 @@ export class World {
     if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.renderer.domElement.parentElement);
   }
 
-  /** Однотонная земля внутри поля хаба (on, полуразмеры hw/hd, цвет); снаружи обычная земля со снегом. */
-  setHubGround(on, hw = 0, hd = 0, color = null) {
+  /** Внутри поля хаба (полуразмеры hw/hd) снега нет; снаружи обычная земля со снегом. */
+  setHubGround(on, hw = 0, hd = 0) {
     const u = this.floorMat.uniforms;
     u.uHub.value.set(hw, hd, 1.4, on ? 1 : 0);
-    if (color) u.uFlat.value.set(color);
   }
 
   resize() {

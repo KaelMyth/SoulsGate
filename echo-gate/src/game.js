@@ -91,7 +91,7 @@ export class Game {
     const a = Math.PI / 4;
     this.inHub = true;
     this.playing = false;
-    this.world.setHubGround(true, H.halfW - 0.5, H.halfD - 0.5, H.groundColor);
+    this.world.setHubGround(true, H.halfW - 0.5, H.halfD - 0.5);
     this.hub.setActive(true);
     this.scatter.setVisible(false);
     this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
