@@ -239,6 +239,7 @@ export class Game {
     if (!this.paused && !this.invOpen) this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);
     else this.world.render();
+    if (this.staffUi) this.staffUi.update(dt);
     const hubOn = this.inHub && !this.switching && !this.invOpen;
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);

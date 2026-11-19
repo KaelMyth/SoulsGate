@@ -1,5 +1,5 @@
 {
-  "build": 30,
-  "commit": "9df560a",
-  "notes": "Inventory: a calmer, natural pose for the mage (staff upright in one hand, open tome floating above the other)."
+  "build": 28,
+  "commit": "282c4b3",
+  "notes": "Staff screen: 3D staff and crystal, smooth fade, translucent backdrop over paused game."
 }
