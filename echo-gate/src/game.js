@@ -10,6 +10,7 @@ import { World } from './world.js';
 import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
 import { Scatter } from './scatter.js';
+import { Loot } from './loot.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
 import { Stats } from './stats.js';
@@ -31,7 +32,13 @@ export class Game {
     this.spawner = new Spawner(this.world.scene, this.cfg.waves);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
     this.stats = new Stats(this.cfg);
-    this.attack.onKill = (e) => { this.stats.kill(); this.bus.emit('enemy:killed', e); };
+    this.loot = new Loot(this.world.scene, this.cfg.loot);
+    this.loot.onCollect = (type, v) => { this.stats.collect(type, v); this.bus.emit('loot:collected', { type, value: v }); };
+    this.attack.onKill = (e) => {
+      this.stats.kills++; // опыт даёт камешек, а не само убийство
+      this.loot.drop(e.state.x, e.state.z, this.cfg.xp.perKill);
+      this.bus.emit('enemy:killed', e);
+    };
 
     this.stick = new Stick(o.canvas, this.bus, this.cfg.stick);
     this.swipe = new SwipeDetector(this.bus, this.cfg.dash, (sx, sy) => {
@@ -74,6 +81,7 @@ export class Game {
   restart() {
     this.stats.reset();
     this.spawner.reset();
+    this.loot.clear();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
   }
 
@@ -155,6 +163,7 @@ export class Game {
     this.spawner.update(dt, m.x, m.z);
     this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
+    this.loot.update(dt, m.x, m.z);
     this.world.follow(dt, m.x, m.z, false);
   }
 

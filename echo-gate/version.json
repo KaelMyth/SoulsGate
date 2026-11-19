@@ -1,5 +1,5 @@
 {
   "build": 22,
-  "commit": "7b2ae92",
-  "notes": "A backpack icon pops out above the gear pile when you walk up to it (the inventory itself is not built yet)."
+  "commit": "6eed17c",
+  "notes": "Beetles drop XP gems, power and skill crystals and page scraps."
 }
