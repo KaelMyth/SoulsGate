@@ -222,6 +222,7 @@ export class Game {
     this.drawStick();
     if (!this.paused) this.hub.update(dt, this.motion.x, this.motion.z);
     this.world.render();
+    if (this.staffUi) this.staffUi.update(dt);
     const hubOn = this.inHub && !this.switching;
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);

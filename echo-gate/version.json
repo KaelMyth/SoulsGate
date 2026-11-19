@@ -1,5 +1,5 @@
 {
-  "build": 25,
-  "commit": "9df560a",
-  "notes": "Power crystal opens the staff screen: drag it onto Power, Speed or Range."
+  "build": 26,
+  "commit": "8796805",
+  "notes": "Staff screen: 3D staff and crystal, smooth fade, translucent backdrop over paused game."
 }
