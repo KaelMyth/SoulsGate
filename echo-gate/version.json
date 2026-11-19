@@ -1,5 +1,5 @@
 {
-  "build": 34,
+  "build": 35,
   "commit": "7917c32",
-  "notes": "Bulls like SoulsGate (windup line on the ground, charge, waves 3/5/6+), exact off-screen spawn radius."
+  "notes": "New ground: a baked-light frozen wasteland texture (cracked permafrost, stones, frost, no snow) instead of the procedural facets."
 }
