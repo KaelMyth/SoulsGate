@@ -115,11 +115,18 @@ export class InventoryView {
     this.t += dt;
     const t = this.t;
     this.hero.update(dt, this.motion, 6);
-    this.hero.group.rotation.y = 0.32 * Math.sin(t * 0.5); // медленно покачивается, показывая себя
-    this.tome.position.set(-1.25, 1.55 + 0.07 * Math.sin(t * 1.6), 0.4);
-    this.tome.rotation.set(-0.38 + 0.03 * Math.sin(t * 1.1), 0.35 + 0.12 * Math.sin(t * 0.7), 0.05 * Math.sin(t * 0.9));
+    // Поза: маг чуть повёрнут к фолианту, левая рука поднята ладонью под книгой, правая вытянута в сторону с посохом.
+    const mage = this.hero;
+    mage.group.rotation.y = -0.28 + 0.06 * Math.sin(t * 0.5);
+    mage.head.rotation.y = -0.22;
+    mage.arms[0].rotation.set(-0.35 + 0.03 * Math.sin(t * 1.6), 0, -1.05);
+    mage.arms[1].rotation.set(-0.12, 0, 0.8 + 0.02 * Math.sin(t * 1.3));
+    mage.staff.rotation.set(0, 0, -0.8 + 0.26); // посох отклонён наружу, а не вдоль руки
+    this.tome.position.set(-1.45, 1.6 + 0.07 * Math.sin(t * 1.6), 0.35);
+    this.tome.scale.setScalar(1.15);
+    this.tome.rotation.set(-0.3 + 0.03 * Math.sin(t * 1.1), 0.42 + 0.1 * Math.sin(t * 0.7), 0.06 + 0.04 * Math.sin(t * 0.9));
     this.tome.userData.glow.material.opacity = 0.45 + 0.15 * Math.sin(t * 2.4);
-    this.tomeLight.position.set(-1.25, 1.8, 1.2);
+    this.tomeLight.position.set(-1.45, 1.9, 1.3);
     for (const m of this.motes) {
       const u = m.userData;
       u.y += dt * u.sp; if (u.y > 2.8) u.y = 0;
@@ -133,8 +140,8 @@ export class InventoryView {
     this.camera.aspect = w / h;
     this.camera.fov = w / h < 1 ? 36 : 28;
     this.camera.updateProjectionMatrix();
-    this.camera.position.set(0, 1.55, 8.4);
-    this.camera.lookAt(0, 1.2, 0);
+    this.camera.position.set(0, 1.5, 8.0);
+    this.camera.lookAt(-0.3, 1.2, 0);
 
     const r = this.renderer;
     const prev = new THREE.Color();
