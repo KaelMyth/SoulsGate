@@ -176,6 +176,7 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #inv .inv-cell.lift .it { opacity: 0.25; }
 #inv .inv-cell.drop { border-color: #ffb14a; background: linear-gradient(rgba(70, 50, 20, 0.55), rgba(30, 22, 12, 0.7)); }
 #inv .it { position: absolute; inset: 14%; display: block; pointer-events: none; }
+#inv .it img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55)); -webkit-user-drag: none; }
 #inv .it svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)); }
 #inv .inv-stage { position: relative; touch-action: none; }
 #inv .inv-stage.drop { box-shadow: inset 0 0 0 2px rgba(255, 177, 74, 0.7), inset 0 0 40px rgba(255, 177, 74, 0.18); }
