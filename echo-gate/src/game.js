@@ -11,6 +11,9 @@ import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
+import { Stats } from './stats.js';
+import { Hud } from './hud.js';
+import { Settings } from './settings.js';
 
 export class Game {
   constructor(o) {
@@ -23,6 +26,8 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.spawner = new Spawner(this.world.scene, this.cfg.waves);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
+    this.stats = new Stats(this.cfg);
+    this.attack.onKill = (e) => { this.stats.kill(); this.bus.emit('enemy:killed', e); };
 
     this.stick = new Stick(o.canvas, this.bus, this.cfg.stick);
     this.swipe = new SwipeDetector(this.bus, this.cfg.dash, (sx, sy) => {
@@ -40,12 +45,24 @@ export class Game {
     window.addEventListener('blur', () => this.stick.cancel());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.stick.cancel(); });
     this.world.follow(0, 0, 0, true);
+    if (o.ui.root) {
+      this.hud = new Hud(o.ui.root, this.stats, this.world, this.cfg);
+      this.settings = new Settings(o.ui.root, { config: this.cfg, stats: this.stats, world: this.world, game: this });
+    }
+  }
+
+  /** Новая игра: здоровье, опыт и волны с начала. */
+  restart() {
+    this.stats.reset();
+    this.spawner.reset();
+    for (const b of this.attack.bolts) this.attack.deactivate(b);
   }
 
   /** Кнопка Play: убрать стартовый экран и включить управление. */
   play() {
     this.playing = true;
     this.spawner.start();
+    if (this.hud) { this.hud.show(); this.settings.show(); }
     if (this.ui.start) this.ui.start.classList.add('gone');
   }
 
@@ -76,6 +93,7 @@ export class Game {
     const inp = this.readInput(this.tmp);
     m.update(dt, inp.x, inp.z);
     this.hero.update(dt, m, this.cfg.hero.speed);
+    this.stats.update(dt);
     this.spawner.update(dt, m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
     this.world.follow(dt, m.x, m.z, false);
@@ -102,6 +120,7 @@ export class Game {
     advance(dt, (s) => this.step(s));
     this.drawStick();
     this.world.render();
+    if (this.hud) { this.hud.update(dt, this.hero); this.settings.refresh(); }
     requestAnimationFrame((n) => this.frame(n));
   }
 

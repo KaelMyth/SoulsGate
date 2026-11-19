@@ -1,5 +1,5 @@
 {
-  "build": 12,
+  "build": 13,
   "commit": "5d678de",
-  "notes": "Smooth movement: the game now steps by real frame time, so the mage and the camera no longer shake."
+  "notes": "Stats: health, XP and level, a SoulsGate-style HUD and a settings window with sliders (gear, top left)."
 }

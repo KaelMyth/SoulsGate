@@ -135,6 +135,16 @@ export class World {
     this.floorMat.uniforms.uCenter.value.set(this.target.x, this.target.z);
   }
 
+  /** Точка мира (x, y, z) в пикселях рамки: out = { x, y }. Вызывать после render(). */
+  project(x, y, z, out) {
+    this.pv = this.pv || new THREE.Vector3();
+    this.pv.set(x, y, z).project(this.camera);
+    const el = this.renderer.domElement;
+    out.x = (this.pv.x * 0.5 + 0.5) * el.clientWidth;
+    out.y = (-this.pv.y * 0.5 + 0.5) * el.clientHeight;
+    return out;
+  }
+
   render() {
     this.renderer.render(this.scene, this.camera);
   }

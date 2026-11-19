@@ -81,6 +81,7 @@ export class Attack {
     this.bolts = [];   // пул шариков
     this.fx = [];      // пул вспышек и колец попадания
     this.cool = 0;
+    this.onKill = null; // (жук) => void, вызывается при убийстве
     this.tip = new THREE.Vector3();
     this.dir = new THREE.Vector3();
   }
@@ -156,6 +157,7 @@ export class Attack {
     if (e.hp <= 0) {
       this.burst(e.state.x, 0.35, e.state.z, c.hitSize * 1.6, 0.4);
       this.spawner.kill(e);
+      if (this.onKill) this.onKill(e);
     }
     this.deactivate(b);
   }
