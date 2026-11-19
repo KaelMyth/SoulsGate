@@ -184,6 +184,27 @@ export class Hub {
     this.setActive(true);
   }
 
+  /** Расстояние (м) от мировой точки до прямоугольника вагончика: 0 внутри. */
+  distToShop(wx, wz) {
+    const a = this.group.rotation.y;
+    const lx = wx * Math.cos(a) - wz * Math.sin(a);
+    const lz = wx * Math.sin(a) + wz * Math.cos(a);
+    const dx = Math.max(0, Math.abs(lx) - this.cfg.shopHalfW);
+    const dz = Math.max(0, Math.abs(lz - this.cfg.shopZ) - this.cfg.shopHalfD);
+    return Math.hypot(dx, dz);
+  }
+
+  /** Мировая точка сбоку от лавки (справа на экране), откуда выходит кнопка с долларом. */
+  shopButtonAnchor(out) {
+    const a = this.group.rotation.y;
+    const lx = this.cfg.shopHalfW + 0.9;
+    const lz = this.cfg.shopZ + 0.9;
+    out.x = lx * Math.cos(a) + lz * Math.sin(a);
+    out.z = -lx * Math.sin(a) + lz * Math.cos(a);
+    out.y = 1.5;
+    return out;
+  }
+
   setActive(on) {
     this.active = on;
     this.group.visible = on;
@@ -200,33 +221,32 @@ export class Hub {
   }
 }
 
-/** Кнопка Play, выходящая из костра, когда герой рядом. Позиция: мир -> экран (World.project). */
-export class PlayButton {
-  /** el: кнопка в DOM; cfg: CONFIG.hub; onPress: вызывается по нажатию */
-  constructor(el, cfg, onPress) {
+/** Круглая кнопка, которая выходит из точки мира (костёр, лавка), когда герой рядом. Позиция: мир -> экран (World.project). */
+export class PopButton {
+  /** el: кнопка в DOM; o: { radius, hysteresis, rise } (м, м, px); onPress: по нажатию */
+  constructor(el, o, onPress) {
     this.el = el;
-    this.cfg = cfg;
-    this.k = 0;       // 0 спрятана в огне, 1 полностью вышла
+    this.o = o;
+    this.k = 0;       // 0 спрятана, 1 полностью вышла
     this.open = false;
     this.p = { x: 0, y: 0 };
     el.addEventListener('click', () => { if (this.k > 0.6) onPress(); });
   }
 
-  /** dist: расстояние героя до костра (м); world: World для проекции точки костра на экран. */
-  update(dt, dist, world, on) {
-    const c = this.cfg;
+  /** dist: расстояние героя до объекта (м); (ax, ay, az): откуда кнопка выходит; on: можно ли показывать вообще. */
+  update(dt, dist, world, on, ax, ay, az) {
+    const o = this.o;
     if (!on) this.open = false;
-    else if (dist < c.playRadius) this.open = true;
-    else if (dist > c.playRadius + c.playHysteresis) this.open = false;
+    else if (dist < o.radius) this.open = true;
+    else if (dist > o.radius + o.hysteresis) this.open = false;
     const target = this.open ? 1 : 0;
     this.k += (target - this.k) * (1 - Math.exp(-dt / (this.open ? 0.09 : 0.07)));
     if (Math.abs(target - this.k) < 0.003) this.k = target;
-    world.project(0, c.buttonFromY, 0, this.p);
+    world.project(ax, ay, az, this.p);
     const k = this.k;
-    // Выходит из огня вверх и слегка перелетает размер (пружинка).
+    // Выходит вверх и слегка перелетает размер (пружинка).
     const pop = k < 1 ? 1 + 0.12 * Math.sin(k * Math.PI) : 1;
-    const rise = c.buttonRise * k;
-    this.el.style.transform = `translate(${this.p.x}px, ${this.p.y - rise}px) translate(-50%, -50%) scale(${(k * pop).toFixed(3)})`;
+    this.el.style.transform = `translate(${this.p.x}px, ${this.p.y - o.rise * k}px) translate(-50%, -50%) scale(${(k * pop).toFixed(3)})`;
     this.el.style.opacity = String(Math.min(1, k * 1.4));
     this.el.style.pointerEvents = k > 0.6 ? 'auto' : 'none';
   }
