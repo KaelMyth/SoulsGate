@@ -6,7 +6,10 @@
 //   из жуков (CONFIG.guards); охрана бросается в бой, когда герой подошёл или стрелок убит.
 //   Бык (CONFIG.bull): подходит, на дистанции attack.range замирает на замах windup (на земле красная полоса), потом рывок по полосе
 //   на length за strike; достал героя: урон attack.damage. После рывка стоит recovery, затем пауза cooldown. В волне 3 каждая вторая пачка несёт быка вместо охранника.
-// Числа: CONFIG.waves, CONFIG.beetle, CONFIG.shooter, CONFIG.bull, CONFIG.guards, CONFIG.swarm. Для тестов фабрику жуков можно подменить (make).
+//   Скала (CONFIG.rock): огромная, выходит из-за края экрана в начале волны rock.fromWave (и далее каждые rock.every), идёт к герою,
+//   на slam.range замирает на замах (на земле кольцо), бьёт в землю и выпускает мошек (onSlam; мошки: midges.js).
+//   Градации: доля стрелков и быков в волнах 6+ растёт с волной (waves.mix).
+// Числа: CONFIG.waves, CONFIG.beetle, CONFIG.shooter, CONFIG.bull, CONFIG.rock, CONFIG.guards, CONFIG.swarm. Для тестов фабрику жуков можно подменить (make).
 import { Swarm } from './swarm.js';
 
 const TAU = Math.PI * 2;
@@ -23,6 +26,7 @@ export class Spawner {
     this.pool = [];      // все созданные жуки (переиспользуются)
     this.alive = [];     // активные
     this.enabled = false;
+    this.onSlam = null;   // (скала) => выпустить мошек
     this.onAttack = null; // (бык, урон) => герой получил рывок
     this.onShot = null;  // (стрелок, dirX, dirZ) => выпустить шар
     this.onTouch = null; // (жук) => true, если герой получил урон (тогда у жука пауза touchCooldown)
@@ -98,7 +102,8 @@ export class Spawner {
     b.guardOf = null; b.goalOn = false; b.goalX = b.goalZ = 0;
     b.gen = ++this.gen;
     const A = def.attack;
-    b.atk = { state: 'idle', t: 0, cd: A ? A.firstDelay : 0, dirX: 0, dirZ: 0, hit: false };
+    b.heavy = kind === 'rock'; // тяжёлую скалу мелочь не расталкивает
+    b.atk = { state: 'idle', t: 0, cd: A ? A.firstDelay : def.slam ? def.slam.firstDelay : 0, dirX: 0, dirZ: 0, hit: false };
     this.alive.push(b);
     return b;
   }
@@ -107,11 +112,39 @@ export class Spawner {
   pickKind(pat, index, rnd) {
     if (pat.lineup) return pat.lineup[index % pat.lineup.length];
     if (!pat.formation && this.wave > this.cfg.waves.patterns.length) {
-      const r = rnd(), W = this.cfg.waves;
-      if (r < W.bullShare) return 'bull';
-      if (r < W.bullShare + W.shooterShare) return 'shooter';
+      const r = rnd();
+      const bull = this.share('bull'), shooter = this.share('shooter');
+      if (r < bull) return 'bull';
+      if (r < bull + shooter) return 'shooter';
     }
     return 'beetle';
+  }
+
+  /** Градация: доля вида kind среди жуков текущей волны (waves.mix): 0 до from, потом start + step за волну, не больше max. */
+  share(kind, wave = this.wave) {
+    const m = this.cfg.waves.mix[kind];
+    if (wave < m.from) return 0;
+    return Math.min(m.max, m.start + m.step * (wave - m.from));
+  }
+
+  /** Сколько скал выходит в начале волны n: 0 до rock.fromWave; дальше одна, и на каждые every волн ещё одна. */
+  rockCount(n = this.wave) {
+    const R = this.cfg.rock;
+    if (n < R.fromWave) return 0;
+    if (R.every <= 0) return n === R.fromWave ? 1 : 0;
+    return (n - R.fromWave) % R.every === 0 ? 1 + (n - R.fromWave) / R.every : 0;
+  }
+
+  /** Скала выходит из-за края экрана: полностью за краем (радиус R + margin + её радиус) с случайной стороны. */
+  spawnRocks(hx, hz, R, rnd) {
+    const n = this.rockCount();
+    if (n === 0) return;
+    const r = R + this.cfg.waves.margin + this.cfg.rock.radius;
+    const base = rnd() * TAU;
+    for (let i = 0; i < n; i++) {
+      const a = base + (i / Math.max(1, n)) * TAU;
+      this.spawnAt(hx + Math.cos(a) * r, hz + Math.sin(a) * r, hx, hz, 'rock');
+    }
   }
 
   /** Пачка со стрелком: стрелок в точке, size-1 охранников кольцом вокруг него. */
@@ -187,6 +220,7 @@ export class Spawner {
       this.spawned = 0;
       this.spawnTimer = 0;
       this.lastAngle = null;
+      this.spawnRocks(hx, hz, R, rnd);
     }
     const pat = this.row(this.wave);
     const total = this.waveCount();
@@ -268,9 +302,35 @@ export class Spawner {
     }
   }
 
+  /** Скала (systems_rockbeetle.js): idle → windup → recovery → idle; в конце замаха удар в землю и мошки. */
+  updateRock(e, dt, d) {
+    const S = e.def.slam, a = e.atk;
+    if (a.state === 'idle') {
+      if (a.cd > 0) a.cd -= dt;
+      if (a.cd <= 0 && d <= S.range) { a.state = 'windup'; a.t = 0; }
+    } else if (a.state === 'windup') {
+      a.t += dt;
+      if (a.t >= S.windup) {
+        if (this.onSlam) this.onSlam(e);
+        a.state = 'recovery'; a.t = 0;
+      }
+    } else {
+      a.t += dt;
+      if (a.t >= S.recovery) { a.state = 'idle'; a.t = 0; a.cd = S.cooldown; }
+    }
+  }
+
   /** Что рисовать на земле: { x, z, dirX, dirZ, length, width, progress } пока бык замахивается, иначе null. */
   telegraph(e, out = {}) {
+    if (e.def.slam) { // кольцо замаха скалы
+      if (e.atk.state !== 'windup') return null;
+      out.shape = 'circle'; out.x = e.x; out.z = e.z;
+      out.radius = e.radius * e.def.slam.ringScale;
+      out.progress = Math.min(1, e.atk.t / Math.max(0.01, e.def.slam.windup));
+      return out;
+    }
     if (!e.def.attack || e.atk.state !== 'windup') return null;
+    out.shape = 'line';
     const A = e.def.attack;
     out.x = e.x; out.z = e.z; out.dirX = e.atk.dirX; out.dirZ = e.atk.dirZ;
     out.length = A.length; out.width = Math.max(A.width, e.radius * 2);
@@ -290,12 +350,13 @@ export class Spawner {
       const d = Math.hypot(hdx, hdz) || 1e-4;
       if (def.shot) this.updateShooter(e, dt, hero, d);
       if (def.attack) this.updateBull(e, dt, hero, d);
+      if (def.slam) this.updateRock(e, dt, d);
       const tx = e.goalOn ? e.goalX : hero.x, tz = e.goalOn ? e.goalZ : hero.z;
       let dx = tx - e.x, dz = tz - e.z;
       const dist = Math.hypot(dx, dz) || 1e-4;
       dx /= dist; dz /= dist;
       const gap = e.goalOn ? dist - 0.1 : d - (hero.radius + e.radius - 0.07);
-      const hold = (def.keepDistance > 0 && (e.aim > 0 || (!e.goalOn && d <= def.keepDistance))) || (def.attack && e.atk.state !== 'idle');
+      const hold = (def.keepDistance > 0 && (e.aim > 0 || (!e.goalOn && d <= def.keepDistance))) || (def.attack && e.atk.state !== 'idle') || (def.slam && e.atk.state !== 'idle');
       let vx = 0, vz = 0;
       if (gap > 0 && !hold) {
         let mx = dx + e.swX, mz = dz + e.swZ; // к цели + подсказка стаи
