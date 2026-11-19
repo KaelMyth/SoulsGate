@@ -1,5 +1,5 @@
 {
-  "build": 20,
+  "build": 21,
   "commit": "7b2ae92",
-  "notes": "Hub ground is flat inside the field (snow only beyond its edge); a pile of crates, books, ammo and staves left of the campfire."
+  "notes": "A backpack icon pops out above the gear pile when you walk up to it (the inventory itself is not built yet)."
 }

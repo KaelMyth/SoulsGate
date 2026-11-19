@@ -101,3 +101,12 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #pause .ttl { font: 500 30px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.3em; text-indent: 0.3em; color: #dbe7f7; text-shadow: 0 0 18px rgba(120, 170, 255, 0.4); }
 #pause button { width: 76px; height: 76px; padding: 0; border: 2px solid #ffb14a; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ff9a2e, #c2410c 85%); color: #fff6e0; cursor: pointer; box-shadow: 0 0 24px rgba(255, 140, 50, 0.5); }
 #pause button svg { width: 36px; height: 36px; margin-left: 4px; fill: currentColor; }
+
+/* Иконка рюкзака: выходит над кучей снаряжения, когда герой рядом. Инвентарь пока не открывается. */
+#gear-btn {
+  position: absolute; left: 0; top: 0; z-index: 10; width: 60px; height: 60px; padding: 0; border: 2px solid #9fd0ff; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #5f86c8, #28406f 85%); color: #eaf4ff; cursor: pointer; opacity: 0; pointer-events: none;
+  box-shadow: 0 0 22px rgba(120, 180, 255, 0.5), 0 6px 16px rgba(8, 13, 26, 0.5); will-change: transform, opacity;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+#gear-btn svg { width: 36px; height: 36px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(8, 20, 50, 0.6)); }
