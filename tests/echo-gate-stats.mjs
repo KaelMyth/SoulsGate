@@ -103,3 +103,14 @@ test('staff: upgrade needs a pending crystal and changes stats', async () => {
   assert.ok(up.damage > base.damage && up.interval < base.interval && up.range > base.range && up.might > base.might);
   assert.equal(s.upgrade('nonsense'), false);
 });
+
+test('перезарядка посоха упирается только в 0.05 с, остальные усиления без предела', async () => {
+  const { staffStats } = await import('../echo-gate/src/staff.js');
+  const { CONFIG } = await import('../echo-gate/src/config.js');
+  assert.equal(CONFIG.staff.speed.min, 0.05);
+  assert.ok(Math.abs(staffStats(CONFIG, { power: 0, speed: 10, range: 0 }).interval - 0.5 * 0.9 ** 10) < 1e-9); // 0.174 с, выше предела
+  assert.equal(staffStats(CONFIG, { power: 0, speed: 100, range: 0 }).interval, 0.05);
+  const big = staffStats(CONFIG, { power: 1000, speed: 0, range: 1000 });
+  assert.equal(big.damage, CONFIG.attack.damage + 500);
+  assert.equal(big.range, CONFIG.attack.range + 1000);
+});

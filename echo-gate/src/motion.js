@@ -80,9 +80,18 @@ export class Motion {
     let lvz = this.vx * s + this.vz * c;
     if (lx > hx) { lx = hx; if (lvx > 0) lvx = 0; } else if (lx < -hx) { lx = -hx; if (lvx < 0) lvx = 0; }
     if (lz > hz) { lz = hz; if (lvz > 0) lvz = 0; } else if (lz < -hz) { lz = -hz; if (lvz < 0) lvz = 0; }
-    // Препятствия (местные прямоугольники {x, z, hx, hz}): выталкиваем по оси с меньшим проникновением.
+    // Препятствия (местные прямоугольники {x, z, hx, hz} и круги {x, z, r}): выталкиваем по оси с меньшим проникновением.
     for (const b of this.bounds.blocks || []) {
       const dx = lx - b.x, dz = lz - b.z;
+      if (b.r !== undefined) { // круглое препятствие {x, z, r} (костёр): выталкиваем по радиусу, скорость в сторону костра гасится
+        const d = Math.hypot(dx, dz);
+        if (d >= b.r) continue;
+        const nx = d > 1e-6 ? dx / d : 1, nz = d > 1e-6 ? dz / d : 0;
+        lx = b.x + nx * b.r; lz = b.z + nz * b.r;
+        const into = lvx * nx + lvz * nz;
+        if (into < 0) { lvx -= into * nx; lvz -= into * nz; } // остаётся скольжение вдоль круга
+        continue;
+      }
       const px = b.hx - Math.abs(dx), pz = b.hz - Math.abs(dz);
       if (px <= 0 || pz <= 0) continue;
       if (px < pz) { lx = b.x + Math.sign(dx || 1) * b.hx; if (lvx * dx < 0) lvx = 0; }

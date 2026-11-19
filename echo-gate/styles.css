@@ -203,3 +203,19 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #toast { position: absolute; left: 50%; top: 24%; z-index: 22; max-width: 82%; box-sizing: border-box; padding: 11px 18px; border: 1px solid #c2410c; border-radius: 12px; background: rgba(20, 10, 8, 0.88); color: #ffd9a0; font: 500 16px/1.25 "Iowan Old Style", Georgia, serif; text-align: center; letter-spacing: 0.02em; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 120, 40, 0.25); opacity: 0; pointer-events: none; transform: translate(-50%, 8px); }
 #toast.on { animation: toast-in 2.4s ease forwards; }
 @keyframes toast-in { 0% { opacity: 0; transform: translate(-50%, 8px); } 8% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -6px); } }
+
+/* Выбор усиления при повышении уровня: окно появляется плавно, потом надпись, потом две карточки. */
+#levelup { position: absolute; inset: 0; z-index: 30; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 34px;
+  background: rgba(5, 9, 20, 0.72); opacity: 0; transition: opacity var(--fade, 450ms) ease; touch-action: manipulation; }
+#levelup.on { opacity: 1; }
+#levelup .lu-title { font: 500 28px/1.1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.12em; text-indent: 0.12em; color: #eaf2ff; text-align: center;
+  text-shadow: 0 0 20px rgba(130, 180, 255, 0.5); opacity: 0; transform: translateY(-10px); transition: opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s; }
+#levelup.on .lu-title { opacity: 1; transform: none; }
+#levelup .lu-cards { display: flex; gap: 16px; padding: 0 16px; }
+#levelup .lu-card { width: min(40vw, 170px); aspect-ratio: 3 / 4; padding: 0; border: 2px solid #3b5675; border-radius: 16px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(28, 44, 72, 0.92), rgba(12, 20, 38, 0.92)); box-shadow: 0 0 22px rgba(100, 160, 255, 0.18), inset 0 0 24px rgba(120, 170, 255, 0.08);
+  opacity: 0; transform: translateY(18px) scale(0.96); transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.15s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#levelup.on .lu-card { opacity: 1; transform: none; }
+#levelup.on .lu-card:nth-child(1) { transition-delay: 0.3s, 0.3s, 0s; }
+#levelup.on .lu-card:nth-child(2) { transition-delay: 0.42s, 0.42s, 0s; }
+#levelup .lu-card:active { border-color: #ffb14a; }

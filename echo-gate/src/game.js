@@ -13,6 +13,15 @@ import { Scatter } from './scatter.js';
 import { Loot } from './loot.js';
 import { StaffUi } from './staff_ui.js';
 import { staffStats } from './staff.js';
+import { Beetle } from './beetle.js';
+import { Shooter } from './shooter.js';
+import { Bull } from './bull.js';
+import { LevelUp } from './levelup.js';
+import { Rock } from './rock.js';
+import { Midges } from './midges.js';
+import { MidgeView } from './midge_view.js';
+import { Telegraphs } from './telegraph.js';
+import { EnemyShots } from './enemy_shots.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
 import { Stats } from './stats.js';
@@ -34,8 +43,19 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
     this.scatter.setVisible(false);
-    this.spawner = new Spawner(this.world.scene, this.cfg.waves);
+    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : kind === 'bull' ? new Bull() : kind === 'rock' ? new Rock() : new Beetle()));
+    this.enemyShots = new EnemyShots(this.world.scene);
+    this.telegraphs = new Telegraphs(this.world.scene);
+    this.midges = new Midges(this.cfg);
+    this.midgeView = new MidgeView(this.world.scene);
+    this.spawner.onSlam = (e) => this.midges.burst(e.x, e.z, this.heroBody, e.def.slam.midges, this.cfg.rock.midge);
+    this.spawner.onAttack = (e, dmg) => this.hurtHero(dmg);
+    this.spawner.onShot = (e, dx, dz) => this.enemyShots.fire(e, dx, dz, this.cfg.shooter.shot);
+    this.heroBody = { x: 0, z: 0, radius: this.cfg.hero.radius };
+    this.invuln = 0; // с неуязвимости героя после удара
+    this.spawner.onTouch = (e) => this.hurtHero(this.cfg.beetle.touchDamage);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
+    this.attack.midges = this.midges; // выстрел сбивает мошек
     this.stats = new Stats(this.cfg);
     this.loot = new Loot(this.world.scene, this.cfg.loot);
     this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades);
@@ -80,6 +100,12 @@ export class Game {
     this.inventory.listen(() => this.syncEquipment());
     this.syncEquipment();
     this.paused = false;
+    // Окно выбора усиления на новом уровне: бой стоит, пока оно открыто.
+    this.choosing = false;
+    if (o.ui.root) {
+      this.levelUp = new LevelUp(o.ui.root, { onOpen: () => { this.choosing = true; this.stick.cancel(); }, onClose: () => { this.choosing = false; } });
+      this.stats.onLevel = () => { if (this.playing) this.levelUp.request(); };
+    }
     this.pauseBtn = o.ui.pauseBtn;
     this.pauseEl = o.ui.pause;
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
@@ -103,9 +129,31 @@ export class Game {
   restart() {
     this.stats.reset();
     this.spawner.reset();
+    if (this.levelUp) this.levelUp.reset();
+    this.enemyShots.clear();
+    this.telegraphs.update({ alive: [] });
+    this.midges.clear();
+    this.midgeView.update(0, this.midges.items);
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
+  }
+
+  /** Удар жука по герою: учитывает неуязвимость после удара. Возвращает true, если урон прошёл. */
+  hurtHero(n) {
+    if (this.invuln > 0 || !this.playing || this.stats.hp <= 0) return false;
+    this.stats.hurt(n);
+    this.invuln = this.cfg.hero.iFrames;
+    this.bus.emit('hero:hit', { amount: n, hp: this.stats.hp });
+    return true;
+  }
+
+  /** Здоровье кончилось: новая игра и возврат в хаб к костру. */
+  die() {
+    this.restart();
+    this.enterHub();
+    if (this.ui.start) this.ui.start.classList.remove('gone');
+    if (this.hud) { this.hud.hide(); this.settings.hide(); }
   }
 
   /** Хаб: герой появляется ниже костра, границы поля включены. */
@@ -119,6 +167,7 @@ export class Game {
     this.scatter.setVisible(false);
     this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
       blocks: [
+        { x: 0, z: 0, r: H.fireRadius }, // костёр: сквозь него не пройти
         { x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 },
         { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
       ] };
@@ -205,7 +254,16 @@ export class Game {
     m.update(dt, inp.x, inp.z);
     this.hero.update(dt, m, this.cfg.hero.speed);
     this.stats.update(dt);
-    this.spawner.update(dt, m.x, m.z);
+    this.invuln = Math.max(0, this.invuln - dt);
+    this.heroBody.x = m.x; this.heroBody.z = m.z; this.heroBody.radius = this.cfg.hero.radius;
+    if (this.playing) {
+      this.spawner.update(dt, this.heroBody, this.world.groundRadius());
+      this.enemyShots.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
+      this.telegraphs.update(this.spawner);
+      this.midges.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
+      this.midgeView.update(dt, this.midges.items);
+    }
+    if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
     this.loot.update(dt, m.x, m.z);
@@ -261,7 +319,7 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.paused && !this.invOpen) advance(dt, (s) => this.step(s));
+    if (!this.paused && !this.invOpen && !this.choosing) advance(dt, (s) => this.step(s));
     this.drawStick();
     if (!this.paused && !this.invOpen) this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);
