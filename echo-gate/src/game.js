@@ -53,6 +53,7 @@ export class Game {
     if (o.ui.root) {
       this.hud = new Hud(o.ui.root, this.stats, this.world, this.cfg);
       this.settings = new Settings(o.ui.root, { config: this.cfg, stats: this.stats, world: this.world, game: this });
+      this.settings.show(); // шестерёнка и счётчик fps доступны и в хабе
     }
   }
 
@@ -150,11 +151,26 @@ export class Game {
     u.knob.style.transform = `translate(${s.baseX + s.kx - R * 0.42}px, ${s.baseY + s.ky - R * 0.42}px)`;
   }
 
+  /** Счётчик кадров в секунду: среднее за ~0,5 с, цвет по запасу (зелёный от 50, жёлтый от 30, красный ниже). */
+  tickFps(dt) {
+    const el = this.ui.fps;
+    if (!el) return;
+    this.fpsT = (this.fpsT || 0) + dt;
+    this.fpsN = (this.fpsN || 0) + 1;
+    if (this.fpsT < 0.5) return;
+    const v = Math.round(this.fpsN / this.fpsT);
+    el.textContent = `${v} fps`;
+    el.dataset.q = v >= 50 ? 'ok' : v >= 30 ? 'mid' : 'low';
+    this.fpsT = 0;
+    this.fpsN = 0;
+  }
+
   frame(now) {
     if (!this.running) return;
     const t = now / 1000;
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
+    this.tickFps(dt);
     advance(dt, (s) => this.step(s));
     this.drawStick();
     this.hub.update(dt);

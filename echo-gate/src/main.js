@@ -10,6 +10,7 @@ const ui = {
   root: document.getElementById('phone'),
   playBtn: document.getElementById('play'),
   fade: document.getElementById('fade'),
+  fps: document.getElementById('fps'),
 };
 const R = CONFIG.stick.radius;
 ui.base.style.width = ui.base.style.height = `${R * 2}px`;
