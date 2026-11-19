@@ -34,6 +34,9 @@ export class World {
         uJitter: { value: F.jitter },
         uFade: { value: F.fade },
         uNoise: { value: F.noise },
+        uSnow: { value: new THREE.Vector3(F.snowScale, F.snowCover, F.snowTone) },
+        uSnowCol: { value: new THREE.Color(F.snowColor) },
+        uSpeckle: { value: F.speckle },
         uPatch: { value: new THREE.Vector2(F.patchDark, F.patchLight) },
         uBase: { value: new THREE.Color(F.base) },
         uDark: { value: new THREE.Color(F.dark) },
@@ -48,7 +51,8 @@ export class World {
         }`,
       fragmentShader: `
         varying vec2 vW;
-        uniform vec2 uCenter, uPatch; uniform float uCell, uJitter, uFade, uNoise;
+        uniform vec2 uCenter, uPatch; uniform float uCell, uJitter, uFade, uNoise, uSpeckle; uniform vec3 uSnow;
+        uniform vec3 uSnowCol;
         uniform vec3 uBase, uDark, uLight;
         float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         vec2 corner(vec2 ij) { return (ij + vec2(0.5) + (vec2(h21(ij), h21(ij + 17.3)) - 0.5) * uJitter * 2.0) * uCell; }
@@ -80,6 +84,17 @@ export class World {
           }
           float t = clamp(tone(cen) + (seed - 0.5) * uNoise, 0.0, 1.0);
           vec3 c = mix(uDark, uLight, t);
+          // Снежные зоны: крупные пятна с неровным краем; снег светлее и чуть гладче, грани проступают слабее.
+          float zn = vnoise(vW * uSnow.x + 7.0) * 0.7 + vnoise(vW * uSnow.x * 4.0 + 19.0) * 0.3;
+          float snow = smoothstep(1.0 - uSnow.y - 0.012, 1.0 - uSnow.y + 0.012, zn);
+          vec3 sc = mix(uSnowCol, c, 0.2) * (0.8 + 0.34 * t);
+          c = mix(c, sc, snow * uSnow.z * 1.6);
+          // Крошка и камешки: мелкие тёмные пятна на земле, в снегу светлые ямки.
+          vec2 sp = floor(vW * 5.0);
+          float hs = h21(sp + 313.0);
+          vec2 fp = fract(vW * 5.0) - 0.5;
+          float dot_ = smoothstep(0.2, 0.08, length(fp));
+          c = mix(c, snow > 0.5 ? c * 1.12 : c * 0.62, step(1.0 - uSpeckle, hs) * dot_);
           float dep = smoothstep(0.55, 0.9, vnoise(vW * 0.11 + 3.0));
           float drift = smoothstep(0.6, 0.92, vnoise(vW * 0.09 + 41.0));
           c = mix(c, vec3(0.03, 0.05, 0.09), dep * uPatch.x * 2.0);

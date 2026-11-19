@@ -1,5 +1,5 @@
 {
   "build": 11,
-  "commit": "5d678de",
-  "notes": "Auto-attack: glowing blue bolt at the nearest beetle. A wave now ends when the last beetle dies, not after 15 s."
+  "commit": "bbb1656",
+  "notes": "Wider view, fiercer beetles, plants and snow zones on the ground."
 }
