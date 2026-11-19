@@ -173,7 +173,7 @@ export class Game {
     this.tickFps(dt);
     advance(dt, (s) => this.step(s));
     this.drawStick();
-    this.hub.update(dt);
+    this.hub.update(dt, this.motion.x, this.motion.z);
     this.world.render();
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, this.inHub && !this.switching);
     if (this.hud) { this.hud.update(dt, this.hero); this.settings.refresh(); }

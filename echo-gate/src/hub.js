@@ -189,8 +189,14 @@ export class Hub {
     this.group.visible = on;
   }
 
-  update(dt) {
-    if (this.active) { this.fire.update(dt); this.shop.update(dt); }
+  /** (px, pz): мировое положение героя; лавка получает его в своих осях, чтобы хаски следил взглядом. */
+  update(dt, px = 0, pz = 0) {
+    if (!this.active) return;
+    this.fire.update(dt);
+    const a = this.group.rotation.y;
+    const lx = px * Math.cos(a) - pz * Math.sin(a);
+    const lz = px * Math.sin(a) + pz * Math.cos(a);
+    this.shop.update(dt, lx - this.shop.group.position.x, lz - this.shop.group.position.z);
   }
 }
 
