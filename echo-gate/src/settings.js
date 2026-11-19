@@ -26,7 +26,10 @@ const TUNABLES = [
   { tab: 'Враги и волны', group: 'Волны', path: 'waves.growth', label: 'Рост числа за волну, ×', min: 1, max: 2, step: 0.05 },
   { tab: 'Враги и волны', group: 'Волны', path: 'waves.pause', label: 'Пауза между волнами, с', min: 0, max: 10, step: 0.5 },
   { tab: 'Враги и волны', group: 'Волны', path: 'waves.maxAlive', label: 'Потолок жуков на поле', min: 10, max: 400, step: 10 },
-  { tab: 'Экран', group: 'Камера', path: 'camera.viewSpan', label: 'Обзор, м', min: 2.5, max: 10, step: 0.1, after: 'resize' },
+  { tab: 'Экран', group: 'Камера', path: 'camera.viewSpan', label: 'Обзор в хабе, м', min: 2.5, max: 14, step: 0.1, after: 'view' },
+  { tab: 'Экран', group: 'Камера', path: 'camera.runSpan', label: 'Обзор в бою, м', min: 2.5, max: 16, step: 0.1, after: 'view' },
+  { tab: 'Экран', group: 'Камера', path: 'camera.zoomTime', label: 'Скорость отдаления, с', min: 0, max: 2, step: 0.05 },
+  { tab: 'Экран', group: 'Картинка', path: 'render.pixelRatio', label: 'Чёткость (пикселей на пиксель)', min: 0.75, max: 3, step: 0.25, after: 'resize' },
   { tab: 'Экран', group: 'Камера', path: 'camera.smoothTime', label: 'Плавность слежения, с', min: 0, max: 0.5, step: 0.01 },
 ];
 const DEBUG_TAB = 'Отладка';
@@ -99,6 +102,7 @@ export class Settings {
       setPath(this.o.config, def.path, v);
       val.textContent = fmt(v, def.step);
       if (def.after === 'resize') this.o.world.resize();
+      if (def.after === 'view') this.o.world.refreshView(false);
     };
     input.addEventListener('input', () => apply(parseFloat(input.value)));
     const row = { def, input, val, sync: () => { const v = getPath(this.o.config, def.path); input.value = v; val.textContent = fmt(v, def.step); } };
@@ -143,6 +147,7 @@ export class Settings {
       r.sync();
     }
     this.o.world.resize();
+    this.o.world.refreshView(false);
   }
 
   /** Цифры вкладки «Отладка» (только пока она открыта). */

@@ -18,7 +18,7 @@ function frames(n) {
 
 test('герой на экране идёт по прямой со скоростью героя: смещение за кадр = скорость × время кадра', () => {
   const m = new Motion(CONFIG);
-  for (let i = 0; i < 60; i++) advance(1 / 60, (s) => m.update(s, 1, 0)); // разогнались
+  for (let i = 0; i < 240; i++) advance(1 / 60, (s) => m.update(s, 1, 0)); // разогнались
   let worst = 0;
   for (const dt of frames(300)) {
     const x0 = m.x;
@@ -33,4 +33,18 @@ test('длинный кадр режется на куски не длиннее
   advance(0.1, (s) => parts.push(s));
   assert.ok(parts.length >= 3 && parts.every((s) => s <= MAX_STEP + 1e-12));
   assert.ok(Math.abs(parts.reduce((a, b) => a + b, 0) - 0.1) < 1e-9);
+});
+
+test('дрожь пальца на стике (±4% по обеим осям) гасится: скорость героя колеблется меньше 0,045 м/с (при разгоне 0,05 с было 0,057)', () => {
+  const m = new Motion(CONFIG);
+  let seed = 3;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+  const vs = [];
+  for (let i = 0; i < 600; i++) {
+    advance(1 / 60, (s) => m.update(s, 1 + rnd() * 0.04, rnd() * 0.04));
+    if (i > 120) vs.push(Math.hypot(m.vx, m.vz));
+  }
+  const mean = vs.reduce((a, b) => a + b, 0) / vs.length;
+  const sd = Math.sqrt(vs.reduce((a, b) => a + (b - mean) ** 2, 0) / vs.length);
+  assert.ok(sd < 0.045, 'разброс скорости ' + sd.toFixed(3));
 });
