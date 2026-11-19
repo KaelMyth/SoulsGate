@@ -13,6 +13,7 @@ export class Stats {
     this.level = 1;
     this.xp = 0;
     this.kills = 0;
+    this.upgrades = { power: 0, speed: 0, range: 0 }; // кристаллы усиления, вложенные в части посоха
     this.loot = { power: 0, skill: 0, page: 0 }; // подобранные кристаллы усиления, умения и обрывки страниц
     this.levelFlash = 0; // с: сколько ещё показывать «Уровень N»
   }
@@ -59,6 +60,16 @@ export class Stats {
   kill() {
     this.kills++;
     this.addXp(this.cfg.xp.perKill);
+  }
+
+  /** Кристаллы усиления в запасе: подобраны, но ещё не вложены. */
+  get pendingPower() { return this.loot.power - this.upgrades.power - this.upgrades.speed - this.upgrades.range; }
+
+  /** Вложить один кристалл в часть посоха ('power' | 'speed' | 'range'). false, если нечего вкладывать. */
+  upgrade(part) {
+    if (!(part in this.upgrades) || this.pendingPower <= 0) return false;
+    this.upgrades[part]++;
+    return true;
   }
 
   /** Подобрана добыча: опыт сразу в шкалу, остальное в счётчики. */

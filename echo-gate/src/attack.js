@@ -130,7 +130,7 @@ export class Attack {
     b.active = true;
     b.x = this.tip.x; b.y = this.tip.y; b.z = this.tip.z;
     b.vx = this.dir.x * c.speed; b.vy = this.dir.y * c.speed; b.vz = this.dir.z * c.speed;
-    b.life = c.range / c.speed + 0.6;
+    b.life = this.cur().range / c.speed + 0.6;
     b.trailT = 0;
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
     b.halo.visible = b.core.visible = true;
@@ -138,9 +138,12 @@ export class Attack {
     this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16); // вспышка у кристалла
   }
 
+  /** Текущие урон, перезарядка и дальность: по умолчанию из CONFIG, с посохом из его усилений (this.getStats). */
+  cur() { return this.getStats ? this.getStats() : this.cfg; }
+
   nearest(hx, hz) {
     let best = null;
-    let bd = this.cfg.range * this.cfg.range;
+    let bd = this.cur().range * this.cur().range;
     for (const e of this.spawner.alive) {
       const dx = e.state.x - hx, dz = e.state.z - hz;
       const d = dx * dx + dz * dz;
@@ -152,7 +155,7 @@ export class Attack {
   /** Попадание: урон, вспышка, убитый жук исчезает. */
   hit(b, e) {
     const c = this.cfg;
-    e.hp -= c.damage;
+    e.hp -= this.cur().damage;
     this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize, 0.32);
     if (e.hp <= 0) {
       this.burst(e.state.x, 0.35, e.state.z, c.hitSize * 1.6, 0.4);
@@ -173,7 +176,7 @@ export class Attack {
     this.cool -= dt;
     if (this.cool <= 0) {
       const target = this.nearest(hx, hz);
-      if (target) { this.fire(target); this.cool = c.interval; }
+      if (target) { this.fire(target); this.cool = this.cur().interval; }
       else this.cool = 0.1; // нет цели: проверяем чаще, чтобы выстрел вышел сразу, как жук появится
     }
     const r2 = (c.hitRadius + 0.4) * (c.hitRadius + 0.4);

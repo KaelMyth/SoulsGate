@@ -86,3 +86,20 @@ test('collect: xp gem gives xp, crystals and pages go to counters', () => {
   s.reset();
   assert.deepEqual(s.loot, { power: 0, skill: 0, page: 0 });
 });
+
+test('staff: upgrade needs a pending crystal and changes stats', async () => {
+  const { staffStats } = await import('../echo-gate/src/staff.js');
+  const cfg = JSON.parse(JSON.stringify(CONFIG));
+  const s = new Stats(cfg);
+  assert.equal(s.upgrade('power'), false); // нет кристаллов
+  s.collect('power'); s.collect('power'); s.collect('power');
+  assert.equal(s.pendingPower, 3);
+  const base = staffStats(cfg, s.upgrades);
+  assert.equal(base.might, 20);
+  assert.ok(s.upgrade('power') && s.upgrade('speed') && s.upgrade('range'));
+  assert.equal(s.pendingPower, 0);
+  assert.equal(s.upgrade('speed'), false);
+  const up = staffStats(cfg, s.upgrades);
+  assert.ok(up.damage > base.damage && up.interval < base.interval && up.range > base.range && up.might > base.might);
+  assert.equal(s.upgrade('nonsense'), false);
+});

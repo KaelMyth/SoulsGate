@@ -44,6 +44,7 @@ export class Hud {
       item.style.display = 'none';
       this.lootEls[k] = { item, n, v: 0 };
       this.lootRow.append(item);
+      if (k === 'power') item.addEventListener('click', () => { if (this.onPowerTap) this.onPowerTap(); });
     }
     this.root = el('div', { id: 'hud', class: 'gone' }, this.level, this.xpBar, this.lootRow, this.flash);
 
@@ -69,7 +70,7 @@ export class Hud {
     const s = this.stats;
     for (const key in this.lootEls) {
       const e = this.lootEls[key];
-      const v = s.loot[key];
+      const v = key === 'power' ? s.pendingPower : s.loot[key]; // у усиления показываем нерастраченные
       if (v !== e.v) { e.v = v; e.n.textContent = v; e.item.style.display = v > 0 ? '' : 'none'; }
     }
     const k = (tau) => 1 - Math.exp(-dt / tau);

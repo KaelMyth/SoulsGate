@@ -1,5 +1,5 @@
 {
   "build": 25,
-  "commit": "7b2ae92",
-  "notes": "Staves now stand in a proper weapon rack; the husky is raised so his head no longer sinks into the counter."
+  "commit": "9df560a",
+  "notes": "Power crystal opens the staff screen: drag it onto Power, Speed or Range."
 }
