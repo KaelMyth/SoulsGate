@@ -89,7 +89,7 @@ export class Hud {
     const p = hero.group.position;
     this.world.project(p.x, 0.8, p.z, this.pt);
     const box = this.hpSvg.parentElement.parentElement;
-    const ppm = Math.min(box.clientWidth, box.clientHeight) / (2 * this.cfg.camera.viewSpan);
+    const ppm = Math.min(box.clientWidth, box.clientHeight) / (2 * this.world.span);
     const sc = Math.max(0.6, Math.min(2, ppm / 42));
     this.hpSvg.style.transform = `translate(${(this.pt.x - 48).toFixed(1)}px, ${(this.pt.y - 48).toFixed(1)}px) scale(${sc.toFixed(3)})`;
     this.hpSvg.style.opacity = this.hpShow.toFixed(2);

@@ -1,5 +1,5 @@
 {
-  "build": 13,
+  "build": 14,
   "commit": "5d678de",
-  "notes": "Hub: a small campfire field; walk up to the fire and the Play button comes out of it."
+  "notes": "Less shaking (slower gait, smoother stick and camera, lighter picture), eyes sit on the head, stronger camera zoom-out after Play."
 }

@@ -7,7 +7,11 @@ export class World {
   constructor(canvas, cfg) {
     this.cfg = cfg;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cfg.render.pixelRatio));
+    this.cfg = cfg;
+    this.span = cfg.camera.viewSpan;        // текущий обзор (плавно едет к spanTarget)
+    this.spanTarget = this.span;
+    this.view = 'hub';
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setClearColor(cfg.floor.base, 1);
 
@@ -107,11 +111,31 @@ export class World {
   resize() {
     // Размер берём у рамки «телефона», а не у окна браузера.
     const box = this.renderer.domElement.parentElement;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.cfg.render.pixelRatio));
     const w = Math.max(1, box.clientWidth);
     const h = Math.max(1, box.clientHeight);
     this.renderer.setSize(w, h, false);
+    this.applyProjection();
+  }
+
+  /** Обзор камеры: 'hub' (viewSpan) или 'run' (runSpan). snap: сразу, без плавного отдаления. */
+  setView(view, snap) {
+    this.view = view;
+    this.refreshView(snap);
+  }
+
+  /** Перечитать число обзора из CONFIG (ползунки настроек). */
+  refreshView(snap) {
+    this.spanTarget = this.view === 'run' ? this.cfg.camera.runSpan : this.cfg.camera.viewSpan;
+    if (snap) { this.span = this.spanTarget; this.applyProjection(); }
+  }
+
+  applyProjection() {
+    const el = this.renderer.domElement.parentElement;
+    const w = Math.max(1, el.clientWidth);
+    const h = Math.max(1, el.clientHeight);
     const a = w / h;
-    const span = this.cfg.camera.viewSpan;
+    const span = this.span;
     // viewSpan - половина поля по короткой стороне; в изометрии вертикаль сжата, поэтому по высоте даём запас.
     const halfW = a < 1 ? span : span * a;
     const halfH = a < 1 ? span / a : span;
@@ -125,6 +149,11 @@ export class World {
 
   /** Камера следует за точкой (x, z) с плавностью smoothTime. snap: без сглаживания. */
   follow(dt, x, z, snap) {
+    if (Math.abs(this.spanTarget - this.span) > 1e-4) {
+      const kz = this.cfg.camera.zoomTime <= 1e-6 ? 1 : 1 - Math.exp(-dt / this.cfg.camera.zoomTime);
+      this.span += (this.spanTarget - this.span) * kz;
+      this.applyProjection();
+    }
     const k = snap || this.cfg.camera.smoothTime <= 1e-6 ? 1 : 1 - Math.exp(-dt / this.cfg.camera.smoothTime);
     this.target.x += (x - this.target.x) * k;
     this.target.z += (z - this.target.z) * k;

@@ -75,6 +75,7 @@ export class Game {
     this.motion.x = H.startDown * Math.sin(a);
     this.motion.z = H.startDown * Math.cos(a);
     this.motion.vx = this.motion.vz = 0;
+    this.world.setView('hub', true);
     this.world.follow(0, this.motion.x, this.motion.z, true);
   }
 
@@ -93,6 +94,7 @@ export class Game {
       this.world.setVoid(null);
       this.motion.bounds = null;
       this.motion.x = this.motion.z = this.motion.vx = this.motion.vz = 0;
+      this.world.setView('run'); // камера плавно отдаляется
       this.world.follow(0, 0, 0, true);
       this.spawner.start();
       if (this.hud) { this.hud.show(); this.settings.show(); }
