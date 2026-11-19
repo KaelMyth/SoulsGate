@@ -8,6 +8,8 @@ const ui = {
   knob: document.getElementById('stick-knob'),
   start: document.getElementById('start'),
   root: document.getElementById('phone'),
+  playBtn: document.getElementById('play'),
+  fade: document.getElementById('fade'),
 };
 const R = CONFIG.stick.radius;
 ui.base.style.width = ui.base.style.height = `${R * 2}px`;
@@ -17,7 +19,6 @@ const game = new Game({ canvas, config: CONFIG, ui });
 window.__echo = game; // для отладки и автотестов
 game.start();
 
-document.getElementById('play').addEventListener('click', () => game.play());
 loadBuildInfo(CONFIG.repo).then((b) => {
   document.getElementById('build-ver').textContent = b.version;
   document.getElementById('build-notes').textContent = b.notes;

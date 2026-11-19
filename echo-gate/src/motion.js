@@ -14,6 +14,7 @@ export class Motion {
     this.dashZ = 0;
     this.glideT = 0;
     this.cooldown = 0;
+    this.bounds = null; // { hx, hz, ang }: прямоугольник, повёрнутый на ang вокруг начала; null = мир без границ
     this.dashSeq = 0; // растёт с каждым рывком: по нему график видит новый рывок
   }
 
@@ -64,6 +65,25 @@ export class Motion {
     }
     this.x += this.vx * dt;
     this.z += this.vz * dt;
+    if (this.bounds) this.clamp();
+  }
+
+  /** Не выпускать за прямоугольник bounds; скорость вдоль упёртой стены гасится. */
+  clamp() {
+    const { hx, hz, ang } = this.bounds;
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    // Мировые (x, z) в местные (lx, lz): поворот на -ang.
+    let lx = this.x * c - this.z * s;
+    let lz = this.x * s + this.z * c;
+    let lvx = this.vx * c - this.vz * s;
+    let lvz = this.vx * s + this.vz * c;
+    if (lx > hx) { lx = hx; if (lvx > 0) lvx = 0; } else if (lx < -hx) { lx = -hx; if (lvx < 0) lvx = 0; }
+    if (lz > hz) { lz = hz; if (lvz > 0) lvz = 0; } else if (lz < -hz) { lz = -hz; if (lvz < 0) lvz = 0; }
+    this.x = lx * c + lz * s;
+    this.z = -lx * s + lz * c;
+    this.vx = lvx * c + lvz * s;
+    this.vz = -lvx * s + lvz * c;
   }
 
   get speed() { return Math.hypot(this.vx, this.vz); }

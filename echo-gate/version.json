@@ -1,5 +1,5 @@
 {
   "build": 13,
   "commit": "5d678de",
-  "notes": "Stats: health, XP and level, a SoulsGate-style HUD and a settings window with sliders (gear, top left)."
+  "notes": "Hub: a small campfire field; walk up to the fire and the Play button comes out of it."
 }
