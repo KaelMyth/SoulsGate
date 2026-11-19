@@ -77,3 +77,27 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #fps { position: absolute; z-index: 20; top: max(8px, env(safe-area-inset-top)); left: calc(max(8px, env(safe-area-inset-left)) + 52px); height: 44px; display: flex; align-items: center; padding: 0 10px; box-sizing: border-box; border: 1px solid #3b5675; border-radius: 12px; background: rgba(8, 13, 26, 0.78); font: 600 13px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; color: #7fe3a0; pointer-events: none; }
 #fps[data-q="mid"] { color: #ffd36b; }
 #fps[data-q="low"] { color: #ff7a6b; }
+
+/* Кнопка «$» у лавки: выходит сбоку, когда герой рядом (позицию ставит PopButton). Магазин пока не открывается. */
+#shop-btn {
+  position: absolute; left: 0; top: 0; z-index: 10; width: 60px; height: 60px; padding: 0; border: 2px solid #ffd36b; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f3c25a, #a8741a 85%); color: #5a1a1a; font: 800 34px/1 Georgia, serif; cursor: pointer; opacity: 0; pointer-events: none;
+  box-shadow: 0 0 22px rgba(255, 190, 80, 0.55), 0 6px 16px rgba(8, 13, 26, 0.5); text-shadow: 0 1px 0 rgba(255, 235, 170, 0.6);
+  will-change: transform, opacity; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+/* Пауза: справа сверху, в стиле шестерёнки. */
+#pause-btn {
+  position: absolute; z-index: 20; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right));
+  width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; gap: 5px;
+  border: 1px solid #3b5675; border-radius: 12px; background: rgba(8, 13, 26, 0.78); cursor: pointer; transition: opacity 0.4s;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+#pause-btn i { display: block; width: 5px; height: 18px; border-radius: 2px; background: #dbe7f7; }
+#pause-btn:active { border-color: #ffb14a; }
+#pause-btn.gone { opacity: 0; pointer-events: none; }
+#pause { position: absolute; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; background: rgba(5, 9, 20, 0.6); }
+#pause.on { display: flex; }
+#pause .box { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+#pause .ttl { font: 500 30px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.3em; text-indent: 0.3em; color: #dbe7f7; text-shadow: 0 0 18px rgba(120, 170, 255, 0.4); }
+#pause button { width: 76px; height: 76px; padding: 0; border: 2px solid #ffb14a; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ff9a2e, #c2410c 85%); color: #fff6e0; cursor: pointer; box-shadow: 0 0 24px rgba(255, 140, 50, 0.5); }
+#pause button svg { width: 36px; height: 36px; margin-left: 4px; fill: currentColor; }

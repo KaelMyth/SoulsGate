@@ -15,7 +15,7 @@ import { advance } from './timestep.js';
 import { Stats } from './stats.js';
 import { Hud } from './hud.js';
 import { Settings } from './settings.js';
-import { Hub, PlayButton } from './hub.js';
+import { Hub, PopButton } from './hub.js';
 
 export class Game {
   constructor(o) {
@@ -47,7 +47,16 @@ export class Game {
     this.playing = false; // забег идёт (после Play)
     this.inHub = true;    // стоим в хабе у костра: герой ходит, но боя нет
     this.hub = new Hub(this.world.scene, this.cfg.hub);
-    this.playBtn = new PlayButton(o.ui.playBtn, this.cfg.hub, () => this.play());
+    const H = this.cfg.hub;
+    this.playBtn = new PopButton(o.ui.playBtn, { radius: H.playRadius, hysteresis: H.playHysteresis, rise: H.buttonRise }, () => this.play());
+    this.shopBtn = new PopButton(o.ui.shopBtn, { radius: H.shopRadius, hysteresis: H.shopHysteresis, rise: H.shopButtonRise }, () => this.bus.emit('shop:open', {}));
+    this.anchor = { x: 0, y: 0, z: 0 };
+    this.paused = false;
+    this.pauseBtn = o.ui.pauseBtn;
+    this.pauseEl = o.ui.pause;
+    if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
+    if (this.pauseEl) this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.playing) this.setPaused(true); });
     this.enterHub();
 
     window.addEventListener('blur', () => this.stick.cancel());
@@ -105,6 +114,7 @@ export class Game {
       this.world.follow(0, 0, 0, true);
       this.spawner.start();
       if (this.hud) { this.hud.show(); this.settings.show(); }
+      if (this.pauseBtn) this.pauseBtn.classList.remove('gone');
       if (fade) fade.classList.remove('on');
       this.switching = false;
     }, ms);
@@ -157,6 +167,14 @@ export class Game {
     u.knob.style.transform = `translate(${s.baseX + s.kx - R * 0.42}px, ${s.baseY + s.ky - R * 0.42}px)`;
   }
 
+  /** Пауза боя: логика стоит, кадр рисуется, поверх окно с кнопкой продолжить. Только в забеге. */
+  setPaused(on) {
+    if (on && !this.playing) return;
+    this.paused = on;
+    this.stick.cancel();
+    if (this.pauseEl) this.pauseEl.classList.toggle('on', on);
+  }
+
   /** Счётчик кадров в секунду: среднее за ~0,5 с, цвет по запасу (зелёный от 50, жёлтый от 30, красный ниже). */
   tickFps(dt) {
     const el = this.ui.fps;
@@ -177,11 +195,14 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    advance(dt, (s) => this.step(s));
+    if (!this.paused) advance(dt, (s) => this.step(s));
     this.drawStick();
-    this.hub.update(dt, this.motion.x, this.motion.z);
+    if (!this.paused) this.hub.update(dt, this.motion.x, this.motion.z);
     this.world.render();
-    this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, this.inHub && !this.switching);
+    const hubOn = this.inHub && !this.switching;
+    this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
+    const an = this.hub.shopButtonAnchor(this.anchor);
+    this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
     if (this.hud) { this.hud.update(dt, this.hero); this.settings.refresh(); }
     requestAnimationFrame((n) => this.frame(n));
   }

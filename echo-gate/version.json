@@ -1,5 +1,5 @@
 {
-  "build": 18,
+  "build": 19,
   "commit": "7b2ae92",
-  "notes": "Fiercer beetles, plants and snow zones on the ground, wider view in battle."
+  "notes": "Pause button (top right) and a $ button that pops out next to the shop wagon when you walk up to it (the shop itself is not built yet)."
 }

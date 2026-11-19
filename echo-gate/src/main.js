@@ -11,6 +11,9 @@ const ui = {
   playBtn: document.getElementById('play'),
   fade: document.getElementById('fade'),
   fps: document.getElementById('fps'),
+  shopBtn: document.getElementById('shop-btn'),
+  pauseBtn: document.getElementById('pause-btn'),
+  pause: document.getElementById('pause'),
 };
 const R = CONFIG.stick.radius;
 ui.base.style.width = ui.base.style.height = `${R * 2}px`;
