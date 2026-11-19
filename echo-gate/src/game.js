@@ -9,6 +9,7 @@ import { Motion } from './motion.js';
 import { World } from './world.js';
 import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
+import { Attack } from './attack.js';
 
 const STEP = 1 / 60;
 
@@ -22,6 +23,7 @@ export class Game {
     this.hero.addTo(this.world.scene);
     this.motion = new Motion(this.cfg);
     this.spawner = new Spawner(this.world.scene, this.cfg.waves);
+    this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
 
     this.stick = new Stick(o.canvas, this.bus, this.cfg.stick);
     this.swipe = new SwipeDetector(this.bus, this.cfg.dash, (sx, sy) => {
@@ -77,6 +79,7 @@ export class Game {
     m.update(dt, inp.x, inp.z);
     this.hero.update(dt, m, this.cfg.hero.speed);
     this.spawner.update(dt, m.x, m.z);
+    if (this.playing) this.attack.update(dt, m.x, m.z);
     this.world.follow(dt, m.x, m.z, false);
   }
 

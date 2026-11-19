@@ -52,6 +52,8 @@ function makeHat(mat) {
   return mesh;
 }
 
+const CAST_TIME = 0.22; // с: длительность взмаха посоха при выстреле
+
 export class Hero {
   constructor() {
     this.group = new THREE.Group();     // положение и поворот в мире
@@ -171,7 +173,21 @@ export class Hero {
     this.prevVx = 0;
     this.prevVz = 0;
     this.squash = 0;         // рывок: вытягивание
+    this.castT = 0;          // остаток взмаха посоха при выстреле, с
+    this.castYaw = 0;
     this.group.rotation.y = this.yaw;
+  }
+
+  /** Выстрел: взмах посоха в сторону yaw (поворот героя на цель, если он стоит). */
+  cast(yaw) {
+    this.castT = CAST_TIME;
+    this.castYaw = yaw;
+  }
+
+  /** Мировая позиция кристалла посоха: отсюда вылетает шарик. */
+  staffTip(out) {
+    this.group.updateMatrixWorld(true);
+    return this.crystal.getWorldPosition(out);
   }
 
   /** Посох в руке +x (у персонажа левая): ствол с хватом на высоте руки, у земли обойма, наверху завиток и бирюзовый кристалл. */
@@ -275,6 +291,15 @@ export class Hero {
       else if (d < -Math.PI) d += Math.PI * 2;
       this.yaw += d * (1 - Math.exp(-dt / (motion.dashing ? 0.03 : 0.08)));
     }
+    else if (this.castT > 0 && !motion.dashing) {
+      let d = (this.castYaw - this.yaw) % (Math.PI * 2);
+      if (d > Math.PI) d -= Math.PI * 2;
+      else if (d < -Math.PI) d += Math.PI * 2;
+      this.yaw += d * (1 - Math.exp(-dt / 0.05)); // стоит: быстро поворачивается к цели
+    }
+    this.castT = Math.max(0, this.castT - dt);
+    const castK = this.castT / CAST_TIME;                 // 1 в момент выстрела, 0 в конце
+    const swing = Math.sin(Math.PI * Math.min(1, 1 - castK)) * (this.castT > 0 ? 1 : 0); // взмах вперёд и назад
     this.group.position.set(motion.x, 0, motion.z);
     this.group.rotation.y = this.yaw;
 
@@ -288,7 +313,7 @@ export class Hero {
     const accF = ax * fx + az * fz;          // вперёд
     const accS = ax * fz - az * fx;          // вбок
 
-    const leanTarget = Math.min(0.45, frac * 0.16 + Math.max(0, accF) * 0.004) + (motion.dashing ? 0.35 : 0);
+    const leanTarget = Math.min(0.45, frac * 0.16 + Math.max(0, accF) * 0.004) + (motion.dashing ? 0.35 : 0) + swing * 0.08;
     this.lean += (leanTarget - this.lean) * (1 - Math.exp(-dt / 0.06));
     this.sway += (Math.max(-0.4, Math.min(0.4, -accS * 0.01)) - this.sway) * (1 - Math.exp(-dt / 0.08));
 
@@ -329,7 +354,7 @@ export class Hero {
     this.arms[0].rotation.z = -0.05 - frac * 0.05;
     this.arms[1].rotation.z = 0.05 + frac * 0.06;
     // Посох держит собственный наклон независимо от руки (компенсируем поворот руки).
-    const staffTilt = frac * 0.42 + stepS * 0.06 * frac - dashK * 1.35 + (1 - frac) * Math.sin(this.t * 1.3) * 0.015;
+    const staffTilt = frac * 0.42 + stepS * 0.06 * frac - dashK * 1.35 + (1 - frac) * Math.sin(this.t * 1.3) * 0.015 + swing * 0.9;
     this.staff.rotation.x = staffTilt - staffArm;
     this.staff.rotation.z = -0.05;
     // Фолиант держит себя ровно (тоже компенсируем) и парит.
@@ -338,8 +363,8 @@ export class Hero {
     this.tome.position.y = -0.3 + idleBreath * 0.012 + stepBounce * 0.03 * frac;
     // Кристалл и руна пульсируют, сильнее на бегу.
     const pulse = 0.5 + 0.5 * Math.sin(this.t * 3 + (frac + dashK) * 2);
-    this.crystal.material.emissiveIntensity = 1.0 + pulse * 0.6 + frac * 0.3 + dashK * 0.6;
-    this.staffGlow.material.opacity = 0.55 + pulse * 0.25 + dashK * 0.2;
+    this.crystal.material.emissiveIntensity = 1.0 + pulse * 0.6 + frac * 0.3 + dashK * 0.6 + castK * 2.2;
+    this.staffGlow.material.opacity = Math.min(1, 0.55 + pulse * 0.25 + dashK * 0.2 + castK * 0.35);
     this.runeGlow.material.opacity = 0.25 + pulse * 0.2 + dashK * 0.25;
     this.crystal.rotation.y += dt * (1.2 + frac * 2);
 
