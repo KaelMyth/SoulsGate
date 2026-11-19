@@ -25,3 +25,43 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #play:active { transform: scale(0.96); }
 .build { position: absolute; left: 16px; right: 16px; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: rgba(52, 64, 106, 0.7); text-align: center; }
 #build-ver { font-weight: 700; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
+
+/* Интерфейс боя и окно настроек в стиле SoulsGate (тёмное стекло, ледяной текст, янтарный акцент). */
+#hud, #cfg-btn, #cfg-panel { --ink: #dbe7f7; --ice-dim: #7f98bb; --line: #3b5675; --accent: #ffb14a; --serif: "Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif; }
+#hud { position: absolute; inset: 0; pointer-events: none; transition: opacity 0.4s; }
+#hud.gone, #cfg-btn.gone { opacity: 0; pointer-events: none; }
+#hud-xp { position: absolute; left: 16px; right: 16px; bottom: max(8px, env(safe-area-inset-bottom)); height: 3px; background: rgba(5, 9, 20, 0.78); outline: 1px solid rgba(190, 215, 250, 0.38); }
+#hud-xp i { display: block; height: 100%; width: 0; background: linear-gradient(#a9d3ff, #4f93ee 40%); }
+#hud-level { position: absolute; left: 16px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 14px); font: italic 12px var(--serif); color: var(--ink); opacity: 0.8; text-shadow: 0 1px 3px rgba(5, 9, 20, 0.8); }
+#hud-flash { position: absolute; left: 0; right: 0; top: 24%; text-align: center; opacity: 0; font: 500 30px/1.1 var(--serif); letter-spacing: 0.12em; text-transform: uppercase; color: #ffd9a0; text-shadow: 0 0 20px rgba(255, 177, 74, 0.55); }
+#hud-hp { position: absolute; left: 0; top: 0; overflow: visible; font-family: var(--serif); will-change: transform; }
+
+#cfg-btn {
+  position: absolute; z-index: 20; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left));
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 12px; font-size: 22px; line-height: 1;
+  background: rgba(8, 13, 26, 0.78); color: var(--ink); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: opacity 0.4s;
+}
+#cfg-btn.on { border-color: var(--accent); color: var(--accent); }
+#cfg-panel {
+  position: absolute; z-index: 20; top: calc(max(8px, env(safe-area-inset-top)) + 52px); left: max(8px, env(safe-area-inset-left));
+  box-sizing: border-box; width: min(88%, 330px); max-height: calc(100% - 140px); overflow-y: auto; padding: 12px;
+  background: rgba(8, 13, 26, 0.93); border: 1px solid var(--line); border-radius: 12px; color: var(--ink); font: 14px/1.3 var(--serif);
+  touch-action: pan-y; -webkit-user-select: none; user-select: none;
+}
+#cfg-panel[hidden] { display: none; }
+#cfg-panel h3 { margin: 0 0 8px; font: 500 18px var(--serif); letter-spacing: 0.08em; }
+.cfg-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 8px; padding-bottom: 4px; touch-action: pan-x; }
+.cfg-tab { flex: 0 0 auto; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: 12px var(--serif); touch-action: manipulation; }
+.cfg-tab.on { border-color: var(--accent); color: var(--accent); }
+.cfg-page[hidden] { display: none; }
+.cfg-sect { border-bottom: 1px solid var(--line); }
+.cfg-sect summary { padding: 9px 0; cursor: pointer; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.cfg-body { padding-bottom: 8px; }
+.cfg-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 6px 0; }
+.cfg-row .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+.cfg-row input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); touch-action: pan-y; }
+.cfg-info { margin: 0 0 10px; font: 13px/1.6 var(--serif); white-space: pre-wrap; color: var(--ink); }
+.cfg-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cfg-btns { margin-top: 10px; }
+.cfg-btns button, .cfg-act { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 13px var(--serif); touch-action: manipulation; }
+.cfg-btns button:active, .cfg-act:active { border-color: var(--accent); color: var(--accent); }

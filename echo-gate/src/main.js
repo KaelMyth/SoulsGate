@@ -7,6 +7,7 @@ const ui = {
   base: document.getElementById('stick-base'),
   knob: document.getElementById('stick-knob'),
   start: document.getElementById('start'),
+  root: document.getElementById('phone'),
 };
 const R = CONFIG.stick.radius;
 ui.base.style.width = ui.base.style.height = `${R * 2}px`;
