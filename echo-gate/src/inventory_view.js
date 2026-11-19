@@ -141,18 +141,21 @@ export class InventoryView {
     this.t += dt;
     const t = this.t;
     this.hero.update(dt, this.motion, 6);
-    // Поза: маг чуть повёрнут к фолианту, левая рука поднята ладонью под книгой, правая вытянута в сторону с посохом.
+    // Поза: маг стоит прямо и спокойно. Правая (на экране) рука опущена и держит посох вертикально, левая согнута вперёд
+    // ладонью вверх, над ладонью парит открытый фолиант. Лёгкое дыхание, голова повёрнута к книге.
     const mage = this.hero;
-    mage.group.rotation.y = -0.28 + 0.06 * Math.sin(t * 0.5);
-    mage.head.rotation.y = -0.22;
-    mage.arms[0].rotation.set(-0.35 + 0.03 * Math.sin(t * 1.6), 0, -1.05);
-    mage.arms[1].rotation.set(-0.12, 0, 0.8 + 0.02 * Math.sin(t * 1.3));
-    mage.staff.rotation.set(0, 0, -0.8 + 0.26); // посох отклонён наружу, а не вдоль руки
-    this.tome.position.set(-1.45, 1.6 + 0.07 * Math.sin(t * 1.6), 0.35);
-    this.tome.scale.setScalar(1.15);
-    this.tome.rotation.set(-0.3 + 0.03 * Math.sin(t * 1.1), 0.42 + 0.1 * Math.sin(t * 0.7), 0.06 + 0.04 * Math.sin(t * 0.9));
+    const br = Math.sin(t * 1.6);
+    mage.group.rotation.y = -0.12 + 0.04 * Math.sin(t * 0.5);
+    mage.head.rotation.y = -0.18 + 0.04 * Math.sin(t * 0.7);
+    mage.head.rotation.x = 0.04;
+    mage.arms[0].rotation.set(-1.15 + 0.03 * br, 0, -0.32);
+    mage.arms[1].rotation.set(-0.08, 0, 0.3);
+    mage.staff.rotation.set(0.08, 0, -0.3); // компенсируем наклон руки: посох стоит вертикально
+    this.tome.position.set(-1.25, 1.5 + 0.06 * br, 0.55);
+    this.tome.scale.setScalar(1.1);
+    this.tome.rotation.set(-0.42 + 0.03 * Math.sin(t * 1.1), 0.5 + 0.08 * Math.sin(t * 0.7), 0.04 * Math.sin(t * 0.9));
     this.tome.userData.glow.material.opacity = 0.45 + 0.15 * Math.sin(t * 2.4);
-    this.tomeLight.position.set(-1.45, 1.9, 1.3);
+    this.tomeLight.position.set(-1.25, 1.85, 1.3);
     for (const m of this.motes) {
       const u = m.userData;
       u.y += dt * u.sp; if (u.y > 2.8) u.y = 0;
@@ -167,7 +170,7 @@ export class InventoryView {
     this.camera.fov = w / h < 1 ? 36 : 28;
     this.camera.updateProjectionMatrix();
     this.camera.position.set(0, 1.5, 8.0);
-    this.camera.lookAt(-0.3, 1.2, 0);
+    this.camera.lookAt(-0.25, 1.2, 0);
 
     const r = this.renderer;
     const prev = new THREE.Color();
