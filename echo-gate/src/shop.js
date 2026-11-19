@@ -162,7 +162,7 @@ class Husky {
     const seen = d < 16 && dz > -0.6; // игрока за спиной не видит
     const clamp = (v, a) => Math.max(-a, Math.min(a, v));
     const yawT = seen ? clamp(Math.atan2(dx, Math.max(0.3, dz)), 1.15) : 0;
-    const pitchT = seen ? clamp(Math.atan2(1.0, Math.max(1, d)), 0.45) : 0;
+    const pitchT = seen ? clamp(Math.atan2(1.0, Math.max(1, d)), 0.28) : 0;
     this.lookY = (this.lookY || 0) + (yawT - (this.lookY || 0)) * (1 - Math.exp(-dt / 0.12));
     this.lookX = (this.lookX || 0) + (pitchT - (this.lookX || 0)) * (1 - Math.exp(-dt / 0.15));
     this.group.rotation.y = this.lookY * 0.25;
@@ -268,7 +268,7 @@ export class Shop {
 
     // Хаски за прилавком.
     this.husky = new Husky();
-    this.husky.group.position.set(0, base + 0.09, hd - 0.95);
+    this.husky.group.position.set(0, base + 0.55, hd - 1.2); // повыше, чтобы голова не уходила в стол
     this.husky.group.scale.setScalar(1.18);
     this.group.add(this.husky.group);
 

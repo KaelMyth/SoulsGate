@@ -150,24 +150,45 @@ export class GearPile {
     const lay = book(0.4, 0.06, 0.3, 0x5a3d6b, false);
     lay.position.set(0.62, 0.7, -0.55); lay.rotation.y = 0.5; G.add(lay);
 
-    // Бочка со стоящими посохами, вокруг ещё несколько прислонены к ящикам.
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.32, 0.78, 9), mat(0x6e4627));
-    add(barrel, 1.55, 0.39, 0.45);
-    for (const yy of [0.2, 0.6]) {
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.375, 0.375, 0.05, 9), mat(IRON, 0.6));
-      band.position.set(1.55, yy, 0.45); G.add(band);
+    // Стойка для посохов: деревянная рама с двумя перекладинами, посохи стоят в ряд, навершия торчат над рамой.
+    const rack = new THREE.Group();
+    rack.position.set(1.6, 0, 0.5);
+    rack.rotation.y = -0.25;
+    G.add(rack);
+    const rw = 1.7;
+    const wood = mat(0x6e4627), woodD = mat(WOOD_D), goldM = mat(0xe0a93e, 0.45);
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(rw + 0.2, 0.1, 0.5), woodD); // основание
+    plank.position.y = 0.05; rack.add(plank);
+    for (const sx of [-1, 1]) { // боковые стойки с золотыми навершиями
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.25, 0.12), wood);
+      post.position.set(sx * (rw / 2 + 0.02), 0.62, 0); rack.add(post);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.18, 4), goldM);
+      cap.position.set(sx * (rw / 2 + 0.02), 1.34, 0); cap.rotation.y = Math.PI / 4; rack.add(cap);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.4, 0.4), woodD); // распорка
+      foot.position.set(sx * (rw / 2 + 0.02), 0.2, 0); rack.add(foot);
     }
-    const kinds = ['crystal', 'moon', 'orb', 'flame', 'branch', 'crystal'];
-    const spots = [
-      [1.45, 0.55, 0.12, -0.1, 1.9], [1.62, 0.4, -0.08, 0.14, 1.7], [1.7, 0.5, 0.2, 0.0, 2.0], // в бочке (с наклоном)
-      [-1.0, -0.05, 0.1, -0.1, 1.8], [-1.15, -0.15, 0.22, 0.05, 1.6], [0.0, 0.45, -0.18, 0.12, 2.0], // у ящиков
-    ];
+    for (const y of [0.55, 1.05]) { // перекладины спереди и сзади: посохи зажаты между ними
+      for (const z of [-0.07, 0.07]) {
+        const r = new THREE.Mesh(new THREE.BoxGeometry(rw, 0.06, 0.04), wood);
+        r.position.set(0, y, z); rack.add(r);
+      }
+    }
+    const rackKinds = ['crystal', 'moon', 'orb', 'flame', 'branch'];
+    const rackLen = [1.95, 1.8, 2.0, 1.75, 1.85];
+    rackKinds.forEach((k, n) => {
+      const s = staff(k, rackLen[n]);
+      s.position.set(-rw / 2 + 0.17 + n * ((rw - 0.34) / 4), 0.1, 0);
+      s.rotation.z = (n - 2) * 0.025; // еле заметный веер, как живая стойка
+      rack.add(s);
+      if (s.userData.glow) this.glows.push(s.userData.glow);
+    });
+    // Остальные посохи просто прислонены к ящикам.
+    const kinds = ['flame', 'branch', 'crystal'];
+    const spots = [[-1.0, -0.05, 0.1, -0.1, 1.8], [-1.15, -0.15, 0.22, 0.05, 1.6], [0.0, 0.45, -0.18, 0.12, 2.0]];
     spots.forEach(([x, z, tx, tz, len], i) => {
       const s = staff(kinds[i], len);
-      const inBarrel = i < 3;
-      s.position.set(x, inBarrel ? 0.7 : 0, z + (inBarrel ? 0 : 0));
-      s.rotation.set(tz * (inBarrel ? 1 : 2.2), 0, -tx * (inBarrel ? 1 : 2.2));
-      if (!inBarrel) s.position.y = 0;
+      s.position.set(x, 0, z);
+      s.rotation.set(tz * 2.2, 0, -tx * 2.2);
       G.add(s);
       if (s.userData.glow) this.glows.push(s.userData.glow);
     });
