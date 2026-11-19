@@ -51,3 +51,13 @@ test('index.html: список модулей для защиты от кеша 
   const v = JSON.parse(readFileSync(new URL('../echo-gate/version.json', import.meta.url), 'utf8'));
   assert.ok(Number.isInteger(v.build) && v.build > 0);
 });
+
+test('круглое препятствие (костёр): в него не войти, вдоль круга скользит', () => {
+  const m = new Motion(CONFIG);
+  m.bounds = { hx: 13, hz: 30, ang: 0, blocks: [{ x: 0, z: 0, r: 1.8 }] };
+  m.x = 0; m.z = 5;
+  let minD = 99;
+  for (let i = 0; i < 600; i++) { m.update(1 / 60, 0.05, -1); minD = Math.min(minD, Math.hypot(m.x, m.z)); } // идёт на костёр
+  assert.ok(minD >= 1.8 - 1e-6, `подошёл на ${minD}`);
+  assert.ok(Math.abs(m.x) > 0.3 || m.z > 1.7); // обходит или упёрся, но не внутри
+});

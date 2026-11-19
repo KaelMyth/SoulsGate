@@ -157,6 +157,7 @@ export class Game {
     this.scatter.setVisible(false);
     this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
       blocks: [
+        { x: 0, z: 0, r: H.fireRadius }, // костёр: сквозь него не пройти
         { x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 },
         { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
       ] };
