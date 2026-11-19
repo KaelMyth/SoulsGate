@@ -71,7 +71,8 @@ export class Game {
     this.playing = false;
     this.world.setVoid(H.voidColor);
     this.hub.setActive(true);
-    this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a };
+    this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
+      blocks: [{ x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 }] };
     this.motion.x = H.startDown * Math.sin(a);
     this.motion.z = H.startDown * Math.cos(a);
     this.motion.vx = this.motion.vz = 0;
