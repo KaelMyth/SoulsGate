@@ -11,7 +11,7 @@ const TUNABLES = [
   { tab: 'Персонаж', group: 'Рывок', path: 'dash.duration', label: 'Длительность, с', min: 0.1, max: 0.6, step: 0.01 },
   { tab: 'Персонаж', group: 'Рывок', path: 'dash.cooldown', label: 'Перезарядка, с', min: 0.2, max: 4, step: 0.1 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.damage', label: 'Урон', min: 0.5, max: 10, step: 0.5 },
-  { tab: 'Оружие', group: 'Выстрел', path: 'attack.interval', label: 'Пауза между выстрелами, с', min: 0.1, max: 2, step: 0.05 },
+  { tab: 'Оружие', group: 'Выстрел', path: 'attack.interval', label: 'Пауза между выстрелами, с', min: 0.05, max: 2, step: 0.05 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.range', label: 'Дальность, м', min: 3, max: 20, step: 0.5 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.speed', label: 'Скорость шарика, м/с', min: 4, max: 40, step: 1 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.size', label: 'Размер шарика, м', min: 0.2, max: 1.2, step: 0.05 },
