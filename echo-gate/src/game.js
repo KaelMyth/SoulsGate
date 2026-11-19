@@ -13,6 +13,7 @@ import { Scatter } from './scatter.js';
 import { Loot } from './loot.js';
 import { StaffUi } from './staff_ui.js';
 import { staffStats } from './staff.js';
+import { Beetle } from './beetle.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
 import { Stats } from './stats.js';
@@ -33,7 +34,10 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
     this.scatter.setVisible(false);
-    this.spawner = new Spawner(this.world.scene, this.cfg.waves);
+    this.spawner = new Spawner(this.world.scene, this.cfg, () => new Beetle());
+    this.heroBody = { x: 0, z: 0, radius: this.cfg.hero.radius };
+    this.invuln = 0; // с неуязвимости героя после удара
+    this.spawner.onTouch = (e) => this.hurtHero(this.cfg.beetle.touchDamage);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
     this.stats = new Stats(this.cfg);
     this.loot = new Loot(this.world.scene, this.cfg.loot);
@@ -104,6 +108,23 @@ export class Game {
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
+  }
+
+  /** Удар жука по герою: учитывает неуязвимость после удара. Возвращает true, если урон прошёл. */
+  hurtHero(n) {
+    if (this.invuln > 0 || !this.playing || this.stats.hp <= 0) return false;
+    this.stats.hurt(n);
+    this.invuln = this.cfg.hero.iFrames;
+    this.bus.emit('hero:hit', { amount: n, hp: this.stats.hp });
+    return true;
+  }
+
+  /** Здоровье кончилось: новая игра и возврат в хаб к костру. */
+  die() {
+    this.restart();
+    this.enterHub();
+    if (this.ui.start) this.ui.start.classList.remove('gone');
+    if (this.hud) { this.hud.hide(); this.settings.hide(); }
   }
 
   /** Хаб: герой появляется ниже костра, границы поля включены. */
@@ -202,7 +223,10 @@ export class Game {
     m.update(dt, inp.x, inp.z);
     this.hero.update(dt, m, this.cfg.hero.speed);
     this.stats.update(dt);
-    this.spawner.update(dt, m.x, m.z);
+    this.invuln = Math.max(0, this.invuln - dt);
+    this.heroBody.x = m.x; this.heroBody.z = m.z; this.heroBody.radius = this.cfg.hero.radius;
+    if (this.playing) this.spawner.update(dt, this.heroBody, this.world.groundRadius());
+    if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
     this.loot.update(dt, m.x, m.z);

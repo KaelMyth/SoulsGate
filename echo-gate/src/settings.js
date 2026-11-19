@@ -21,11 +21,19 @@ const TUNABLES = [
   { tab: 'Опыт', group: 'Уровни', path: 'xp.base', label: 'Опыта на 1 уровень', min: 1, max: 50, step: 1 },
   { tab: 'Опыт', group: 'Уровни', path: 'xp.linear', label: 'Прибавка за уровень', min: 0, max: 10, step: 0.1 },
   { tab: 'Опыт', group: 'Уровни', path: 'xp.quad', label: 'Рост прибавки', min: 0, max: 2, step: 0.05 },
-  { tab: 'Враги и волны', group: 'Жук', path: 'waves.beetleHp', label: 'Здоровье жука', min: 1, max: 20, step: 1 },
-  { tab: 'Враги и волны', group: 'Волны', path: 'waves.start', label: 'Жуков в первой волне', min: 1, max: 30, step: 1 },
-  { tab: 'Враги и волны', group: 'Волны', path: 'waves.growth', label: 'Рост числа за волну, ×', min: 1, max: 2, step: 0.05 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.hp', label: 'Здоровье на 1 волне (в выстрелах)', min: 0.5, max: 20, step: 0.1 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.hpPerWave', label: 'Прибавка здоровья за волну', min: 0, max: 3, step: 0.05 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.hpJumpPct', label: 'Скачок здоровья каждые 5 волн, ×', min: 0, max: 0.5, step: 0.01 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.speed', label: 'Скорость, м/с', min: 0.5, max: 8, step: 0.05 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.touchDamage', label: 'Урон при касании', min: 1, max: 40, step: 1 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.touchCooldown', label: 'Пауза между ударами, с', min: 0.2, max: 2, step: 0.1 },
+  { tab: 'Враги и волны', group: 'Жук', path: 'beetle.knockback', label: 'Откидывание от выстрела, м', min: 0, max: 2, step: 0.05 },
+  { tab: 'Враги и волны', group: 'Стая', path: 'swarm.cohesion', label: 'Сплочённость', min: 0, max: 1.5, step: 0.05 },
+  { tab: 'Враги и волны', group: 'Стая', path: 'swarm.alignment', label: 'Общий курс', min: 0, max: 1.5, step: 0.05 },
   { tab: 'Враги и волны', group: 'Волны', path: 'waves.pause', label: 'Пауза между волнами, с', min: 0, max: 10, step: 0.5 },
+  { tab: 'Враги и волны', group: 'Волны', path: 'waves.countMult', label: 'Множитель числа жуков', min: 0.25, max: 3, step: 0.05 },
   { tab: 'Враги и волны', group: 'Волны', path: 'waves.maxAlive', label: 'Потолок жуков на поле', min: 10, max: 400, step: 10 },
+  { tab: 'Персонаж', group: 'Здоровье', path: 'hero.iFrames', label: 'Неуязвимость после удара, с', min: 0, max: 2, step: 0.05 },
   { tab: 'Экран', group: 'Камера', path: 'camera.viewSpan', label: 'Обзор в хабе, м', min: 2.5, max: 14, step: 0.1, after: 'view' },
   { tab: 'Экран', group: 'Камера', path: 'camera.runSpan', label: 'Обзор в бою, м', min: 2.5, max: 16, step: 0.1, after: 'view' },
   { tab: 'Экран', group: 'Камера', path: 'camera.zoomTime', label: 'Скорость отдаления, с', min: 0, max: 2, step: 0.05 },
@@ -133,6 +141,7 @@ export class Settings {
   }
 
   show() { this.btn.classList.remove('gone'); }
+  hide() { this.btn.classList.add('gone'); }
 
   toggle(on) {
     const open = on === undefined ? this.panel.hidden : on;

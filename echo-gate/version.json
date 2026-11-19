@@ -1,5 +1,5 @@
 {
-  "build": 31,
+  "build": 32,
   "commit": "7917c32",
-  "notes": "Mage: hat fits the head, simpler collar."
+  "notes": "Beetles like SoulsGate (spawns by waves, swarm, speed, touch damage, hp growth), hero can now die."
 }

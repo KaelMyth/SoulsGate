@@ -156,6 +156,7 @@ export class Attack {
   hit(b, e) {
     const c = this.cfg;
     e.hp -= this.cur().damage;
+    this.spawner.knock(e, b.vx, b.vz); // откидывание по ходу шарика
     this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize, 0.32);
     if (e.hp <= 0) {
       this.burst(e.state.x, 0.35, e.state.z, c.hitSize * 1.6, 0.4);

@@ -306,6 +306,9 @@ export class Beetle {
       this.yaw += d * (1 - Math.exp(-dt / 0.08));
     }
     this.group.rotation.y = this.yaw;
+    // Появление: жук «выскакивает» из мелкого в полный размер.
+    const pop = Math.min(1, (this.age === undefined ? 1 : this.age) / 0.25);
+    this.group.scale.setScalar(0.4 + 0.6 * (1 - Math.pow(1 - pop, 3)));
     const t = this.t;
     const f1 = 0.5 + 0.5 * Math.sin(t * 14 + this.ph);
     const f2 = 0.5 + 0.5 * Math.sin(t * 19 + this.ph * 2);
