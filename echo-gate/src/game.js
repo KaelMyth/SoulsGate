@@ -16,6 +16,7 @@ import { staffStats } from './staff.js';
 import { Beetle } from './beetle.js';
 import { Shooter } from './shooter.js';
 import { Bull } from './bull.js';
+import { LevelUp } from './levelup.js';
 import { Rock } from './rock.js';
 import { Midges } from './midges.js';
 import { MidgeView } from './midge_view.js';
@@ -97,6 +98,12 @@ export class Game {
     this.inventory.listen(() => this.syncEquipment());
     this.syncEquipment();
     this.paused = false;
+    // Окно выбора усиления на новом уровне: бой стоит, пока оно открыто.
+    this.choosing = false;
+    if (o.ui.root) {
+      this.levelUp = new LevelUp(o.ui.root, { onOpen: () => { this.choosing = true; this.stick.cancel(); }, onClose: () => { this.choosing = false; } });
+      this.stats.onLevel = () => { if (this.playing) this.levelUp.request(); };
+    }
     this.pauseBtn = o.ui.pauseBtn;
     this.pauseEl = o.ui.pause;
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
@@ -120,6 +127,7 @@ export class Game {
   restart() {
     this.stats.reset();
     this.spawner.reset();
+    if (this.levelUp) this.levelUp.reset();
     this.enemyShots.clear();
     this.telegraphs.update({ alive: [] });
     this.midges.clear();
@@ -308,7 +316,7 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.paused && !this.invOpen) advance(dt, (s) => this.step(s));
+    if (!this.paused && !this.invOpen && !this.choosing) advance(dt, (s) => this.step(s));
     this.drawStick();
     if (!this.paused && !this.invOpen) this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);

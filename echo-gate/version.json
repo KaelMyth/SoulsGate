@@ -1,5 +1,5 @@
 {
-  "build": 39,
+  "build": 40,
   "commit": "7917c32",
-  "notes": "Campfire in the hub is solid (circular obstacle)."
+  "notes": "Level-up choice window (2 empty cards), staff speed limit 0.05 s."
 }
