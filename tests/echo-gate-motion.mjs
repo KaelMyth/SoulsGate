@@ -41,3 +41,13 @@ test('рывок проходит ровно dash.distance за duration и пе
 test('рывок без направления не стартует', () => {
   assert.ok(!new Motion(CONFIG).startDash(0, 0));
 });
+
+test('index.html: список модулей для защиты от кеша совпадает с файлами src/, в version.json есть номер сборки', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const html = readFileSync(new URL('../echo-gate/index.html', import.meta.url), 'utf8');
+  const listed = JSON.parse(html.match(/const files = (\[.*?\]);/)[1].replace(/'/g, '"')).sort();
+  const actual = readdirSync(new URL('../echo-gate/src/', import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => f.slice(0, -3)).sort();
+  assert.deepEqual(listed, actual);
+  const v = JSON.parse(readFileSync(new URL('../echo-gate/version.json', import.meta.url), 'utf8'));
+  assert.ok(Number.isInteger(v.build) && v.build > 0);
+});

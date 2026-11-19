@@ -1,4 +1,5 @@
 {
-  "commit": "3903ce2",
-  "notes": "Mage now carries a staff and a tome, with run and dash animations."
+  "build": 7,
+  "commit": "e54cce7",
+  "notes": "Mage carries a staff and a tome, with run and dash animations."
 }

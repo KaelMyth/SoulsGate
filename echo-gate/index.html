@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Echo Gate</title>
   <link rel="stylesheet" href="styles.css">
-  <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
   <div id="phone">
@@ -18,6 +17,21 @@
       <div class="build"><span id="build-ver">v …</span><span id="build-notes"></span></div>
     </div>
   </div>
-  <script type="module" src="src/main.js"></script>
+  <!-- Загрузка с защитой от кеша: номер сборки берём из version.json (без кеша) и дописываем ?v=N ко всем модулям через import map.
+       Иначе телефон может годами показывать старый код. Список модулей = файлы src/ (проверяет tests/echo-gate-motion.mjs). -->
+  <script>
+    (async () => {
+      let build = '0';
+      try { build = String((await (await fetch('version.json', { cache: 'no-store' })).json()).build || '0'); } catch (e) { /* без сети с кешем */ }
+      const files = ['config', 'events', 'game', 'hero', 'input_keys', 'input_stick', 'input_swipe', 'iso', 'main', 'motion', 'version', 'world'];
+      const imports = { three: './vendor/three.module.js' };
+      for (const f of files) imports[new URL('./src/' + f + '.js', location.href).href] = './src/' + f + '.js?v=' + build;
+      const map = document.createElement('script');
+      map.type = 'importmap';
+      map.textContent = JSON.stringify({ imports });
+      document.head.appendChild(map);
+      import('./src/main.js?v=' + build);
+    })();
+  </script>
 </body>
 </html>
