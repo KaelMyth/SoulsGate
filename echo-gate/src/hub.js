@@ -190,6 +190,27 @@ export class Hub {
     return Math.hypot(dx, dz);
   }
 
+  /** Расстояние (м) от мировой точки до прямоугольника кучи снаряжения: 0 внутри. */
+  distToGear(wx, wz) {
+    const a = this.group.rotation.y;
+    const lx = wx * Math.cos(a) - wz * Math.sin(a);
+    const lz = wx * Math.sin(a) + wz * Math.cos(a);
+    const dx = Math.max(0, Math.abs(lx - this.cfg.gearX) - this.cfg.gearHalfW);
+    const dz = Math.max(0, Math.abs(lz - this.cfg.gearZ) - this.cfg.gearHalfD);
+    return Math.hypot(dx, dz);
+  }
+
+  /** Мировая точка над кучей, откуда выходит иконка рюкзака. */
+  gearButtonAnchor(out) {
+    const a = this.group.rotation.y;
+    const lx = this.cfg.gearX;
+    const lz = this.cfg.gearZ;
+    out.x = lx * Math.cos(a) + lz * Math.sin(a);
+    out.z = -lx * Math.sin(a) + lz * Math.cos(a);
+    out.y = 1.9;
+    return out;
+  }
+
   /** Мировая точка сбоку от лавки (справа на экране), откуда выходит кнопка с долларом. */
   shopButtonAnchor(out) {
     const a = this.group.rotation.y;

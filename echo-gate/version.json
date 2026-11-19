@@ -1,5 +1,5 @@
 {
-  "build": 21,
+  "build": 22,
   "commit": "7b2ae92",
-  "notes": "Faster rendering: lighter ground, merged beetle meshes, fewer plants drawn."
+  "notes": "A backpack icon pops out above the gear pile when you walk up to it (the inventory itself is not built yet)."
 }

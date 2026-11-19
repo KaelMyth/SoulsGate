@@ -50,6 +50,7 @@ export class Game {
     const H = this.cfg.hub;
     this.playBtn = new PopButton(o.ui.playBtn, { radius: H.playRadius, hysteresis: H.playHysteresis, rise: H.buttonRise }, () => this.play());
     this.shopBtn = new PopButton(o.ui.shopBtn, { radius: H.shopRadius, hysteresis: H.shopHysteresis, rise: H.shopButtonRise }, () => this.bus.emit('shop:open', {}));
+    this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
     this.anchor = { x: 0, y: 0, z: 0 };
     this.paused = false;
     this.pauseBtn = o.ui.pauseBtn;
@@ -206,6 +207,8 @@ export class Game {
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
+    const ag = this.hub.gearButtonAnchor(this.anchor);
+    this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z);
     if (this.hud) { this.hud.update(dt, this.hero); this.settings.refresh(); }
     requestAnimationFrame((n) => this.frame(n));
   }

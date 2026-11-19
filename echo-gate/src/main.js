@@ -12,6 +12,7 @@ const ui = {
   fade: document.getElementById('fade'),
   fps: document.getElementById('fps'),
   shopBtn: document.getElementById('shop-btn'),
+  gearBtn: document.getElementById('gear-btn'),
   pauseBtn: document.getElementById('pause-btn'),
   pause: document.getElementById('pause'),
 };
