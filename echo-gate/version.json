@@ -1,5 +1,5 @@
 {
-  "build": 25,
+  "build": 26,
   "commit": "9df560a",
-  "notes": "Power crystal opens the staff screen: drag it onto Power, Speed or Range."
+  "notes": "Inventory window: opens from the gear pile; the mage with his staff and a floating open tome on top, spirit power / item count / coins strip and 100 slots below."
 }
