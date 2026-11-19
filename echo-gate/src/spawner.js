@@ -43,6 +43,14 @@ export class Spawner {
     }
   }
 
+  /** Новая игра: поле пустое, счёт волн с нуля, перед первой волной обычная пауза. */
+  reset() {
+    this.clear();
+    this.wave = 0;
+    this.phase = 'pause';
+    this.t = this.cfg.pause;
+  }
+
   /** Убрать убитого жука с поля. */
   kill(b) {
     const i = this.alive.indexOf(b);

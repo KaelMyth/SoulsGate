@@ -113,15 +113,24 @@ export class Hero {
     this.eyes = [];
     const eyeMat = new THREE.MeshBasicMaterial({ color: COLORS.eye });
     const glowTex = makeGlowTexture();
+    // Глаза сидят на поверхности лица (эллипсоид 0.29 x 0.2755 x 0.2755), выше края капюшона и под полями шляпы,
+    // повёрнуты по нормали поверхности и чуть утоплены, чтобы быть частью головы, а не висеть перед ней.
+    const RX = 0.29, RY = 0.2755, RZ = 0.2755;
+    const EX = 0.115, EY = 0.1;
+    const surfZ = RZ * Math.sqrt(1 - (EX / RX) ** 2 - (EY / RY) ** 2);
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.1, 4, 10), eyeMat);
-      eye.position.set(s * 0.12, -0.03, 0.258);
+      const eye = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.085, 4, 10), eyeMat);
+      eye.rotation.order = 'YXZ';
+      eye.rotation.set(-Math.asin(EY / RY), s * Math.atan2(EX, surfZ), 0);
+      eye.scale.set(1, 1, 0.55);                      // плоские, прилегают к лицу
+      eye.position.set(s * EX, EY, surfZ - 0.012);
+      const n = new THREE.Vector3(s * EX / (RX * RX), EY / (RY * RY), surfZ / (RZ * RZ)).normalize();
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: glowTex, color: COLORS.eye, transparent: true, opacity: 0.55,
+        map: glowTex, color: COLORS.eye, transparent: true, opacity: 0.5,
         blending: THREE.AdditiveBlending, depthWrite: false,
       }));
-      glow.scale.set(0.36, 0.36, 1);
-      glow.position.set(s * 0.12, -0.03, 0.29);
+      glow.scale.set(0.3, 0.3, 1);
+      glow.position.copy(eye.position).addScaledVector(n, 0.03);
       this.head.add(eye, glow);
       this.eyes.push(eye);
     }
@@ -318,7 +327,8 @@ export class Hero {
     this.sway += (Math.max(-0.4, Math.min(0.4, -accS * 0.01)) - this.sway) * (1 - Math.exp(-dt / 0.08));
 
     // Шаги: фаза растёт со скоростью.
-    this.walk += dt * (4 + sp * 1.6) * (frac > 0.02 ? 1 : 0);
+    // Каденс: на полной скорости около 2,8 шага в секунду (раньше фаза шла вдвое-втрое быстрее, и тело подпрыгивало ~8,6 раза в секунду: выглядело как дрожь).
+    this.walk += dt * (1.1 + sp * 0.55) * (frac > 0.02 ? 1 : 0);
     const stepS = Math.sin(this.walk * 2);
     const bob = frac * Math.abs(Math.sin(this.walk * 2)) * 0.07 + (1 - frac) * Math.sin(this.t * 2) * 0.012;
 

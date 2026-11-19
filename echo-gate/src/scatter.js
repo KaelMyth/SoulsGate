@@ -129,6 +129,9 @@ export class Scatter {
     this.meshes[kind].setMatrixAt(slot, o.matrix);
   }
 
+  /** Показ деталей: в хабе у костра свои камни, поэтому там их нет. */
+  setVisible(on) { for (const m of this.meshes) m.visible = on; }
+
   update(x, z) {
     const c = this.cfg;
     const ci = Math.floor(x / c.cell);
