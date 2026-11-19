@@ -56,7 +56,7 @@ export const CONFIG = {
   bull: {
     hp: 3.2,             // здоровье на первой волне, в выстрелах (SoulsGate 38.4 при уроне выстрела 12)
     speed: 2.5,          // м/с (75 ед./с)
-    radius: 0.62,        // м (в SoulsGate 0.5, здесь крупнее)
+    radius: 0.95,        // м (в SoulsGate 0.5, здесь заметно крупнее жука)
     touchDamage: 8,
     touchCooldown: 0.9,
     knockbackScale: 0.6, // тяжёлый: от выстрелов откидывается меньше
