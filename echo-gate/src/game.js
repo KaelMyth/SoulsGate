@@ -82,11 +82,14 @@ export class Game {
     const a = Math.PI / 4;
     this.inHub = true;
     this.playing = false;
-    this.world.setVoid(H.voidColor);
+    this.world.setHubGround(true, H.halfW - 0.5, H.halfD - 0.5, H.groundColor);
     this.hub.setActive(true);
     this.scatter.setVisible(false);
     this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
-      blocks: [{ x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 }] };
+      blocks: [
+        { x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 },
+        { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
+      ] };
     this.motion.x = H.startDown * Math.sin(a);
     this.motion.z = H.startDown * Math.cos(a);
     this.motion.vx = this.motion.vz = 0;
@@ -107,7 +110,7 @@ export class Game {
       this.playing = true;
       this.hub.setActive(false);
       this.scatter.setVisible(true);
-      this.world.setVoid(null);
+      this.world.setHubGround(false);
       this.motion.bounds = null;
       this.motion.x = this.motion.z = this.motion.vx = this.motion.vz = 0;
       this.world.setView('run'); // камера плавно отдаляется
