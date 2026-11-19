@@ -18,10 +18,12 @@ export class Swarm {
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       e.swX = 0; e.swZ = 0;
+      if (!e.swarm) continue; // стрелки и охрана в стае не участвуют
       let n = 0, sx = 0, sz = 0, hx = 0, hz = 0, gapMin = Infinity;
       for (let j = 0; j < list.length; j++) {
         if (j === i) continue;
         const o = list[j];
+        if (!o.swarm) continue;
         const dx = o.x - e.x, dz = o.z - e.z;
         const d2 = dx * dx + dz * dz;
         checks++;
