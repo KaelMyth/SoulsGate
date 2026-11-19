@@ -8,7 +8,7 @@ import { screenToWorld } from './iso.js';
 import { Motion } from './motion.js';
 import { World } from './world.js';
 import { Hero } from './hero.js';
-import { Beetle } from './beetle.js';
+import { Spawner } from './spawner.js';
 
 const STEP = 1 / 60;
 
@@ -21,10 +21,7 @@ export class Game {
     this.hero = new Hero();
     this.hero.addTo(this.world.scene);
     this.motion = new Motion(this.cfg);
-    // Показ модели жука: один ходит по кругу рядом с магом.
-    this.beetle = new Beetle();
-    this.beetle.addTo(this.world.scene);
-    this.beetleT = 0;
+    this.spawner = new Spawner(this.world.scene, this.cfg.waves);
 
     this.stick = new Stick(o.canvas, this.bus, this.cfg.stick);
     this.swipe = new SwipeDetector(this.bus, this.cfg.dash, (sx, sy) => {
@@ -48,6 +45,7 @@ export class Game {
   /** Кнопка Play: убрать стартовый экран и включить управление. */
   play() {
     this.playing = true;
+    this.spawner.start();
     if (this.ui.start) this.ui.start.classList.add('gone');
   }
 
@@ -78,12 +76,7 @@ export class Game {
     const inp = this.readInput(this.tmp);
     m.update(dt, inp.x, inp.z);
     this.hero.update(dt, m, this.cfg.hero.speed);
-    this.beetleT += dt;
-    const w = 0.5; const rad = 2.5; // 2.5 м, скорость около 1.25 м/с
-    this.beetle.update(dt, {
-      x: 4 + Math.cos(this.beetleT * w) * rad, z: -4 + Math.sin(this.beetleT * w) * rad,
-      vx: -Math.sin(this.beetleT * w) * rad * w, vz: Math.cos(this.beetleT * w) * rad * w,
-    });
+    this.spawner.update(dt, m.x, m.z);
     this.world.follow(dt, m.x, m.z, false);
   }
 
