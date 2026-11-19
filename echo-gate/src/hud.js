@@ -64,6 +64,7 @@ export class Hud {
   }
 
   show() { this.root.classList.remove('gone'); }
+  hide() { this.root.classList.add('gone'); }
 
   /** Каждый кадр после отрисовки мира. hero: Hero (положение и радиус). */
   update(dt, hero) {

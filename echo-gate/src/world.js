@@ -173,6 +173,12 @@ export class World {
     c.updateProjectionMatrix();
   }
 
+  /** Радиус (м) от центра кадра до самого дальнего угла экрана на земле: жуки появляются за ним. Изометрия растягивает вертикаль. */
+  groundRadius() {
+    const c = this.camera;
+    return Math.hypot(c.right, c.top * 1.8);
+  }
+
   /** Камера следует за точкой (x, z) с плавностью smoothTime. snap: без сглаживания. */
   follow(dt, x, z, snap) {
     if (Math.abs(this.spanTarget - this.span) > 1e-4) {
