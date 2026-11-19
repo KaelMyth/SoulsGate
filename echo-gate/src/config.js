@@ -37,6 +37,27 @@ export const CONFIG = {
     knockbackTime: 0.07, // с: за какое время
   },
 
+  // Жук-стрелок (SoulsGate enemies.shooter): держит дистанцию, замирает на прицеливании и выпускает медленный шар. Не в стае.
+  shooter: {
+    hp: 1.173,           // здоровье на первой волне, в выстрелах (SoulsGate 14.08 при уроне выстрела 12)
+    speed: 2.07,         // м/с (62 ед./с)
+    radius: 0.46,        // м (в SoulsGate 0.37, здесь крупнее как у жука)
+    touchDamage: 5,      // урон герою за касание
+    touchCooldown: 0.8,
+    keepDistance: 6.33,  // м: на каком расстоянии останавливается (190 ед.)
+    shotRange: 8.67,     // м: с какого расстояния стреляет (260 ед.)
+    aimTime: 0.5,        // с: прицеливание, брюшко светится и растёт
+    fireInterval: 2.4,   // с между выстрелами
+    firstShotDelay: 1.2, // с до первого выстрела после появления
+    shot: { damage: 14, speed: 5, radius: 0.2, range: 14 }, // шар: урон герою, м/с, м, м (150/6/420 ед.)
+  },
+
+  // Охрана стрелка (SoulsGate config.guards): жуки кольцом вокруг стрелка, бросаются в бой, когда герой подошёл или стрелок убит.
+  guards: {
+    ringDist: 1.53,   // м: радиус кольца (46 ед.)
+    breakDist: 3.5,   // м: герой ближе этого к охраннику или стрелку: охрана бросается в бой (105 ед.)
+  },
+
   // Стая (SoulsGate config.swarm): жуки рядом тянутся друг к другу, идут общим курсом и не накладываются.
   swarm: {
     clusterRadius: 2.33, // м: кого считать соседом (70 ед.)
@@ -53,13 +74,15 @@ export const CONFIG = {
     pause: 2.5,      // с между волнами (в SoulsGate intermission 2.5)
     margin: 1.33,    // м: насколько дальше края экрана появляются (40 ед.)
     countMult: 1,    // множитель численности и потолка живых
+    shooterShare: 0.2, // доля стрелков среди жуков волн 6+ (в SoulsGate с волны 2)
     maxAlive: 100,   // жёсткий потолок жуков на поле (защита от тормозов)
-    patterns: [      // волны 1-5: groupSize (пачка), sides ('varied' с разных сторон, 'ring' по всему кольцу), spread (м, куча)
+    patterns: [      // волны 1-5 (formation: стрелок в кольце охраны, остальные в пачке жуки-охранники): groupSize (пачка), sides ('varied' с разных сторон, 'ring' по всему кольцу), spread (м, куча)
       { count: 16, interval: 2.6, maxAlive: 16, groupSize: 4, sides: 'varied', spread: 0.8 },
-      { count: 24, interval: 3.4, maxAlive: 24, groupSize: 6, sides: 'varied', spread: 0.8 },
-      { count: 30, interval: 3.0, maxAlive: 30, groupSize: 6, sides: 'varied', spread: 0.8 },
+      { count: 24, interval: 3.4, maxAlive: 24, groupSize: 6, sides: 'varied', formation: true },
+      { count: 30, interval: 3.0, maxAlive: 30, groupSize: 6, sides: 'varied', formation: true },
       { count: 36, interval: 2.7, maxAlive: 36, groupSize: 12, sides: 'ring', spread: 0 },
-      { count: 32, interval: 3.0, maxAlive: 32, groupSize: 8, sides: 'ring', spread: 0 },
+      { count: 32, interval: 3.0, maxAlive: 32, groupSize: 8, sides: 'ring', spread: 0,
+        lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'beetle', 'beetle', 'beetle'] },
     ],
     table: [         // волны 6-10 (строки таблицы SoulsGate); дальше +4 жука, интервал короче на 0,01 и потолок +2 за волну
       { count: 25, interval: 0.7, maxAlive: 20 },

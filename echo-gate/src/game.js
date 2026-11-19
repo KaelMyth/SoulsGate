@@ -14,6 +14,8 @@ import { Loot } from './loot.js';
 import { StaffUi } from './staff_ui.js';
 import { staffStats } from './staff.js';
 import { Beetle } from './beetle.js';
+import { Shooter } from './shooter.js';
+import { EnemyShots } from './enemy_shots.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
 import { Stats } from './stats.js';
@@ -34,7 +36,9 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
     this.scatter.setVisible(false);
-    this.spawner = new Spawner(this.world.scene, this.cfg, () => new Beetle());
+    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : new Beetle()));
+    this.enemyShots = new EnemyShots(this.world.scene);
+    this.spawner.onShot = (e, dx, dz) => this.enemyShots.fire(e, dx, dz, this.cfg.shooter.shot);
     this.heroBody = { x: 0, z: 0, radius: this.cfg.hero.radius };
     this.invuln = 0; // с неуязвимости героя после удара
     this.spawner.onTouch = (e) => this.hurtHero(this.cfg.beetle.touchDamage);
@@ -105,6 +109,7 @@ export class Game {
   restart() {
     this.stats.reset();
     this.spawner.reset();
+    this.enemyShots.clear();
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
@@ -225,7 +230,10 @@ export class Game {
     this.stats.update(dt);
     this.invuln = Math.max(0, this.invuln - dt);
     this.heroBody.x = m.x; this.heroBody.z = m.z; this.heroBody.radius = this.cfg.hero.radius;
-    if (this.playing) this.spawner.update(dt, this.heroBody, this.world.groundRadius());
+    if (this.playing) {
+      this.spawner.update(dt, this.heroBody, this.world.groundRadius());
+      this.enemyShots.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
+    }
     if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);

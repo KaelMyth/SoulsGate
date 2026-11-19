@@ -1,5 +1,5 @@
 {
-  "build": 32,
+  "build": 33,
   "commit": "7917c32",
-  "notes": "Beetles like SoulsGate (spawns by waves, swarm, speed, touch damage, hp growth), hero can now die."
+  "notes": "Shooter beetles like SoulsGate (distance, aiming, orange shots, guard rings in waves 2-3)."
 }
