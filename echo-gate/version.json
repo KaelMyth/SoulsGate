@@ -1,5 +1,5 @@
 {
-  "build": 37,
+  "build": 38,
   "commit": "7917c32",
-  "notes": "Spawn gradations (mix), giant rock with midges on wave 10."
+  "notes": "Ground restored to the procedural floor (revert of #201)."
 }
