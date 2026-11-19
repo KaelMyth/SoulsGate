@@ -1,5 +1,5 @@
 {
-  "build": 22,
+  "build": 23,
   "commit": "7b2ae92",
-  "notes": "A backpack icon pops out above the gear pile when you walk up to it (the inventory itself is not built yet)."
+  "notes": "Hub ground keeps its normal texture but has no snow inside the field; the gear pile moved further from the campfire."
 }
