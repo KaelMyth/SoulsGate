@@ -114,14 +114,15 @@ export class Hero {
       this.boots.push(holder);
     }
 
-    // Шарф-воротник.
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.12, 14, 28), matScarf);
+    // Воротник: невысокое меховое кольцо у шеи (раньше был толстый бублик плюс юбка, выглядело странно).
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.06, 12, 36), matScarf);
     collar.rotation.x = Math.PI / 2;
-    collar.position.y = 1.06;
-    const cowl = lathe([[0.3, 0.92], [0.36, 1.0], [0.36, 1.1], [0.3, 1.2], [0.25, 1.22]], 28, matScarf);
-    cowl.material.side = THREE.DoubleSide;
-    cowl.scale.set(1, 1, 1.0);
-    this.body.add(collar, cowl);
+    collar.position.y = 1.03;
+    collar.scale.set(1, 1, 0.8);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.3, 0.14, 28, 1, true), cloth(COLORS.robeDark));
+    neck.material.side = THREE.DoubleSide;
+    neck.position.y = 1.0;
+    this.body.add(neck, collar);
 
     // Голова: тёмное лицо и светящиеся глаза.
     this.head = new THREE.Group();
@@ -171,6 +172,13 @@ export class Hero {
     const featherTip = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), matGold);
     featherTip.position.set(0.43, 0.54, 0.09);
     this.hat.add(hatBand, hatBuckle, feather, featherTip);
+    // Подклад: тёмный стакан под тульёй закрывает пустоту между шляпой и головой (шляпа отклонена назад).
+    const lining = new THREE.Mesh(new THREE.CylinderGeometry(0.325, 0.3, 0.34, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0x2a0c16, roughness: 0.95, side: THREE.DoubleSide }));
+    lining.position.set(0, 0.02, 0.03);
+    const liningTop = new THREE.Mesh(new THREE.CircleGeometry(0.325, 28), new THREE.MeshStandardMaterial({ color: 0x2a0c16, roughness: 0.95, side: THREE.DoubleSide }));
+    liningTop.rotation.x = -Math.PI / 2;
+    liningTop.position.set(0, 0.19, 0.03);
+    this.hat.add(lining, liningTop);
     this.head.add(this.hat);
     this.body.add(this.head);
 
@@ -246,9 +254,9 @@ export class Hero {
       this.robe.add(d);
     }
     // Накидка на плечах с золотой окантовкой.
-    const mantle = new THREE.Mesh(new THREE.LatheGeometry([[0.25, 1.02], [0.36, 1.03], [0.5, 0.97], [0.5, 0.9], [0.49, 0.82]].map(([r, y]) => new THREE.Vector2(r, y)), 32), matMantle);
+    const mantle = new THREE.Mesh(new THREE.LatheGeometry([[0.29, 1.03], [0.37, 1.0], [0.43, 0.94], [0.45, 0.87], [0.44, 0.81]].map(([r, y]) => new THREE.Vector2(r, y)), 32), matMantle);
     mantle.geometry.computeVertexNormals();
-    const mantleEdge = new THREE.Mesh(new THREE.TorusGeometry(0.49, 0.017, 6, 40), matGold);
+    const mantleEdge = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.017, 6, 40), matGold);
     mantleEdge.rotation.x = Math.PI / 2;
     mantleEdge.position.y = 0.82;
     this.body.add(mantle, mantleEdge);
