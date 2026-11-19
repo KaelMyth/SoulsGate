@@ -9,6 +9,7 @@ import { Motion } from './motion.js';
 import { World } from './world.js';
 import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
+import { Scatter } from './scatter.js';
 import { Attack } from './attack.js';
 import { advance } from './timestep.js';
 import { Stats } from './stats.js';
@@ -25,6 +26,8 @@ export class Game {
     this.hero = new Hero();
     this.hero.addTo(this.world.scene);
     this.motion = new Motion(this.cfg);
+    this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
+    this.scatter.setVisible(false);
     this.spawner = new Spawner(this.world.scene, this.cfg.waves);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
     this.stats = new Stats(this.cfg);
@@ -81,6 +84,7 @@ export class Game {
     this.playing = false;
     this.world.setVoid(H.voidColor);
     this.hub.setActive(true);
+    this.scatter.setVisible(false);
     this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
       blocks: [{ x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 }] };
     this.motion.x = H.startDown * Math.sin(a);
@@ -102,6 +106,7 @@ export class Game {
       this.inHub = false;
       this.playing = true;
       this.hub.setActive(false);
+      this.scatter.setVisible(true);
       this.world.setVoid(null);
       this.motion.bounds = null;
       this.motion.x = this.motion.z = this.motion.vx = this.motion.vz = 0;
@@ -144,6 +149,7 @@ export class Game {
     this.hero.update(dt, m, this.cfg.hero.speed);
     this.stats.update(dt);
     this.spawner.update(dt, m.x, m.z);
+    this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
     this.world.follow(dt, m.x, m.z, false);
   }
