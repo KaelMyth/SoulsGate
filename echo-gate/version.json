@@ -1,5 +1,5 @@
 {
-  "build": 10,
+  "build": 11,
   "commit": "5d678de",
-  "notes": "Snowy ground from the first SoulsGate location, in 3D."
+  "notes": "Auto-attack: glowing blue bolt at the nearest beetle. A wave now ends when the last beetle dies, not after 15 s."
 }

@@ -1,5 +1,5 @@
 // Спавн жуков волнами. Волна n: round(start * growth^(n-1)) жуков (не больше maxAlive), волны бесконечные.
-// Волна длится duration секунд, затем пауза pause секунд, затем следующая. Все числа в CONFIG.waves.
+// Волна заканчивается, когда убит последний жук; затем пауза pause секунд и следующая волна. Все числа в CONFIG.waves.
 import { Beetle } from './beetle.js';
 
 export class Spawner {
@@ -38,8 +38,16 @@ export class Spawner {
       const b = this.take();
       b.state = { x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r, vx: 0, vz: 0 };
       b.yaw = Math.atan2(cx - b.state.x, cz - b.state.z); // лицом к герою
+      b.hp = w.beetleHp;
       this.alive.push(b);
     }
+  }
+
+  /** Убрать убитого жука с поля. */
+  kill(b) {
+    const i = this.alive.indexOf(b);
+    if (i >= 0) this.alive.splice(i, 1);
+    b.group.visible = false;
   }
 
   clear() {
@@ -49,17 +57,14 @@ export class Spawner {
 
   update(dt, hx, hz) {
     if (!this.enabled) return;
-    this.t -= dt;
-    if (this.t <= 0) {
-      if (this.phase === 'pause') {
+    if (this.phase === 'wave') {
+      if (this.alive.length === 0) { this.phase = 'pause'; this.t = this.cfg.pause; } // убит последний жук
+    } else {
+      this.t -= dt;
+      if (this.t <= 0) {
         this.wave++;
         this.spawnWave(hx, hz);
         this.phase = 'wave';
-        this.t = this.cfg.duration;
-      } else {
-        this.clear();
-        this.phase = 'pause';
-        this.t = this.cfg.pause;
       }
     }
     for (const b of this.alive) b.update(dt, b.state);
