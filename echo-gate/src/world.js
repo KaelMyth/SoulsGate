@@ -42,6 +42,8 @@ export class World {
         uSnowCol: { value: new THREE.Color(F.snowColor) },
         uSpeckle: { value: F.speckle },
         uPatch: { value: new THREE.Vector2(F.patchDark, F.patchLight) },
+        uHub: { value: new THREE.Vector4(0, 0, 1.4, 0) }, // x,y: полуразмеры поля хаба (повёрнуто на 45°), z: мягкость края, w: включено
+        uFlat: { value: new THREE.Color(F.base) },
         uBase: { value: new THREE.Color(F.base) },
         uDark: { value: new THREE.Color(F.dark) },
         uLight: { value: new THREE.Color(F.light) },
@@ -57,7 +59,7 @@ export class World {
         varying vec2 vW;
         uniform vec2 uCenter, uPatch; uniform float uCell, uJitter, uFade, uNoise, uSpeckle; uniform vec3 uSnow;
         uniform vec3 uSnowCol;
-        uniform vec3 uBase, uDark, uLight;
+        uniform vec3 uBase, uDark, uLight, uFlat; uniform vec4 uHub;
         float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         vec2 corner(vec2 ij) { return (ij + vec2(0.5) + (vec2(h21(ij), h21(ij + 17.3)) - 0.5) * uJitter * 2.0) * uCell; }
         float vnoise(vec2 p) {
@@ -103,6 +105,10 @@ export class World {
           float drift = smoothstep(0.6, 0.92, vnoise(vW * 0.09 + 41.0));
           c = mix(c, vec3(0.03, 0.05, 0.09), dep * uPatch.x * 2.0);
           c = mix(c, vec3(0.78, 0.84, 0.93), drift * uPatch.y * 2.0);
+          // Внутри поля хаба земля однотонная, снег и узор только снаружи (поле повёрнуто на 45°, как и камера).
+          vec2 l = vec2(vW.x - vW.y, vW.x + vW.y) * 0.70711;
+          vec2 q = uHub.xy - abs(l);
+          c = mix(c, uFlat, uHub.w * smoothstep(-0.3, uHub.z, min(q.x, q.y)));
           float d = length(vW - uCenter) / uFade;
           c = mix(c, uBase, smoothstep(0.55, 1.0, d));
           gl_FragColor = linearToOutputTexel(vec4(c, 1.0));
@@ -117,10 +123,11 @@ export class World {
     if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.renderer.domElement.parentElement);
   }
 
-  /** Цвет пустоты за краем хаба (color) или обычный цвет земли (null). */
-  setVoid(color) {
-    this.renderer.setClearColor(color || this.cfg.floor.base, 1);
-    this.floor.visible = true;
+  /** Однотонная земля внутри поля хаба (on, полуразмеры hw/hd, цвет); снаружи обычная земля со снегом. */
+  setHubGround(on, hw = 0, hd = 0, color = null) {
+    const u = this.floorMat.uniforms;
+    u.uHub.value.set(hw, hd, 1.4, on ? 1 : 0);
+    if (color) u.uFlat.value.set(color);
   }
 
   resize() {
