@@ -118,35 +118,22 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 }
 #gear-btn svg { width: 36px; height: 36px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(8, 20, 50, 0.6)); }
 
-/* Экран посоха (кристалл усиления) */
-#staff { --ink: #dbe7f7; --dim: #8aa3c6; --accent: #ffb14a; --serif: "Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif; position: absolute; inset: 0; z-index: 30; display: none; color: var(--ink); font-family: var(--serif); background: radial-gradient(120% 90% at 20% 40%, rgba(24, 40, 78, 0.94), rgba(5, 8, 18, 0.97)); touch-action: none; user-select: none; -webkit-user-select: none; }
-#staff.on { display: block; }
-#st-art { position: absolute; left: 0; top: 0; width: 54%; height: 100%; overflow: visible; }
-#st-art .glow { opacity: 0; transition: opacity 0.25s; }
-#st-art .part { animation: stPulse 3s infinite; }
-#st-art .part[data-part="speed"] { animation-delay: 1s; }
-#st-art .part[data-part="range"] { animation-delay: 2s; }
-#st-art .part .glow { animation: stGlow 3s infinite; }
-#st-art .part[data-part="speed"] .glow { animation-delay: 1s; }
-#st-art .part[data-part="range"] .glow { animation-delay: 2s; }
-#st-art .part.over { animation: none; filter: brightness(1.35) drop-shadow(0 0 10px rgba(127, 224, 255, 0.9)); }
-#st-art .part.over .glow { animation: none; opacity: 1; }
-#st-art .part.burst { animation: stBurst 0.9s; }
-#st-art .part.burst .glow { animation: none; opacity: 1; }
-@keyframes stGlow { 0%, 33% { opacity: 0; } 8%, 24% { opacity: 1; } }
-@keyframes stPulse { 0%, 33%, 100% { filter: none; } 10%, 24% { filter: brightness(1.28); } }
-@keyframes stBurst { 0% { filter: brightness(2.4); } 100% { filter: none; } }
-#st-art .labels text { font: 600 13px var(--serif); letter-spacing: 0.14em; fill: var(--dim); }
-#st-art .labels path { stroke: var(--dim); stroke-width: 1.5; fill: none; opacity: 0.6; }
-#st-art .labels g { animation: stLabel 3s infinite; }
-#st-art .labels g[data-label="speed"] { animation-delay: 1s; }
-#st-art .labels g[data-label="range"] { animation-delay: 2s; }
-@keyframes stLabel { 0%, 33%, 100% { opacity: 0.55; } 8%, 24% { opacity: 1; filter: drop-shadow(0 0 6px #7fe0ff); } }
+/* Экран посоха (кристалл усиления): плавное появление, полупрозрачная вуаль поверх паузы */
+#staff { --ink: #dbe7f7; --dim: #8aa3c6; --accent: #ffb14a; --serif: "Iowan Old Style", Georgia, "Palatino Linotype", Palatino, serif; position: absolute; inset: 0; z-index: 30; display: none; opacity: 0; color: var(--ink); font-family: var(--serif); background: linear-gradient(100deg, rgba(5, 9, 22, 0.82) 0%, rgba(6, 11, 26, 0.62) 55%, rgba(6, 11, 26, 0.5) 100%); touch-action: none; user-select: none; -webkit-user-select: none; transition: opacity 0.4s ease; }
+#staff.show { display: block; }
+#staff.on { opacity: 1; }
+#st-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#st-might, #st-close, #st-col, .plabel { opacity: 0; transform: translateY(8px); transition: opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s; }
+#staff.on #st-might, #staff.on #st-close, #staff.on #st-col { opacity: 1; transform: none; }
+.part-hit { position: absolute; }
+.plabel { position: absolute; left: 10px; font: 600 12.5px var(--serif); letter-spacing: 0.16em; color: var(--dim); pointer-events: none; transition: color 0.2s, text-shadow 0.2s; }
+#staff.on .plabel { transform: none; }
+.plabel.lit { color: #bfeaff; text-shadow: 0 0 10px #4fc3ff; }
 #st-might { position: absolute; left: 14px; top: 14px; display: flex; align-items: center; gap: 8px; }
 #st-might svg { width: 24px; height: 30px; filter: drop-shadow(0 0 8px rgba(80, 190, 255, 0.8)); }
 #st-might b { font: 600 28px/1 var(--serif); color: #bfeaff; text-shadow: 0 0 12px rgba(80, 190, 255, 0.55); }
 #st-close { position: absolute; right: 12px; top: 10px; width: 36px; height: 36px; padding: 0; border: 1px solid #3b5675; border-radius: 50%; background: rgba(5, 9, 20, 0.6); color: var(--ink); font: 22px/1 var(--serif); cursor: pointer; }
-#st-col { position: absolute; left: 52%; right: 14px; top: 64px; bottom: 28px; display: flex; flex-direction: column; justify-content: space-between; }
+#st-col { position: absolute; left: 54%; right: 14px; top: 64px; bottom: 28px; display: flex; flex-direction: column; justify-content: space-between; }
 #st-col .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(120, 160, 210, 0.22); font-size: 14px; letter-spacing: 0.04em; }
 #st-col .row span { color: var(--dim); }
 #st-col .row b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -154,16 +141,14 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #st-col .row.up b { animation: stUp 1.1s; }
 @keyframes stUp { 0% { color: #fff; text-shadow: 0 0 14px #7fe0ff; transform: scale(1.35); } 100% { transform: none; } }
 #st-gem-box { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-#st-gem { position: relative; width: 78px; height: 108px; cursor: grab; touch-action: none; animation: stFloat 2.2s ease-in-out infinite; }
-#st-gem svg { width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-#st-gem em { position: absolute; right: -6px; bottom: 4px; font: 600 15px var(--serif); font-style: normal; color: #ffe0a0; text-shadow: 0 1px 3px #000; }
-#st-gem.lifted { opacity: 0.25; animation: none; }
-#st-gem.empty { opacity: 0.3; pointer-events: none; animation: none; }
-#st-ghost { position: absolute; left: 0; top: 0; width: 62px; height: 88px; pointer-events: none; z-index: 5; filter: drop-shadow(0 0 14px rgba(255, 170, 60, 0.9)); }
-#st-ghost svg { width: 100%; height: 100%; overflow: visible; }
-@keyframes stFloat { 50% { transform: translateY(-5px); } }
+#st-gem { position: relative; width: 92px; height: 112px; cursor: grab; touch-action: none; }
+#st-gem em { position: absolute; right: 2px; bottom: 4px; font: 600 15px var(--serif); font-style: normal; color: #ffe0a0; text-shadow: 0 1px 3px #000; }
+#st-gem.lifted { cursor: grabbing; }
+#st-gem.lifted em { opacity: 0; }
+#st-gem.empty { pointer-events: none; }
 #st-hint { margin: 0; text-align: center; font: italic 12.5px/1.3 var(--serif); color: #ffd9a0; animation: stHint 1.6s ease-in-out infinite; }
 @keyframes stHint { 50% { opacity: 0.45; } }
+body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { visibility: hidden; }
 
 /* Окно инвентаря: сверху прозрачная витрина (там рисуется 3D-маг), снизу тёмная панель со счётчиками и ячейками. */
 #inv { position: absolute; inset: 0; z-index: 28; display: none; flex-direction: column; --ink: #dbe7f7; --line: #2f4866; --accent: #ffb14a; font-family: "Iowan Old Style", Georgia, "Palatino Linotype", serif; }

@@ -1,5 +1,5 @@
 {
-  "build": 31,
-  "commit": "9df560a",
+  "build": 29,
+  "commit": "282c4b3",
   "notes": "Real equipment: the staff and tome vanish from the hero when unequipped, and Play says you can't leave without a weapon."
 }
