@@ -31,11 +31,13 @@ export class World {
       uniforms: {
         uCenter: { value: new THREE.Vector2() },
         uCell: { value: F.cell },
-        uMajor: { value: F.major },
+        uJitter: { value: F.jitter },
         uFade: { value: F.fade },
+        uNoise: { value: F.noise },
+        uPatch: { value: new THREE.Vector2(F.patchDark, F.patchLight) },
         uBase: { value: new THREE.Color(F.base) },
-        uLine: { value: new THREE.Color(F.line) },
-        uMajorLine: { value: new THREE.Color(F.majorLine) },
+        uDark: { value: new THREE.Color(F.dark) },
+        uLight: { value: new THREE.Color(F.light) },
       },
       vertexShader: `
         varying vec2 vW;
@@ -46,22 +48,46 @@ export class World {
         }`,
       fragmentShader: `
         varying vec2 vW;
-        uniform vec2 uCenter; uniform float uCell, uMajor, uFade;
-        uniform vec3 uBase, uLine, uMajorLine;
-        float grid(vec2 p, float cell, float w) {
-          vec2 g = abs(fract(p / cell - 0.5) - 0.5) / (fwidth(p / cell) * w);
-          return 1.0 - min(min(g.x, g.y), 1.0);
+        uniform vec2 uCenter, uPatch; uniform float uCell, uJitter, uFade, uNoise;
+        uniform vec3 uBase, uDark, uLight;
+        float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        vec2 corner(vec2 ij) { return (ij + vec2(0.5) + (vec2(h21(ij), h21(ij + 17.3)) - 0.5) * uJitter * 2.0) * uCell; }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y);
+        }
+        bool inTri(vec2 p, vec2 a, vec2 b, vec2 c) {
+          float d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+          float d2 = (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
+          float d3 = (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y);
+          return !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0));
+        }
+        float tone(vec2 p) { // плавные волны тона, как в SoulsGate (числа пересчитаны в метры)
+          return 0.5 + 0.17 * sin(p.x * 0.183 + 1.3) + 0.15 * sin(p.y * 0.141 + 0.4) + 0.08 * sin((p.x + p.y) * 0.339);
         }
         void main() {
-          float minor = grid(vW, uCell, 1.0);
-          float major = grid(vW, uCell * uMajor, 1.6);
-          vec3 c = mix(uBase, uLine, minor * 0.9);
-          c = mix(c, uMajorLine, major);
+          vec2 cellId = floor(vW / uCell);
+          vec2 cen = vW;
+          float seed = 0.0;
+          for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+            vec2 id = cellId + vec2(float(i), float(j));
+            vec2 p00 = corner(id), p10 = corner(id + vec2(1, 0)), p01 = corner(id + vec2(0, 1)), p11 = corner(id + vec2(1, 1));
+            bool d = h21(id + 91.7) < 0.5;
+            vec2 a1 = p00, b1 = d ? p10 : p10, c1 = d ? p11 : p01;
+            vec2 a2 = d ? p00 : p10, b2 = d ? p11 : p11, c2 = d ? p01 : p01;
+            if (inTri(vW, a1, b1, c1)) { cen = (a1 + b1 + c1) / 3.0; seed = h21(id * 2.0 + (d ? 1.3 : 2.7)); }
+            else if (inTri(vW, a2, b2, c2)) { cen = (a2 + b2 + c2) / 3.0; seed = h21(id * 2.0 + (d ? 5.1 : 6.9)); }
+          }
+          float t = clamp(tone(cen) + (seed - 0.5) * uNoise, 0.0, 1.0);
+          vec3 c = mix(uDark, uLight, t);
+          float dep = smoothstep(0.55, 0.9, vnoise(vW * 0.11 + 3.0));
+          float drift = smoothstep(0.6, 0.92, vnoise(vW * 0.09 + 41.0));
+          c = mix(c, vec3(0.03, 0.05, 0.09), dep * uPatch.x * 2.0);
+          c = mix(c, vec3(0.78, 0.84, 0.93), drift * uPatch.y * 2.0);
           float d = length(vW - uCenter) / uFade;
-          float fade = 1.0 - smoothstep(0.55, 1.0, d);
-          gl_FragColor = vec4(mix(uBase, c, fade), 1.0);
+          c = mix(c, uBase, smoothstep(0.55, 1.0, d));
+          gl_FragColor = linearToOutputTexel(vec4(c, 1.0));
         }`,
-      extensions: { derivatives: true },
     });
     this.floor = new THREE.Mesh(new THREE.PlaneGeometry(F.size, F.size), this.floorMat);
     this.floor.rotation.x = -Math.PI / 2;
