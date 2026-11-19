@@ -4,13 +4,15 @@
 import * as THREE from 'three';
 
 const R = 0.55;
-const SHELL = 0x171e2d;
-const SHELL_TOP = 0x2f3b5c;
-const LEG = 0x2b344d;
-const HEAD = 0x0f141f;
-const ORANGE = 0xff7a2e;
-const HOT = 0xff9a3c;
-const EYE = 0xff3b1a;
+// Алый жук: багровый панцирь, раскалённый шов и красное свечение вокруг, жёлтые глаза.
+const SHELL = 0x4a0f18;
+const SHELL_TOP = 0xb3202e;
+const LEG = 0x5a1620;
+const HEAD = 0x2a080d;
+const ORANGE = 0xff4a3a;
+const HOT = 0xff7a55;
+const EYE = 0xffd84a;
+const AURA = 0xff2a3a;
 const BONE = 0xd9c7a3;
 
 const OUTLINE = [
@@ -198,7 +200,7 @@ export class Beetle {
     // Жар под телом.
     this.heat = new THREE.Mesh(
       new THREE.PlaneGeometry(3.4 * R, 3.4 * R),
-      new THREE.MeshBasicMaterial({ map: tex, color: 0xff5a1e, transparent: true, opacity: 0.45, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: tex, color: 0xff3344, transparent: true, opacity: 0.45, depthWrite: false }),
     );
     this.heat.rotation.x = -Math.PI / 2;
     this.heat.position.set(0, 0.01, -0.1 * R);
@@ -254,7 +256,7 @@ export class Beetle {
       const small = new THREE.Mesh(new THREE.SphereGeometry(0.05 * R, 6, 5), eyeMat);
       small.position.set(s * 0.3 * R, 0.36 * R, 1.0 * R);
       this.body.add(big, small);
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xff3b1a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xffb21a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
       glow.scale.set(0.8 * R, 0.8 * R, 1);
       glow.position.copy(big.position);
       glow.position.z += 0.05 * R;
@@ -270,8 +272,16 @@ export class Beetle {
       this.ants.push({ g: h, side: s });
     }
 
+    // Свечение: мягкое алое пятно на земле вокруг жука (аддитивно), пульсирует.
+    this.aura = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.2 * R, 5.2 * R),
+      new THREE.MeshBasicMaterial({ map: tex, color: AURA, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    this.aura.rotation.x = -Math.PI / 2;
+    this.aura.position.y = 0.02;
+    this.group.add(this.aura);
     this.shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.2 * R, 4.2 * R),
+      new THREE.PlaneGeometry(5.2 * R, 5.2 * R),
       new THREE.MeshBasicMaterial({ map: tex, color: 0x0a0e1c, transparent: true, opacity: 0.4, depthWrite: false }),
     );
     this.shadow.rotation.x = -Math.PI / 2;
@@ -328,5 +338,6 @@ export class Beetle {
     this.flame.scale.set(1, 1 + 0.2 * f1, 1 + 0.35 * f1);
     this.heat.material.opacity = 0.36 + 0.22 * f1;
     for (const e of this.eyes) e.material.opacity = 0.65 + 0.3 * f2;
+    this.aura.material.opacity = 0.55 + 0.25 * f1;
   }
 }

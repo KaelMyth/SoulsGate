@@ -1,12 +1,14 @@
 // Бык в 3D (SoulsGate drawBull): жук-носорог, широкий и приземистый, рыжий панцирь, большой рог, красные глаза.
-// Замах: тело приседает, дрожит и краснеет, рог опускается; рывок: вытягивается вперёд. Радиус 0.62 м. Модель смотрит в +z.
+// Замах: тело приседает, дрожит и краснеет, рог опускается; рывок: вытягивается вперёд. Радиус 0.95 м. Модель смотрит в +z.
 import * as THREE from 'three';
 
-const R = 0.62;
-const SHELL = 0x3a2614;
-const TOP = 0xc98a3c;
-const EDGE = 0xf0cf9a;
-const HORN = 0xe9d8b0;
+const R = 0.95; // крупный: заметно больше жука и стрелка
+// Золотой бык: бронзовый панцирь, золотая спина, тёплое жёлто-белое свечение, рог цвета слоновой кости.
+const SHELL = 0x5a3a0e;
+const TOP = 0xf2b032;
+const EDGE = 0xfff0b0;
+const HORN = 0xfff4d6;
+const AURA = 0xffb52e;
 
 let glowTex = null;
 function glow() {
@@ -29,7 +31,7 @@ const M_SHELL = new THREE.MeshStandardMaterial({ color: SHELL, flatShading: true
 const M_TOP = new THREE.MeshStandardMaterial({ color: TOP, flatShading: true, roughness: 0.55 });
 const M_HORN = new THREE.MeshStandardMaterial({ color: HORN, flatShading: true, roughness: 0.4 });
 const M_EDGE = new THREE.MeshBasicMaterial({ color: EDGE });
-const G_LEG = new THREE.CylinderGeometry(0.035, 0.028, 1, 5);
+const G_LEG = new THREE.CylinderGeometry(0.055, 0.042, 1, 5);
 
 function leg(a, b) {
   const d = new THREE.Vector3().subVectors(b, a);
@@ -81,9 +83,9 @@ export class Bull {
     }
     this.eyes = [];
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08 * R, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff5a3a }));
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08 * R, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2a0 }));
       eye.position.set(s * 0.26 * R, 0.14 * R, 0.3 * R);
-      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xff3b1a, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xffd23a, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
       g.scale.setScalar(0.6 * R);
       g.position.copy(eye.position);
       this.head.add(eye, g);
@@ -105,6 +107,13 @@ export class Bull {
       }
     }
 
+    this.aura = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.2 * R, 5.2 * R),
+      new THREE.MeshBasicMaterial({ map: glow(), color: AURA, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    this.aura.rotation.x = -Math.PI / 2;
+    this.aura.position.y = 0.02;
+    this.group.add(this.aura);
     this.shadow = new THREE.Mesh(
       new THREE.PlaneGeometry(3.2 * R, 3.2 * R),
       new THREE.MeshBasicMaterial({ map: glow(), color: 0x1e2440, transparent: true, opacity: 0.32, depthWrite: false }),
@@ -146,6 +155,7 @@ export class Bull {
     const heat = st === 'windup' ? w : st === 'strike' ? 1 : 0;
     this.topMat.emissive.setRGB(0.7 * heat + (this.flash > 0 ? 0.5 : 0), 0.15 * heat + (this.flash > 0 ? 0.4 : 0), 0.05 * heat + (this.flash > 0 ? 0.3 : 0));
     for (const e of this.eyes) e.material.opacity = 0.5 + 0.5 * heat;
+    this.aura.material.opacity = 0.5 + 0.12 * Math.sin(t * 2.2 + this.ph) + 0.4 * heat; // в замахе разгорается
     for (const L of this.legs) {
       const ph = moving ? Math.sin(t * (st === 'strike' ? 40 : 12) + this.ph + L.phase) : 0;
       L.g.position.z = L.baseZ + ph * 0.18 * R;
