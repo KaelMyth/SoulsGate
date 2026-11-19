@@ -1,5 +1,5 @@
 {
-  "build": 16,
+  "build": 17,
   "commit": "5d678de",
-  "notes": "FPS counter next to the settings gear; the gear is also available in the hub."
+  "notes": "The husky shopkeeper follows the player with his head; the counter got a cloth runner, steamers, teapot, lucky cat, glowing vials and crates."
 }

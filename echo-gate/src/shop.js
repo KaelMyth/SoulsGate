@@ -150,13 +150,25 @@ class Husky {
     this.t = 0;
   }
 
-  update(dt) {
+  /** (tx, tz): где игрок относительно лавки (метры, оси лавки; +z к камере), look: 0..1 насколько игрок «виден». */
+  update(dt, tx, tz) {
     this.t += dt;
     const t = this.t;
     this.group.position.y = 0.012 * Math.sin(t * 2.2); // дышит
-    this.head.rotation.z = 0.05 * Math.sin(t * 1.1);
-    this.head.rotation.y = 0.18 * Math.sin(t * 0.6);
-    this.head.rotation.x = 0.04 * Math.sin(t * 1.7);
+    // Следит за игроком: голова поворачивается и наклоняется к нему (в пределах шеи), корпус чуть подворачивается следом.
+    const dx = tx - this.group.position.x;
+    const dz = tz - this.group.position.z;
+    const d = Math.hypot(dx, dz);
+    const seen = d < 16 && dz > -0.6; // игрока за спиной не видит
+    const clamp = (v, a) => Math.max(-a, Math.min(a, v));
+    const yawT = seen ? clamp(Math.atan2(dx, Math.max(0.3, dz)), 1.15) : 0;
+    const pitchT = seen ? clamp(Math.atan2(1.0, Math.max(1, d)), 0.45) : 0;
+    this.lookY = (this.lookY || 0) + (yawT - (this.lookY || 0)) * (1 - Math.exp(-dt / 0.12));
+    this.lookX = (this.lookX || 0) + (pitchT - (this.lookX || 0)) * (1 - Math.exp(-dt / 0.15));
+    this.group.rotation.y = this.lookY * 0.25;
+    this.head.rotation.z = 0.05 * Math.sin(t * 1.1) - this.lookY * 0.06;
+    this.head.rotation.y = this.lookY * 0.75 + 0.05 * Math.sin(t * 0.6);
+    this.head.rotation.x = this.lookX + 0.03 * Math.sin(t * 1.7);
     // Ухо иногда дёргается.
     const tw = Math.max(0, Math.sin(t * 0.7 + 1)) ** 12;
     this.ears[0].rotation.x = -0.35 * tw;
@@ -175,6 +187,8 @@ export class Shop {
   constructor() {
     this.group = new THREE.Group();
     this.t = 0;
+    this.steam = [];
+    this.cat = null;
     const W = 5.2, D = 2.8, base = 0.5, postH = 3.3;
     const red = mat(C.red), redD = mat(C.redDark), gold = mat(C.gold, 0.5), wood = mat(C.wood), woodD = mat(C.woodDark);
     const hw = W / 2, hd = D / 2;
@@ -307,10 +321,121 @@ export class Shop {
     poolMesh.position.set(0, 0.04, hd + 1.0);
     const pool_ = poolMesh;
     this.group.add(pool_);
+    this.decorate(W, D, base, counterH);
     this.update(0);
   }
 
-  update(dt) {
+  /** Убранство прилавка: красно-золотая дорожка, пароварки, чайник, кот-манэки, светящиеся склянки, ящики. */
+  decorate(W, D, base, counterH) {
+    const hd = D / 2;
+    const top = base + counterH + 0.1;   // уровень столешницы
+    const zc = hd - 0.15;                // середина столешницы по z
+    const G = this.group;
+    const gold = mat(C.gold, 0.45);
+    // Светлая столешница и дорожка: стол теперь не сливается с тёмным фоном.
+    box(W + 0.16, 0.03, 0.62, mat(0xc79a62), 0, top + 0.015, zc, G);
+    box(W - 0.3, 0.025, 0.5, mat(0xb8372f), 0, top + 0.04, zc + 0.02, G);
+    for (const sx of [-1, 1]) box(0.05, 0.03, 0.5, gold, sx * (W / 2 - 0.5), top + 0.06, zc + 0.02, G);
+    // Золотая кайма по верхнему краю фасада и светящиеся «окошки» панелей.
+    box(W + 0.2, 0.05, 0.05, gold, 0, top - 0.02, hd + 0.17, G);
+    for (let i = -2; i <= 2; i++) {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.02), new THREE.MeshBasicMaterial({ color: 0xffb25a }));
+      w.position.set(i * 1.1, base + 0.42, hd + 0.04);
+      G.add(w);
+    }
+
+    // Стопка бамбуковых пароварок слева, над ними пар.
+    const bam = mat(0xd8b46a), bamD = mat(0x9c7a3e);
+    const sx0 = -1.75, sz0 = zc;
+    for (let i = 0; i < 3; i++) {
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.14, 10), bam);
+      r.position.set(sx0, top + 0.1 + i * 0.15, sz0);
+      G.add(r);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.03, 10), bamD);
+      band.position.set(sx0, top + 0.1 + i * 0.15 + 0.03, sz0);
+      G.add(band);
+    }
+    const lid = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.16, 10), bamD);
+    lid.position.set(sx0, top + 0.1 + 3 * 0.15 + 0.02, sz0);
+    G.add(lid);
+    this.steam = [];
+    const steamTex = new THREE.CanvasTexture((() => {
+      const c = document.createElement('canvas'); c.width = c.height = 32;
+      const g = c.getContext('2d'); const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gr.addColorStop(0, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return c;
+    })());
+    for (let i = 0; i < 4; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, transparent: true, depthWrite: false, opacity: 0 }));
+      s.userData = { life: i / 4, x: sx0 + (i % 2 ? 0.1 : -0.1), y: top + 0.75, z: sz0, ph: i * 1.7 };
+      this.steam.push(s);
+      G.add(s);
+    }
+
+    // Чайник и две чашки справа.
+    const tea = mat(0x5fb0a8, 0.4);
+    const pot = new THREE.Mesh(new THREE.SphereGeometry(0.24, 9, 7), tea);
+    pot.scale.y = 0.8;
+    pot.position.set(1.55, top + 0.2, zc);
+    G.add(pot);
+    const potLid = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.12, 6), gold);
+    potLid.position.set(1.55, top + 0.43, zc);
+    G.add(potLid);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.28, 5), tea);
+    spout.position.set(1.8, top + 0.26, zc);
+    spout.rotation.z = -0.9;
+    G.add(spout);
+    for (const dx of [0.0, 0.3]) {
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.06, 0.1, 8), mat(0xeef3f8, 0.4));
+      cup.position.set(1.4 + dx, top + 0.05, zc + 0.2);
+      G.add(cup);
+    }
+
+    // Кот-манэки у правого края: белый, красный воротник, золотая монета, машущая лапа.
+    const cat = new THREE.Group();
+    cat.position.set(2.2, top, zc);
+    const white = mat(0xf2f5f9);
+    const cb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), white);
+    cb.scale.y = 1.1; cb.position.y = 0.22; cat.add(cb);
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), white);
+    ch.position.y = 0.52; cat.add(ch);
+    for (const sx of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), white);
+      ear.position.set(sx * 0.11, 0.69, 0); cat.add(ear);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02, 5, 4), new THREE.MeshBasicMaterial({ color: 0x14171e }));
+      eye.position.set(sx * 0.06, 0.55, 0.15); cat.add(eye);
+    }
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 5, 10), mat(0xb8372f));
+    collar.rotation.x = Math.PI / 2; collar.position.y = 0.38; cat.add(collar);
+    const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.025, 8), new THREE.MeshStandardMaterial({ color: C.gold, emissive: C.gold, emissiveIntensity: 0.35, roughness: 0.4, flatShading: true }));
+    coin.rotation.x = Math.PI / 2; coin.position.set(0, 0.28, 0.2); cat.add(coin);
+    const arm = new THREE.Group();
+    arm.position.set(0.17, 0.35, 0.05);
+    const paw = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.16, 3, 6), white);
+    paw.position.y = 0.1; arm.add(paw);
+    cat.add(arm);
+    this.cat = arm;
+    G.add(cat);
+
+    // Светящиеся склянки по центру-слева и стопка ящиков справа сзади.
+    const vials = [[-0.95, 0x8fdcff], [-0.7, 0xd98aff], [-0.45, 0xa6ff8a]];
+    vials.forEach(([x, c], i) => {
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.2 + (i % 2) * 0.06, 6), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.3, flatShading: true }));
+      v.position.set(x - 0.4, top + 0.12, zc + 0.12);
+      G.add(v);
+      const gl = softGlow('rgba(200,220,255,A)', 0.9);
+      gl.position.set(x - 0.4, top + 0.18, zc + 0.12);
+      G.add(gl);
+    });
+    const crate = mat(0x8a5a36), crateD = mat(0x6e4627);
+    box(0.5, 0.36, 0.4, crate, 1.0, top + 0.18, zc - 0.05, G);
+    box(0.52, 0.04, 0.42, crateD, 1.0, top + 0.37, zc - 0.05, G);
+    box(0.38, 0.28, 0.32, crate, 1.0, top + 0.55, zc - 0.05, G);
+    box(0.4, 0.04, 0.34, gold, 1.0, top + 0.71, zc - 0.05, G);
+  }
+
+  /** (tx, tz): положение игрока в осях лавки (+z к камере). */
+  update(dt, tx = 0, tz = 9) {
     this.t += dt;
     const t = this.t;
     for (const l of this.lanterns) {
@@ -321,6 +446,14 @@ export class Shop {
     const f = 1 + 0.05 * Math.sin(t * 2.3) + 0.03 * Math.sin(t * 5.1);
     this.lights[0].intensity = 7 * f;
     this.lights[1].intensity = 6 * f;
-    this.husky.update(dt);
+    this.husky.update(dt, tx, tz);
+    if (this.cat) this.cat.rotation.z = -0.5 + 0.35 * Math.sin(t * 3.2); // кот-манэки машет лапой
+    for (const s of this.steam) { // пар над корзинками
+      const u = s.userData;
+      u.life = (u.life + dt * 0.5) % 1;
+      s.position.set(u.x + Math.sin(t * 2 + u.ph) * 0.06, u.y + u.life * 0.8, u.z);
+      s.material.opacity = 0.5 * Math.sin(u.life * Math.PI);
+      s.scale.setScalar(0.3 + u.life * 0.4);
+    }
   }
 }
