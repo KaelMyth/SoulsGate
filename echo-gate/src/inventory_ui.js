@@ -1,6 +1,7 @@
 // Окно инвентаря: сверху витрина с магом и открытым фолиантом (3D, InventoryView), под ней полоса со счётчиками
 // (сила духа слева, предметов из лимита по центру, монеты справа) и ячейки инвентаря. Открывается кнопкой у кучи снаряжения.
 import { InventoryView } from './inventory_view.js';
+import { makeStaffIcons } from './staff_icons.js';
 
 const TOME_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="4" width="19" height="24" rx="2.500" fill="#3a2a3d" stroke="#c9a25a" stroke-width="1.400"/><rect x="9.500" y="6.500" width="14" height="19" rx="1.500" fill="#e9e2cf"/><rect x="7" y="4" width="4" height="24" rx="2" fill="#2a1d2d"/><path d="M17.500 11.500l3.200 4.200-3.200 4.200-3.200-4.200z" fill="none" stroke="#1fc8e6" stroke-width="1.600"/><circle cx="17.500" cy="15.700" r="1.100" fill="#35f2ff"/></svg>`;
 const STAFF_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21.500 9.500" stroke="#9a6a3e" stroke-width="3" stroke-linecap="round"/><path d="M9 28L21.500 9.500" stroke="#c9a25a" stroke-width="1" stroke-linecap="round" opacity=".7"/><path d="M17 7.200a6 6 0 0 1 9 5" fill="none" stroke="#c9a25a" stroke-width="2.200" stroke-linecap="round"/><path d="M22.500 3.500l3.200 4.500-3.200 4.500-3.200-4.500z" fill="#5ee6ff" stroke="#d8f8ff" stroke-width="1"/></svg>`;
@@ -9,8 +10,6 @@ const ICE_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L20.
 const ELECTRIC_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21 12" stroke="#3a4256" stroke-width="3" stroke-linecap="round"/><path d="M9 28L21 12" stroke="#c9742f" stroke-width="1" stroke-linecap="round" stroke-dasharray="2 2"/><path d="M17 8c-.5-3 1-5 3-5.500M27 8c.5-3-1-5-3-5.500" fill="none" stroke="#8d9ab5" stroke-width="2" stroke-linecap="round"/><path d="M23.500 3.500l-3.800 5.200h2.800l-2 4.800 5.200-6.200h-3z" fill="#fff0a0" stroke="#ffe060" stroke-width="1" stroke-linejoin="round"/></svg>`;
 const STAFF_ICONS = { fire: FIRE_ICON, ice: ICE_ICON, electric: ELECTRIC_ICON };
 const ICONS = { tome: TOME_ICON, staff: STAFF_ICON };
-/** Иконка предмета: у стихийных посохов своя. */
-const iconOf = (item) => (item.kind === 'staff' && STAFF_ICONS[item.element]) || ICONS[item.kind] || '';
 const DRAG_PX = 7;        // на сколько сдвинуть палец или мышь, чтобы началось перетаскивание
 const HOLD_MS = 170;      // долгое касание начинает перетаскивание, а короткое сдвигание прокручивает сетку
 
@@ -99,7 +98,7 @@ export class InventoryUi {
       c.classList.toggle('full', !!it);
       c.classList.toggle('lift', i === lift);
       c.style.setProperty('--rar', it ? it.rarityInfo.color : 'transparent');
-      c.innerHTML = it ? `<span class="it">${iconOf(it)}</span>` : '';
+      c.innerHTML = it ? `<span class="it">${this.iconOf(it)}</span>` : '';
     });
     for (const slot of ['tome', 'staff']) {
       const carrying = !!(this.drag && this.drag.src.type === 'equip' && this.drag.src.slot === slot);
@@ -109,8 +108,19 @@ export class InventoryUi {
     }
   }
 
+  /** Иконка предмета: посохи рисуются по настоящим 3D-моделям (если получилось), иначе рисованные значки. */
+  iconOf(item) {
+    if (item.kind === 'staff') {
+      const url = this.icons && this.icons[item.element || 'basic'];
+      if (url) return `<img src="${url}" alt="" draggable="false">`;
+      return STAFF_ICONS[item.element] || STAFF_ICON;
+    }
+    return ICONS[item.kind] || '';
+  }
+
   show() {
     if (this.open) return;
+    if (!this.icons) this.icons = makeStaffIcons();
     this.open = true;
     if (!this.view) this.view = new InventoryView(this.renderer);
     this.refresh();
@@ -181,7 +191,7 @@ export class InventoryUi {
     if (!item) { this.pending = null; return; }
     const ghost = el('div', { class: 'inv-ghost' });
     ghost.style.setProperty('--rar', item.rarityInfo.color);
-    ghost.innerHTML = `<span class="it">${iconOf(item)}</span>`;
+    ghost.innerHTML = `<span class="it">${this.iconOf(item)}</span>`;
     this.root.append(ghost);
     this.drag = { src: p.src, item, ghost, id: p.id };
     this.pending = null;
@@ -267,7 +277,7 @@ export class InventoryUi {
     const equipped = src.type === 'equip';
     this.detail.innerHTML = `
       <div class="card" style="--rar:${item.rarityInfo.color}">
-        <div class="head"><span class="it">${iconOf(item)}</span>
+        <div class="head"><span class="it">${this.iconOf(item)}</span>
           <div><div class="name">${item.name}</div><div class="sub">${item.kindInfo.label} · ${item.rarityInfo.label}${equipped ? ' · Equipped' : ''}</div></div></div>
         <div class="rows">${rows}</div>
         <p class="desc">${item.desc}</p>

@@ -1,5 +1,5 @@
 {
-  "build": 41,
-  "commit": "7917c32",
-  "notes": "Fire, Ice and Electric staffs: models in the inventory, equip on the mage."
+  "build": 42,
+  "commit": "9b462b4",
+  "notes": "Staff icons in the inventory are rendered from the 3D models."
 }
