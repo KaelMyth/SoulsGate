@@ -14,6 +14,7 @@ import { advance } from './timestep.js';
 import { Stats } from './stats.js';
 import { Hud } from './hud.js';
 import { Settings } from './settings.js';
+import { Hub, PlayButton } from './hub.js';
 
 export class Game {
   constructor(o) {
@@ -40,7 +41,11 @@ export class Game {
     this.ui = o.ui; // { base, knob, start }
     this.last = 0;
     this.running = true;
-    this.playing = false; // пока не нажали Play, герой не слушается
+    this.playing = false; // забег идёт (после Play)
+    this.inHub = true;    // стоим в хабе у костра: герой ходит, но боя нет
+    this.hub = new Hub(this.world.scene, this.cfg.hub);
+    this.playBtn = new PlayButton(o.ui.playBtn, this.cfg.hub, () => this.play());
+    this.enterHub();
 
     window.addEventListener('blur', () => this.stick.cancel());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.stick.cancel(); });
@@ -58,16 +63,46 @@ export class Game {
     for (const b of this.attack.bolts) this.attack.deactivate(b);
   }
 
-  /** Кнопка Play: убрать стартовый экран и включить управление. */
+  /** Хаб: герой появляется ниже костра, границы поля включены. */
+  enterHub() {
+    const H = this.cfg.hub;
+    const a = Math.PI / 4;
+    this.inHub = true;
+    this.playing = false;
+    this.world.setVoid(H.voidColor);
+    this.hub.setActive(true);
+    this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a };
+    this.motion.x = H.startDown * Math.sin(a);
+    this.motion.z = H.startDown * Math.cos(a);
+    this.motion.vx = this.motion.vz = 0;
+    this.world.follow(0, this.motion.x, this.motion.z, true);
+  }
+
+  /** Кнопка Play из костра: затемнение, и на середине переход из хаба в забег. */
   play() {
-    this.playing = true;
-    this.spawner.start();
-    if (this.hud) { this.hud.show(); this.settings.show(); }
+    if (!this.inHub || this.switching) return;
+    this.switching = true;
+    const fade = this.ui.fade;
+    const ms = this.cfg.hub.fadeMs;
+    if (fade) { fade.style.transitionDuration = `${ms}ms`; fade.classList.add('on'); }
     if (this.ui.start) this.ui.start.classList.add('gone');
+    setTimeout(() => {
+      this.inHub = false;
+      this.playing = true;
+      this.hub.setActive(false);
+      this.world.setVoid(null);
+      this.motion.bounds = null;
+      this.motion.x = this.motion.z = this.motion.vx = this.motion.vz = 0;
+      this.world.follow(0, 0, 0, true);
+      this.spawner.start();
+      if (this.hud) { this.hud.show(); this.settings.show(); }
+      if (fade) fade.classList.remove('on');
+      this.switching = false;
+    }, ms);
   }
 
   dash(wx, wz) {
-    if (!this.playing) return;
+    if (!this.playing && !this.inHub) return;
     if (this.motion.startDash(wx, wz)) this.bus.emit('dash:started', { x: wx, z: wz });
   }
 
@@ -80,7 +115,7 @@ export class Game {
 
   /** Мировой вектор ввода (стик или клавиши), длина 0..1. */
   readInput(out) {
-    if (!this.playing) { out.x = 0; out.z = 0; }
+    if ((!this.playing && !this.inHub) || this.switching) { out.x = 0; out.z = 0; }
     else if (this.stick.active) screenToWorld(this.stick.x, this.stick.y, out);
     else if (this.keys.read(this.kv)) screenToWorld(this.kv.x, this.kv.y, out);
     else { out.x = 0; out.z = 0; }
@@ -119,7 +154,9 @@ export class Game {
     this.last = t;
     advance(dt, (s) => this.step(s));
     this.drawStick();
+    this.hub.update(dt);
     this.world.render();
+    this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, this.inHub && !this.switching);
     if (this.hud) { this.hud.update(dt, this.hero); this.settings.refresh(); }
     requestAnimationFrame((n) => this.frame(n));
   }

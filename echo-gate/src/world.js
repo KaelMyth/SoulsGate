@@ -98,6 +98,12 @@ export class World {
     if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.renderer.domElement.parentElement);
   }
 
+  /** Цвет пустоты за краем хаба (color) или обычный цвет земли (null). */
+  setVoid(color) {
+    this.renderer.setClearColor(color || this.cfg.floor.base, 1);
+    this.floor.visible = true;
+  }
+
   resize() {
     // Размер берём у рамки «телефона», а не у окна браузера.
     const box = this.renderer.domElement.parentElement;
