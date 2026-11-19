@@ -1,4 +1,4 @@
-// Сцена Echo Gate: изометрическая ортографическая камера и бесконечное белое поле в решётку.
+// Сцена Echo Gate: изометрическая ортографическая камера и бесконечная земля промёрзлой пустоши.
 import * as THREE from 'three';
 import { ISO_PITCH } from './iso.js';
 
@@ -29,97 +29,60 @@ export class World {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
     this.target = new THREE.Vector3(0, 0.8, 0); // куда смотрит камера (сглаженная позиция героя)
 
-    // Пол.
+    // Пол: одна большая плоскость с бесшовной текстурой промёрзлой пустоши (assets/ground.jpg, делает tools/make_ground.py).
+    // Свет и тени запечены в текстуру под камеру игры (свет слева-сверху, тени вправо-вниз), поэтому пол дешёвый:
+    // один выбор цвета на пиксель. Плоскость едет за героем, а текстура привязана к миру и не скользит.
     const F = cfg.floor;
+    const tex = new THREE.TextureLoader().load(`${F.texture}?v=${window.__ECHO_BUILD || 0}`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     this.floorMat = new THREE.ShaderMaterial({
-      side: THREE.DoubleSide, // порядок вершин в шейдере не привязан к обходу
       uniforms: {
+        uTex: { value: tex },
+        uTile: { value: F.tile },
         uCenter: { value: new THREE.Vector2() },
-        uOrigin: { value: new THREE.Vector2() },
-        uCell: { value: F.cell },
-        uJitter: { value: F.jitter },
         uFade: { value: F.fade },
-        uNoise: { value: F.noise },
-        uSnow: { value: new THREE.Vector3(F.snowScale, F.snowCover, F.snowTone) },
-        uSnowCol: { value: new THREE.Color(F.snowColor) },
-        uSpeckle: { value: F.speckle },
-        uPatch: { value: new THREE.Vector2(F.patchDark, F.patchLight) },
+        uTint: { value: F.tint },
+        uDim: { value: F.outsideDim },
         uHub: { value: new THREE.Vector4(0, 0, 1.4, 0) }, // x,y: полуразмеры поля хаба (повёрнуто на 45°), z: мягкость края, w: включено
         uBase: { value: new THREE.Color(F.base) },
-        uDark: { value: new THREE.Color(F.dark) },
-        uLight: { value: new THREE.Color(F.light) },
       },
-      // Грани считаются в вершинном шейдере (сетка мелкая, ~4 тыс. треугольников): пиксель получает готовый тон грани.
       vertexShader: `
-        attribute vec3 aT; // x,y: клетка в окне, z: номер вершины 0..5 (два треугольника клетки)
-        uniform vec2 uOrigin; uniform float uCell, uJitter, uNoise;
-        varying vec2 vW; varying float vT;
-        float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-        vec2 corner(vec2 ij) { return (ij + vec2(0.5) + (vec2(h21(ij), h21(ij + 17.3)) - 0.5) * uJitter * 2.0) * uCell; }
-        float tone(vec2 p) {
-          return 0.5 + 0.17 * sin(p.x * 0.183 + 1.3) + 0.15 * sin(p.y * 0.141 + 0.4) + 0.08 * sin((p.x + p.y) * 0.339);
-        }
+        varying vec2 vW;
         void main() {
-          vec2 id = aT.xy + uOrigin;
-          vec2 p00 = corner(id), p10 = corner(id + vec2(1, 0)), p01 = corner(id + vec2(0, 1)), p11 = corner(id + vec2(1, 1));
-          bool d = h21(id + 91.7) < 0.5;
-          int k = int(aT.z + 0.5);
-          // Треугольник 1: p00, p10, (d ? p11 : p01); треугольник 2: (d ? p00 : p10), p11, p01.
-          vec2 a, b, c; float seed;
-          if (k < 3) { a = p00; b = p10; c = d ? p11 : p01; seed = h21(id * 2.0 + (d ? 1.3 : 2.7)); }
-          else { a = d ? p00 : p10; b = p11; c = p01; seed = h21(id * 2.0 + (d ? 5.1 : 6.9)); k -= 3; }
-          vec2 cen = (a + b + c) / 3.0;
-          vT = clamp(tone(cen) + (seed - 0.5) * uNoise, 0.0, 1.0);
-          vW = k == 0 ? a : (k == 1 ? b : c);
-          gl_Position = projectionMatrix * viewMatrix * vec4(vW.x, 0.0, vW.y, 1.0);
+          vec4 w = modelMatrix * vec4(position, 1.0);
+          vW = w.xz;
+          gl_Position = projectionMatrix * viewMatrix * w;
         }`,
       fragmentShader: `
-        varying vec2 vW; varying float vT;
-        uniform vec2 uCenter, uPatch; uniform float uFade, uSpeckle; uniform vec3 uSnow;
-        uniform vec3 uSnowCol;
-        uniform vec3 uBase, uDark, uLight; uniform vec4 uHub;
+        varying vec2 vW;
+        uniform sampler2D uTex; uniform vec2 uCenter; uniform vec3 uBase; uniform vec4 uHub;
+        uniform float uTile, uFade, uTint, uDim;
         float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vnoise(vec2 p) {
           vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y);
         }
         void main() {
-          float t = vT;
-          vec3 c = mix(uDark, uLight, t);
-          // Снежные зоны: крупные пятна с неровным краем; снег светлее и чуть гладче, грани проступают слабее.
-          float zn = vnoise(vW * uSnow.x + 7.0) * 0.7 + vnoise(vW * uSnow.x * 4.0 + 19.0) * 0.3;
-          // Внутри поля хаба (повёрнуто на 45°, как и камера) снега нет: земля с обычным узором граней, снег только за краем.
+          vec3 c = texture2D(uTex, vW / uTile).rgb;
+          // Крупные пятна тона ломают повтор тайла: земля чуть светлее-теплее в одних местах и холоднее-темнее в других.
+          float m1 = vnoise(vW * 0.045 + 5.0) - 0.5;
+          float m2 = vnoise(vW * 0.12 + 17.0) - 0.5;
+          c *= 1.0 + uTint * (m1 * 1.6 + m2 * 0.7);
+          c = mix(c, c * vec3(1.03, 1.0, 0.96), smoothstep(0.1, 0.4, m1 + 0.5 * m2) * 0.5);
+          // За краем поля хаба земля темнее, чтобы база читалась.
           vec2 hl = vec2(vW.x - vW.y, vW.x + vW.y) * 0.70711;
           vec2 hq = uHub.xy - abs(hl);
-          float inHub = uHub.w * smoothstep(-0.3, uHub.z, min(hq.x, hq.y));
-          float snow = smoothstep(1.0 - uSnow.y - 0.012, 1.0 - uSnow.y + 0.012, zn) * (1.0 - inHub);
-          vec3 sc = mix(uSnowCol, c, 0.2) * (0.8 + 0.34 * t);
-          c = mix(c, sc, snow * uSnow.z * 1.6);
-          // Крошка и камешки: мелкие тёмные пятна на земле, в снегу светлые ямки.
-          vec2 sp = floor(vW * 5.0);
-          float hs = h21(sp + 313.0);
-          vec2 fp = fract(vW * 5.0) - 0.5;
-          float dot_ = smoothstep(0.2, 0.08, length(fp));
-          c = mix(c, snow > 0.5 ? c * 1.12 : c * 0.62, step(1.0 - uSpeckle, hs) * dot_);
-          float dep = smoothstep(0.55, 0.9, vnoise(vW * 0.11 + 3.0));
-          float drift = smoothstep(0.6, 0.92, vnoise(vW * 0.09 + 41.0));
-          c = mix(c, vec3(0.03, 0.05, 0.09), dep * uPatch.x * 2.0);
-          c = mix(c, vec3(0.78, 0.84, 0.93), drift * uPatch.y * 2.0);
+          float inHub = smoothstep(-0.3, uHub.z, min(hq.x, hq.y));
+          c *= 1.0 - uHub.w * (1.0 - inHub) * uDim;
           float d = length(vW - uCenter) / uFade;
           c = mix(c, uBase, smoothstep(0.55, 1.0, d));
           gl_FragColor = linearToOutputTexel(vec4(c, 1.0));
         }`,
     });
-    // Сетка клеток вокруг героя: вершины только в «локальных» номерах клеток, положение считает шейдер по uOrigin.
-    const N = Math.ceil((F.fade * 2.1) / F.cell);
-    this.floorN = N;
-    const aT = new Float32Array(N * N * 6 * 3);
-    let o = 0;
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) for (let v = 0; v < 6; v++) { aT[o++] = i; aT[o++] = j; aT[o++] = v; }
-    const fg = new THREE.BufferGeometry();
-    fg.setAttribute('aT', new THREE.BufferAttribute(aT, 3));
-    fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * N * 6 * 3), 3)); // для three; не используется
-    this.floor = new THREE.Mesh(fg, this.floorMat);
+    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(F.fade * 2.1, F.fade * 2.1), this.floorMat);
+    this.floor.rotation.x = -Math.PI / 2;
     this.floor.frustumCulled = false;
     this.scene.add(this.floor);
 
@@ -128,7 +91,7 @@ export class World {
     if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.renderer.domElement.parentElement);
   }
 
-  /** Внутри поля хаба (полуразмеры hw/hd) снега нет; снаружи обычная земля со снегом. */
+  /** Внутри поля хаба (полуразмеры hw/hd) земля обычная, за краем темнее (чтобы база читалась). */
   setHubGround(on, hw = 0, hd = 0) {
     const u = this.floorMat.uniforms;
     u.uHub.value.set(hw, hd, 1.4, on ? 1 : 0);
@@ -215,8 +178,7 @@ export class World {
       this.target.z + horiz * Math.SQRT1_2,
     );
     this.camera.lookAt(this.target);
-    const cell = this.cfg.floor.cell;
-    this.floorMat.uniforms.uOrigin.value.set(Math.floor(this.target.x / cell) - (this.floorN >> 1), Math.floor(this.target.z / cell) - (this.floorN >> 1));
+    this.floor.position.set(this.target.x, 0, this.target.z);
     this.floorMat.uniforms.uCenter.value.set(this.target.x, this.target.z);
   }
 
