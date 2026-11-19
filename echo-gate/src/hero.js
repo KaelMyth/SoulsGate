@@ -3,15 +3,22 @@
 // Модель смотрит в +z. Графика готова к замене: всё, что снаружи нужно игре, это Hero.group и Hero.update().
 import * as THREE from 'three';
 
+// Палитра: бордовая мантия и шляпа, тёплый тан и золото, коричневая кожа. Тёплые цвета отделяют мага
+// от холодного сине-серого снега и камней (раньше мантия была синей и сливалась с полем).
 const COLORS = {
-  hat: 0x4a5a8c,
-  robe: 0x3d4a77,
-  robeDark: 0x333f68,
-  scarf: 0x44527f,
+  hat: 0x7d2236,
+  robe: 0x6e1e31,
+  robeDark: 0x4c1424,
+  scarf: 0xc89a66,
+  mantle: 0x4a2a1c,
+  cape: 0x4a1626,
   black: 0x0c0e13,
-  belt: 0x6b4a33,
-  buckle: 0x8a6444,
-  boot: 0x5a3d2b,
+  belt: 0x3b2415,
+  buckle: 0xe0a93e,
+  gold: 0xe0a93e,
+  boot: 0x3a2417,
+  leather: 0x6a4428,
+  feather: 0xeadfc6,
   eye: 0x35f2ff,
 };
 
@@ -26,6 +33,18 @@ function lathe(points, segs, mat) {
   const g = new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), segs);
   g.computeVertexNormals();
   return new THREE.Mesh(g, mat);
+}
+
+const ROBE = [
+  [0.0, 0.17], [0.53, 0.17], [0.51, 0.26], [0.45, 0.42], [0.37, 0.62], [0.32, 0.8], [0.3, 0.95], [0.27, 1.02], [0, 1.02],
+];
+/** Радиус мантии на высоте y (по профилю). */
+function robeR(y) {
+  for (let i = 1; i < ROBE.length - 1; i++) {
+    const [r0, y0] = ROBE[i], [r1, y1] = ROBE[i + 1];
+    if (y >= y0 && y <= y1) return r0 + (r1 - r0) * (y - y0) / (y1 - y0);
+  }
+  return 0.3;
 }
 
 /** Шляпа: поля уходят вниз, конус сгибается назад и влево (по образцу), кончик загнут. */
@@ -66,18 +85,18 @@ export class Hero {
     const matBlack = new THREE.MeshStandardMaterial({ color: COLORS.black, roughness: 0.55 });
     const matBelt = cloth(COLORS.belt);
     const matBoot = cloth(COLORS.boot);
+    const matGold = new THREE.MeshStandardMaterial({ color: COLORS.gold, roughness: 0.35, metalness: 0.75 });
+    const matLeather = cloth(COLORS.leather);
 
     // Мантия: расширяется к низу.
     this.robe = new THREE.Group();
-    const robeMesh = lathe([
-      [0.0, 0.17], [0.53, 0.17], [0.51, 0.26], [0.45, 0.42], [0.37, 0.62], [0.32, 0.8], [0.3, 0.95], [0.27, 1.02], [0, 1.02],
-    ], 40, matRobe);
+    const robeMesh = lathe(ROBE, 40, matRobe);
     robeMesh.material.side = THREE.DoubleSide;
     this.robe.add(robeMesh);
     // Пояс и пряжка.
     const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.352, 0.37, 0.075, 32), matBelt);
     belt.position.y = 0.66;
-    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.11, 0.04), cloth(COLORS.buckle));
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.11, 0.04), matGold);
     buckle.position.set(0, 0.66, 0.365);
     this.robe.add(belt, buckle);
     this.body.add(this.robe);
@@ -139,6 +158,19 @@ export class Hero {
     this.hat.position.set(0, 0.2, -0.07);
     this.hat.rotation.x = HAT_TILT;
     this.hat.add(makeHat(matHat));
+    // Тулья: золотая лента с пряжкой и светлое перо сбоку.
+    const hatBand = new THREE.Mesh(new THREE.TorusGeometry(0.348, 0.03, 8, 40), matBelt);
+    hatBand.rotation.x = Math.PI / 2;
+    hatBand.position.y = 0.27;
+    const hatBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.035), matGold);
+    hatBuckle.position.set(0, 0.27, 0.352);
+    const feather = new THREE.Mesh(new THREE.CapsuleGeometry(0.022, 0.3, 4, 8), cloth(COLORS.feather));
+    feather.scale.set(1, 1, 0.35);
+    feather.position.set(0.3, 0.42, 0.12);
+    feather.rotation.set(-0.25, 0.2, -0.75);
+    const featherTip = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), matGold);
+    featherTip.position.set(0.43, 0.54, 0.09);
+    this.hat.add(hatBand, hatBuckle, feather, featherTip);
     this.head.add(this.hat);
     this.body.add(this.head);
 
@@ -158,6 +190,7 @@ export class Hero {
       this.arms.push(arm);
     }
 
+    this.buildDetails(glowTex, matGold, matLeather, matBelt);
     this.buildStaff(glowTex, matBelt);
     this.buildTome(glowTex);
 
@@ -191,6 +224,101 @@ export class Hero {
   cast(yaw) {
     this.castT = CAST_TIME;
     this.castYaw = yaw;
+  }
+
+  /** Детали наряда: золотая кайма и вышивка, накидка на плечах, плащ со спины, подсумок, склянка, лента на поясе, манжеты. */
+  buildDetails(glowTex, matGold, matLeather, matBelt) {
+    const matMantle = cloth(COLORS.mantle);
+    matMantle.side = THREE.DoubleSide;
+    // Кайма по подолу и золотая полоса спереди с ромбами-рунами.
+    const hem = new THREE.Mesh(new THREE.TorusGeometry(0.522, 0.026, 8, 48), matGold);
+    hem.rotation.x = Math.PI / 2;
+    hem.position.y = 0.2;
+    this.robe.add(hem);
+    const stripeGeo = new THREE.LatheGeometry(ROBE.slice(1, 8).map(([r, y]) => new THREE.Vector2(r * 1.012, y)), 8, -0.1, 0.2);
+    stripeGeo.computeVertexNormals();
+    const stripe = new THREE.Mesh(stripeGeo, new THREE.MeshStandardMaterial({ color: COLORS.gold, roughness: 0.5, metalness: 0.5, side: THREE.DoubleSide }));
+    this.robe.add(stripe);
+    for (const y of [0.32, 0.5, 0.8]) {
+      const d = new THREE.Mesh(new THREE.OctahedronGeometry(0.042, 0), matGold);
+      d.scale.set(1, 1.5, 0.5);
+      d.position.set(0, y, robeR(y) * 1.03);
+      this.robe.add(d);
+    }
+    // Накидка на плечах с золотой окантовкой.
+    const mantle = new THREE.Mesh(new THREE.LatheGeometry([[0.25, 1.02], [0.36, 1.03], [0.5, 0.97], [0.5, 0.9], [0.49, 0.82]].map(([r, y]) => new THREE.Vector2(r, y)), 32), matMantle);
+    mantle.geometry.computeVertexNormals();
+    const mantleEdge = new THREE.Mesh(new THREE.TorusGeometry(0.49, 0.017, 6, 40), matGold);
+    mantleEdge.rotation.x = Math.PI / 2;
+    mantleEdge.position.y = 0.82;
+    this.body.add(mantle, mantleEdge);
+    // Подсумок слева, склянка с зельем справа.
+    const pouch = new THREE.Group();
+    pouch.position.set(-0.3, 0.55, 0.23);
+    pouch.rotation.y = -0.85;
+    const pouchBody = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.16, 0.08), matLeather);
+    const pouchFlap = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.09), matBelt);
+    pouchFlap.position.y = 0.06;
+    const pouchClasp = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), matGold);
+    pouchClasp.position.set(0, 0.04, 0.05);
+    pouch.add(pouchBody, pouchFlap, pouchClasp);
+    const vial = new THREE.Group();
+    vial.position.set(0.3, 0.57, 0.22);
+    vial.rotation.y = 0.85;
+    const glass = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.07, 4, 10), new THREE.MeshBasicMaterial({ color: 0x66ffd0 }));
+    const cork = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.04, 8), matLeather);
+    cork.position.y = 0.09;
+    const vialGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x66ffd0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    vialGlow.scale.set(0.2, 0.2, 1);
+    vial.add(glass, cork, vialGlow);
+    this.vialGlow = vialGlow;
+    this.robe.add(pouch, vial);
+    // Лента на поясе спереди: колышется пружиной.
+    this.sash = new THREE.Group();
+    this.sash.position.set(0.1, 0.63, 0.37);
+    const sashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.4), new THREE.MeshStandardMaterial({ color: 0xb8863a, roughness: 0.7, side: THREE.DoubleSide }));
+    sashMesh.position.y = -0.2;
+    const sashTip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.07, 3), matGold);
+    sashTip.rotation.z = Math.PI;
+    sashTip.position.y = -0.43;
+    this.sash.add(sashMesh, sashTip);
+    this.robe.add(this.sash);
+    // Золотые манжеты у перчаток.
+    for (let i = 0; i < 2; i++) {
+      const s = i === 0 ? -1 : 1;
+      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.026, 8, 20), matGold);
+      cuff.position.set(s * 0.195, -0.44, 0.005);
+      cuff.rotation.set(Math.PI / 2 - 0.1, 0, s * 0.4);
+      this.arms[i].add(cuff);
+    }
+    // Плащ со спины: сетка из вершин, нижний край отстаёт на бегу (пружина + волна).
+    this.capeCols = 6;
+    this.capeRows = 8;
+    const capeGeo = new THREE.PlaneGeometry(0.62, 0.95, this.capeCols, this.capeRows);
+    this.cape = new THREE.Mesh(capeGeo, new THREE.MeshStandardMaterial({ color: COLORS.cape, roughness: 0.95, side: THREE.DoubleSide }));
+    this.cape.position.set(0, 0.98, -0.27);
+    this.body.add(this.cape);
+    this.capeLag = 0; this.capeVel = 0; this.capeSide = 0; this.capeSideVel = 0;
+    this.sashLag = 0; this.sashVel = 0;
+    this.updateCape(0, 0, 0);
+  }
+
+  /** Перерисовать плащ: bend отвод нижнего края назад (0..1.2), side вбок, tt время для волны. */
+  updateCape(bend, side, tt, wave = 0) {
+    const pos = this.cape.geometry.attributes.position;
+    const C = this.capeCols, R = this.capeRows;
+    let k = 0;
+    for (let j = 0; j <= R; j++) {
+      const t = j / R;
+      for (let i = 0; i <= C; i++) {
+        const u = i / C - 0.5;
+        pos.setXYZ(k++, u * 0.62 * (0.85 + 0.5 * t) + side * t * t * 0.5,
+          -0.95 * t * (1 - 0.22 * bend * t),
+          -0.015 - bend * 0.6 * t * t + Math.sin(tt * 6 + t * 5 + u * 2.5) * 0.035 * wave * t);
+      }
+    }
+    pos.needsUpdate = true;
+    this.cape.geometry.computeVertexNormals();
   }
 
   /** Мировая позиция кристалла посоха: отсюда вылетает шарик. */
@@ -350,6 +478,21 @@ export class Hero {
     this.hat.rotation.x = HAT_TILT + Math.max(-0.5, Math.min(0.5, this.hatLag));
     this.hat.rotation.z = Math.max(-0.4, Math.min(0.4, -accS * 0.012));
     this.head.rotation.x = -this.lean * 0.5;
+
+    const dashK0 = this.squash;
+    // Плащ и лента на поясе: тоже пружины с отставанием (перекрытие движения и затухающее дрожание).
+    const capeTarget = Math.min(1.2, frac * 0.65 + dashK0 * 0.5 + Math.max(0, accF * 0.01));
+    this.capeVel += ((capeTarget - this.capeLag) * 70 - this.capeVel * 9) * dt;
+    this.capeLag += this.capeVel * dt;
+    const sideTarget = Math.max(-0.6, Math.min(0.6, -accS * 0.012 - this.sway * 0.8));
+    this.capeSideVel += ((sideTarget - this.capeSide) * 70 - this.capeSideVel * 9) * dt;
+    this.capeSide += this.capeSideVel * dt;
+    this.updateCape(Math.max(0, this.capeLag), this.capeSide, this.t, frac + 0.15);
+    this.sashVel += ((capeTarget * 0.9 - this.sashLag) * 120 - this.sashVel * 12) * dt;
+    this.sashLag += this.sashVel * dt;
+    this.sash.rotation.x = 0.05 + Math.max(-0.2, this.sashLag);
+    this.sash.rotation.z = Math.sin(this.t * 7 + 1) * 0.1 * frac - this.capeSide * 0.4;
+    this.vialGlow.material.opacity = 0.35 + 0.2 * Math.sin(this.t * 2.5);
 
     // Руки. Рука с фолиантом (arms[0]) согнута вперёд и держит книгу на уровне пояса, книга пружинит на шагах.
     // Рука с посохом (arms[1]) качается слабо, посох наклонён вперёд на беге (низ отрывается от земли),
