@@ -97,8 +97,14 @@ export class InventoryView {
     const glowTex = glowTexture();
     this.tome = openTome(glowTex);
     sc.add(this.tome);
-    this.tomeMeshes = [];
-    this.tome.traverse((o) => { if (o.isMesh) this.tomeMeshes.push(o); });
+    // Мишени для нажатий: меши фолианта и посоха (у посоха ещё невидимая толстая «гильза», тонкое древко иначе не поймать).
+    const proxy = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 2.1, 6), new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.position.y = 0.55;
+    this.hero.staff.add(proxy);
+    this.hits = { tome: [], staff: [] };
+    this.tome.traverse((o) => { if (o.isMesh) this.hits.tome.push(o); });
+    this.hero.staff.traverse((o) => { if (o.isMesh) this.hits.staff.push(o); });
+    this.parts = { tome: this.tome, staff: this.hero.staff };
 
     // Мягкое пятно света под героем и пылинки вокруг.
     const spot = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -115,19 +121,19 @@ export class InventoryView {
     this.bg = new THREE.Color(0x0b1120);
   }
 
-  /** Показать или спрятать парящий фолиант (спрятан, когда он снят или его тащат). */
-  setTomeVisible(on) {
-    this.tome.visible = on;
-    this.tomeLight.visible = on;
+  /** Показать или спрятать предмет витрины ('tome' или 'staff'): спрятан, когда снят или его тащат. */
+  setVisible(slot, on) {
+    this.parts[slot].visible = on;
+    if (slot === 'tome') this.tomeLight.visible = on;
   }
 
-  /** Попадает ли точка экрана (cx, cy) в фолиант? rect: прямоугольник витрины. Нужен хотя бы один кадр render. */
-  hitTome(cx, cy, rect) {
-    if (!this.tome.visible) return false;
+  /** Попадает ли точка экрана (cx, cy) в предмет витрины slot? rect: прямоугольник витрины. Нужен хотя бы один кадр render. */
+  hit(slot, cx, cy, rect) {
+    if (!this.parts[slot].visible) return false;
     _ndc.set(((cx - rect.left) / rect.width) * 2 - 1, -(((cy - rect.top) / rect.height) * 2 - 1));
     _ray.setFromCamera(_ndc, this.camera);
     this.scene.updateMatrixWorld(true);
-    return _ray.intersectObjects(this.tomeMeshes, false).length > 0;
+    return _ray.intersectObjects(this.hits[slot], false).length > 0;
   }
 
   /** dt; rect: DOM-прямоугольник витрины (px относительно окна); box: DOM-прямоугольник канваса. */

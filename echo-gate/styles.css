@@ -212,3 +212,4 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #inv .card .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #inv .card .acts button { min-height: 42px; border: 1px solid #3b5675; border-radius: 10px; background: transparent; color: #dbe7f7; font: 15px "Iowan Old Style", Georgia, serif; touch-action: manipulation; cursor: pointer; }
 #inv .card .acts button:active { border-color: #ffb14a; color: #ffb14a; }
+#inv .inv-hint.staff { left: auto; right: 5%; top: 12%; width: 20%; aspect-ratio: 0.5; }

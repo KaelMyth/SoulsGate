@@ -1,5 +1,5 @@
 {
-  "build": 28,
+  "build": 29,
   "commit": "9df560a",
-  "notes": "Items: an Item class and rarities; drag the tome from the showcase into a slot and back to equip it; tap an item to see its main data."
+  "notes": "The staff is an item too: drag it from the showcase into a slot and back, tap it for its data."
 }
