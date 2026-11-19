@@ -1,5 +1,5 @@
 {
-  "build": 23,
+  "build": 24,
   "commit": "7b2ae92",
-  "notes": "Hub ground keeps its normal texture but has no snow inside the field; the gear pile moved further from the campfire."
+  "notes": "Beetles drop XP gems, power and skill crystals and page scraps."
 }

@@ -35,7 +35,17 @@ export class Hud {
     this.xpFill = el('i');
     this.xpBar = el('div', { id: 'hud-xp' }, this.xpFill);
     this.flash = el('div', { id: 'hud-flash' });
-    this.root = el('div', { id: 'hud', class: 'gone' }, this.level, this.xpBar, this.flash);
+    // Счётчики добычи (показываются, когда что-то подобрано): усиление, умение, страницы.
+    this.lootEls = {};
+    this.lootRow = el('div', { id: 'hud-loot' });
+    for (const [k, label] of [['power', 'Power'], ['skill', 'Skill'], ['page', 'Pages']]) {
+      const n = el('b', {}, '0');
+      const item = el('span', { class: 'loot-' + k, title: label }, el('i'), n);
+      item.style.display = 'none';
+      this.lootEls[k] = { item, n, v: 0 };
+      this.lootRow.append(item);
+    }
+    this.root = el('div', { id: 'hud', class: 'gone' }, this.level, this.xpBar, this.lootRow, this.flash);
 
     const S = 96;
     const c = S / 2;
@@ -57,6 +67,11 @@ export class Hud {
   /** Каждый кадр после отрисовки мира. hero: Hero (положение и радиус). */
   update(dt, hero) {
     const s = this.stats;
+    for (const key in this.lootEls) {
+      const e = this.lootEls[key];
+      const v = s.loot[key];
+      if (v !== e.v) { e.v = v; e.n.textContent = v; e.item.style.display = v > 0 ? '' : 'none'; }
+    }
     const k = (tau) => 1 - Math.exp(-dt / tau);
     this.xp += (s.xpFraction - this.xp) * k(0.12);
     this.xpFill.style.width = (this.xp * 100).toFixed(1) + '%';
