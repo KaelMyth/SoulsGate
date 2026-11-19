@@ -184,3 +184,31 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #inv .inv-cell.full { border-color: var(--accent); }
 #inv-close { position: absolute; z-index: 2; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; padding: 0; border: 1px solid #3b5675; border-radius: 12px; background: rgba(8, 13, 26, 0.78); color: #dbe7f7; font: 20px/1 system-ui, sans-serif; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 #inv-close:active { border-color: #ffb14a; color: #ffb14a; }
+
+/* Предметы: ячейка с предметом, перетаскиваемый «призрак», подсказка на витрине и окно данных предмета. */
+#inv .inv-cell { position: relative; touch-action: pan-y; }
+#inv .inv-cell.full { border-color: var(--rar); box-shadow: inset 0 0 12px rgba(5, 9, 20, 0.7), 0 0 8px color-mix(in srgb, var(--rar) 35%, transparent); cursor: grab; }
+#inv .inv-cell.lift .it { opacity: 0.25; }
+#inv .inv-cell.drop { border-color: #ffb14a; background: linear-gradient(rgba(70, 50, 20, 0.55), rgba(30, 22, 12, 0.7)); }
+#inv .it { position: absolute; inset: 14%; display: block; pointer-events: none; }
+#inv .it svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)); }
+#inv .inv-stage { position: relative; touch-action: none; }
+#inv .inv-stage.drop { box-shadow: inset 0 0 0 2px rgba(255, 177, 74, 0.7), inset 0 0 40px rgba(255, 177, 74, 0.18); }
+#inv .inv-hint { position: absolute; left: 6%; top: 28%; width: 38%; aspect-ratio: 1.1; display: none; align-items: center; justify-content: center; text-align: center; padding: 8px; box-sizing: border-box; border: 2px dashed rgba(159, 211, 255, 0.5); border-radius: 14px; color: #a9c4e6; font: italic 14px "Iowan Old Style", Georgia, serif; pointer-events: none; }
+#inv .inv-hint.on { display: flex; }
+#inv.dragging { cursor: grabbing; }
+#inv .inv-ghost { position: absolute; left: 0; top: 0; z-index: 5; width: 74px; height: 74px; pointer-events: none; border: 1px solid var(--rar); border-radius: 12px; background: rgba(14, 22, 38, 0.92); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 14px color-mix(in srgb, var(--rar) 55%, transparent); }
+#inv .inv-detail { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(5, 9, 20, 0.62); }
+#inv .inv-detail.on { display: flex; }
+#inv .card { width: min(100%, 320px); box-sizing: border-box; padding: 16px; border: 1px solid var(--rar); border-radius: 14px; background: linear-gradient(#111a2e, #0a1020); color: #dbe7f7; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 24px color-mix(in srgb, var(--rar) 30%, transparent); }
+#inv .card .head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+#inv .card .head .it { position: static; flex: 0 0 56px; width: 56px; height: 56px; padding: 6px; box-sizing: border-box; border: 1px solid var(--rar); border-radius: 10px; background: rgba(26, 40, 64, 0.7); }
+#inv .card .name { font-size: 20px; color: var(--rar); }
+#inv .card .sub { font-size: 13px; color: #8fa6c6; margin-top: 2px; }
+#inv .card .rows { border-top: 1px solid #243a57; }
+#inv .card .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #1b2c45; font-size: 15px; }
+#inv .card .row span { color: #8fa6c6; }
+#inv .card .desc { margin: 12px 0; font: italic 14px/1.4 "Iowan Old Style", Georgia, serif; color: #b8cce6; }
+#inv .card .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#inv .card .acts button { min-height: 42px; border: 1px solid #3b5675; border-radius: 10px; background: transparent; color: #dbe7f7; font: 15px "Iowan Old Style", Georgia, serif; touch-action: manipulation; cursor: pointer; }
+#inv .card .acts button:active { border-color: #ffb14a; color: #ffb14a; }
