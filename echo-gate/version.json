@@ -1,5 +1,5 @@
 {
-  "build": 62,
-  "commit": "4bcffce",
-  "notes": "v0.2.6 — Backpack: reliable hub inventory opening and resilient 3D preview."
+  "build": 63,
+  "commit": "b162541",
+  "notes": "Sharpening window: 3D altar hall, real staff model, charge, success and break effects."
 }
