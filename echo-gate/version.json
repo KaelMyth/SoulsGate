@@ -1,5 +1,5 @@
 {
-  "build": 69,
+  "build": 70,
   "commit": "071bbb8",
-  "notes": "Fix: backpack button position in the camp; Broken button in the sharpening window."
+  "notes": "Far enemies respawn near the screen edge."
 }

@@ -263,3 +263,32 @@ test('мошки: разлетаются, кружат вокруг героя �
   mg.kill(m, 'shot');
   assert.equal(mg.count, 2);
 });
+
+test('отставший враг переносится на кольцо за экраном, скала и стрелок с охраной остаются', () => {
+  const { cfg, sp } = mk();
+  const R = 12, ring = R + cfg.waves.margin;
+  const far = sp.spawnAt(80, 0, 0, 0, 'beetle');
+  const bull = sp.spawnAt(0, -90, 0, 0, 'bull');
+  const rock = sp.spawnAt(60, 60, 0, 0, 'rock');
+  const lead = sp.spawnAt(-70, 0, 0, 0, 'shooter');
+  const guard = sp.spawnAt(-72, 0, 0, 0, 'beetle');
+  guard.guardOf = lead;
+  bull.atk.state = 'windup';
+  sp.farTimer = 0;
+  sp.respawnFar(0.01, hero, R, rnd);
+  assert.ok(Math.abs(Math.hypot(far.x, far.z) - ring) < 1e-6, 'жук на кольце');
+  assert.ok(Math.abs(Math.hypot(bull.x, bull.z) - ring) < 1e-6, 'бык на кольце');
+  assert.equal(bull.atk.state, 'idle'); // замах сбросился
+  assert.equal(far.state.x, far.x);
+  assert.equal(rock.x, 60); // скалу не трогаем
+  assert.equal(lead.x, -70); // стрелок с охраной остаётся
+  assert.equal(guard.x, -72);
+  // близкий не двигается, при выключенной настройке тоже
+  const near = sp.spawnAt(ring + 3, 0, 0, 0, 'beetle');
+  sp.farTimer = 0; sp.respawnFar(0.01, hero, R, rnd);
+  assert.equal(near.x, ring + 3);
+  cfg.waves.respawnFar = 0;
+  const off = sp.spawnAt(90, 0, 0, 0, 'beetle');
+  sp.farTimer = 0; sp.respawnFar(0.01, hero, R, rnd);
+  assert.equal(off.x, 90);
+});
