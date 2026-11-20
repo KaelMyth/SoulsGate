@@ -71,7 +71,7 @@ export class Game {
     this.attack.midges = this.midges; // выстрел сбивает мошек
     this.stats = new Stats(this.cfg);
     this.loot = new Loot(this.world.scene, this.cfg.loot);
-    this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades);
+    this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
     this.loot.onCollect = (type, v) => {
       this.stats.collect(type, v);
       this.bus.emit('loot:collected', { type, value: v });
@@ -604,6 +604,12 @@ export class Game {
       console.error('Unable to open inventory', error);
       this.toast('Backpack could not be opened');
     }
+  }
+
+  /** Уровень заточки надетого посоха (0, если посоха нет): он усиливает атаку. */
+  equippedSharpen() {
+    const s = this.inventory.equipped.staff;
+    return s ? s.sharpen || 0 : 0;
   }
 
   /** Окно заточки из хаба: хаб замирает, поверх окно с постаментом. */
