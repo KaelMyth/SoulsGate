@@ -623,3 +623,4 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge .fg-chips { transition: opacity 0.35s ease, transform 0.35s ease; }
 #forge.busy .fg-chips { opacity: 0; transform: translateY(-14px); pointer-events: none; }
 #forge.busy .fg-sheet { opacity: 0; pointer-events: none; }
+#forge .fg-broken { flex: 0 0 auto; height: 48px; padding: 0 14px; border: 1px solid #8a4a4a; border-radius: 14px; background: linear-gradient(#5a2630, #2e1218); color: #ffd4d4; font: 600 15px "Iowan Old Style", Georgia, serif; cursor: pointer; }
