@@ -1,186 +1,125 @@
 #!/usr/bin/env python3
-"""Генератор земли Echo Gate: бесшовная текстура промёрзлой пустоши без снега (assets/ground.jpg).
+"""Генератор земли Echo Gate: бесшовная минималистичная low-poly текстура промёрзлой пустоши без снега (assets/ground.jpg).
 
-Запуск: python3 echo-gate/tools/make_ground.py  (нужны numpy, scipy, Pillow). Результат лежит в репозитории, игре Python не нужен.
-Приём тот же, что в играх с нарисованной землёй под изометрией (Hades, Lunarium и др.): карта высот, из неё запечённый
-свет (слева-сверху), тени от камней вправо-вниз, окклюзия в трещинах и щелях. Свет запечён под камеру игры: экранный
-левый верх это мировая -x, значит текстура освещена со стороны -u и тени падают в +u.
-Размер тайла: TILE метров (см. CONFIG.floor.tile), RES пикселей.
+Запуск: python3 echo-gate/tools/make_ground.py  (нужны numpy, Pillow). Результат лежит в репозитории, игре Python не нужен.
+Стиль игры: холодная тёмно-синяя палитра, крупные плоские грани, мягкий свет сверху-слева. Земля = сетка крупных треугольников
+со смещёнными узлами и небольшой разницей высот, каждая грань освещена плоско (свет запечён), поверх несколько очень мягких
+крупных пятен тона. Ни трещин, ни гальки, ни зерна: детали дают объекты поверх земли.
+Размер тайла: TILE_M метров (см. CONFIG.floor.tile), RES пикселей.
 """
 import sys
 import numpy as np
-from PIL import Image
-from scipy.ndimage import gaussian_filter, map_coordinates
-from scipy.spatial import cKDTree
+from PIL import Image, ImageDraw
+from scipy.ndimage import gaussian_filter
 
-RES = 2048
+RES = 1024            # итоговый размер
+SS = 2                # суперсэмплинг для гладких краёв
 TILE_M = 16.0
-PXM = RES / TILE_M          # пикселей на метр
-SEED = 7
+N = 6                 # граней в ряду тайла (бесшовность требует целого числа клеток)
+CELL_M = TILE_M / N   # шаг сетки граней, м (около 2,7)
+SEED = 11
 rng = np.random.default_rng(SEED)
 
 
-def fnoise(beta, seed, sigma_lo=0.0):
-    """Бесшовный шум 1/f^beta (через FFT), нормирован в 0..1."""
+def fnoise(res, beta, seed):
+    """Бесшовный шум 1/f^beta, 0..1."""
     r = np.random.default_rng(seed)
-    w = r.standard_normal((RES, RES))
-    f = np.fft.fft2(w)
-    fx = np.fft.fftfreq(RES)[:, None]
-    fy = np.fft.fftfreq(RES)[None, :]
+    f = np.fft.fft2(r.standard_normal((res, res)))
+    fx = np.fft.fftfreq(res)[:, None]
+    fy = np.fft.fftfreq(res)[None, :]
     k = np.sqrt(fx * fx + fy * fy)
     k[0, 0] = 1
     f *= 1.0 / (k ** beta)
     f[0, 0] = 0
     a = np.real(np.fft.ifft2(f))
-    a = (a - a.min()) / (a.max() - a.min() + 1e-9)
-    return a
+    return (a - a.min()) / (a.max() - a.min() + 1e-9)
 
 
-def smooth(x, a, b):
-    t = np.clip((x - a) / (b - a + 1e-9), 0, 1)
-    return t * t * (3 - 2 * t)
+# --- Вершины: узлы сетки со смещением и высотой (бесшовно: индексы по модулю N) ---------------------------------
+jit = (rng.random((N, N, 2)) - 0.5) * 0.8
+hn = fnoise(64, 2.2, 3)                                   # плавный рельеф
+heights = np.zeros((N, N))
+for i in range(N):
+    for j in range(N):
+        heights[i, j] = (hn[int((i + 0.5) / N * 64) % 64, int((j + 0.5) / N * 64) % 64] - 0.5) * 1.1 + (rng.random() - 0.5) * 0.4
 
 
-yy, xx = np.mgrid[0:RES, 0:RES].astype(np.float32)   # xx = u (вправо), yy = v (вниз по текстуре)
-
-# --- 1. Высота (в пикселях) -------------------------------------------------------------------------------------
-H = np.zeros((RES, RES), np.float32)
-H += (fnoise(2.6, 1) - 0.5) * 70.0          # пологие бугры и впадины
-H += (fnoise(1.9, 2) - 0.5) * 22.0          # средняя неровность
-H += (fnoise(1.2, 3) - 0.5) * 5.0           # зерно мёрзлой земли
-
-# Трещины мерзлоты: границы ячеек Вороного со сдвигом координат (кривые, ветвящиеся), на тороидальной сетке.
-npts = 70
-pts = rng.random((npts, 2)) * RES
-tree = cKDTree(pts, boxsize=RES)
-warp_u = (fnoise(2.2, 11) - 0.5) * 120.0
-warp_v = (fnoise(2.2, 12) - 0.5) * 120.0
-q = np.stack(((xx + warp_u) % RES, (yy + warp_v) % RES), -1).reshape(-1, 2)
-d, _ = tree.query(q, k=2)
-edge = (d[:, 1] - d[:, 0]).reshape(RES, RES)          # 0 на границе ячеек
-vis = smooth(fnoise(1.6, 13) * 0.7 + fnoise(0.9, 14) * 0.3, 0.46, 0.60)   # видна только часть трещин, они рвутся на куски
-crack = (1.0 - smooth(edge, 0.0, 6.5)) * vis                 # 1 в самой трещине
-crack_fine = (1.0 - smooth(edge, 0.0, 2.2)) * vis
-H -= crack * 8.0
-# Края ячеек чуть приподняты (вспучивание), будто плиты земли разошлись.
-H += smooth(edge, 6.0, 40.0) * 4.0
-
-# --- 2. Камни и галька -------------------------------------------------------------------------------------------
-tone = np.ones((RES, RES), np.float32)    # множитель яркости камня
-stone_mask = np.zeros((RES, RES), np.float32)
+def vert(i, j):
+    """Положение вершины в метрах (x, z) и высота; i, j могут выходить за N: тайл повторяется."""
+    ii, jj = i % N, j % N
+    x = (i + 0.5 + jit[ii, jj, 0]) * CELL_M
+    z = (j + 0.5 + jit[ii, jj, 1]) * CELL_M
+    return x, z, heights[ii, jj]
 
 
-def add_stone(cx, cy, R, hmax, ang, aspect, t):
-    """Один камень: гладкий огранённый бугор. Рисуется в окне с заворотом по краям (бесшовно)."""
-    m = int(R * 1.6) + 2
-    ys = (np.arange(-m, m + 1) + int(cy)) % RES
-    xs = (np.arange(-m, m + 1) + int(cx)) % RES
-    gy, gx = np.mgrid[-m:m + 1, -m:m + 1].astype(np.float32)
-    ca, sa = np.cos(ang), np.sin(ang)
-    px = (gx * ca + gy * sa) / R
-    py = (-gx * sa + gy * ca) / (R * aspect)
-    # супер-эллипс с грубой огранкой (low-poly): угловой шум в радиусе
-    th = np.arctan2(py, px)
-    fa = 0.10 if R > 14 else 0.04
-    facet = 1 + fa * np.cos(th * 5 + t * 9) + fa * 0.7 * np.cos(th * 3 + t * 4)
-    r = np.sqrt(px * px + py * py) / facet
-    body = np.clip(1 - r ** 2.4, 0, 1) ** 0.55
-    # плоская верхняя грань: чуть срезаем вершину
-    body = np.minimum(body, 0.82) / 0.82
-    h = body * hmax
-    sel = np.ix_(ys, xs)
-    cur = H[sel]
-    mask = body > 0.02
-    H[sel] = np.where(mask, np.maximum(cur, cur * (1 - body) + h), cur)  # камень вырастает из земли
-    stone_mask[sel] = np.maximum(stone_mask[sel], (body > 0.05).astype(np.float32))
-    tone[sel] = np.where(mask, 0.80 + 0.22 * t + 0.08 * body, tone[sel])
+# --- Грани ---------------------------------------------------------------------------------------------------------
+# палитра в sRGB (как цвета в config.js): базовый тон земли и лёгкий сдвиг по граням
+base = np.array([0.255, 0.305, 0.405])       # чуть светлее старого #3d4a63, чтобы свет не уводил в тьму
+elev = np.radians(42)
+L = np.array([-np.cos(elev) * 0.97, np.sin(elev), -np.cos(elev) * 0.25])   # к свету: слева (−x), чуть «сверху» экрана (−z)
+L /= np.linalg.norm(L)
+flat = L[1]
+
+S = RES * SS
+scale = S / TILE_M
+img = Image.new('RGB', (S, S), tuple(int(c * 255) for c in base))
+dr = ImageDraw.Draw(img)
+
+big = fnoise(256, 3.0, 5)        # крупные пятна тона
+mid = fnoise(256, 2.2, 6)
 
 
-for _ in range(46):                                      # крупные
-    R = rng.uniform(26, 62)
-    add_stone(rng.uniform(0, RES), rng.uniform(0, RES), R, R * rng.uniform(0.35, 0.6), rng.uniform(0, 6.28), rng.uniform(0.6, 1.0), rng.random())
-for _ in range(420):                                     # средние
-    R = rng.uniform(9, 22)
-    add_stone(rng.uniform(0, RES), rng.uniform(0, RES), R, R * rng.uniform(0.3, 0.55), rng.uniform(0, 6.28), rng.uniform(0.6, 1.0), rng.random())
-for _ in range(2600):                                    # галька
-    R = rng.uniform(2.5, 7)
-    add_stone(rng.uniform(0, RES), rng.uniform(0, RES), R, R * rng.uniform(0.3, 0.6), rng.uniform(0, 6.28), rng.uniform(0.6, 1.0), rng.random())
+def sample(a, x, z):
+    h, w = a.shape
+    return a[int((z / TILE_M) % 1 * h) % h, int((x / TILE_M) % 1 * w) % w]
 
-H = gaussian_filter(H, 0.8, mode='wrap')
 
-# --- 3. Свет: нормали, тени, окклюзия ----------------------------------------------------------------------------
-gu = (np.roll(H, -1, 1) - np.roll(H, 1, 1)) * 0.5     # dH/du
-gv = (np.roll(H, -1, 0) - np.roll(H, 1, 0)) * 0.5
-K = 1.7
-nx, ny, nz = -gu * K, -gv * K, np.ones_like(H)
-nl = np.sqrt(nx * nx + ny * ny + nz * nz)
-nx, ny, nz = nx / nl, ny / nl, nz / nl
-el = np.radians(38)                                    # высота «солнца»
-# свет приходит слева (со стороны -u) и чуть сверху по v (экранный верх)
-Lx, Ly, Lz = -np.cos(el) * 0.96, -np.cos(el) * 0.28, np.sin(el)
-ln = np.sqrt(Lx * Lx + Ly * Ly + Lz * Lz)
-Lx, Ly, Lz = Lx / ln, Ly / ln, Lz / ln
-lam = np.clip(nx * Lx + ny * Ly + nz * Lz, 0, 1)
-lam /= np.clip(Lz, 0.2, 1)                              # плоская земля ~1
+tris = []
+for j in range(N):
+    for i in range(N):
+        v00, v10, v01, v11 = vert(i, j), vert(i + 1, j), vert(i, j + 1), vert(i + 1, j + 1)
+        if rng.random() < 0.5:
+            tris += [(v00, v10, v11), (v00, v11, v01)]
+        else:
+            tris += [(v00, v10, v01), (v10, v11, v01)]
 
-# Тени: идём от точки навстречу свету и ищем более высокую точку.
-shadow = np.zeros_like(H)
-tan_el = np.tan(el)
-for s in range(2, 90, 2):
-    sh = np.roll(np.roll(H, s, 1), int(round(s * 0.29)), 0)  # высота в точке на расстоянии s к свету (вдоль -u, чуть вверх по v)
-    shadow = np.maximum(shadow, np.clip((sh - s * tan_el - H) / 6.0, 0, 1))
-shadow = gaussian_filter(shadow, 1.6, mode='wrap')
+for a, b, c in tris:
+    pa, pb, pc = np.array([a[0], a[2], a[1]]), np.array([b[0], b[2], b[1]]), np.array([c[0], c[2], c[1]])   # (x, высота, z)
+    n = np.cross(pc - pa, pb - pa)
+    if n[1] < 0:
+        n = -n
+    n /= np.linalg.norm(n)
+    lam = float(np.clip(np.clip(n @ L, 0, 1) / flat, 0.7, 1.15))   # 1 на плоскости; крутые грани не темнее 0,7
+    cx, cz = (a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3
+    tone = 1.0 + (lam - 1.0) * 0.22                                 # свет мягкий: грани различаются, но не контрастят
+    tone *= 1.0 + (rng.random() - 0.5) * 0.025                       # лёгкий случайный разброс
+    tone *= 1.0 + (sample(big, cx, cz) - 0.5) * 0.08 + (sample(mid, cx, cz) - 0.5) * 0.03
+    col = base * tone
+    col = col * (1 + np.array([-0.012, 0.0, 0.015]) * (lam - 1.0) * 6)   # свет чуть теплее, тень чуть холоднее
+    rgb = tuple(int(np.clip(v, 0, 1) * 255) for v in col)
+    pts = [(p[0] * scale, p[1] * scale) for p in ((a[0], a[1]), (b[0], b[1]), (c[0], c[1]))]
+    for ox in (-S, 0, S):
+        for oz in (-S, 0, S):
+            dr.polygon([(x + ox, y + oz) for x, y in pts], fill=rgb)
 
-# Окклюзия: впадины и стыки темнее.
-ao = np.clip(1.0 - (gaussian_filter(H, 9, mode='wrap') - H) / 26.0, 0.0, 1.0)
-ao = 0.66 + 0.34 * ao ** 1.3
-ao *= 1.0 - 0.35 * crack
+arr = np.asarray(img).astype(np.float32) / 255.0
 
-# --- 4. Цвет ------------------------------------------------------------------------------------------------------
-col_dark = np.array([0.150, 0.188, 0.262])   # тёмная мёрзлая земля
-col_mid = np.array([0.243, 0.292, 0.388])
-col_lite = np.array([0.318, 0.368, 0.470])
-col_dust = np.array([0.270, 0.295, 0.370])   # сероватая пыльная земля, лёгкий тёплый сдвиг
-col_stone = np.array([0.285, 0.330, 0.420])
-col_frost = np.array([0.560, 0.670, 0.820])  # иней: бледно-голубой, не белый
+# Несколько очень мягких крупных пятен (впадины темнее, редкие светлые намёты), без резких краёв.
+yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+patch = np.zeros((S, S), np.float32)
+for _ in range(7):
+    cx, cy = rng.random() * S, rng.random() * S
+    r = rng.uniform(0.07, 0.14) * S
+    sgn = -1 if rng.random() < 0.65 else 1
+    for ox in (-S, 0, S):
+        for oy in (-S, 0, S):
+            d2 = ((xx - cx - ox) ** 2 + (yy - cy - oy) ** 2) / (r * r)
+            patch += sgn * np.exp(-d2 * 1.6) * 0.035
+arr = arr * (1 + patch[..., None])
+arr = np.clip(arr, 0, 1)
 
-lum = fnoise(2.0, 21)
-base = col_dark[None, None] * (1 - lum[..., None]) + col_lite[None, None] * lum[..., None]
-base = base * 0.45 + col_mid[None, None] * 0.55 + (base - col_mid[None, None]) * 0.45
-dust = smooth(fnoise(2.4, 22), 0.5, 0.78)[..., None] * 0.55
-base = base * (1 - dust) + col_dust[None, None] * dust * (0.85 + 0.3 * fnoise(1.5, 23)[..., None])
-grain = (fnoise(0.7, 24) - 0.5)
-base = base * (1 + grain[..., None] * 0.20)
-
-sm = stone_mask[..., None] * 0.7
-stone_col = col_stone[None, None] * tone[..., None] * (0.9 + 0.2 * fnoise(1.3, 25)[..., None])
-base = base * (1 - sm) + stone_col * sm
-
-# Иней: тонкая бледная кайма трещин и еле заметный налёт во впадинах.
-rime = np.clip(crack_fine * 0.9 + crack * 0.25, 0, 1)
-hoar = smooth(fnoise(2.3, 26), 0.66, 0.88) * smooth(gaussian_filter(-H, 6, mode='wrap'), -4.0, 6.0) * 0.10
-frost = np.clip(rime * 0.40 + hoar, 0, 0.45)[..., None]
-base = base * (1 - frost) + col_frost[None, None] * frost
-
-# Свет и тень: тени холодные (не чёрные), свет слегка теплее.
-cool = np.array([0.80, 0.88, 1.12])
-warm = np.array([1.02, 1.01, 1.0])
-light = (0.58 + 0.46 * lam)[..., None]
-img = base * light * ao[..., None]
-img = img * (1 - 0.40 * shadow[..., None])
-img = img * (warm[None, None] * (1 - shadow[..., None] * 0.5) + cool[None, None] * (shadow[..., None] * 0.5))
-
-# Мелкие тёмные вкрапления (комки и камешки) и светлые блики для «живости».
-fleck = smooth(fnoise(0.3, 31), 0.80, 0.93)[..., None]
-img = img * (1 - 0.20 * fleck)
-img = np.clip(img, 0, 1)
-
-# Выравниваем общую яркость к целевой, чтобы земля не спорила с героем и врагами.
-target = 0.29
-m = float(np.mean(img[..., 0] * 0.3 + img[..., 1] * 0.59 + img[..., 2] * 0.11))
-img = np.clip(img * (target / m), 0, 1)
-
-out = (img * 255).astype(np.uint8)   # палитра задана сразу в sRGB, как цвета в config.js
+out = Image.fromarray((arr * 255).astype(np.uint8)).resize((RES, RES), Image.LANCZOS)
 path = sys.argv[1] if len(sys.argv) > 1 else 'echo-gate/assets/ground.jpg'
-Image.fromarray(out).save(path, quality=86, optimize=True, progressive=True)
-print('saved', path, 'mean lum', round(m, 3))
+out.save(path, quality=90, optimize=True)
+m = np.asarray(out).astype(np.float32) / 255
+print('saved', path, 'mean rgb', m.reshape(-1, 3).mean(0).round(3))

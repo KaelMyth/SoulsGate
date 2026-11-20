@@ -1,5 +1,5 @@
 {
-  "build": 35,
+  "build": 36,
   "commit": "7917c32",
-  "notes": "New ground: a baked-light frozen wasteland texture (cracked permafrost, stones, frost, no snow) instead of the procedural facets."
+  "notes": "Minimal ground: large soft low-poly facets in the cold palette, no cracks or pebbles."
 }
