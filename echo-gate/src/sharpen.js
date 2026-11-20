@@ -21,6 +21,11 @@ export function sharpenedStats(cfg, level) {
   return { damage: A.damage * k, rate: (1 / A.interval) * k, range: A.range * k };
 }
 
+/** Цена выкупа сломанного предмета в душах: 500 × уровень заточки (у предмета без заточки как за +1). */
+export function repairCost(cfg, item) {
+  return cfg.inventory.repairSoulsPerLevel * Math.max(1, item.sharpen || 0);
+}
+
 /**
  * Попытка заточки. Камни тратятся в любом случае. Удача: sharpen + 1. Провал: предмет ломается и уходит в inv.broken.
  * Возвращает { ok: bool, broken: bool, reason?: string, level }.
