@@ -4,30 +4,30 @@
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 
-// Палитра: бордовая мантия и шляпа, тёплый тан и золото, коричневая кожа. Тёплые цвета отделяют мага
-// от холодного сине-серого снега и камней (раньше мантия была синей и сливалась с полем).
+// Палитра древних руин: затенённая индиговая ткань, винно-фиолетовые полутона,
+// бронзовая вышивка, малахитовые подкладки и холодный неоновый взгляд.
 const COLORS = {
-  hat: 0x7d2236,
-  robe: 0x6e1e31,
-  robeDark: 0x4c1424,
-  scarf: 0xc89a66,
-  mantle: 0x4a2a1c,
-  cape: 0x4a1626,
-  black: 0x0c0e13,
-  belt: 0x3b2415,
-  buckle: 0xe0a93e,
-  gold: 0xe0a93e,
-  boot: 0x3a2417,
-  leather: 0x6a4428,
-  feather: 0xeadfc6,
-  eye: 0x35f2ff,
+  hat: 0x493049,
+  robe: 0x42304c,
+  robeDark: 0x292137,
+  scarf: 0x5b7078,
+  mantle: 0x344254,
+  cape: 0x2f2a43,
+  black: 0x070c18,
+  belt: 0x2b2637,
+  buckle: 0xc59b70,
+  gold: 0xc59b70,
+  boot: 0x322b3d,
+  leather: 0x5d4148,
+  feather: 0x9bb1be,
+  eye: 0x55dfff,
 };
 
 // Шляпа отклонена назад: с изометрической камеры сверху поля иначе закрывают всё лицо.
-const HAT_TILT = -0.42;
+const HAT_TILT = -0.36;
 
 function cloth(color) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0 });
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.91, metalness: 0, flatShading: true });
 }
 
 function lathe(points, segs, mat) {
@@ -55,7 +55,7 @@ function makeHat(mat) {
     [0.31, 0.36], [0.27, 0.52], [0.22, 0.7], [0.17, 0.88], [0.12, 1.04],
     [0.075, 1.17], [0.04, 1.27], [0.012, 1.34], [0, 1.37],
   ];
-  const mesh = lathe(profile, 36, mat);
+  const mesh = lathe(profile, 28, mat);
   const pos = mesh.geometry.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const y = pos.getY(i);
@@ -86,12 +86,12 @@ export class Hero {
     const matBlack = new THREE.MeshStandardMaterial({ color: COLORS.black, roughness: 0.55 });
     const matBelt = cloth(COLORS.belt);
     const matBoot = cloth(COLORS.boot);
-    const matGold = new THREE.MeshStandardMaterial({ color: COLORS.gold, roughness: 0.35, metalness: 0.75 });
+    const matGold = new THREE.MeshStandardMaterial({ color: COLORS.gold, roughness: 0.48, metalness: 0.42, flatShading: true });
     const matLeather = cloth(COLORS.leather);
 
     // Мантия: расширяется к низу.
     this.robe = new THREE.Group();
-    const robeMesh = lathe(ROBE, 40, matRobe);
+    const robeMesh = lathe(ROBE, 24, matRobe);
     robeMesh.material.side = THREE.DoubleSide;
     this.robe.add(robeMesh);
     // Пояс и пряжка.
@@ -200,6 +200,7 @@ export class Hero {
     }
 
     this.buildDetails(glowTex, matGold, matLeather, matBelt);
+    this.buildReferenceDetails(matGold);
     this.buildStaff(glowTex, matBelt);
     this.buildTome(glowTex);
 
@@ -233,6 +234,113 @@ export class Hero {
   cast(yaw) {
     this.castT = CAST_TIME;
     this.castYaw = yaw;
+  }
+
+  /** Объёмные детали силуэта по референсу: огранённые пластины ткани, руны,
+   * потрёпанный подол и металлическая вышивка. Все элементы — настоящие 3D mesh. */
+  buildReferenceDetails(bronze) {
+    const ink = cloth(0x29253c);
+    const deep = cloth(0x342d47);
+    const blue = cloth(0x365b69);
+    const jade = new THREE.MeshStandardMaterial({
+      color: 0x74d9dd, emissive: 0x206a7c, emissiveIntensity: 0.55,
+      roughness: 0.35, metalness: 0.1, flatShading: true,
+    });
+
+    // Weighted scalloped robe: low-poly overlapping wedge plates, not a flat texture.
+    for (let i = 0; i < 12; i++) {
+      const a = i * Math.PI / 6;
+      const r = 0.49 + 0.014 * Math.sin(i * 2.8);
+      const wedge = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.24, 0.045),
+        i % 4 === 0 ? blue : i % 2 ? deep : ink);
+      wedge.position.set(Math.sin(a) * r, 0.31, Math.cos(a) * r);
+      wedge.rotation.y = a;
+      wedge.rotation.x = (i % 3 - 1) * 0.035;
+      wedge.scale.x = 0.8 + 0.12 * (i % 3);
+      this.robe.add(wedge);
+      if (i % 3 === 0) {
+        const pin = new THREE.Mesh(new THREE.OctahedronGeometry(0.037, 0), bronze);
+        pin.scale.set(0.8, 1.5, 0.4);
+        pin.position.set(Math.sin(a) * (r + 0.033), 0.39, Math.cos(a) * (r + 0.033));
+        this.robe.add(pin);
+      }
+    }
+
+    // Left / right front robe insets follow the curved body; metallic thread edges.
+    for (const sx of [-1, 1]) {
+      const inlay = new THREE.Mesh(new THREE.LatheGeometry(
+        [[0.37, 0.67], [0.40, 0.55], [0.46, 0.39], [0.52, 0.20]]
+          .map(([r, y]) => new THREE.Vector2(r + 0.008, y)), 6,
+        sx < 0 ? Math.PI / 2 + 0.18 : Math.PI / 2 - 0.36, 0.22),
+      new THREE.MeshStandardMaterial({ color: 0x34445c, roughness: 0.95, flatShading: true, side: THREE.DoubleSide }));
+      this.robe.add(inlay);
+      for (let j = 0; j < 4; j++) {
+        const y = 0.31 + j * 0.093, a = sx * 0.29;
+        const r = robeR(y) + 0.018;
+        const dot = new THREE.Mesh(new THREE.OctahedronGeometry(0.023, 0), bronze);
+        dot.position.set(Math.sin(a) * r, y, Math.cos(a) * r);
+        dot.scale.set(0.6, 0.82, 0.4);
+        this.robe.add(dot);
+      }
+    }
+
+    // Faceted shoulder plates rest above the existing animated sleeves.
+    for (const sx of [-1, 1]) {
+      const pad = new THREE.Mesh(new THREE.IcosahedronGeometry(0.20, 0), deep);
+      pad.scale.set(1.3, 0.46, 0.9);
+      pad.position.set(sx * 0.38, 0.91, 0.0);
+      pad.rotation.z = sx * 0.2;
+      this.body.add(pad);
+      const clasp = new THREE.Mesh(new THREE.OctahedronGeometry(0.055, 0), bronze);
+      clasp.position.set(sx * 0.43, 0.96, 0.16);
+      clasp.scale.set(0.6, 1.3, 0.35);
+      this.body.add(clasp);
+    }
+
+    // Split leather satchel straps and angular stitching on the back.
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.63, 0.027), bronze);
+    strap.position.set(-0.16, 0.72, -0.34);
+    strap.rotation.z = -0.42;
+    this.body.add(strap);
+    const pouch = new THREE.Mesh(new THREE.DodecahedronGeometry(0.145, 0), cloth(0x60404a));
+    pouch.scale.set(1.2, 0.75, 0.58);
+    pouch.position.set(-0.30, 0.53, -0.37);
+    this.body.add(pouch);
+
+    // Tiny celestial diagram: three-dimensional cyan and bronze set into the chest.
+    const sigil = new THREE.Group();
+    sigil.position.set(0, 0.91, 0.345);
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.085, 0), jade);
+    star.scale.set(0.75, 1.23, 0.3);
+    sigil.add(star);
+    for (const sx of [-1, 1]) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.018, 0.027), bronze);
+      bar.position.set(sx * 0.12, -0.075, 0);
+      bar.rotation.z = sx * 0.45;
+      sigil.add(bar);
+    }
+    this.body.add(sigil);
+
+    // Hand-stitched hat edge and several uneven bronze glyph studs.
+    for (let i = 0; i < 18; i++) {
+      const a = i * Math.PI / 9;
+      const d = new THREE.Mesh(new THREE.OctahedronGeometry(0.022, 0), bronze);
+      d.scale.set(0.5, 0.9, 0.6);
+      d.position.set(Math.cos(a) * 0.578, 0.067 + 0.012 * Math.sin(i * 3), Math.sin(a) * 0.578);
+      this.hat.add(d);
+    }
+    for (let i = 0; i < 5; i++) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.060, 0.032, 0.016), i % 2 ? bronze : jade);
+      plate.position.set(-0.15 + i * 0.075, 0.32 + Math.sin(i * 0.7) * 0.035, 0.324);
+      plate.rotation.z = (i - 2) * 0.22;
+      this.hat.add(plate);
+    }
+    const hatFacet = new THREE.Mesh(new THREE.ConeGeometry(0.115, 0.30, 5), deep);
+    hatFacet.position.set(-0.33, 1.06, -0.15);
+    hatFacet.rotation.z = -0.48;
+    this.hat.add(hatFacet);
+
+    // Keep neon-blue eyes, animated cape, weapon and attack intact.
   }
 
   /** Детали наряда: золотая кайма и вышивка, накидка на плечах, плащ со спины, подсумок, склянка, лента на поясе, манжеты. */
