@@ -287,6 +287,9 @@ export const CONFIG = {
     enchantScale: 1.2,   // во сколько раз её увеличить
     enchantHalfW: 2.6,   // м: полуразмер для столкновений
     enchantHalfD: 2.2,
+    enchantRadius: 1.4,  // м: ближе этого к мастерской выходит иконка наковальни
+    enchantHysteresis: 0.8,
+    enchantButtonRise: 60, // px
     rockStep: 2.1,       // м: шаг камней по краю
     playRadius: 3.2,     // м: ближе этого к костру из огня выходит Play
     playHysteresis: 0.9, // м: запас, чтобы кнопка не мигала на границе
