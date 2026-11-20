@@ -53,3 +53,16 @@ test('цена выкупа: 500 × уровень заточки', async () => 
   st.sharpen = 3; assert.equal(repairCost(CONFIG, st), 1500);
   st.sharpen = 10; assert.equal(repairCost(CONFIG, st), 5000);
 });
+
+test('заточка реально меняет числа посоха (урон, скорость, дальность)', async () => {
+  const { staffStats } = await import('../echo-gate/src/staff.js');
+  const up = { power: 0, speed: 0, range: 0 };
+  const base = staffStats(CONFIG, up);
+  const s1 = staffStats(CONFIG, up, 1);
+  assert.ok(Math.abs(s1.damage - base.damage * 1.05) < 1e-9);
+  assert.ok(Math.abs(s1.range - base.range * 1.05) < 1e-9);
+  assert.ok(Math.abs(s1.interval - base.interval / 1.05) < 1e-9);
+  const s10 = staffStats(CONFIG, up, 10);
+  assert.ok(s10.damage > s1.damage && s10.interval < s1.interval && s10.might > base.might);
+  assert.deepEqual(staffStats(CONFIG, up, 0), base);
+});

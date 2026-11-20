@@ -1,5 +1,5 @@
 {
-  "build": 67,
-  "commit": "0404d12",
-  "notes": "50 pearl sharpening gems at the start (existing saves get a one-time top-up)."
+  "build": 68,
+  "commit": "927e59f",
+  "notes": "Sharpening now really changes the equipped staff: damage, attack speed and range."
 }
