@@ -35,7 +35,8 @@ import { Hub, PopButton } from './hub.js';
 import { ForgeUi } from './forge_ui.js';
 import { Inventory } from './inventory.js';
 import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
-import { InventoryUi } from './inventory_ui.js';
+import { InventoryUi, GEM_ICON } from './inventory_ui.js';
+import { captureDeathLoot, bankLostLoot } from './death_rewards.js';
 
 export class Game {
   constructor(o) {
@@ -107,6 +108,10 @@ export class Game {
     this.floorClearTime = 0;
     this.runRewards = { spirit: 0, gold: 0 };
     this.pendingLevelUps = 0;
+    this.dead = false;
+    this.lostLoot = null;
+    this.demoAdActive = false;
+    this.demoAdTimer = null;
     for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff]) this.inventory.add(make()); // пока выдаются сразу: на выбор и примерку
     for (let i = 0; i < 10; i++) this.inventory.add(pearlGem()); // камни заточки: пока ничего не делают
     this.invOpen = false;
@@ -149,6 +154,10 @@ export class Game {
     this.pauseEl = o.ui.pause;
     if (o.ui.wakeBtn) o.ui.wakeBtn.addEventListener('click', () => this.wakeUp());
     if (o.ui.continueBtn) o.ui.continueBtn.addEventListener('click', () => this.continueFloor());
+    if (o.ui.deathHome) o.ui.deathHome.addEventListener('click', () => this.goHomeAfterDeath());
+    if (o.ui.deathRecover) o.ui.deathRecover.addEventListener('click', () => this.showTestRewardedAd());
+    if (o.ui.testAdCancel) o.ui.testAdCancel.addEventListener('click', () => this.closeTestRewardedAd());
+    if (o.ui.testAdClaim) o.ui.testAdClaim.addEventListener('click', () => this.claimTestRewardedAd());
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
     if (this.pauseEl) this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.playing) this.setPaused(true); });
@@ -199,15 +208,105 @@ export class Game {
     return true;
   }
 
-  /** Смерть обнуляет добычу, которая ещё не была сохранена в хабе. */
+  /** Смерть останавливает игру, но сохраняет снимок добычи для экрана потерь. */
   die() {
-    const lost = { ...this.runRewards };
+    if (!this.playing || this.dead) return;
+    this.dead = true;
+    this.playing = false;
+    this.lostLoot = captureDeathLoot(this.runRewards, this.stats.loot);
     this.runRewards = { spirit: 0, gold: 0 };
+    this.stick.cancel();
+    this.spawner.enabled = false;
+    this.enemyShots.clear();
+    this.midges.clear();
+    this.midgeView.update(0, this.midges.items);
+    this.loot.clear();
+    if (this.pauseBtn) this.pauseBtn.classList.add('gone');
+    if (this.dashBtn) this.dashBtn.classList.add('gone');
+    for (const key of ['floorBanner', 'floorCleared', 'bossHealth'])
+      if (this.ui[key]) this.ui[key].classList.add('gone');
+    if (this.hud) { this.hud.hide(); this.settings.hide(); }
+    this.showDeathScreen();
+  }
+
+  showDeathScreen() {
+    if (!this.ui.deathScreen || !this.lostLoot) return;
+    const lost = this.lostLoot;
+    if (this.ui.deathFloor) this.ui.deathFloor.textContent = `FLOOR ${this.floor}`;
+    if (this.ui.deathCurrency) this.ui.deathCurrency.textContent =
+      `${lost.spirit} SPIRIT · ${lost.gold} GOLD`;
+    if (this.ui.deathCollected) this.ui.deathCollected.textContent =
+      `POWER ${lost.collected.power} · SKILL ${lost.collected.skill} · PAGES ${lost.collected.page}`;
+    if (this.ui.deathGrid) {
+      const cells = document.createDocumentFragment();
+      for (let i = 0; i < 10; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'death-slot';
+        if ([0, 2, 4, 6, 8].includes(i)) {
+          cell.classList.add('death-slot-filled');
+          cell.innerHTML = GEM_ICON;
+          cell.title = 'Pearl Sharpening Gem — lost';
+        }
+        cells.appendChild(cell);
+      }
+      this.ui.deathGrid.replaceChildren(cells);
+    }
+    this.ui.deathScreen.classList.remove('gone');
+  }
+
+  /** HOME intentionally destroys the unbanked loot snapshot. */
+  goHomeAfterDeath() {
+    if (!this.dead) return;
+    this.closeTestRewardedAd();
+    this.dead = false;
+    this.lostLoot = null;
+    if (this.ui.deathScreen) this.ui.deathScreen.classList.add('gone');
     this.restart();
     this.enterHub();
     if (this.ui.start) this.ui.start.classList.remove('gone');
     if (this.hud) { this.hud.hide(); this.settings.hide(); }
-    if (lost.spirit || lost.gold) this.toast(`Loot lost: ${lost.spirit} spirit, ${lost.gold} gold`);
+  }
+
+  /** A clearly marked test rewarded ad, replaced by SDK callbacks on release. */
+  showTestRewardedAd() {
+    if (!this.dead || !this.lostLoot || this.demoAdActive) return;
+    if (this.inventory.limit - this.inventory.count < this.lostLoot.gems.length) {
+      this.toast('Not enough inventory space to recover loot');
+      return;
+    }
+    this.demoAdActive = true;
+    if (this.ui.testAdClaim) {
+      this.ui.testAdClaim.disabled = true;
+      this.ui.testAdClaim.textContent = 'LOADING TEST REWARD…';
+    }
+    if (this.ui.testAd) this.ui.testAd.classList.remove('gone');
+    this.demoAdTimer = setTimeout(() => {
+      this.demoAdTimer = null;
+      if (!this.demoAdActive || !this.dead) return;
+      if (this.ui.testAdClaim) {
+        this.ui.testAdClaim.disabled = false;
+        this.ui.testAdClaim.textContent = 'CLAIM TEST REWARD';
+      }
+    }, 2500);
+  }
+
+  closeTestRewardedAd() {
+    clearTimeout(this.demoAdTimer);
+    this.demoAdTimer = null;
+    this.demoAdActive = false;
+    if (this.ui.testAd) this.ui.testAd.classList.add('gone');
+  }
+
+  claimTestRewardedAd() {
+    if (!this.dead || !this.demoAdActive || this.demoAdTimer || !this.lostLoot
+      || !this.ui.testAdClaim || this.ui.testAdClaim.disabled) return;
+    if (!bankLostLoot(this.inventory, this.lostLoot)) {
+      this.toast('Not enough inventory space');
+      this.closeTestRewardedAd();
+      return;
+    }
+    this.goHomeAfterDeath();
+    this.toast('Loot recovered (test ad)');
   }
 
   creditKill(e) {
@@ -274,7 +373,7 @@ export class Game {
   }
 
   hideFloorUi() {
-    for (const key of ['floorTag', 'floorBanner', 'bossHealth', 'floorCleared'])
+    for (const key of ['floorBanner', 'bossHealth', 'floorCleared'])
       if (this.ui[key]) this.ui[key].classList.add('gone');
   }
 
@@ -368,10 +467,6 @@ export class Game {
     if (this.hud) { this.hud.show(); this.settings.show(); }
     if (this.pauseBtn) this.pauseBtn.classList.remove('gone');
     if (this.dashBtn) this.dashBtn.classList.remove('gone');
-    if (this.ui.floorTag) {
-      this.ui.floorTag.textContent = `FLOOR ${this.floor}`;
-      this.ui.floorTag.classList.remove('gone');
-    }
     if (this.ui.bossHealth) this.ui.bossHealth.classList.add('gone');
     if (this.pendingLevelUps && this.levelUp) {
       const count = this.pendingLevelUps;
@@ -500,7 +595,7 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling) advance(dt, (s) => this.step(s));
+    if (!this.dead && !this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling) advance(dt, (s) => this.step(s));
     this.drawStick();
     if (!this.paused && !this.invOpen && !this.forgeOpen) this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);

@@ -375,8 +375,7 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge .fg-stage { bottom: 14%; }
 
 /* Endless floors: compact battle HUD, extraction dialog, eye-blink transition. */
-#floor-tag { position: absolute; z-index: 14; top: calc(max(8px, env(safe-area-inset-top)) + 12px); right: 14px; font: 600 12px Georgia, serif; letter-spacing: .15em; color: #dbe7f7; text-shadow: 0 2px 8px #081222; pointer-events: none; }
-#floor-tag.gone, #boss-health.gone, #floor-banner.gone, #floor-cleared.gone { display: none; }
+#boss-health.gone, #floor-banner.gone, #floor-cleared.gone { display: none; }
 #boss-health { position: absolute; z-index: 16; top: calc(max(8px, env(safe-area-inset-top)) + 60px); left: 9%; width: 82%; pointer-events: none; text-align: center; }
 #boss-health .boss-name { font: 600 13px Georgia, serif; letter-spacing: .19em; color: #e2e9f2; text-shadow: 0 1px 8px #111b22; margin-bottom: 7px; }
 #boss-health .boss-track { height: 11px; border: 1px solid #607782; border-radius: 30px; padding: 2px; background: rgba(8,13,26,.89); box-shadow: 0 2px 12px #101d2c; }
@@ -400,3 +399,76 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #eye-blink.blinking .bottom { animation: eyeBottom 1.05s ease-in-out both; }
 @keyframes eyeTop { 0%, 8% { transform: translateY(-110%); } 40%, 56% { transform: translateY(0); } 100% { transform: translateY(-110%); } }
 @keyframes eyeBottom { 0%, 8% { transform: translateY(110%); } 40%, 56% { transform: translateY(0); } 100% { transform: translateY(110%); } }
+
+/* Death: collected loot and optional test-only rewarded restoration. */
+#death-screen, #test-rewarded-ad {
+  position: absolute; z-index: 65; inset: 0; box-sizing: border-box;
+  color: #dae4ef; background: radial-gradient(ellipse at 50% 36%, rgba(41,33,46,.94), rgba(5,9,18,.97) 82%);
+  font-family: "Iowan Old Style", Georgia, serif;
+}
+#death-screen.gone, #test-rewarded-ad.gone { display: none; }
+#death-screen {
+  display: grid; place-items: center; overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) 18px max(22px, env(safe-area-inset-bottom));
+}
+.death-content { width: 100%; max-width: 340px; text-align: center; padding: 16px 0; }
+.death-eyebrow { color: #8ca3ba; letter-spacing: .38em; font-size: 11px; margin-bottom: 13px; }
+.death-content h2 {
+  color: #e0b8b5; text-shadow: 0 0 23px rgba(211,89,88,.28);
+  font-size: clamp(32px, 9vw, 43px); font-weight: 600; letter-spacing: .12em; line-height: 1.1;
+  margin: 0 0 10px;
+}
+#death-floor { color: #adbbc8; font-size: 12px; letter-spacing: .2em; }
+.death-loss { margin: 22px 0 7px; color: #ef7779; font-size: 19px; letter-spacing: .14em; font-weight: 600; }
+.death-overview { color: #d5bd92; font-size: 13px; letter-spacing: .075em; }
+.death-collected { color: #8ca0b7; font-size: 11px; margin-top: 5px; letter-spacing: .04em; }
+.death-item-header { text-align: left; margin: 28px 0 9px 4px; color: #b5c6d8; letter-spacing: .16em; font-size: 11px; }
+.death-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; }
+.death-slot {
+  aspect-ratio: 1; min-width: 0; border: 1px solid rgba(122,145,170,.34); border-radius: 10px;
+  box-shadow: inset 0 2px 14px rgba(1,5,14,.4);
+  background: linear-gradient(145deg,rgba(49,61,86,.35),rgba(11,18,30,.72));
+  display: flex; align-items: center; justify-content: center;
+}
+.death-slot-filled {
+  border-color: rgba(175,141,184,.65);
+  background: radial-gradient(circle at 50% 39%, rgba(114,74,133,.48), rgba(23,26,48,.85));
+}
+.death-slot svg { height: 67%; width: 67%; filter: drop-shadow(0 0 5px rgba(231,213,255,.38)); }
+.death-item-caption { font-size: 11px; letter-spacing: .09em; color: #c7b7db; margin: 10px 0 28px; }
+.death-item-caption span { color: #79899b; }
+#death-screen button, #test-rewarded-ad button {
+  width: 100%; min-height: 50px; border-radius: 11px; letter-spacing: .12em;
+  font: 600 15px "Iowan Old Style",Georgia,serif; cursor: pointer; touch-action: manipulation;
+}
+#death-home {
+  border: 1px solid #8c786b; color: #e3d6c2;
+  background: rgba(53,47,46,.62); margin-bottom: 12px;
+}
+#death-recover {
+  border: 1px solid #80c1ae; color: #e4f7eb;
+  background: linear-gradient(110deg, #204a45, #235566);
+  box-shadow: 0 0 22px rgba(82,168,146,.18);
+}
+.death-ad-icon {
+  display: inline-flex; border: 1px solid rgba(220,244,239,.8); border-radius: 6px;
+  padding: 3px 6px; margin-right: 6px; line-height: 1; font-family: system-ui,sans-serif;
+  font-size: 10px; vertical-align: 2px;
+}
+.death-recover-note { font-size: 10px; line-height: 1.4; color: #90a4b4; margin: 10px 0 0; }
+#test-rewarded-ad {
+  z-index: 80; display: grid; place-items: center; padding: 25px; background: rgba(5,9,18,.98);
+}
+.test-ad-content { width: 100%; max-width: 300px; text-align: center; }
+.test-ad-icon { font-size: 44px; color: #9de2c4; text-shadow: 0 0 20px rgba(120,215,190,.5); }
+.test-ad-content h2 { font-size: 22px; letter-spacing: .11em; margin: 12px 0; }
+.test-ad-content p { color: #a4b7c8; font-size: 13px; line-height: 1.5; margin: 12px auto 30px; }
+#test-ad-claim { color: #e2f5ec; border: 1px solid #82c7aa; background: rgba(35,80,72,.87); }
+#test-ad-claim:disabled { opacity: .48; cursor: default; }
+#test-ad-cancel { margin-top: 12px; color: #aab8c8; background: transparent; border: 1px solid #3c5166; }
+@media (max-height: 630px) {
+  .death-content { padding: 3px 0; }
+  .death-loss { margin-top: 14px; }
+  .death-item-header { margin-top: 15px; }
+  .death-item-caption { margin-bottom: 15px; }
+}
