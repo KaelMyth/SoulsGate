@@ -14,6 +14,7 @@ const ui = {
   fps: document.getElementById('fps'),
   shopBtn: document.getElementById('shop-btn'),
   gearBtn: document.getElementById('gear-btn'),
+  anvilBtn: document.getElementById('anvil-btn'),
   pauseBtn: document.getElementById('pause-btn'),
   dashBtn: document.getElementById('dash-btn'),
   pause: document.getElementById('pause'),

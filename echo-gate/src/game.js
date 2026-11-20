@@ -33,7 +33,7 @@ import { Hud } from './hud.js';
 import { Settings } from './settings.js';
 import { Hub, PopButton } from './hub.js';
 import { Inventory } from './inventory.js';
-import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff } from './items.js';
+import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
 import { InventoryUi } from './inventory_ui.js';
 
 export class Game {
@@ -96,10 +96,12 @@ export class Game {
     const H = this.cfg.hub;
     this.playBtn = new PopButton(o.ui.playBtn, { radius: H.playRadius, hysteresis: H.playHysteresis, rise: H.buttonRise }, () => this.play());
     this.shopBtn = new PopButton(o.ui.shopBtn, { radius: H.shopRadius, hysteresis: H.shopHysteresis, rise: H.shopButtonRise }, () => this.bus.emit('shop:open', {}));
+    this.anvilBtn = new PopButton(o.ui.anvilBtn, { radius: H.enchantRadius, hysteresis: H.enchantHysteresis, rise: H.enchantButtonRise }, () => this.bus.emit('enchant:open', {})); // окна пока нет
     this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
     this.anchor = { x: 0, y: 0, z: 0 };
     this.inventory = new Inventory(this.cfg.inventory);
     for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff]) this.inventory.add(make()); // пока выдаются сразу: на выбор и примерку
+    for (let i = 0; i < 10; i++) this.inventory.add(pearlGem()); // камни заточки: пока ничего не делают
     this.invOpen = false;
     if (o.ui.root) {
       this.invUi = new InventoryUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.inventory, () => { this.invOpen = false; });
@@ -365,6 +367,8 @@ export class Game {
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
     const ag = this.hub.gearButtonAnchor(this.anchor);
+    const ae = this.hub.enchantButtonAnchor(this.anchor);
+    this.anvilBtn.update(dt, this.hub.distToEnchant(this.motion.x, this.motion.z), this.world, hubOn, ae.x, ae.y, ae.z);
     this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z);
     if (this.hud) { this.hud.update(dt, this.hero, this.block); this.settings.refresh(); }
     requestAnimationFrame((n) => this.frame(n));

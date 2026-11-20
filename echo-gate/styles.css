@@ -126,6 +126,14 @@ body.staff-open #dash-btn { visibility: hidden; }
   box-shadow: 0 0 22px rgba(120, 180, 255, 0.5), 0 6px 16px rgba(8, 13, 26, 0.5); will-change: transform, opacity;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
+/* Иконка наковальни: выходит над мастерской зачарования, когда герой рядом. */
+#anvil-btn {
+  position: absolute; left: 0; top: 0; z-index: 10; width: 60px; height: 60px; padding: 0; border: 2px solid #d6c4ff; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8f6fe0, #3d2a7a 85%); color: #f3ecff; cursor: pointer; opacity: 0; pointer-events: none;
+  box-shadow: 0 0 22px rgba(160, 120, 255, 0.55), 0 6px 16px rgba(8, 13, 26, 0.5); will-change: transform, opacity;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+#anvil-btn svg { width: 36px; height: 36px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(20, 8, 50, 0.6)); }
 #gear-btn svg { width: 36px; height: 36px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(8, 20, 50, 0.6)); }
 
 /* Экран посоха (кристалл усиления): плавное появление, полупрозрачная вуаль поверх паузы */

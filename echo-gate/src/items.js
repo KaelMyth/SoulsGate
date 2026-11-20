@@ -10,6 +10,7 @@ export const RARITY = {
 export const KINDS = {
   tome: { label: 'Tome', slot: 'tome' },
   staff: { label: 'Staff', slot: 'staff' },
+  gem: { label: 'Gem', slot: null },
 };
 
 export const ELEMENTS = { fire: 'Fire', ice: 'Ice', electric: 'Electric', gravity: 'Gravity', laser: 'Laser', blades: 'Blades' };
@@ -37,6 +38,7 @@ export class Item {
 
   /** Основные данные для окна предмета: [[подпись, значение], ...]. */
   details() {
+    if (this.kind === 'gem') return [['Type', this.kindInfo.label], ['Rarity', this.rarityInfo.label]];
     return [
       ['Type', this.kindInfo.label],
       ...(this.element ? [['Element', ELEMENTS[this.element]]] : []),
@@ -83,4 +85,12 @@ export function laserStaff() {
 }
 export function bladesStaff() {
   return new Item({ kind: 'staff', element: 'blades', name: 'Bladestorm Staff', rarity: 'rare', level: 1, desc: 'A crown of steel with blades circling it. Its element will reshape your basic attack.' });
+}
+
+/** Жемчужный камень заточки: расходник для улучшения снаряжения (пока ничего не делает). */
+export function pearlGem() {
+  return new Item({
+    kind: 'gem', name: 'Pearl Sharpening Gem', rarity: 'rare',
+    desc: 'A pearl-white gem used to improve your equipment.',
+  });
 }

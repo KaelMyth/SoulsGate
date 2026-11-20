@@ -207,6 +207,27 @@ export class Hub {
     return Math.hypot(dx, dz);
   }
 
+  /** Расстояние (м) от мировой точки до прямоугольника мастерской зачарования: 0 внутри. */
+  distToEnchant(wx, wz) {
+    const a = this.group.rotation.y;
+    const lx = wx * Math.cos(a) - wz * Math.sin(a);
+    const lz = wx * Math.sin(a) + wz * Math.cos(a);
+    const dx = Math.max(0, Math.abs(lx - this.cfg.enchantX) - this.cfg.enchantHalfW);
+    const dz = Math.max(0, Math.abs(lz - this.cfg.enchantZ) - this.cfg.enchantHalfD);
+    return Math.hypot(dx, dz);
+  }
+
+  /** Мировая точка над столом зачарования, откуда выходит иконка наковальни. */
+  enchantButtonAnchor(out) {
+    const a = this.group.rotation.y;
+    const lx = this.cfg.enchantX;
+    const lz = this.cfg.enchantZ + 0.5;
+    out.x = lx * Math.cos(a) + lz * Math.sin(a);
+    out.z = -lx * Math.sin(a) + lz * Math.cos(a);
+    out.y = 2.6;
+    return out;
+  }
+
   /** Мировая точка над кучей, откуда выходит иконка рюкзака. */
   gearButtonAnchor(out) {
     const a = this.group.rotation.y;
