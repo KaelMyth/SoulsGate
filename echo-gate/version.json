@@ -1,5 +1,5 @@
 {
-  "build": 63,
-  "commit": "b162541",
-  "notes": "Sharpening window: 3D altar hall, real staff model, charge, success and break effects."
+  "build": 64,
+  "commit": "dbe6639",
+  "notes": "Fix: merge markers in index.html and styles.css."
 }

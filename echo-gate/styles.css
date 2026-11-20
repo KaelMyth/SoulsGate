@@ -346,7 +346,6 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge .fg-sheet { position: absolute; left: 14px; right: 14px; bottom: 82px; padding: 10px 14px; border: 1px solid #5a4690; border-radius: 14px; background: rgba(18, 11, 38, 0.96); box-shadow: 0 0 24px rgba(0, 0, 0, 0.6); opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
 #forge .fg-sheet.on { opacity: 1; transform: none; pointer-events: auto; }
 #forge .fg-go { flex: 1 1 auto; }
-<<<<<<< Updated upstream
 #forge .fg-stage { bottom: 14%; }
 
 /* Endless floors: compact battle HUD, extraction dialog, eye-blink transition. */
@@ -604,7 +603,7 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
   #save-panel .save-label { margin: 10px 0 6px; }
   #save-panel .save-code { min-height: 48px; }
 }
-=======
+
 
 /* 3D-сцена заточки: холст под интерфейсом */
 #forge { background: #07040f; }
@@ -619,4 +618,3 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 @keyframes fgSocket { 50% { box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.3), 0 0 38px rgba(230, 200, 255, 1); } }
 #forge .fg-socket.firing .ico { animation: fgFire 0.9s ease-in forwards; }
 @keyframes fgFire { 0% { transform: none; opacity: 1; } 100% { transform: translate(-90px, -40px) scale(0.2) rotate(240deg); opacity: 0; } }
->>>>>>> Stashed changes
