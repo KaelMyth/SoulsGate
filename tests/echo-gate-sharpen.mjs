@@ -45,3 +45,11 @@ test('выкуп за души и за рекламу', () => {
   assert.equal(inv.repairBroken(0, 'souls', 100), true); assert.equal(inv.souls, 50); assert.ok(inv.slots.includes(st));
   inv.breakItem(st); assert.equal(inv.repairBroken(0, 'ad', 100), true); assert.equal(inv.souls, 50);
 });
+
+test('цена выкупа: 500 × уровень заточки', async () => {
+  const { repairCost } = await import('../echo-gate/src/sharpen.js');
+  const st = fireStaff();
+  assert.equal(repairCost(CONFIG, st), 500);
+  st.sharpen = 3; assert.equal(repairCost(CONFIG, st), 1500);
+  st.sharpen = 10; assert.equal(repairCost(CONFIG, st), 5000);
+});

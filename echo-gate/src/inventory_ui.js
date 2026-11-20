@@ -2,6 +2,7 @@
 // (сила духа слева, предметов из лимита по центру, монеты справа) и ячейки инвентаря. Открывается кнопкой у кучи снаряжения.
 import { InventoryView } from './inventory_view.js';
 import { makeStaffIcons } from './staff_icons.js';
+import { repairCost } from './sharpen.js';
 
 const TOME_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="4" width="19" height="24" rx="2.500" fill="#3a2a3d" stroke="#c9a25a" stroke-width="1.400"/><rect x="9.500" y="6.500" width="14" height="19" rx="1.500" fill="#e9e2cf"/><rect x="7" y="4" width="4" height="24" rx="2" fill="#2a1d2d"/><path d="M17.500 11.500l3.200 4.200-3.200 4.200-3.200-4.200z" fill="none" stroke="#1fc8e6" stroke-width="1.600"/><circle cx="17.500" cy="15.700" r="1.100" fill="#35f2ff"/></svg>`;
 const STAFF_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21.500 9.500" stroke="#9a6a3e" stroke-width="3" stroke-linecap="round"/><path d="M9 28L21.500 9.500" stroke="#c9a25a" stroke-width="1" stroke-linecap="round" opacity=".7"/><path d="M17 7.200a6 6 0 0 1 9 5" fill="none" stroke="#c9a25a" stroke-width="2.200" stroke-linecap="round"/><path d="M22.500 3.500l3.200 4.500-3.200 4.500-3.200-4.500z" fill="#5ee6ff" stroke="#d8f8ff" stroke-width="1"/></svg>`;
@@ -107,7 +108,6 @@ export class InventoryUi {
   /** Вкладка «Broken»: сломанные предметы, выкуп за души или рекламу. */
   renderBroken() {
     const inv = this.inv;
-    const cost = this.cfg.repairSouls;
     this.tabBroken.textContent = inv.broken.length ? `Broken (${inv.broken.length})` : 'Broken';
     this.broken.innerHTML = '';
     if (!inv.broken.length) { this.broken.append(el('div', { class: 'empty' }, 'Nothing is broken')); return; }
@@ -115,7 +115,8 @@ export class InventoryUi {
       const row = el('div', { class: 'row' });
       row.style.setProperty('--rar', it.rarityInfo.color);
       row.innerHTML = `<span class="it">${this.iconOf(it)}</span><div class="nm"><div class="name">${it.label}</div><div class="sub">Broken while sharpening</div></div>`;
-      const souls = el('button', { type: 'button', class: 'gold' }, `Repair ${cost}`);
+      const cost = repairCost({ inventory: this.cfg }, it);
+      const souls = el('button', { type: 'button', class: 'gold' }, `Repair ${cost.toLocaleString('en-US')}`);
       souls.append(icon(SOUL_ICON));
       souls.disabled = inv.souls < cost || inv.full;
       souls.addEventListener('click', () => inv.repairBroken(i, 'souls', cost));
