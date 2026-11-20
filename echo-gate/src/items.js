@@ -20,7 +20,8 @@ let nextId = 1;
 export class Item {
   /** o: { kind, name, rarity, level, sharpen, durability, desc } */
   constructor(o) {
-    this.id = o.id || nextId++;
+    this.id = Number.isSafeInteger(o.id) && o.id > 0 ? o.id : nextId++;
+    if (this.id >= nextId) nextId = this.id + 1;
     this.kind = o.kind;
     this.name = o.name || 'Unknown item';
     this.rarity = RARITY[o.rarity] ? o.rarity : 'common';

@@ -33,6 +33,7 @@ const ui = {
   shopBtn: document.getElementById('shop-btn'),
   gearBtn: document.getElementById('gear-btn'),
   soulHud: document.getElementById('souls-hud'),
+  saveBtn: document.getElementById('save-btn'),
   anvilBtn: document.getElementById('anvil-btn'),
   pauseBtn: document.getElementById('pause-btn'),
   dashBtn: document.getElementById('dash-btn'),

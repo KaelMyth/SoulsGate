@@ -1,5 +1,5 @@
 {
-  "build": 58,
-  "commit": "765b336",
-  "notes": "v0.2.2 — Souls: one currency, capped soul multipliers and animated end-run payout."
+  "build": 59,
+  "commit": "cd8356c",
+  "notes": "v0.2.3 — Soul Memory: offline save codes and automatic permanent progress saves."
 }

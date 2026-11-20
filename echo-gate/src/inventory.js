@@ -1,6 +1,7 @@
 // Данные инвентаря и метапрогресса: экипировка, предметы и единственная валюта — Souls.
 // Без графики и DOM. onChange вызывается при любом изменении. Надетые предметы в лимит ячеек не входят.
 import { startingTome, startingStaff } from './items.js';
+import { SAVE_STORAGE_KEY, captureProgress, validateProgress, encodeSaveCode, decodeSaveCode } from './savegame.js';
 
 export class Inventory {
   /** cfg: CONFIG.inventory { limit } */
@@ -12,7 +13,11 @@ export class Inventory {
     this.broken = [];    // выкуп за души или рекламу
     this.onChange = null; // один главный слушатель (окно инвентаря)
     this.listeners = [];  // остальные слушатели: listen(fn)
+    this.achievements = {}; // поле для постоянных достижений тестовой версии
+    this.deferSave = false;
+    this.hasProgressSave = false;
     this.loadBanked();
+    this.hasProgressSave = this.loadProgress();
   }
 
   /** Старая валюта переносится один раз: spirit + coins → souls, без потери накоплений. */
@@ -38,6 +43,45 @@ export class Inventory {
       if (typeof localStorage !== 'undefined')
         localStorage.setItem('echo-gate-souls-v1', JSON.stringify({ souls: this.souls }));
     } catch (_) { /* приватный режим */ }
+  }
+
+  /** Восстановить постоянный прогресс, но никогда не восстанавливать текущий забег. */
+  loadProgress() {
+    try {
+      if (typeof localStorage === 'undefined') return false;
+      const text = localStorage.getItem(SAVE_STORAGE_KEY);
+      if (!text) return false;
+      const data = validateProgress(JSON.parse(text), this.limit);
+      this.applyProgress(data);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  saveProgress() {
+    try {
+      if (typeof localStorage !== 'undefined')
+        localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(captureProgress(this)));
+    } catch (_) { /* Local storage may be blocked or full */ }
+  }
+
+  applyProgress(data) {
+    this.souls = data.souls;
+    this.slots = data.slots;
+    this.equipped = data.equipped;
+    this.broken = data.broken;
+    this.achievements = data.achievements;
+  }
+
+  /** Код несёт сам прогресс и подходит для любого устройства без облака. */
+  exportSaveCode() { return encodeSaveCode(captureProgress(this)); }
+
+  /** Важно: сначала полная проверка, затем единая замена состояния. */
+  importSaveCode(code) {
+    const data = decodeSaveCode(code, this.limit);
+    this.applyProgress(data);
+    this.hasProgressSave = true;
+    this.changed();
+    return true;
   }
 
   /** Подписаться на любые изменения инвентаря и экипировки. */
@@ -138,7 +182,10 @@ export class Inventory {
     this.changed();
   }
   changed() {
-    this.saveBanked();
+    if (!this.deferSave) {
+      this.saveBanked();
+      this.saveProgress();
+    }
     if (this.onChange) this.onChange(this);
     for (const fn of this.listeners) fn(this);
   }

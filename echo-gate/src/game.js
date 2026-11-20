@@ -39,6 +39,7 @@ import { InventoryUi, GEM_ICON } from './inventory_ui.js';
 import { captureDeathLoot, bankLostLoot } from './death_rewards.js';
 import { computeSoulTally } from './soul_rewards.js';
 import { SoulTally } from './soul_tally.js';
+import { SaveUi } from './save_ui.js';
 
 export class Game {
   constructor(o) {
@@ -114,8 +115,16 @@ export class Game {
     this.lostLoot = null;
     this.demoAdActive = false;
     this.demoAdTimer = null;
-    for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff]) this.inventory.add(make()); // пока выдаются сразу: на выбор и примерку
-    for (let i = 0; i < 10; i++) this.inventory.add(pearlGem()); // камни заточки: пока ничего не делают
+    // Начальные предметы выдаются только один раз. Восстановленный инвентарь нельзя перезаписывать.
+    if (!this.inventory.hasProgressSave) {
+      this.inventory.deferSave = true;
+      for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff])
+        this.inventory.add(make());
+      for (let i = 0; i < 10; i++) this.inventory.add(pearlGem());
+      this.inventory.deferSave = false;
+      this.inventory.hasProgressSave = true;
+      this.inventory.changed();
+    }
     this.invOpen = false;
     if (o.ui.root) {
       this.invUi = new InventoryUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.inventory, () => { this.invOpen = false; });
@@ -166,6 +175,7 @@ export class Game {
     if (o.ui.deathRecover) o.ui.deathRecover.addEventListener('click', () => this.showTestRewardedAd());
     if (o.ui.testAdCancel) o.ui.testAdCancel.addEventListener('click', () => this.closeTestRewardedAd());
     if (o.ui.testAdClaim) o.ui.testAdClaim.addEventListener('click', () => this.claimTestRewardedAd());
+    if (o.ui.saveBtn) o.ui.saveBtn.addEventListener('click', () => this.openSaves());
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
     if (this.pauseEl) this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.playing) this.setPaused(true); });
@@ -181,6 +191,7 @@ export class Game {
       this.settings = new Settings(o.ui.root, { config: this.cfg, stats: this.stats, world: this.world, game: this });
       this.settings.show(); // шестерёнка и счётчик fps доступны и в хабе
       this.soulTallyUi = new SoulTally(o.ui.root);
+      this.saveUi = new SaveUi(o.ui.root, this.inventory);
     }
   }
 
@@ -563,6 +574,15 @@ export class Game {
     u.knob.style.transform = `translate(${s.baseX + s.kx - R * 0.42}px, ${s.baseY + s.ky - R * 0.42}px)`;
   }
 
+  /** Сохранение доступно в лагере: код содержит только постоянный прогресс. */
+  openSaves() {
+    if (!this.inHub || this.switching || this.dead || this.invOpen || this.forgeOpen
+      || this.saveUi?.open || this.soulTallyUi?.open || !this.saveUi) return;
+    this.stick.cancel();
+    if (this.settings) this.settings.toggle(false);
+    this.saveUi.show();
+  }
+
   /** Окно инвентаря из хаба: хаб замирает, вместо мира рисуется витрина мага. */
   openInventory() {
     if (!this.inHub || this.switching || this.invOpen || !this.invUi) return;
@@ -607,15 +627,17 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.dead && !this.soulTallyUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling)
+    if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling)
       advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused && !this.soulTallyUi?.open && !this.invOpen && !this.forgeOpen)
+    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen)
       this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);
     else this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
-    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.soulTallyUi?.open;
+    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen
+      && !this.soulTallyUi?.open && !this.saveUi?.open;
+    if (this.ui.saveBtn) this.ui.saveBtn.classList.toggle('gone', !hubOn);
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
