@@ -1,6 +1,7 @@
 // Окно заточки (наковальня в мастерской зачарования): посох на постаменте, ячейка для камня, шанс и прибавка к характеристикам.
 // Камни вложены в ячейку по умолчанию, характеристики открываются по кнопке «i». Цена в камнях и шанс берутся из sharpen.js, таблицы из CONFIG.sharpen.
 import { makeStaffIcons } from './staff_icons.js';
+import { ForgeScene } from './forge_scene.js';
 import { sharpenInfo, attemptSharpen, sharpenedStats } from './sharpen.js';
 import { GEM_ICON, SOUL_ICON } from './inventory_ui.js';
 
@@ -32,13 +33,10 @@ export class ForgeUi {
 
     this.chips = el('div', { class: 'fg-chips' });
 
-    // Сцена: свечение, рунное кольцо, посох над постаментом.
-    this.img = el('img', { class: 'fg-staff', alt: '', draggable: 'false' });
+    // Сцена рисуется 3D (forge_scene.js) на своём холсте под окном.
+    this.canvas = el('canvas', { class: 'fg-canvas' });
     this.name = el('div', { class: 'fg-name' });
-    this.fx = el('div', { class: 'fg-fx' });
-    const ped = el('div', { class: 'fg-ped' }, el('i', { class: 'slab' }), el('i', { class: 'col' }), el('i', { class: 'base' }));
-    this.stage = el('div', { class: 'fg-stage' }, el('div', { class: 'fg-aura' }), el('div', { class: 'fg-ring' }), el('div', { class: 'fg-ring r2' }), this.img, ped, this.fx);
-    for (let i = 0; i < 12; i++) { const s = el('i', { class: 'fg-spark' }); s.style.setProperty('--i', String(i)); this.stage.append(s); }
+    this.stage = this.canvas; // для совместимости: классы состояния вешаются на холст
 
     // Ячейка для камня.
     this.socket = el('div', { class: 'fg-socket' });
@@ -55,7 +53,7 @@ export class ForgeUi {
     this.toast = el('div', { class: 'fg-toast' });
     const bottom = el('div', { class: 'fg-bottom' }, this.infoBtn, this.go);
 
-    this.root = el('div', { id: 'forge' }, top, this.chips, el('div', { class: 'fg-mid' }, this.stage, socketWrap, this.chanceBox, this.name), this.sheet, bottom, this.toast);
+    this.root = el('div', { id: 'forge' }, this.canvas, top, this.chips, el('div', { class: 'fg-mid' }, socketWrap, this.chanceBox, this.name), this.sheet, bottom, this.toast);
     root.append(this.root);
 
     this.closeBtn.addEventListener('click', () => this.hide());
@@ -77,7 +75,10 @@ export class ForgeUi {
   show() {
     if (this.open) return;
     this.open = true;
-    if (!this.icons) this.icons = makeStaffIcons(380);
+    if (!this.icons) this.icons = makeStaffIcons(160);
+    if (!this.scene) {
+      try { this.scene = new ForgeScene(this.canvas); } catch (err) { this.scene = null; }
+    }
     const l = this.staffs();
     this.sel = l.includes(this.sel) ? this.sel : l[0] || null;
     this.busy = false;
@@ -85,6 +86,18 @@ export class ForgeUi {
     this.root.classList.add('show');
     this.refresh();
     requestAnimationFrame(() => requestAnimationFrame(() => this.root.classList.add('on')));
+    this.lastT = performance.now();
+    const loop = (now) => {
+      if (!this.open) return;
+      const dt = (now - this.lastT) / 1000; this.lastT = now;
+      if (this.scene) {
+        const w = this.root.clientWidth, h = this.root.clientHeight;
+        if (w !== this.sw || h !== this.sh) { this.sw = w; this.sh = h; this.scene.resize(w, h); }
+        this.scene.update(dt); this.scene.render();
+      }
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
   }
 
   hide() {
@@ -115,9 +128,8 @@ export class ForgeUi {
       this.chips.append(b);
     }
     const it = this.sel;
-    this.stage.classList.toggle('empty', !it);
-    if (!it) { this.name.textContent = 'No staff'; this.img.removeAttribute('src'); this.rows.innerHTML = ''; this.go.disabled = true; return; }
-    this.img.src = this.urlOf(it);
+    if (!it) { this.name.textContent = 'No staff'; this.rows.innerHTML = ''; this.go.disabled = true; return; }
+    if (this.scene) { if (this.scene.broken) this.scene.restore(); this.scene.setStaff(it.element || 'basic'); }
     this.name.textContent = it.label;
     this.name.style.setProperty('--rar', it.rarityInfo.color);
     const info = sharpenInfo(this.cfg, it.sharpen);
@@ -143,17 +155,16 @@ export class ForgeUi {
     if (!it || !this.filled || this.busy) return;
     this.busy = true;
     this.go.disabled = true;
-    this.stage.classList.add('charging');
+    if (this.scene) this.scene.charge();
+    this.socket.classList.add('firing');
     setTimeout(() => {
       const r = attemptSharpen(this.cfg, this.inv, it);
-      this.stage.classList.remove('charging');
-      const cls = r.ok ? 'win' : 'lose';
-      this.stage.classList.add(cls);
-      if (r.ok) { this.say(`${it.name} +${r.level}`); this.name.textContent = it.label; this.img.src = this.urlOf(it); }
+      this.socket.classList.remove('firing');
+      if (this.scene) { if (r.ok) this.scene.win(); else this.scene.lose(); }
+      if (r.ok) { this.say(`${it.name} +${r.level}`); this.name.textContent = it.label; }
       else if (r.broken) this.say('The staff broke! Find it in the Broken tab');
       else this.say('Not enough gems');
       setTimeout(() => {
-        this.stage.classList.remove(cls);
         this.busy = false;
         this.refresh();
       }, r.ok ? 900 : 1300);
