@@ -4,10 +4,12 @@
 import * as THREE from 'three';
 
 const R = 0.46;
-const SHELL = 0x1b1530;
-const ABD = 0x241a40;
-const EDGE = 0xa06bff;
-const LEG = 0x4a3a73;
+// Фиолетовый стрелок: аметистовый панцирь, брюшко с розовато-лиловым свечением, голубовато-белые глаза.
+const SHELL = 0x3a1a6e;
+const ABD = 0x6a2fc0;
+const EDGE = 0xe08bff;
+const LEG = 0x6b4aa8;
+const AURA = 0xb84dff;
 
 let glowTex = null;
 function glow() {
@@ -65,7 +67,7 @@ export class Shooter {
     const abd = new THREE.Mesh(new THREE.IcosahedronGeometry(R * 0.8, 0), this.abdMat);
     abd.scale.set(1, 0.85, 1.1);
     this.abd.add(abd);
-    this.core = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xc9a0ff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.core = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xe27bff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.core.scale.setScalar(R * 2.2);
     this.abd.add(this.core);
     this.body.add(this.abd);
@@ -77,9 +79,9 @@ export class Shooter {
     this.body.add(head);
     this.eyes = [];
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09 * R, 8, 6), new THREE.MeshBasicMaterial({ color: 0xe6d2ff }));
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09 * R, 8, 6), new THREE.MeshBasicMaterial({ color: 0xd8f4ff }));
       eye.position.set(s * 0.16 * R, 0.46 * R, 1.14 * R);
-      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xa06bff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0x7de8ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
       g.scale.setScalar(0.7 * R);
       g.position.copy(eye.position);
       this.body.add(eye, g);
@@ -100,6 +102,13 @@ export class Shooter {
       }
     }
 
+    this.aura = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.4 * R, 5.4 * R),
+      new THREE.MeshBasicMaterial({ map: glow(), color: AURA, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    this.aura.rotation.x = -Math.PI / 2;
+    this.aura.position.y = 0.02;
+    this.group.add(this.aura);
     this.shadow = new THREE.Mesh(
       new THREE.PlaneGeometry(3 * R, 3 * R),
       new THREE.MeshBasicMaterial({ map: glow(), color: 0x1e2440, transparent: true, opacity: 0.3, depthWrite: false }),
@@ -157,6 +166,7 @@ export class Shooter {
       L.g.position.y = 0.3 * R + Math.max(0, w) * 0.1 * R;
     }
     const f2 = 0.5 + 0.5 * Math.sin(t * 19 + this.ph * 2);
+    this.aura.material.opacity = 0.5 + 0.2 * Math.sin(t * 3 + this.ph) + 0.35 * this.ab * this.ab; // при заряде разгорается
     for (const e of this.eyes) e.material.opacity = 0.5 + 0.25 * f2 + 0.25 * k;
   }
 }

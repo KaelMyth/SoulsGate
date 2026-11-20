@@ -1,5 +1,5 @@
 {
-  "build": 36,
-  "commit": "7917c32",
-  "notes": "Minimal ground: large soft low-poly facets in the cold palette, no cracks or pebbles."
+  "build": 45,
+  "commit": "dcf0ecb",
+  "notes": "Ground: minimal low-poly baked texture without snow."
 }

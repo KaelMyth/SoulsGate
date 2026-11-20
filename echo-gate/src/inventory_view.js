@@ -103,7 +103,7 @@ export class InventoryView {
     this.hero.staff.add(proxy);
     this.hits = { tome: [], staff: [] };
     this.tome.traverse((o) => { if (o.isMesh) this.hits.tome.push(o); });
-    this.hero.staff.traverse((o) => { if (o.isMesh) this.hits.staff.push(o); });
+    this.collectStaffHits();
     this.parts = { tome: this.tome, staff: this.hero.staff };
 
     // Мягкое пятно света под героем и пылинки вокруг.
@@ -119,6 +119,19 @@ export class InventoryView {
       sc.add(m);
     }
     this.bg = new THREE.Color(0x0b1120);
+  }
+
+  /** Меши посоха для нажатий (пересобираются при смене посоха). */
+  collectStaffHits() {
+    this.hits.staff.length = 0;
+    this.hero.staff.traverse((o) => { if (o.isMesh) this.hits.staff.push(o); });
+  }
+
+  /** Сменить вид посоха на витрине: null или 'basic' | 'fire' | 'ice' | 'electric'. */
+  setStaffVariant(variant) {
+    const before = this.hero.staffVariant;
+    this.hero.setStaff(variant);
+    if (this.hero.staffVariant !== before) this.collectStaffHits();
   }
 
   /** Показать или спрятать предмет витрины ('tome' или 'staff'): спрятан, когда снят или его тащат. */

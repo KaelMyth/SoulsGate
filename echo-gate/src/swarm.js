@@ -61,7 +61,8 @@ export class Swarm {
           let nx, nz;
           if (d > 1e-4) { nx = dx / d; nz = dz / d; }
           else { const a = i * 2.399963; nx = Math.cos(a); nz = Math.sin(a); } // совпавшие в точку расходятся по «золотому углу»
-          const push = (min - d) * 0.5;
+          if (e.heavy) continue; // тяжёлую скалу мелочь не двигает
+          const push = (min - d) * (o.heavy ? 1 : 0.5); // а мелочь выталкивается из скалы целиком
           e.x += nx * push; e.z += nz * push;
         }
       }

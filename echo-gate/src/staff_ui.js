@@ -5,7 +5,40 @@
 // ниже сколько кристаллов вложено в каждую часть. Модели рисует отдельный прозрачный WebGL-холст поверх игры.
 import * as THREE from 'three';
 import { PARTS, staffStats } from './staff.js';
-import { buildStaff, buildGem, makeEnvironment } from './staff_model.js';
+import { buildGem, makeEnvironment } from './staff_model.js'; // старый посох (buildStaff) остаётся в staff_model.js для позднего использования
+import { buildStaffModel } from './staff_models.js';
+import { glowTexture } from './staff_icons.js';
+
+const HALO = { basic: 0x35f2ff, fire: 0xff8a2a, ice: 0x9fdcff, electric: 0xffe45a, gravity: 0xb06bff, laser: 0xff3345, blades: 0xa8d4ff };
+const PART_Y = { power: 1.75, speed: 0.9, range: -0.05 };
+
+/** Посох с витрины (staff_models.js) для экрана прокачки: тот же вид, плюс по ореолу у каждой из трёх частей для подсветки. */
+function buildShowcaseStaff(variant, glowTex) {
+  const m = buildStaffModel(variant, glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }));
+  const halos = {};
+  for (const [p, size] of [['power', 1.3], ['speed', 0.95], ['range', 0.95]]) {
+    const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: HALO[variant] || HALO.basic, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+    h.position.y = PART_Y[p];
+    h.userData.size = size;
+    h.scale.set(size, size, 1);
+    h.renderOrder = 5;
+    m.group.add(h);
+    halos[p] = h;
+  }
+  return {
+    group: m.group,
+    top: 2.45,
+    bottom: -0.5,
+    centers: PART_Y,
+    update: (t) => m.update(t, 0.2),
+    pulse(name, v) {
+      const h = halos[name];
+      h.material.opacity = Math.min(0.95, 0.12 + v * 0.55);
+      const k = h.userData.size * (1 + v * 0.25);
+      h.scale.set(k, k, 1);
+    },
+  };
+}
 
 const LABEL = { power: 'Power', speed: 'Speed', range: 'Range' };
 
@@ -83,16 +116,28 @@ export class StaffUi {
     const rim = new THREE.DirectionalLight(0x6fcfff, 1.6);
     rim.position.set(400, 100, -500);
     scene.add(key, rim);
-    this.staff = buildStaff();
+    this.glowTex = glowTexture();
     this.staffRoot = new THREE.Group(); // позиция и масштаб в пикселях
-    this.staffRoot.add(this.staff.group);
     scene.add(this.staffRoot);
+    this.variant = null;
+    this.syncStaff();
     this.gem = buildGem();
     scene.add(this.gem);
     this.gl = { renderer, scene, camera };
     this.gemPos = new THREE.Vector3();
     this.gemTarget = new THREE.Vector3();
     this.layout();
+  }
+
+  /** Показать посох, который надет у мага сейчас (при смене стихии модель пересоздаётся). */
+  syncStaff() {
+    const eq = this.game.inventory && this.game.inventory.equipped.staff;
+    const variant = (eq && eq.element) || 'basic';
+    if (variant === this.variant) return;
+    if (this.staff) this.staffRoot.remove(this.staff.group);
+    this.variant = variant;
+    this.staff = buildShowcaseStaff(variant, this.glowTex);
+    this.staffRoot.add(this.staff.group);
   }
 
   /** Раскладка под размер экрана: посох слева на всю высоту, подписи и зоны попадания у частей, кристалл в слоте. */
@@ -116,7 +161,7 @@ export class StaffUi {
     this.staffRoot.position.set(cx, cy, 0);
     for (const p of PARTS) {
       const y = H - (cy + this.staff.centers[p] * s); // CSS-координата центра части
-      const half = p === 'power' ? 0.55 * s : p === 'speed' ? 0.4 * s : 0.5 * s;
+      const half = p === 'power' ? 0.55 * s : p === 'speed' ? 0.35 * s : 0.5 * s;
       const hit = this.el.querySelector(`.part-hit[data-part="${p}"]`);
       hit.style.top = y - half + 'px';
       hit.style.height = half * 2 + 'px';
@@ -161,6 +206,7 @@ export class StaffUi {
     this.el.classList.add('show');
     document.body.classList.add('staff-open');
     if (!this.gl) this.initGl();
+    this.syncStaff();
     this.refresh();
     this.fade = 0.5;
     requestAnimationFrame(() => {

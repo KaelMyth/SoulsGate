@@ -197,3 +197,69 @@ test('быки: откидывание выстрела 0.6 от обычног�
   sp.knock(b, 1, 0);
   assert.ok(Math.abs(b.kbVx * 0.07 - 0.47 * 0.6) < 1e-6);
 });
+
+test('градации: доли стрелков и быков с 6 волны растут и упираются в потолок', () => {
+  const { sp } = mk();
+  assert.equal(sp.share('shooter', 5), 0);
+  assert.ok(Math.abs(sp.share('shooter', 6) - 0.12) < 1e-9);
+  assert.ok(sp.share('shooter', 8) > sp.share('shooter', 6));
+  assert.equal(sp.share('shooter', 100), 0.3);
+  assert.equal(sp.share('bull', 100), 0.2);
+});
+
+test('скала: до 10 волны нет, на 10 одна, на 20 две; выходит целиком за краем экрана', () => {
+  const { sp } = mk();
+  assert.equal(sp.rockCount(9), 0);
+  assert.equal(sp.rockCount(10), 1);
+  assert.equal(sp.rockCount(15), 0);
+  assert.equal(sp.rockCount(20), 2);
+  sp.wave = 10;
+  sp.spawnRocks(0, 0, 12, rnd);
+  const r = sp.alive.find((b) => b.kind === 'rock');
+  assert.ok(r);
+  assert.ok(Math.hypot(r.x, r.z) - r.radius >= 12); // ближний край скалы за краем экрана
+  assert.equal(r.radius, 2.0);
+  assert.ok(r.heavy);
+});
+
+test('скала: подходит, на 9.3 м замахивается 0.9 с и выпускает мошек', () => {
+  const { sp } = mk();
+  sp.enabled = true; sp.phase = 'active'; sp.spawned = 999;
+  const r = sp.spawnAt(14, 0, 0, 0, 'rock');
+  let slams = 0;
+  sp.onSlam = () => slams++;
+  const states = new Set();
+  let ring = null;
+  for (let t = 0; t < 8 && !slams; t += 1 / 60) {
+    sp.moveBeetles(1 / 60, hero);
+    states.add(r.atk.state);
+    const g = sp.telegraph(r);
+    if (g && !ring) ring = { ...g };
+  }
+  assert.equal(slams, 1);
+  assert.ok(states.has('windup'));
+  assert.equal(ring.shape, 'circle');
+  assert.ok(Math.abs(ring.radius - 3.4) < 1e-9);
+});
+
+test('мошки: разлетаются, кружат вокруг героя и бросаются; выстрел сбивает; попадание бьёт на 8', async () => {
+  const { Midges } = await import('../echo-gate/src/midges.js');
+  const cfg = JSON.parse(JSON.stringify(CONFIG));
+  const mg = new Midges(cfg, rnd);
+  mg.burst(10, 0, hero, 8, cfg.rock.midge);
+  assert.equal(mg.count, 8);
+  const hits = [];
+  let t = 0;
+  let minD = 99;
+  for (; t < 8 && mg.count > 0; t += 1 / 60) {
+    mg.update(1 / 60, hero, (d) => hits.push(d));
+    for (const m of mg.items) if (m.active && t > 0.6 && t < 3.5) minD = Math.min(minD, Math.hypot(m.x, m.z));
+  }
+  assert.ok(hits.length > 0 && hits.every((d) => d === 8));
+  assert.ok(minD > 1.5, `кружили на ${minD}`); // не лезли в героя во время кружения
+  mg.burst(10, 0, hero, 3, cfg.rock.midge);
+  const m = mg.hitTest(10, 0, 0.17);
+  assert.ok(m);
+  mg.kill(m, 'shot');
+  assert.equal(mg.count, 2);
+});
