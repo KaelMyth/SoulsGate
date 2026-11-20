@@ -82,6 +82,7 @@ export class ForgeUi {
     const l = this.staffs();
     this.sel = l.includes(this.sel) ? this.sel : l[0] || null;
     this.busy = false;
+    this.root.classList.remove('busy');
     this.sheet.classList.remove('on');
     this.root.classList.add('show');
     this.refresh();
@@ -154,6 +155,7 @@ export class ForgeUi {
     const it = this.sel;
     if (!it || !this.filled || this.busy) return;
     this.busy = true;
+    this.root.classList.add('busy'); // на время ковки список посохов уходит, чтобы не закрывать анимацию
     this.go.disabled = true;
     if (this.scene) this.scene.charge();
     this.socket.classList.add('firing');
@@ -166,6 +168,7 @@ export class ForgeUi {
       else this.say('Not enough gems');
       setTimeout(() => {
         this.busy = false;
+        this.root.classList.remove('busy');
         this.refresh();
       }, r.ok ? 900 : 1300);
     }, 900);

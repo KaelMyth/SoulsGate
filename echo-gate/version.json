@@ -1,5 +1,5 @@
 {
-  "build": 65,
-  "commit": "375ea4b",
-  "notes": "Broken staffs: repair price is 500 souls x sharpening level."
+  "build": 66,
+  "commit": "9ee0cc4",
+  "notes": "Sharpening: the staff list hides during the forging animation."
 }
