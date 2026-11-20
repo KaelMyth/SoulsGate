@@ -1,5 +1,5 @@
 {
-  "build": 66,
-  "commit": "9ee0cc4",
-  "notes": "Sharpening: the staff list hides during the forging animation."
+  "build": 67,
+  "commit": "0404d12",
+  "notes": "50 pearl sharpening gems at the start (existing saves get a one-time top-up)."
 }

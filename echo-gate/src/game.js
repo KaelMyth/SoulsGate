@@ -120,9 +120,16 @@ export class Game {
       this.inventory.deferSave = true;
       for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff])
         this.inventory.add(make());
-      for (let i = 0; i < 10; i++) this.inventory.add(pearlGem());
+      for (let i = 0; i < this.cfg.inventory.startGems; i++) this.inventory.add(pearlGem());
+      this.inventory.achievements.gemsGranted = true;
       this.inventory.deferSave = false;
       this.inventory.hasProgressSave = true;
+      this.inventory.changed();
+    } else if (!this.inventory.achievements.gemsGranted) {
+      // Старое сохранение: один раз докладываем камни заточки до стартового числа.
+      const need = Math.min(this.cfg.inventory.startGems - this.inventory.gemCount(), this.inventory.slots.filter((s) => !s).length);
+      for (let i = 0; i < need; i++) this.inventory.add(pearlGem());
+      this.inventory.achievements.gemsGranted = true;
       this.inventory.changed();
     }
     this.invOpen = false;
