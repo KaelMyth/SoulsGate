@@ -235,3 +235,25 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #levelup .lu-name { font-size: 17px; letter-spacing: 0.06em; color: var(--c, #eaf2ff); }
 #levelup .lu-text { font-size: 13px; line-height: 1.25; color: #b9c8e0; }
 #levelup .lu-card:active { border-color: var(--c, #ffb14a); }
+
+/* Магическая рулетка при подборе фиолетового камня. */
+#roulette { position: absolute; inset: 0; z-index: 31; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(60, 30, 110, 0.55), rgba(5, 6, 18, 0.9) 70%); opacity: 0; transition: opacity 0.5s ease; touch-action: manipulation; }
+#roulette.on { opacity: 1; }
+#roulette .rl-title { font: 500 26px/1.1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.25em; text-indent: 0.25em; color: #e7d6ff; text-shadow: 0 0 22px rgba(181, 123, 255, 0.8); }
+#roulette .rl-view { position: relative; width: 100%; height: 124px; overflow: hidden; border-top: 1px solid rgba(181, 123, 255, 0.5); border-bottom: 1px solid rgba(181, 123, 255, 0.5);
+  background: linear-gradient(180deg, rgba(40, 20, 80, 0.55), rgba(12, 8, 30, 0.8)); box-shadow: 0 0 40px rgba(150, 90, 255, 0.35), inset 0 0 30px rgba(150, 90, 255, 0.18);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+#roulette .rl-strip { position: absolute; left: 0; top: 14px; display: flex; gap: 8px; will-change: transform; }
+#roulette .rl-cell { box-sizing: border-box; flex: none; width: 88px; height: 96px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 2px solid var(--c); color: #fff;
+  font: 600 34px/1 "Iowan Old Style", Georgia, serif; text-shadow: 0 0 12px var(--c); background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 55%), radial-gradient(circle at 50% 100%, var(--c), transparent 75%), #0d0a22;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.5); opacity: 0.9; }
+#roulette .rl-cell.blue { --c: #4f8dff; } #roulette .rl-cell.violet { --c: #a35bff; } #roulette .rl-cell.pink { --c: #ff4fb8; } #roulette .rl-cell.gold { --c: #ffc83a; }
+#roulette .rl-mark { position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #ffd9a0; box-shadow: 0 0 14px 2px rgba(255, 190, 110, 0.9); }
+#roulette .rl-mark::before, #roulette .rl-mark::after { content: ""; position: absolute; left: -7px; border: 8px solid transparent; }
+#roulette .rl-mark::before { top: 0; border-top-color: #ffd9a0; }
+#roulette .rl-mark::after { bottom: 0; border-bottom-color: #ffd9a0; }
+#roulette .rl-cell.won { opacity: 1; transform: scale(1.1); box-shadow: 0 0 26px var(--c), inset 0 0 18px rgba(255, 255, 255, 0.25); transition: transform 0.3s ease; }
+#roulette.end .rl-cell:not(.won) { opacity: 0.4; transition: opacity 0.4s; }
+#roulette .rl-hint { height: 20px; font: 14px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.15em; color: #cdb8ff; opacity: 0; transition: opacity 0.4s; }
+#roulette .rl-hint.on { opacity: 1; }
