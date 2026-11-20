@@ -1,5 +1,5 @@
 {
-  "build": 48,
+  "build": 49,
   "commit": "dcf0ecb",
-  "notes": "Magic roulette on purple stone pickup."
+  "notes": "Dash button: translucent square, raised."
 }
