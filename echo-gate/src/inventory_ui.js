@@ -43,6 +43,10 @@ export class InventoryUi {
     this.onClose = onClose;
     this.open = false;
     this.view = null; // 3D-витрина создаётся при первом открытии (экономит память, пока окно не нужно)
+    this.viewInitFrame = null;
+    this.iconsInitTimer = null;
+    this.viewFailed = false;
+    this.iconsFailed = false;
     this.pending = null; // нажатие, которое может стать перетаскиванием или нажатием
     this.drag = null;    // идущее перетаскивание: { src, item, ghost }
 
@@ -156,17 +160,58 @@ export class InventoryUi {
   }
 
   show() {
-    if (this.open) return;
-    if (!this.icons) this.icons = makeStaffIcons();
+    if (this.open) return true;
+    // Сначала открыть DOM-инвентарь: иконки и 3D-витрина необязательны для доступа к вещам.
+    // Иначе ошибка WebGL оставляла Game.invOpen=true при невидимом окне.
     this.open = true;
-    if (!this.view) this.view = new InventoryView(this.renderer);
-    this.refresh();
-    this.grid.scrollTop = 0;
     this.root.classList.add('on');
+    try {
+      this.refresh();
+      this.grid.scrollTop = 0;
+    } catch (error) {
+      this.open = false;
+      this.root.classList.remove('on');
+      throw error;
+    }
+    // Витрина создаётся на следующем кадре, чтобы клик не блокировался компиляцией шейдеров.
+    if (!this.view && !this.viewFailed) {
+      this.viewInitFrame = requestAnimationFrame(() => {
+        this.viewInitFrame = null;
+        if (!this.open || this.view || this.viewFailed) return;
+        try {
+          this.view = new InventoryView(this.renderer);
+          this.refresh();
+        } catch (error) {
+          this.view = null;
+          this.viewFailed = true;
+          console.warn('Inventory 3D preview unavailable; item grid remains accessible', error);
+        }
+      });
+    }
+    // Отдельный WebGL-контекст для иконок дорог на телефонах: загружаем после показа окна.
+    if (!this.icons && !this.iconsFailed) {
+      this.iconsInitTimer = setTimeout(() => {
+        this.iconsInitTimer = null;
+        if (!this.open || this.icons || this.iconsFailed) return;
+        try {
+          this.icons = makeStaffIcons();
+          if (!Object.keys(this.icons).length) this.iconsFailed = true;
+        } catch (error) {
+          this.iconsFailed = true;
+          console.warn('3D staff icons unavailable; using existing SVG icons', error);
+        }
+        if (this.open) this.refresh();
+      }, 250);
+    }
+    return true;
   }
 
   hide() {
     if (!this.open) return;
+    if (this.viewInitFrame !== null) cancelAnimationFrame(this.viewInitFrame);
+    if (this.iconsInitTimer !== null) clearTimeout(this.iconsInitTimer);
+    this.viewInitFrame = null;
+    this.iconsInitTimer = null;
     this.cancel();
     this.hideDetail();
     this.open = false;
@@ -176,8 +221,16 @@ export class InventoryUi {
 
   /** Кадр окна: 3D-витрина в прямоугольник .inv-stage. */
   render(dt) {
-    if (!this.open || !this.view) return;
-    this.view.render(dt, this.stage.getBoundingClientRect(), this.renderer.domElement.getBoundingClientRect());
+    if (!this.open || !this.view) return false;
+    try {
+      this.view.render(dt, this.stage.getBoundingClientRect(), this.renderer.domElement.getBoundingClientRect());
+      return true;
+    } catch (error) {
+      this.view = null;
+      this.viewFailed = true;
+      console.warn('Inventory 3D render unavailable; item grid remains accessible', error);
+      return false;
+    }
   }
 
   // --- Перетаскивание и нажатия ---------------------------------------------------------------------------------

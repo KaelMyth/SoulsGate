@@ -585,10 +585,18 @@ export class Game {
 
   /** Окно инвентаря из хаба: хаб замирает, вместо мира рисуется витрина мага. */
   openInventory() {
-    if (!this.inHub || this.switching || this.invOpen || !this.invUi) return;
-    this.invOpen = true;
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen
+      || this.saveUi?.open || this.soulTallyUi?.open || !this.invUi) return;
     this.stick.cancel();
-    this.invUi.show();
+    try {
+      // Устанавливать блокировку мира только после открытия панели.
+      if (this.invUi.show()) this.invOpen = true;
+    } catch (error) {
+      this.invOpen = false;
+      this.invUi.hide();
+      console.error('Unable to open inventory', error);
+      this.toast('Backpack could not be opened');
+    }
   }
 
   /** Окно заточки из хаба: хаб замирает, поверх окно с постаментом. */
@@ -632,8 +640,7 @@ export class Game {
     this.drawStick();
     if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen)
       this.hub.update(dt, this.motion.x, this.motion.z);
-    if (this.invOpen) this.invUi.render(dt);
-    else this.world.render();
+    if (!this.invOpen || !this.invUi.render(dt)) this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
     const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen
       && !this.soulTallyUi?.open && !this.saveUi?.open;

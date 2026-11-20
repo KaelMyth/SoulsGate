@@ -1,5 +1,5 @@
 {
-  "build": 61,
-  "commit": "b087cc7",
-  "notes": "v0.2.5 — Revert #60: restore the original mage and merchant stall models."
+  "build": 62,
+  "commit": "4bcffce",
+  "notes": "v0.2.6 — Backpack: reliable hub inventory opening and resilient 3D preview."
 }
