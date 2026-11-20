@@ -17,6 +17,9 @@ import { Beetle } from './beetle.js';
 import { Shooter } from './shooter.js';
 import { Bull } from './bull.js';
 import { LevelUp } from './levelup.js';
+import { pickChoices, applyUpgrade } from './upgrades.js';
+import { Block } from './block.js';
+import { BlockView } from './block_view.js';
 import { Rock } from './rock.js';
 import { Midges } from './midges.js';
 import { MidgeView } from './midge_view.js';
@@ -53,6 +56,10 @@ export class Game {
     this.spawner.onShot = (e, dx, dz) => this.enemyShots.fire(e, dx, dz, this.cfg.shooter.shot);
     this.heroBody = { x: 0, z: 0, radius: this.cfg.hero.radius };
     this.invuln = 0; // с неуязвимости героя после удара
+    this.block = new Block(this.cfg.block);
+    this.blockView = new BlockView(this.world.scene);
+    this.block.onParry = () => { this.blockView.parry(); this.bus.emit('hero:parried', {}); };
+    this.block.onBlock = (absorbed) => this.bus.emit('hero:blocked', { absorbed });
     this.spawner.onTouch = (e) => this.hurtHero(this.cfg.beetle.touchDamage);
     this.attack = new Attack(this.world.scene, this.cfg.attack, this.hero, this.spawner);
     this.attack.midges = this.midges; // выстрел сбивает мошек
@@ -103,7 +110,12 @@ export class Game {
     // Окно выбора усиления на новом уровне: бой стоит, пока оно открыто.
     this.choosing = false;
     if (o.ui.root) {
-      this.levelUp = new LevelUp(o.ui.root, { onOpen: () => { this.choosing = true; this.stick.cancel(); }, onClose: () => { this.choosing = false; } });
+      this.levelUp = new LevelUp(o.ui.root, {
+        onOpen: () => { this.choosing = true; this.stick.cancel(); },
+        onClose: () => { this.choosing = false; },
+        getChoices: () => pickChoices(this.cfg, 2).map((u) => ({ ...u, value: this.cfg.upgrades[u.id].value })),
+        onPick: (u) => { applyUpgrade(this.cfg, this.stats, u.id); this.stats.syncMax(); this.bus.emit('upgrade:picked', { id: u.id }); },
+      });
       this.stats.onLevel = () => { if (this.playing) this.levelUp.request(); };
     }
     this.pauseBtn = o.ui.pauseBtn;
@@ -128,6 +140,7 @@ export class Game {
   /** Новая игра: здоровье, опыт и волны с начала. */
   restart() {
     this.stats.reset();
+    this.block.reset();
     this.spawner.reset();
     if (this.levelUp) this.levelUp.reset();
     this.enemyShots.clear();
@@ -142,6 +155,8 @@ export class Game {
   /** Удар жука по герою: учитывает неуязвимость после удара. Возвращает true, если урон прошёл. */
   hurtHero(n) {
     if (this.invuln > 0 || !this.playing || this.stats.hp <= 0) return false;
+    n = this.block.filter(n); // блок гасит часть урона, парирование весь
+    if (n <= 0) return false;
     this.stats.hurt(n);
     this.invuln = this.cfg.hero.iFrames;
     this.bus.emit('hero:hit', { amount: n, hp: this.stats.hp });
@@ -251,9 +266,14 @@ export class Game {
   step(dt) {
     const m = this.motion;
     const inp = this.readInput(this.tmp);
+    m.speedMult = 1 + this.stats.bonus.speed;
+    this.loot.radiusMult = 1 + this.stats.bonus.pickup;
     m.update(dt, inp.x, inp.z);
-    this.hero.update(dt, m, this.cfg.hero.speed);
+    this.block.durMult = 1 + this.stats.bonus.block;
+    this.block.update(dt, inp.x !== 0 || inp.z !== 0 || m.dashing, this.playing);
+    this.hero.update(dt, m, this.cfg.hero.speed * m.speedMult);
     this.stats.update(dt);
+    this.blockView.update(dt, this.block, m.x, m.z, this.cfg.hero.radius);
     this.invuln = Math.max(0, this.invuln - dt);
     this.heroBody.x = m.x; this.heroBody.z = m.z; this.heroBody.radius = this.cfg.hero.radius;
     if (this.playing) {

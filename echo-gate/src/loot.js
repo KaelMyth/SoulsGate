@@ -54,6 +54,7 @@ export class Loot {
   constructor(scene, cfg) {
     this.scene = scene;
     this.cfg = cfg;
+    this.radiusMult = 1; // усиления радиуса подбора
     this.onCollect = null; // (type, value) => void
     this.drops = [];
     this.t = 0;
@@ -136,14 +137,14 @@ export class Loot {
       const dx = hx - d.x, dz = hz - d.z;
       const dist = Math.hypot(dx, dz);
       if (d.age >= c.popTime) {
-        if (!d.magnet && dist < c.magnetRadius) d.magnet = true;
+        if (!d.magnet && dist < c.magnetRadius * this.radiusMult) d.magnet = true;
         if (d.magnet) {
           // Тянется к герою всё быстрее.
           const sp = c.magnetSpeed * (1 + 2 * Math.max(0, 1 - dist / c.magnetRadius));
           const k = Math.min(1, (sp * dt) / Math.max(dist, 1e-4));
           d.x += dx * k;
           d.z += dz * k;
-          if (dist < c.pickupRadius) { this.collect(i); continue; }
+          if (dist < c.pickupRadius * this.radiusMult) { this.collect(i); continue; }
         }
       }
       if (d.age < c.popTime) {

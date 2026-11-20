@@ -1,5 +1,5 @@
 {
-  "build": 45,
+  "build": 46,
   "commit": "dcf0ecb",
-  "notes": "Ground: minimal low-poly baked texture without snow."
+  "notes": "Level-up upgrades list (5 entries with drop weights) and SoulsGate-style block."
 }

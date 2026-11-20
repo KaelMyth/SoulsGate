@@ -1,6 +1,6 @@
-// Окно выбора усиления при повышении уровня: надпись "Choose an Upgrade" и две пустые карточки.
-// Появляется плавно (фон, надпись и карточки по очереди), бой на это время стоит. Нажатие на карточку закрывает окно
-// (содержимого карточек пока нет). Если уровней набралось несколько, окна идут по очереди.
+// Окно выбора усиления при повышении уровня: надпись "Choose an Upgrade" и две карточки с усилениями.
+// Какие усиления выпали, решает getChoices() (список и шансы в upgrades.js), выбранное применяет onPick(усиление).
+// Появляется плавно (фон, надпись и карточки по очереди), бой на это время стоит. Если уровней набралось несколько, окна идут по очереди.
 // DOM: #levelup создаётся здесь, стили в styles.css.
 function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
@@ -13,7 +13,10 @@ function el(tag, attrs = {}, ...kids) {
 
 export class LevelUp {
   /** root: куда добавить окно (#phone); onOpen/onClose: бой ставят на паузу и снимают; count: сколько карточек */
-  constructor(root, { onOpen, onClose, count = 2, fadeMs = 450 } = {}) {
+  constructor(root, { onOpen, onClose, getChoices, onPick, count = 2, fadeMs = 450 } = {}) {
+    this.getChoices = getChoices || (() => []);
+    this.onPick = onPick || (() => {});
+    this.choices = [];
     this.onOpen = onOpen || (() => {});
     this.onClose = onClose || (() => {});
     this.fadeMs = fadeMs;
@@ -44,14 +47,28 @@ export class LevelUp {
     if (this.queue <= 0) return;
     this.queue--;
     this.open = true;
+    this.choices = this.getChoices().slice(0, this.cards.length);
+    this.cards.forEach((c, i) => this.fillCard(c, this.choices[i]));
     this.onOpen();
     this.root.style.display = 'flex';
     void this.root.offsetWidth; // чтобы переход включился с нуля
     this.root.classList.add('on');
   }
 
+  fillCard(card, u) {
+    card.replaceChildren();
+    card.style.visibility = u ? '' : 'hidden';
+    if (!u) return;
+    const ic = el('div', { class: 'lu-icon' });
+    ic.innerHTML = u.icon;
+    ic.style.color = u.color;
+    card.style.setProperty('--c', u.color);
+    card.append(ic, el('div', { class: 'lu-name' }, u.name), el('div', { class: 'lu-text' }, u.text(u.value)));
+  }
+
   pick(i) {
-    if (!this.open || !this.root.classList.contains('on')) return;
+    if (!this.open || !this.root.classList.contains('on') || !this.choices[i]) return;
+    this.onPick(this.choices[i]);
     this.root.classList.remove('on');
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {

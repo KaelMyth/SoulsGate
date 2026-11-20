@@ -220,3 +220,9 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #levelup.on .lu-card:nth-child(1) { transition-delay: 0.3s, 0.3s, 0s; }
 #levelup.on .lu-card:nth-child(2) { transition-delay: 0.42s, 0.42s, 0s; }
 #levelup .lu-card:active { border-color: #ffb14a; }
+#levelup .lu-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px 8px; color: #eaf2ff; text-align: center; font-family: "Iowan Old Style", Georgia, serif; }
+#levelup .lu-icon { width: 58%; aspect-ratio: 1; filter: drop-shadow(0 0 10px currentColor); }
+#levelup .lu-icon svg { width: 100%; height: 100%; display: block; }
+#levelup .lu-name { font-size: 17px; letter-spacing: 0.06em; color: var(--c, #eaf2ff); }
+#levelup .lu-text { font-size: 13px; line-height: 1.25; color: #b9c8e0; }
+#levelup .lu-card:active { border-color: var(--c, #ffb14a); }
