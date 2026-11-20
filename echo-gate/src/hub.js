@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Shop } from './shop.js';
 import { GearPile } from './gear.js';
+import { EnchantingNook } from './enchanting.js';
 
 function mat(color, rough = 0.95) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, flatShading: true }); }
 function glowMat(color, opacity) {
@@ -158,6 +159,12 @@ export class Hub {
     this.gear.group.scale.setScalar(cfg.gearScale);
     this.group.add(this.gear.group);
 
+    // Зачарованная мастерская справа от костра на экране (местная ось +x).
+    this.enchant = new EnchantingNook();
+    this.enchant.group.position.set(cfg.enchantX, 0, cfg.enchantZ);
+    this.enchant.group.scale.setScalar(cfg.enchantScale);
+    this.group.add(this.enchant.group);
+
     const hx = cfg.halfW;
     const hz = cfg.halfD;
 
@@ -235,6 +242,7 @@ export class Hub {
     const lx = px * Math.cos(a) - pz * Math.sin(a);
     const lz = px * Math.sin(a) + pz * Math.cos(a);
     this.gear.update(dt);
+    this.enchant.update(dt);
     this.shop.update(dt, lx - this.shop.group.position.x, lz - this.shop.group.position.z);
   }
 }
