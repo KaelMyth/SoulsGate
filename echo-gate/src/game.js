@@ -32,6 +32,7 @@ import { Stats } from './stats.js';
 import { Hud } from './hud.js';
 import { Settings } from './settings.js';
 import { Hub, PopButton } from './hub.js';
+import { ForgeUi } from './forge_ui.js';
 import { Inventory } from './inventory.js';
 import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
 import { InventoryUi } from './inventory_ui.js';
@@ -106,6 +107,11 @@ export class Game {
     if (o.ui.root) {
       this.invUi = new InventoryUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.inventory, () => { this.invOpen = false; });
       this.bus.on('gear:open', () => this.openInventory());
+    }
+    this.forgeOpen = false;
+    if (o.ui.root) {
+      this.forgeUi = new ForgeUi(o.ui.root, this, () => { this.forgeOpen = false; });
+      this.bus.on('enchant:open', () => this.openForge());
     }
     // Экипировка настоящая: что снято в инвентаре, того нет и на модели героя в мире.
     this.inventory.listen(() => this.syncEquipment());
@@ -328,6 +334,14 @@ export class Game {
     this.invUi.show();
   }
 
+  /** Окно заточки из хаба: хаб замирает, поверх окно с постаментом. */
+  openForge() {
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || !this.forgeUi) return;
+    this.forgeOpen = true;
+    this.stick.cancel();
+    this.forgeUi.show();
+  }
+
   /** Пауза боя: логика стоит, кадр рисуется, поверх окно с кнопкой продолжить. Только в забеге. */
   setPaused(on) {
     if (on && !this.playing) return;
@@ -356,17 +370,22 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.paused && !this.invOpen && !this.choosing && !this.rolling) advance(dt, (s) => this.step(s));
+    if (!this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling) advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused && !this.invOpen) this.hub.update(dt, this.motion.x, this.motion.z);
+    if (!this.paused && !this.invOpen && !this.forgeOpen) this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);
     else this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
-    const hubOn = this.inHub && !this.switching && !this.invOpen;
+    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen;
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
     const ag = this.hub.gearButtonAnchor(this.anchor);
+    if (this.ui.goldHud) {
+      this.ui.goldHud.classList.toggle('on', hubOn);
+      const b = this.ui.goldHud.firstChild;
+      if (b.textContent !== String(this.inventory.coins)) b.textContent = String(this.inventory.coins);
+    }
     const ae = this.hub.enchantButtonAnchor(this.anchor);
     this.anvilBtn.update(dt, this.hub.distToEnchant(this.motion.x, this.motion.z), this.world, hubOn, ae.x, ae.y, ae.z);
     this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z);

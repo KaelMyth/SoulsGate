@@ -31,6 +31,8 @@ export class Item {
     this.element = o.element || null;  // стихия посоха: 'fire' | 'ice' | 'electric' (внешний вид; на атаку пока не влияет)
   }
 
+  /** Имя с заточкой: «Apprentice Staff +3». */
+  get label() { return this.sharpen ? `${this.name} +${this.sharpen}` : this.name; }
   get kindInfo() { return KINDS[this.kind] || { label: this.kind, slot: null }; }
   get rarityInfo() { return RARITY[this.rarity]; }
   /** Название места экипировки или null. */
