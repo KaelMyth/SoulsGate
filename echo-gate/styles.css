@@ -48,7 +48,7 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #hud-loot .loot-page { color: #f0e0b0; }
 #hud-loot .loot-page i { width: 10px; height: 11px; clip-path: polygon(0 10%, 45% 0, 100% 8%, 92% 60%, 100% 100%, 20% 92%, 8% 55%); }
 #hud-flash { position: absolute; left: 0; right: 0; top: 24%; text-align: center; opacity: 0; font: 500 30px/1.1 var(--serif); letter-spacing: 0.12em; text-transform: uppercase; color: #ffd9a0; text-shadow: 0 0 20px rgba(255, 177, 74, 0.55); }
-#hud-hp { position: absolute; left: 0; top: 0; overflow: visible; font-family: var(--serif); will-change: transform; }
+#hud-hp, #hud-blk { position: absolute; left: 0; top: 0; overflow: visible; font-family: var(--serif); will-change: transform; }
 
 #cfg-btn {
   position: absolute; z-index: 20; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left));

@@ -1,5 +1,5 @@
 {
-  "build": 49,
+  "build": 50,
   "commit": "dcf0ecb",
-  "notes": "Dash button: translucent square, raised."
+  "notes": "Shield stays while moving, cooldown arc, wider softer dome."
 }

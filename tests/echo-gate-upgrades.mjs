@@ -61,8 +61,11 @@ test('block: starts after delay, parries, reduces, cooldowns', () => {
   assert.equal(b.cd, 2);
   b.update(2.1, false); assert.equal(b.active, false); // один блок за остановку
   b.update(0.1, true); b.update(0.2, false); assert.equal(b.active, true);
-  b.update(0.01, true); assert.equal(b.active, false);
-  assert.equal(b.cd, 0.5);
+  b.update(0.5, true); assert.equal(b.active, true); // движение блок не снимает
+  b.update(1.1, true); assert.equal(b.active, false);
+  assert.equal(b.cd, 2);
+  b.update(1, true);
+  assert.ok(Math.abs(b.ready - 0.5) < 1e-9);
 });
 
 test('block duration upgrade lengthens block', () => {
