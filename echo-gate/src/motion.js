@@ -4,6 +4,7 @@ export class Motion {
   /** cfg: { hero, dash } из config.js */
   constructor(cfg) {
     this.cfg = cfg;
+    this.speedMult = 1; // усиления скорости бега
     this.x = 0;
     this.z = 0;
     this.vx = 0;
@@ -54,8 +55,8 @@ export class Motion {
         this.cooldown = D.cooldown;
       }
     } else {
-      const tx = inX * H.speed;
-      const tz = inZ * H.speed;
+      const tx = inX * H.speed * this.speedMult;
+      const tz = inZ * H.speed * this.speedMult;
       // После рывка остаток скорости плавно переходит в обычное движение.
       const tau = this.glideT > 0 ? Math.max(H.accelTime, D.glide / 3) : H.accelTime;
       const k = tau <= 1e-6 ? 1 : 1 - Math.exp(-dt / tau);
