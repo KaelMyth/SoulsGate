@@ -29,6 +29,7 @@ const TUNABLES = [
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.range', label: 'Дальность, м', min: 3, max: 20, step: 0.5 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.speed', label: 'Скорость шарика, м/с', min: 4, max: 40, step: 1 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.size', label: 'Размер шарика, м', min: 0.2, max: 1.2, step: 0.05 },
+  { tab: 'Оружие', group: 'Выстрел', path: 'attack.fxAmount', label: 'Число искр и осколков (0 = без)', min: 0, max: 3, step: 0.25 },
   { tab: 'Оружие', group: 'Выстрел', path: 'attack.hitRadius', label: 'Радиус попадания, м', min: 0, max: 1, step: 0.05 },
   { tab: 'Опыт', group: 'Награда', path: 'xp.perKill', label: 'Опыт за жука', min: 0, max: 20, step: 0.5 },
   { tab: 'Опыт', group: 'Награда', path: 'xp.gainMult', label: 'Множитель опыта', min: 0.2, max: 3, step: 0.1 },
