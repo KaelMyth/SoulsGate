@@ -51,7 +51,8 @@ export class ForgeUi {
     this.sheet = el('div', { class: 'fg-sheet' }, this.rows);
     this.go = el('button', { type: 'button', class: 'fg-go' }, 'Sharpen');
     this.toast = el('div', { class: 'fg-toast' });
-    const bottom = el('div', { class: 'fg-bottom' }, this.infoBtn, this.go);
+    this.brokenBtn = el('button', { type: 'button', class: 'fg-broken' }, 'Broken');
+    const bottom = el('div', { class: 'fg-bottom' }, this.infoBtn, this.brokenBtn, this.go);
 
     this.root = el('div', { id: 'forge' }, this.canvas, top, this.chips, el('div', { class: 'fg-mid' }, socketWrap, this.chanceBox, this.name), this.sheet, bottom, this.toast);
     root.append(this.root);
@@ -59,6 +60,12 @@ export class ForgeUi {
     this.closeBtn.addEventListener('click', () => this.hide());
     window.addEventListener('keydown', (e) => { if (this.open && e.key === 'Escape') this.hide(); });
     this.go.addEventListener('click', () => this.sharpen());
+    this.brokenBtn.addEventListener('click', () => { // сломанные посохи: закрываем кузню и открываем рюкзак на вкладке «Broken»
+      if (this.busy) return;
+      this.hide();
+      this.game.openInventory();
+      if (this.game.invUi) this.game.invUi.setTab('broken');
+    });
     this.infoBtn.addEventListener('click', () => this.sheet.classList.toggle('on'));
     this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.root.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
@@ -119,6 +126,8 @@ export class ForgeUi {
   refresh() {
     const inv = this.inv;
     this.souls.textContent = String(inv.souls);
+    this.brokenBtn.style.display = inv.broken.length ? '' : 'none';
+    this.brokenBtn.textContent = `Broken (${inv.broken.length})`;
     const list = this.staffs();
     if (!list.includes(this.sel)) this.sel = list[0] || null;
     this.chips.innerHTML = '';

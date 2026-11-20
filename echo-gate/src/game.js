@@ -662,6 +662,7 @@ export class Game {
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
     const ag = this.hub.gearButtonAnchor(this.anchor);
+    this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z); // сразу: this.anchor общий, следующий вызов его перезапишет
     if (this.ui.soulHud) {
       this.ui.soulHud.classList.toggle('on', hubOn);
       const b = this.ui.soulHud.firstChild;
@@ -669,7 +670,6 @@ export class Game {
     }
     const ae = this.hub.enchantButtonAnchor(this.anchor);
     this.anvilBtn.update(dt, this.hub.distToEnchant(this.motion.x, this.motion.z), this.world, hubOn, ae.x, ae.y, ae.z);
-    this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z);
     if (this.hud) { this.hud.update(dt, this.hero, this.block); this.settings.refresh(); }
     if (this.ui.bossHealth) {
       const b = this.spawner.boss;
