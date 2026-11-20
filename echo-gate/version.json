@@ -1,5 +1,5 @@
 {
-  "build": 55,
-  "commit": "9a5b356",
-  "notes": "Sharpening window simplified: gems are placed automatically, stats on the info button."
+  "build": 56,
+  "commit": "19b996d",
+  "notes": "v0.2 — Endless floors: blink transition, Stone Beetle boss, vacuum loot and extraction."
 }

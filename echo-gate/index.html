@@ -25,6 +25,22 @@
     <div id="pause"><div class="box"><div class="ttl">PAUSE</div><button type="button" aria-label="Resume"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2 L19 12 L8 18.8 Z"/></svg></button></div></div>
     <div id="fps" aria-hidden="true">-- fps</div>
     <div id="toast" role="status"></div>
+    <div id="floor-tag" class="gone">FLOOR 1</div>
+    <div id="boss-health" class="gone">
+      <div class="boss-name">STONE BEETLE</div><div class="boss-track"><i id="boss-fill"></i></div>
+    </div>
+    <div id="floor-banner" class="gone" aria-live="polite">FLOOR 1</div>
+    <div id="floor-cleared" class="gone" role="dialog" aria-label="Floor cleared">
+      <div class="floor-clear-content">
+        <div class="floor-clear-kicker">ECHO GATE</div>
+        <h2>FLOOR CLEARED</h2>
+        <div id="floor-rewards"></div>
+        <button id="wake-btn" type="button">WAKE UP</button>
+        <button id="continue-btn" type="button">CONTINUE</button>
+        <p class="floor-warning">By continuing, you risk dying and losing your loot.</p>
+      </div>
+    </div>
+    <div id="eye-blink" aria-hidden="true"><div class="eyelid top"></div><div class="eyelid bottom"></div></div>
     <div id="fade"></div>
   </div>
   <!-- Загрузка с защитой от кеша: номер сборки берём из version.json (без кеша) и дописываем ?v=N ко всем модулям через import map.

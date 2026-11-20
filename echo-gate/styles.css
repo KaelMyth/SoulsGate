@@ -373,3 +373,30 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge .fg-sheet.on { opacity: 1; transform: none; pointer-events: auto; }
 #forge .fg-go { flex: 1 1 auto; }
 #forge .fg-stage { bottom: 14%; }
+
+/* Endless floors: compact battle HUD, extraction dialog, eye-blink transition. */
+#floor-tag { position: absolute; z-index: 14; top: calc(max(8px, env(safe-area-inset-top)) + 12px); right: 14px; font: 600 12px Georgia, serif; letter-spacing: .15em; color: #dbe7f7; text-shadow: 0 2px 8px #081222; pointer-events: none; }
+#floor-tag.gone, #boss-health.gone, #floor-banner.gone, #floor-cleared.gone { display: none; }
+#boss-health { position: absolute; z-index: 16; top: calc(max(8px, env(safe-area-inset-top)) + 60px); left: 9%; width: 82%; pointer-events: none; text-align: center; }
+#boss-health .boss-name { font: 600 13px Georgia, serif; letter-spacing: .19em; color: #e2e9f2; text-shadow: 0 1px 8px #111b22; margin-bottom: 7px; }
+#boss-health .boss-track { height: 11px; border: 1px solid #607782; border-radius: 30px; padding: 2px; background: rgba(8,13,26,.89); box-shadow: 0 2px 12px #101d2c; }
+#boss-health .boss-track i { display: block; height: 100%; width: 100%; border-radius: 12px; background: linear-gradient(90deg, #4b9876, #a3f0b8); box-shadow: 0 0 11px rgba(142,250,180,.52); transition: width .12s linear; }
+#floor-banner { position: absolute; left: 0; right: 0; top: 29%; z-index: 30; pointer-events: none; text-align: center; font: 600 39px Georgia, serif; letter-spacing: .18em; color: #ecf4fa; text-shadow: 0 1px 14px #1e304b, 0 0 30px #39638a; animation: floorReveal 1.75s ease-out both; }
+@keyframes floorReveal { 0% { opacity: 0; transform: translateY(17px) scale(.97); } 18%, 70% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; } }
+#floor-cleared { position: absolute; z-index: 55; inset: 0; display: grid; place-items: center; padding: 20px; box-sizing: border-box; background: radial-gradient(ellipse at 50% 38%, rgba(29,52,64,.78), rgba(4,9,19,.94) 85%); color: #e8f0f7; }
+.floor-clear-content { width: 100%; max-width: 310px; text-align: center; }
+.floor-clear-kicker { color: #80b4ad; font: 12px Georgia, serif; letter-spacing: .4em; margin-bottom: 12px; }
+.floor-clear-content h2 { font: 600 clamp(24px, 7vw, 33px)/1.2 Georgia, serif; letter-spacing: .075em; margin: 0 0 18px; color: #e9f4ed; text-shadow: 0 0 22px rgba(130,245,185,.4); }
+#floor-rewards { margin-bottom: 30px; color: #c6d9d5; font: 12px Georgia, serif; letter-spacing: .09em; }
+#floor-cleared button { display: block; width: 100%; min-height: 51px; margin: 12px auto; border: 1px solid #7da8ae; border-radius: 11px; background: rgba(35,56,70,.84); color: #e5f0f4; font: 600 16px Georgia, serif; letter-spacing: .15em; cursor: pointer; touch-action: manipulation; }
+#floor-cleared #wake-btn { border-color: #ba9a63; color: #ffe3ae; }
+#floor-cleared #continue-btn { border-color: #72c9b0; background: linear-gradient(110deg, #254e50, #234452); }
+#floor-cleared .floor-warning { margin: 14px auto 0; max-width: 250px; color: #92a5ab; font: 11px/1.45 Georgia, serif; }
+#eye-blink { position: absolute; inset: 0; z-index: 80; overflow: hidden; pointer-events: none; }
+#eye-blink .eyelid { position: absolute; left: -5%; width: 110%; height: 52%; background: #060a14; will-change: transform; }
+#eye-blink .eyelid.top { top: 0; border-radius: 0 0 50% 50% / 0 0 8% 8%; transform: translateY(-110%); box-shadow: 0 6px 12px rgba(0,0,0,.55); }
+#eye-blink .eyelid.bottom { bottom: 0; border-radius: 50% 50% 0 0 / 8% 8% 0 0; transform: translateY(110%); box-shadow: 0 -6px 12px rgba(0,0,0,.55); }
+#eye-blink.blinking .top { animation: eyeTop 1.05s ease-in-out both; }
+#eye-blink.blinking .bottom { animation: eyeBottom 1.05s ease-in-out both; }
+@keyframes eyeTop { 0%, 8% { transform: translateY(-110%); } 40%, 56% { transform: translateY(0); } 100% { transform: translateY(-110%); } }
+@keyframes eyeBottom { 0%, 8% { transform: translateY(110%); } 40%, 56% { transform: translateY(0); } 100% { transform: translateY(110%); } }

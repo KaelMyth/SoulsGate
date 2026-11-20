@@ -71,13 +71,13 @@ export class Game {
     this.loot.onCollect = (type, v) => {
       this.stats.collect(type, v);
       this.bus.emit('loot:collected', { type, value: v });
-      if (type === 'skill' && this.roulette && this.playing) this.roulette.request(); // фиолетовый камень: рулетка
-      if (type === 'power' && this.staffUi) this.staffUi.open(); // кристалл усиления: открыть экран посоха
+      if (type === 'skill' && this.roulette && this.playing && !this.floorCleared) this.roulette.request();
+      if (type === 'power' && this.staffUi && this.playing && !this.floorCleared) this.staffUi.open();
     };
     this.attack.onKill = (e) => {
-      this.stats.kills++; // опыт даёт камешек, а не само убийство
-      this.loot.drop(e.state.x, e.state.z, this.cfg.xp.perKill);
+      this.creditKill(e);
       this.bus.emit('enemy:killed', e);
+      if (this.spawner.floorMode && e === this.spawner.boss) this.completeFloor();
     };
 
     this.stick = new Stick(o.canvas, this.bus, this.cfg.stick);
@@ -101,6 +101,12 @@ export class Game {
     this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
     this.anchor = { x: 0, y: 0, z: 0 };
     this.inventory = new Inventory(this.cfg.inventory);
+    this.floor = 1;
+    this.floorCleared = false;
+    this.floorChoiceShown = false;
+    this.floorClearTime = 0;
+    this.runRewards = { spirit: 0, gold: 0 };
+    this.pendingLevelUps = 0;
     for (const make of [fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff]) this.inventory.add(make()); // пока выдаются сразу: на выбор и примерку
     for (let i = 0; i < 10; i++) this.inventory.add(pearlGem()); // камни заточки: пока ничего не делают
     this.invOpen = false;
@@ -126,7 +132,10 @@ export class Game {
         getChoices: () => pickChoices(this.cfg, 2).map((u) => ({ ...u, value: this.cfg.upgrades[u.id].value })),
         onPick: (u) => { applyUpgrade(this.cfg, this.stats, u.id); this.stats.syncMax(); this.bus.emit('upgrade:picked', { id: u.id }); },
       });
-      this.stats.onLevel = () => { if (this.playing) this.levelUp.request(); };
+      this.stats.onLevel = () => {
+        if (this.playing) this.levelUp.request();
+        else if (this.floorCleared) this.pendingLevelUps++;
+      };
     }
     this.rolling = false;
     if (o.ui.root) this.roulette = new Roulette(o.ui.root, {
@@ -138,6 +147,8 @@ export class Game {
     this.dashBtn = o.ui.dashBtn;
     if (this.dashBtn) this.dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (this.playing && !this.paused && !this.choosing) this.dashFromInput(); });
     this.pauseEl = o.ui.pause;
+    if (o.ui.wakeBtn) o.ui.wakeBtn.addEventListener('click', () => this.wakeUp());
+    if (o.ui.continueBtn) o.ui.continueBtn.addEventListener('click', () => this.continueFloor());
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
     if (this.pauseEl) this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.playing) this.setPaused(true); });
@@ -160,6 +171,12 @@ export class Game {
     this.stats.reset();
     this.block.reset();
     this.spawner.reset();
+    this.spawner.enabled = false;
+    this.floorCleared = false;
+    this.floorChoiceShown = false;
+    this.floorClearTime = 0;
+    this.pendingLevelUps = 0;
+    this.hideFloorUi();
     if (this.levelUp) this.levelUp.reset();
     if (this.roulette) this.roulette.reset();
     this.enemyShots.clear();
@@ -182,12 +199,83 @@ export class Game {
     return true;
   }
 
-  /** Здоровье кончилось: новая игра и возврат в хаб к костру. */
+  /** Смерть обнуляет добычу, которая ещё не была сохранена в хабе. */
   die() {
+    const lost = { ...this.runRewards };
+    this.runRewards = { spirit: 0, gold: 0 };
     this.restart();
     this.enterHub();
     if (this.ui.start) this.ui.start.classList.remove('gone');
     if (this.hud) { this.hud.hide(); this.settings.hide(); }
+    if (lost.spirit || lost.gold) this.toast(`Loot lost: ${lost.spirit} spirit, ${lost.gold} gold`);
+  }
+
+  creditKill(e) {
+    this.stats.kills++;
+    this.runRewards.spirit += e.kind === 'rock' ? 25 : 1;
+    if (e.kind === 'rock') this.runRewards.gold += 10;
+    else if (this.stats.kills % 5 === 0) this.runRewards.gold++;
+    this.loot.drop(e.state.x, e.state.z, this.cfg.xp.perKill);
+  }
+
+  /** Победа над боссом: остальные противники лопаются и роняют опыт и добычу. */
+  completeFloor() {
+    if (!this.playing || this.floorCleared) return;
+    this.floorCleared = true;
+    this.playing = false;
+    this.stick.cancel();
+    this.spawner.enabled = false;
+    for (const e of [...this.spawner.alive]) {
+      this.attack.burst(e.x, 0.4, e.z, this.cfg.attack.hitSize * 1.5, 0.4);
+      this.creditKill(e);
+    }
+    this.spawner.endFloor();
+    this.enemyShots.clear();
+    this.midges.clear();
+    this.midgeView.update(0, this.midges.items);
+    for (const b of this.attack.bolts) this.attack.deactivate(b);
+    this.loot.vacuumAll();
+    if (this.pauseBtn) this.pauseBtn.classList.add('gone');
+    if (this.dashBtn) this.dashBtn.classList.add('gone');
+    if (this.ui.bossHealth) this.ui.bossHealth.classList.add('gone');
+  }
+
+  showFloorCleared() {
+    if (!this.floorCleared || this.floorChoiceShown) return;
+    this.floorChoiceShown = true;
+    this.loot.collectAll();
+    if (this.ui.floorRewards)
+      this.ui.floorRewards.textContent = `UNBANKED: ${this.runRewards.spirit} SPIRIT · ${this.runRewards.gold} GOLD`;
+    if (this.ui.floorCleared) this.ui.floorCleared.classList.remove('gone');
+  }
+
+  wakeUp() {
+    if (!this.floorCleared || !this.floorChoiceShown || this.switching) return;
+    const reward = { ...this.runRewards };
+    this.inventory.addSpirit(reward.spirit);
+    this.inventory.addCoins(reward.gold);
+    this.runRewards = { spirit: 0, gold: 0 };
+    this.restart();
+    this.enterHub();
+    if (this.ui.start) this.ui.start.classList.remove('gone');
+    if (this.hud) { this.hud.hide(); this.settings.hide(); }
+    this.toast(`Saved: ${reward.spirit} spirit, ${reward.gold} gold`);
+  }
+
+  continueFloor() {
+    if (!this.floorCleared || !this.floorChoiceShown || this.switching) return;
+    this.floor++;
+    this.switching = true;
+    if (this.ui.floorCleared) this.ui.floorCleared.classList.add('gone');
+    this.blinkTransition(() => {
+      this.stats.heal(this.stats.maxHp * this.cfg.floors.continueHeal);
+      this.beginFloor();
+    }, () => this.announceFloor());
+  }
+
+  hideFloorUi() {
+    for (const key of ['floorTag', 'floorBanner', 'bossHealth', 'floorCleared'])
+      if (this.ui[key]) this.ui[key].classList.add('gone');
   }
 
   /** Хаб: герой появляется ниже костра, границы поля включены. */
@@ -232,35 +320,73 @@ export class Game {
     el.classList.add('on');
   }
 
-  /** Кнопка Play из костра: затемнение, и на середине переход из хаба в забег. */
+  /** Затемнение в форме моргающего глаза. Меняем сцену, пока глаз закрыт. */
+  blinkTransition(onClosed, onOpen) {
+    this.stick.cancel();
+    const eye = this.ui.eyeBlink;
+    if (!eye) { onClosed(); this.switching = false; onOpen(); return; }
+    eye.classList.remove('blinking');
+    void eye.offsetWidth;
+    eye.classList.add('blinking');
+    setTimeout(onClosed, 420);
+    setTimeout(() => {
+      eye.classList.remove('blinking');
+      this.switching = false;
+      onOpen();
+    }, 1100);
+  }
+
   play() {
     if (!this.inHub || this.switching) return;
-    if (!this.inventory.armed) { // без посоха и фолианта в забег не выпустим
-      this.toast("You can't leave without a weapon");
-      return;
-    }
+    if (!this.inventory.armed) { this.toast("You can't leave without a weapon"); return; }
     this.switching = true;
-    const fade = this.ui.fade;
-    const ms = this.cfg.hub.fadeMs;
-    if (fade) { fade.style.transitionDuration = `${ms}ms`; fade.classList.add('on'); }
     if (this.ui.start) this.ui.start.classList.add('gone');
-    setTimeout(() => {
-      this.inHub = false;
-      this.playing = true;
-      this.hub.setActive(false);
-      this.scatter.setVisible(true);
-      this.world.setHubGround(false);
-      this.motion.bounds = null;
-      this.motion.x = this.motion.z = this.motion.vx = this.motion.vz = 0;
-      this.world.setView('run'); // камера плавно отдаляется
-      this.world.follow(0, 0, 0, true);
-      this.spawner.start();
-      if (this.hud) { this.hud.show(); this.settings.show(); }
-      if (this.pauseBtn) this.pauseBtn.classList.remove('gone');
-      if (this.dashBtn) this.dashBtn.classList.remove('gone');
-      if (fade) fade.classList.remove('on');
-      this.switching = false;
-    }, ms);
+    this.restart();
+    this.floor = 1;
+    this.runRewards = { spirit: 0, gold: 0 };
+    this.blinkTransition(() => this.beginFloor(), () => this.announceFloor());
+  }
+
+  /** Продолжение сохраняет характеристики, билд и незафиксированную добычу. */
+  beginFloor() {
+    this.floorCleared = false;
+    this.floorChoiceShown = false;
+    this.floorClearTime = 0;
+    this.inHub = false;
+    this.playing = true;
+    this.hub.setActive(false);
+    this.scatter.setVisible(true);
+    this.world.setHubGround(false);
+    this.motion.bounds = null;
+    this.motion.x = this.motion.z = this.motion.vx = this.motion.vz = 0;
+    this.world.setView('run');
+    this.world.follow(0, 0, 0, true);
+    this.enemyShots.clear();
+    this.midges.clear();
+    this.midgeView.update(0, this.midges.items);
+    this.spawner.startFloor(this.floor);
+    if (this.hud) { this.hud.show(); this.settings.show(); }
+    if (this.pauseBtn) this.pauseBtn.classList.remove('gone');
+    if (this.dashBtn) this.dashBtn.classList.remove('gone');
+    if (this.ui.floorTag) {
+      this.ui.floorTag.textContent = `FLOOR ${this.floor}`;
+      this.ui.floorTag.classList.remove('gone');
+    }
+    if (this.ui.bossHealth) this.ui.bossHealth.classList.add('gone');
+    if (this.pendingLevelUps && this.levelUp) {
+      const count = this.pendingLevelUps;
+      this.pendingLevelUps = 0;
+      for (let i = 0; i < count; i++) this.levelUp.request();
+    }
+  }
+
+  announceFloor() {
+    if (!this.ui.floorBanner) return;
+    const banner = this.ui.floorBanner;
+    banner.textContent = `FLOOR ${this.floor}`;
+    banner.classList.remove('gone');
+    clearTimeout(this.floorBannerTimeout);
+    this.floorBannerTimeout = setTimeout(() => banner.classList.add('gone'), 1750);
   }
 
   dash(wx, wz) {
@@ -310,6 +436,10 @@ export class Game {
     this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
     this.loot.update(dt, m.x, m.z);
+    if (this.floorCleared && !this.floorChoiceShown) {
+      this.floorClearTime += dt;
+      if (this.floorClearTime >= 1.4) this.showFloorCleared();
+    }
     this.world.follow(dt, m.x, m.z, false);
   }
 
@@ -390,6 +520,13 @@ export class Game {
     this.anvilBtn.update(dt, this.hub.distToEnchant(this.motion.x, this.motion.z), this.world, hubOn, ae.x, ae.y, ae.z);
     this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z);
     if (this.hud) { this.hud.update(dt, this.hero, this.block); this.settings.refresh(); }
+    if (this.ui.bossHealth) {
+      const b = this.spawner.boss;
+      const show = this.playing && b && b.group.visible && b.hp > 0;
+      this.ui.bossHealth.classList.toggle('gone', !show);
+      if (show && this.ui.bossFill) this.ui.bossFill.style.width =
+        `${Math.max(0, b.hp / b.maxHp * 100).toFixed(1)}%`;
+    }
     requestAnimationFrame((n) => this.frame(n));
   }
 

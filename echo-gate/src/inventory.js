@@ -13,6 +13,24 @@ export class Inventory {
     this.broken = [];    // сломанные при заточке предметы: выкупаются за золото или рекламу
     this.onChange = null; // один главный слушатель (окно инвентаря)
     this.listeners = [];  // остальные слушатели: listen(fn)
+    this.loadBanked();
+  }
+
+  /** Между посещениями сохраняются только заработанные при пробуждении валюты. */
+  loadBanked() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const v = JSON.parse(localStorage.getItem('echo-gate-banked-v1') || '{}');
+      if (Number.isFinite(v.spirit) && v.spirit >= 0) this.spirit = v.spirit;
+      if (Number.isFinite(v.coins) && v.coins >= 0) this.coins = v.coins;
+    } catch (_) { /* браузер может блокировать хранилище */ }
+  }
+
+  saveBanked() {
+    try {
+      if (typeof localStorage !== 'undefined')
+        localStorage.setItem('echo-gate-banked-v1', JSON.stringify({ spirit: this.spirit, coins: this.coins }));
+    } catch (_) { /* приватный режим */ }
   }
 
   /** Подписаться на любые изменения инвентаря и экипировки. */
@@ -109,6 +127,7 @@ export class Inventory {
   addCoins(n) { this.coins = Math.max(0, this.coins + n); this.changed(); }
   addSpirit(n) { this.spirit = Math.max(0, this.spirit + n); this.changed(); }
   changed() {
+    this.saveBanked();
     if (this.onChange) this.onChange(this);
     for (const fn of this.listeners) fn(this);
   }

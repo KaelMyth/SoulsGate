@@ -42,10 +42,58 @@ export class Spawner {
     this.spawned = 0;
     this.spawnTimer = 0;
     this.lastAngle = null;
+    this.floorMode = false;
+    this.boss = null;
   }
 
-  /** Включить: первая волна начинается после обычной паузы. */
-  start() { this.enabled = true; this.reset(); }
+  /** Старые волны остаются доступны для отладки и тестов. */
+  start() { this.reset(); this.enabled = true; }
+
+  startFloor(floor = 1) {
+    this.reset();
+    this.floorMode = true;
+    this.floorIndex = Math.max(1, Math.floor(floor));
+    this.floorElapsed = 0;
+    this.floorPhase = 'mobs';
+    this.wave = 1 + (this.floorIndex - 1) * 6;
+    this.spawnTimer = 0.5;
+    this.enabled = true;
+  }
+
+  endFloor() {
+    this.enabled = false;
+    this.floorPhase = 'cleared';
+    this.clear();
+  }
+
+  spawnFloorBoss(hx, hz, R, rnd) {
+    const r = R + this.cfg.waves.margin + this.cfg.rock.radius;
+    const a = rnd() * TAU;
+    const b = this.spawnAt(hx + Math.cos(a) * r, hz + Math.sin(a) * r, hx, hz, 'rock');
+    b.hp = b.maxHp = Math.ceil(this.hpFor(this.wave, this.cfg.rock.hp)
+      * this.cfg.floors.bossHpMult * Math.pow(1.25, this.floorIndex - 1));
+    this.boss = b;
+    this.floorPhase = 'boss';
+  }
+
+  /** Бесконечный поток: используем состав и ограничения существующих волн. */
+  updateFloorSpawns(dt, hx, hz, R, rnd) {
+    this.floorElapsed += dt;
+    this.wave = 1 + (this.floorIndex - 1) * 6
+      + Math.floor(this.floorElapsed / this.cfg.floors.spawnStageSeconds);
+    if (this.floorPhase === 'mobs' && this.floorElapsed >= this.cfg.floors.duration) {
+      this.spawnFloorBoss(hx, hz, R, rnd);
+    }
+    const pat = this.row(this.wave);
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) {
+      const size = this.floorPhase === 'boss' ? Math.max(1, Math.ceil(pat.groupSize / 2)) : pat.groupSize;
+      if (this.alive.length + size <= this.cap()) {
+        this.spawned += this.spawnGroup(size, pat, hx, hz, R, rnd);
+        this.spawnTimer = Math.max(0.75, pat.interval);
+      } else this.spawnTimer = 0.25;
+    }
+  }
 
   /** Рисунок волны n: { count, interval, maxAlive, groupSize, sides, spread }. */
   row(n) {
@@ -393,7 +441,8 @@ export class Spawner {
 
   update(dt, hero, R, rnd = Math.random) {
     if (!this.enabled) return;
-    this.updateWaves(dt, hero.x, hero.z, R, rnd);
+    if (this.floorMode) this.updateFloorSpawns(dt, hero.x, hero.z, R, rnd);
+    else this.updateWaves(dt, hero.x, hero.z, R, rnd);
     this.moveBeetles(dt, hero);
     for (const b of this.alive) b.update(dt, b.state);
   }
