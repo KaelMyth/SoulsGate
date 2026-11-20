@@ -234,6 +234,41 @@ export class Spawner {
     return size;
   }
 
+  /** Враги, отставшие от героя дальше R + margin + respawnFar, переносятся на кольцо за краем экрана в случайном месте
+   * (проверка раз в 0.5 с). Скалу и стрелков с охраной не трогаем: они идут отрядом. Здоровье и вид остаются. */
+  respawnFar(dt, hero, R, rnd) {
+    const W = this.cfg.waves;
+    if (!(W.respawnFar > 0)) return;
+    this.farTimer = (this.farTimer || 0) - dt;
+    if (this.farTimer > 0) return;
+    this.farTimer = 0.5;
+    const far = R + W.margin + W.respawnFar;
+    const r = R + W.margin;
+    for (const b of this.alive) {
+      if (b.heavy || b.guardOf) continue;
+      if (Math.hypot(b.x - hero.x, b.z - hero.z) <= far) continue;
+      if (this.alive.some((e) => e.guardOf === b)) continue; // у стрелка есть охрана
+      const a = rnd() * TAU;
+      this.moveTo(b, hero.x + Math.cos(a) * r, hero.z + Math.sin(a) * r, hero);
+    }
+  }
+
+  /** Перенос жука в точку (x, z) лицом к герою: движение и замахи сбрасываются. */
+  moveTo(b, x, z, hero) {
+    b.state.x = x; b.state.z = z; b.state.vx = b.state.vz = 0;
+    b.x = x; b.z = z;
+    b.kbVx = b.kbVz = 0;
+    b.swX = b.swZ = 0;
+    const d = Math.hypot(hero.x - x, hero.z - z) || 1;
+    b.hx = (hero.x - x) / d; b.hz = (hero.z - z) / d;
+    b.yaw = Math.atan2(b.hx, b.hz);
+    const A = b.atk, def = b.def;
+    A.state = 'idle'; A.t = 0; A.hit = false;
+    A.cd = def.attack ? def.attack.firstDelay : A.cd;
+    b.aim = 0; b.fireTimer = def.firstShotDelay || 0;
+    b.age = 0;
+  }
+
   /** Убрать убитого жука с поля. */
   kill(b) {
     const i = this.alive.indexOf(b);
@@ -443,6 +478,7 @@ export class Spawner {
     if (!this.enabled) return;
     if (this.floorMode) this.updateFloorSpawns(dt, hero.x, hero.z, R, rnd);
     else this.updateWaves(dt, hero.x, hero.z, R, rnd);
+    this.respawnFar(dt, hero, R, rnd);
     this.moveBeetles(dt, hero);
     for (const b of this.alive) b.update(dt, b.state);
   }

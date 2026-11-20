@@ -35,6 +35,7 @@ const TUNABLES = [
   { tab: 'Опыт', group: 'Уровни', path: 'xp.base', label: 'Опыта на 1 уровень', min: 1, max: 50, step: 1 },
   { tab: 'Опыт', group: 'Уровни', path: 'xp.linear', label: 'Прибавка за уровень', min: 0, max: 10, step: 0.1 },
   { tab: 'Опыт', group: 'Уровни', path: 'xp.quad', label: 'Рост прибавки', min: 0, max: 2, step: 0.05 },
+  { tab: 'Враги и волны', group: 'Волны', path: 'waves.respawnFar', label: 'Перенос отставших, м (0 = выкл.)', min: 0, max: 20, step: 1 },
   { tab: 'Враги и волны', group: 'Жук', path: 'beetle.hp', label: 'Здоровье на 1 волне (в выстрелах)', min: 0.5, max: 20, step: 0.1 },
   { tab: 'Враги и волны', group: 'Жук', path: 'beetle.hpPerWave', label: 'Прибавка здоровья за волну', min: 0, max: 3, step: 0.05 },
   { tab: 'Враги и волны', group: 'Жук', path: 'beetle.hpJumpPct', label: 'Скачок здоровья каждые 5 волн, ×', min: 0, max: 0.5, step: 0.01 },
