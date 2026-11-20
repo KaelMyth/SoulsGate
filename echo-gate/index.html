@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Echo Gate</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=58">
 </head>
 <body>
   <div id="phone">
@@ -17,7 +17,7 @@
       <div class="build"><span id="build-ver">v …</span><span id="build-notes"></span></div>
     </div>
     <button id="shop-btn" type="button" aria-label="Shop">$</button>
-    <div id="gold-hud" aria-label="Gold"><b>0</b><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#e0a93e"/><circle cx="12" cy="12" r="10" fill="none" stroke="#fff0b0" stroke-width="1.2" opacity=".9"/><circle cx="12" cy="12" r="6.8" fill="none" stroke="#a8741a" stroke-width="1.6"/></svg></div>
+    <div id="souls-hud" aria-label="Souls"><b>0</b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.2C9 7 4 9.4 4 15.2a8 8 0 0 0 16 0C20 9.4 15 7 12 1.2z" fill="#499bb5" stroke="#bff4f8" stroke-width="1.15"/><path d="M12 7.2c-1.3 3-4.1 5.4-4.1 8.2a4.1 4.1 0 0 0 8.2 0c0-2.8-2.8-5.2-4.1-8.2z" fill="#dffaff"/></svg></div>
     <button id="anvil-btn" type="button" aria-label="Enchanting"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 9h21c0 3.500-2.500 5.500-6 6v2.500c2 .6 3 1.500 3 3.500v2h4V25H7v-2h4v-2c0-2 1-2.900 3-3.500V15C9 14.500 5 13 3 9z"/><path d="M24 9h5c-.6 2.500-2.500 4.300-5 5z" opacity=".75"/></svg></button>
     <button id="gear-btn" type="button" aria-label="Backpack"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M13 5.5C13 3.6 14.3 3 16 3s3 .6 3 2.5V7h-2V5.6c0-.4-.4-.6-1-.6s-1 .2-1 .6V7h-2z"/><path d="M16 6.5c4.4 0 7.5 2.7 7.5 6.5v1.5h-15V13c0-3.8 3.100-6.500 7.500-6.500zM7 15h18v10c0 2.200-1.800 4-4 4H11c-2.200 0-4-1.800-4-4zm3 4.500V25c0 .6.400 1 1 1h10c.6 0 1-.4 1-1v-5.500c0-.6-.4-1-1-1H11c-.6 0-1 .4-1 1zm5-.5h2v2.500h-2zM4 17.500c0-.8.700-1.500 1.500-1.500H6v8h-.5C4.700 24 4 23.300 4 22.500zm24 0v5c0 .8-.7 1.500-1.500 1.500H26v-8h.5c.8 0 1.500.7 1.500 1.500z" fill-rule="evenodd"/></svg></button>
     <button id="pause-btn" type="button" aria-label="Pause" class="gone"><i></i><i></i></button>
@@ -74,7 +74,7 @@
       let build = '0';
       try { build = String((await (await fetch('version.json', { cache: 'no-store' })).json()).build || '0'); } catch (e) { /* без сети с кешем */ }
       window.__ECHO_BUILD = build; // для картинок (земля): дописывается ?v=N, чтобы телефон не держал старую
-      const files = ['attack', 'beetle', 'block', 'block_view', 'bull', 'config', 'death_rewards', 'drops', 'enchanting', 'enemy_shots', 'events', 'forge_ui', 'game', 'gear', 'hero', 'hub', 'hud', 'input_keys', 'input_stick', 'input_swipe', 'inventory', 'inventory_ui', 'inventory_view', 'iso', 'items', 'levelup', 'loot', 'main', 'midge_view', 'midges', 'motion', 'rock', 'roulette', 'scatter', 'settings', 'sharpen', 'shooter', 'shop', 'spawner', 'staff', 'staff_model', 'staff_icons', 'staff_models', 'staff_ui', 'stats', 'swarm', 'telegraph', 'timestep', 'upgrades', 'version', 'world'];
+      const files = ['attack', 'beetle', 'block', 'block_view', 'bull', 'config', 'death_rewards', 'drops', 'enchanting', 'enemy_shots', 'events', 'forge_ui', 'game', 'gear', 'hero', 'hub', 'hud', 'input_keys', 'input_stick', 'input_swipe', 'inventory', 'inventory_ui', 'inventory_view', 'iso', 'items', 'levelup', 'loot', 'main', 'midge_view', 'midges', 'motion', 'rock', 'roulette', 'scatter', 'settings', 'sharpen', 'shooter', 'shop', 'soul_rewards', 'soul_tally', 'spawner', 'staff', 'staff_model', 'staff_icons', 'staff_models', 'staff_ui', 'stats', 'swarm', 'telegraph', 'timestep', 'upgrades', 'version', 'world'];
       const imports = { three: './vendor/three.module.js' };
       for (const f of files) imports[new URL('./src/' + f + '.js', location.href).href] = './src/' + f + '.js?v=' + build;
       const map = document.createElement('script');

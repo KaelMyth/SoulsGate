@@ -53,14 +53,11 @@ test('banked currency persists; unbanked currency does not touch inventory', () 
   };
   try {
     const a = new Inventory({ limit: 10 });
-    const unbanked = { spirit: 25, gold: 5 };
-    assert.equal(a.spirit, 0);
-    assert.equal(a.coins, 0);
-    a.addSpirit(unbanked.spirit);
-    a.addCoins(unbanked.gold);
+    const unbanked = { souls: 30 };
+    assert.equal(a.souls, 0);
+    a.addSouls(unbanked.souls); // awarded only upon extraction
     const b = new Inventory({ limit: 10 });
-    assert.equal(b.spirit, 25);
-    assert.equal(b.coins, 5);
+    assert.equal(b.souls, 30);
   } finally {
     if (previous === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = previous;

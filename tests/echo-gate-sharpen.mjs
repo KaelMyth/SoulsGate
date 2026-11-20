@@ -38,10 +38,10 @@ test('не хватает камней: ничего не меняется', () 
   const r = attemptSharpen(CONFIG, inv, st, () => 0);
   assert.equal(r.reason, 'gems'); assert.equal(st.sharpen, 2); assert.equal(inv.gemCount(), 1);
 });
-test('выкуп за золото и за рекламу', () => {
+test('выкуп за души и за рекламу', () => {
   const inv = mk(0); const st = fireStaff(); inv.add(st); inv.breakItem(st);
-  assert.equal(inv.repairBroken(0, 'gold', 100), false);
-  inv.coins = 150;
-  assert.equal(inv.repairBroken(0, 'gold', 100), true); assert.equal(inv.coins, 50); assert.ok(inv.slots.includes(st));
-  inv.breakItem(st); assert.equal(inv.repairBroken(0, 'ad', 100), true); assert.equal(inv.coins, 50);
+  assert.equal(inv.repairBroken(0, 'souls', 100), false);
+  inv.addSouls(150);
+  assert.equal(inv.repairBroken(0, 'souls', 100), true); assert.equal(inv.souls, 50); assert.ok(inv.slots.includes(st));
+  inv.breakItem(st); assert.equal(inv.repairBroken(0, 'ad', 100), true); assert.equal(inv.souls, 50);
 });

@@ -16,6 +16,7 @@ export class Stats {
     this.kills = 0;
     this.upgrades = { power: 0, speed: 0, range: 0 }; // кристаллы усиления, вложенные в части посоха
     this.loot = { power: 0, skill: 0, page: 0 }; // подобранные кристаллы усиления, умения и обрывки страниц
+    this.soulMods = { soul10: 0, soul50: 0, soul100: 0 }; // множители только на текущий забег
     this.levelFlash = 0; // с: сколько ещё показывать «Уровень N»
   }
 

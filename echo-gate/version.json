@@ -1,5 +1,5 @@
 {
-  "build": 57,
-  "commit": "ac7559c",
-  "notes": "v0.2.1 — Death screen, lost-loot slots and prototype rewarded-ad recovery."
+  "build": 58,
+  "commit": "765b336",
+  "notes": "v0.2.2 — Souls: one currency, capped soul multipliers and animated end-run payout."
 }

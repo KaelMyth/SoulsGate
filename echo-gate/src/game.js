@@ -37,6 +37,8 @@ import { Inventory } from './inventory.js';
 import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
 import { InventoryUi, GEM_ICON } from './inventory_ui.js';
 import { captureDeathLoot, bankLostLoot } from './death_rewards.js';
+import { computeSoulTally } from './soul_rewards.js';
+import { SoulTally } from './soul_tally.js';
 
 export class Game {
   constructor(o) {
@@ -106,7 +108,7 @@ export class Game {
     this.floorCleared = false;
     this.floorChoiceShown = false;
     this.floorClearTime = 0;
-    this.runRewards = { spirit: 0, gold: 0 };
+    this.runRewards = { souls: 0 };
     this.pendingLevelUps = 0;
     this.dead = false;
     this.lostLoot = null;
@@ -134,8 +136,14 @@ export class Game {
       this.levelUp = new LevelUp(o.ui.root, {
         onOpen: () => { this.choosing = true; this.stick.cancel(); },
         onClose: () => { this.choosing = false; },
-        getChoices: () => pickChoices(this.cfg, 2).map((u) => ({ ...u, value: this.cfg.upgrades[u.id].value })),
-        onPick: (u) => { applyUpgrade(this.cfg, this.stats, u.id); this.stats.syncMax(); this.bus.emit('upgrade:picked', { id: u.id }); },
+        getChoices: () => pickChoices(this.cfg, 2, Math.random, this.stats)
+          .map((u) => ({ ...u, value: this.cfg.upgrades[u.id].value })),
+        onPick: (u) => {
+          if (applyUpgrade(this.cfg, this.stats, u.id)) {
+            this.stats.syncMax();
+            this.bus.emit('upgrade:picked', { id: u.id });
+          }
+        },
       });
       this.stats.onLevel = () => {
         if (this.playing) this.levelUp.request();
@@ -172,6 +180,7 @@ export class Game {
       this.hud.onPowerTap = () => this.staffUi.open(); // тап по счётчику кристаллов усиления
       this.settings = new Settings(o.ui.root, { config: this.cfg, stats: this.stats, world: this.world, game: this });
       this.settings.show(); // шестерёнка и счётчик fps доступны и в хабе
+      this.soulTallyUi = new SoulTally(o.ui.root);
     }
   }
 
@@ -213,8 +222,8 @@ export class Game {
     if (!this.playing || this.dead) return;
     this.dead = true;
     this.playing = false;
-    this.lostLoot = captureDeathLoot(this.runRewards, this.stats.loot);
-    this.runRewards = { spirit: 0, gold: 0 };
+    this.lostLoot = captureDeathLoot(this.runRewards, this.stats.loot, this.stats.soulMods);
+    this.runRewards = { souls: 0 };
     this.stick.cancel();
     this.spawner.enabled = false;
     this.enemyShots.clear();
@@ -234,7 +243,7 @@ export class Game {
     const lost = this.lostLoot;
     if (this.ui.deathFloor) this.ui.deathFloor.textContent = `FLOOR ${this.floor}`;
     if (this.ui.deathCurrency) this.ui.deathCurrency.textContent =
-      `${lost.spirit} SPIRIT · ${lost.gold} GOLD`;
+      `${computeSoulTally(lost.souls, lost.soulMods).total.toLocaleString('en-US')} SOULS LOST (WITH MULTIPLIERS)`;
     if (this.ui.deathCollected) this.ui.deathCollected.textContent =
       `POWER ${lost.collected.power} · SKILL ${lost.collected.skill} · PAGES ${lost.collected.page}`;
     if (this.ui.deathGrid) {
@@ -300,20 +309,22 @@ export class Game {
   claimTestRewardedAd() {
     if (!this.dead || !this.demoAdActive || this.demoAdTimer || !this.lostLoot
       || !this.ui.testAdClaim || this.ui.testAdClaim.disabled) return;
+    const tally = computeSoulTally(this.lostLoot.souls, this.lostLoot.soulMods);
+    const balanceBefore = this.inventory.souls;
     if (!bankLostLoot(this.inventory, this.lostLoot)) {
       this.toast('Not enough inventory space');
       this.closeTestRewardedAd();
       return;
     }
     this.goHomeAfterDeath();
-    this.toast('Loot recovered (test ad)');
+    if (this.soulTallyUi) this.soulTallyUi.show(tally, balanceBefore);
   }
 
   creditKill(e) {
     this.stats.kills++;
-    this.runRewards.spirit += e.kind === 'rock' ? 25 : 1;
-    if (e.kind === 'rock') this.runRewards.gold += 10;
-    else if (this.stats.kills % 5 === 0) this.runRewards.gold++;
+    // Прежние spirit + gold начисляются сразу в одну душевую валюту.
+    this.runRewards.souls += e.kind === 'rock' ? 35 : 1;
+    if (e.kind !== 'rock' && this.stats.kills % 5 === 0) this.runRewards.souls++;
     this.loot.drop(e.state.x, e.state.z, this.cfg.xp.perKill);
   }
 
@@ -344,21 +355,22 @@ export class Game {
     this.floorChoiceShown = true;
     this.loot.collectAll();
     if (this.ui.floorRewards)
-      this.ui.floorRewards.textContent = `UNBANKED: ${this.runRewards.spirit} SPIRIT · ${this.runRewards.gold} GOLD`;
+      this.ui.floorRewards.textContent =
+        `AT RISK: ${this.runRewards.souls.toLocaleString('en-US')} SOULS · FINAL WITH BONUS: ${computeSoulTally(this.runRewards.souls, this.stats.soulMods).total.toLocaleString('en-US')}`;
     if (this.ui.floorCleared) this.ui.floorCleared.classList.remove('gone');
   }
 
   wakeUp() {
     if (!this.floorCleared || !this.floorChoiceShown || this.switching) return;
-    const reward = { ...this.runRewards };
-    this.inventory.addSpirit(reward.spirit);
-    this.inventory.addCoins(reward.gold);
-    this.runRewards = { spirit: 0, gold: 0 };
+    const tally = computeSoulTally(this.runRewards.souls, this.stats.soulMods);
+    const balanceBefore = this.inventory.souls;
+    this.inventory.addSouls(tally.total);
+    this.runRewards = { souls: 0 };
     this.restart();
     this.enterHub();
     if (this.ui.start) this.ui.start.classList.remove('gone');
     if (this.hud) { this.hud.hide(); this.settings.hide(); }
-    this.toast(`Saved: ${reward.spirit} spirit, ${reward.gold} gold`);
+    if (this.soulTallyUi) this.soulTallyUi.show(tally, balanceBefore);
   }
 
   continueFloor() {
@@ -442,7 +454,7 @@ export class Game {
     if (this.ui.start) this.ui.start.classList.add('gone');
     this.restart();
     this.floor = 1;
-    this.runRewards = { spirit: 0, gold: 0 };
+    this.runRewards = { souls: 0 };
     this.blinkTransition(() => this.beginFloor(), () => this.announceFloor());
   }
 
@@ -595,21 +607,23 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.dead && !this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling) advance(dt, (s) => this.step(s));
+    if (!this.dead && !this.soulTallyUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling)
+      advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused && !this.invOpen && !this.forgeOpen) this.hub.update(dt, this.motion.x, this.motion.z);
+    if (!this.paused && !this.soulTallyUi?.open && !this.invOpen && !this.forgeOpen)
+      this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);
     else this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
-    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen;
+    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.soulTallyUi?.open;
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
     const ag = this.hub.gearButtonAnchor(this.anchor);
-    if (this.ui.goldHud) {
-      this.ui.goldHud.classList.toggle('on', hubOn);
-      const b = this.ui.goldHud.firstChild;
-      if (b.textContent !== String(this.inventory.coins)) b.textContent = String(this.inventory.coins);
+    if (this.ui.soulHud) {
+      this.ui.soulHud.classList.toggle('on', hubOn);
+      const b = this.ui.soulHud.firstChild;
+      if (b.textContent !== String(this.inventory.souls)) b.textContent = String(this.inventory.souls);
     }
     const ae = this.hub.enchantButtonAnchor(this.anchor);
     this.anvilBtn.update(dt, this.hub.distToEnchant(this.motion.x, this.motion.z), this.world, hubOn, ae.x, ae.y, ae.z);

@@ -39,6 +39,24 @@ export const UPGRADES = [
     icon: glyph('M32 5 52 12v16c0 14-8 24-20 31C20 52 12 42 12 28V12z'),
     apply: (stats, v) => { stats.bonus.block += v; },
   },
+  {
+    id: 'soul10', name: 'Soul Harvest ×1.1', color: '#58a8ff', maxPicks: 5, rarity: 'rare',
+    text: () => 'Multiply souls earned at the end of the run. Max 5.',
+    icon: glyph('M32 5C18 15 12 26 12 37c0 13 9 22 20 22s20-9 20-22C52 26 46 15 32 5zm0 16c5 7 9 12 9 19 0 6-4 11-9 11s-9-5-9-11c0-7 4-12 9-19z'),
+    apply: (stats) => { stats.soulMods.soul10++; },
+  },
+  {
+    id: 'soul50', name: 'Soul Ascension ×1.5', color: '#ffcb58', maxPicks: 3, rarity: 'legendary',
+    text: () => 'Multiply souls earned at the end of the run. Max 3.',
+    icon: glyph('M32 2 39 22 61 24 44 38 49 60 32 48 15 60 20 38 3 24 25 22z'),
+    apply: (stats) => { stats.soulMods.soul50++; },
+  },
+  {
+    id: 'soul100', name: 'Soul Eclipse ×2', color: '#ff565c', maxPicks: 1, rarity: 'mythic',
+    text: () => 'Double souls earned at the end of the run. Only 1.',
+    icon: glyph('M32 4a28 28 0 1 0 0 56 28 28 0 1 0 0-56zm0 10a18 18 0 1 1 0 36 18 18 0 1 1 0-36z'),
+    apply: (stats) => { stats.soulMods.soul100++; },
+  },
 ];
 
 function pct(v) { return Math.round(v * 1000) / 10; }
@@ -56,8 +74,9 @@ export function chances(cfg) {
 }
 
 /** n разных усилений по весам. rnd: () => [0,1). Если подходящих меньше n, возвращает сколько есть. */
-export function pickChoices(cfg, n = 2, rnd = Math.random) {
-  const pool = UPGRADES.filter((u) => ((cfg.upgrades[u.id] || {}).weight || 0) > 0);
+export function pickChoices(cfg, n = 2, rnd = Math.random, stats = null) {
+  const pool = UPGRADES.filter((u) => ((cfg.upgrades[u.id] || {}).weight || 0) > 0
+    && (!u.maxPicks || !stats || (stats.soulMods?.[u.id] || 0) < u.maxPicks));
   const out = [];
   while (out.length < n && pool.length) {
     const sum = pool.reduce((a, u) => a + cfg.upgrades[u.id].weight, 0);
@@ -72,7 +91,7 @@ export function pickChoices(cfg, n = 2, rnd = Math.random) {
 /** Применить усиление id к Stats. Возвращает false, если такого нет. */
 export function applyUpgrade(cfg, stats, id) {
   const u = BY_ID.get(id);
-  if (!u) return false;
+  if (!u || !cfg.upgrades[id] || (u.maxPicks && (stats.soulMods?.[id] || 0) >= u.maxPicks)) return false;
   u.apply(stats, cfg.upgrades[id].value);
   return true;
 }

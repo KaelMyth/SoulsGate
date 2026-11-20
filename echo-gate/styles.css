@@ -173,15 +173,13 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #inv.on { display: flex; }
 #inv .inv-stage { flex: 0 0 var(--stage); min-height: 0; }
 #inv .inv-panel { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; background: linear-gradient(#0d1424, #080d19); border-top: 1px solid var(--line); box-shadow: 0 -10px 24px rgba(5, 9, 20, 0.6); }
-#inv .inv-strip { flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(20, 32, 54, 0.85); border-bottom: 1px solid var(--line); color: var(--ink); font-size: 18px; font-variant-numeric: tabular-nums; }
+#inv .inv-strip { flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(20, 32, 54, 0.85); border-bottom: 1px solid var(--line); color: var(--ink); font-size: 18px; font-variant-numeric: tabular-nums; }
 #inv .inv-stat { display: flex; align-items: center; gap: 8px; }
-#inv .inv-stat.spirit { justify-self: start; }
-#inv .inv-stat.items { justify-self: center; letter-spacing: 0.08em; color: #b8cce6; }
-#inv .inv-stat.coins { justify-self: end; }
+#inv .inv-stat.souls { justify-self: start; }
+#inv .inv-stat.items { justify-self: end; letter-spacing: 0.08em; color: #b8cce6; }
 #inv .inv-stat b { font-weight: 600; }
 #inv .inv-ico { display: inline-flex; width: 24px; height: 24px; }
 #inv .inv-ico svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 5px rgba(95, 200, 255, 0.45)); }
-#inv .inv-stat.coins .inv-ico svg { filter: drop-shadow(0 0 5px rgba(255, 190, 80, 0.45)); }
 #inv .inv-grid { flex: 1 1 0; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(var(--cols, 5), 1fr); gap: 7px; padding: 12px 14px max(14px, env(safe-area-inset-bottom)); align-content: start; touch-action: pan-y; overscroll-behavior: contain; }
 #inv .inv-cell { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 10px; background: linear-gradient(rgba(26, 40, 64, 0.65), rgba(14, 22, 38, 0.8)); box-shadow: inset 0 0 12px rgba(5, 9, 20, 0.7); }
 #inv .inv-cell.full { border-color: var(--accent); }
@@ -268,9 +266,9 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #roulette .rl-hint.on { opacity: 1; }
 
 /* Золото в хабе: сверху справа. */
-#gold-hud { position: absolute; z-index: 12; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: none; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid rgba(255, 210, 120, 0.55); border-radius: 18px; background: rgba(8, 13, 26, 0.72); color: #ffe9b0; font: 600 18px/1 "Iowan Old Style", Georgia, serif; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 0 14px rgba(255, 190, 80, 0.25); }
-#gold-hud.on { display: flex; }
-#gold-hud svg { width: 22px; height: 22px; }
+#souls-hud { position: absolute; z-index: 12; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: none; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid rgba(255, 210, 120, 0.55); border-radius: 18px; background: rgba(8, 13, 26, 0.72); color: #ffe9b0; font: 600 18px/1 "Iowan Old Style", Georgia, serif; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 0 14px rgba(255, 190, 80, 0.25); }
+#souls-hud.on { display: flex; }
+#souls-hud svg { width: 22px; height: 22px; }
 
 /* Значок заточки на иконке и вкладки инвентаря */
 #inv .inv-cell .plus { position: absolute; right: 4px; top: 3px; font: 700 13px/1 "Iowan Old Style", Georgia, serif; color: #ffe08a; text-shadow: 0 1px 3px #000, 0 0 6px rgba(255, 190, 80, 0.8); pointer-events: none; }
@@ -471,4 +469,98 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
   .death-loss { margin-top: 14px; }
   .death-item-header { margin-top: 15px; }
   .death-item-caption { margin-bottom: 15px; }
+}
+
+/* Single soul currency in hub, forge and inventory. */
+#souls-hud { border-color: rgba(133,237,246,.38); color: #d7faff; }
+#souls-hud svg { filter: drop-shadow(0 0 6px rgba(109,229,248,.64)); }
+#inv .inv-stat.souls .inv-ico svg { filter: drop-shadow(0 0 8px rgba(110,232,255,.65)); }
+
+/* Soul bonuses are visually distinct in the level-up draft, including the card's rim. */
+#levelup .lu-card[data-rarity="rare"] { border-color: rgba(88,168,255,.79); box-shadow: 0 0 20px rgba(88,168,255,.33), inset 0 0 16px rgba(88,168,255,.1); }
+#levelup .lu-card[data-rarity="legendary"] { border-color: rgba(255,203,88,.84); box-shadow: 0 0 23px rgba(255,203,88,.34), inset 0 0 16px rgba(255,203,88,.12); }
+#levelup .lu-card[data-rarity="mythic"] { border-color: rgba(255,86,92,.87); box-shadow: 0 0 26px rgba(255,86,92,.41), inset 0 0 18px rgba(255,86,92,.15); }
+#levelup .lu-card[data-rarity="mythic"] .lu-icon { filter: drop-shadow(0 0 15px #ff555f); }
+
+/* End-run soul ceremony. Every picked multiplier is counted in real time.
+   Blue: motes; gold: ceremonial rays; red: fiery wave and screen pulse. */
+#soul-tally {
+  --soul-light: #9beaff;
+  --soul-haze: rgba(70,184,219,.28);
+  position: absolute; z-index: 75; inset: 0; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 46%, #182d47 0%, #081324 48%, #030914 94%);
+  color: #e7f7fb; font-family: "Iowan Old Style", Georgia, "Palatino Linotype", serif;
+  isolation: isolate;
+}
+#soul-tally.gone { display: none; }
+#soul-tally[data-tier="blue"] { --soul-light: #65adff; --soul-haze: rgba(73,139,252,.34); }
+#soul-tally[data-tier="gold"] { --soul-light: #ffd56b; --soul-haze: rgba(245,183,60,.35); }
+#soul-tally[data-tier="red"] { --soul-light: #ff636e; --soul-haze: rgba(255,61,85,.43); }
+#soul-tally .st-radiance { position: absolute; inset: -35%; background: radial-gradient(circle at center, var(--soul-haze) 0, transparent 43%); opacity: .72; animation: stBreath 4s ease-in-out infinite alternate; }
+#soul-tally.st-burst .st-radiance { animation: stNova 1.5s ease-out, stBreath 4s 1.5s ease-in-out infinite alternate; }
+#soul-tally .st-halo { position: absolute; left: 50%; top: 35%; width: 182px; height: 182px; transform: translate(-50%, -50%); pointer-events: none; }
+#soul-tally .st-halo::before, #soul-tally .st-halo::after {
+  content: ''; position: absolute; inset: 3%; border: 1px solid var(--soul-light);
+  border-radius: 50%; opacity: .34; box-shadow: 0 0 28px var(--soul-haze), inset 0 0 25px var(--soul-haze);
+}
+#soul-tally .st-halo::after { inset: -18%; opacity: .14; }
+#soul-tally.st-burst .st-halo::before { animation: stRing 1.3s cubic-bezier(.11,.7,.22,1) both; }
+#soul-tally.st-burst .st-halo::after { animation: stRing 1.5s .08s cubic-bezier(.11,.7,.22,1) both; }
+#soul-tally[data-tier="gold"] .st-halo::before,
+#soul-tally[data-tier="red"] .st-halo::before { border-width: 2px; }
+#soul-tally .st-embers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#soul-tally .st-embers i {
+  position: absolute; left: 50%; top: 35%; width: var(--s); height: var(--s);
+  border-radius: 50%; background: var(--soul-light); color: var(--soul-light);
+  box-shadow: 0 0 10px 2px currentColor;
+  opacity: 0; animation: stShard 1.55s var(--delay) cubic-bezier(.1,.61,.12,1) both;
+}
+#soul-tally[data-tier="gold"] .st-embers i { border-radius: 0; transform: rotate(45deg); }
+#soul-tally[data-tier="red"].st-burst { animation: stRedImpact .72s ease-out; }
+#soul-tally .st-content {
+  position: absolute; z-index: 2; inset: 0; display: flex; align-items: center;
+  flex-direction: column; justify-content: center;
+  box-sizing: border-box; padding: max(36px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+  text-align: center;
+}
+#soul-tally .st-overline { font: 500 11px/1.5 Georgia,serif; letter-spacing: .21em; color: #7ea0b4; margin-bottom: clamp(32px, 7vh, 58px); }
+#soul-tally .st-sigil { height: clamp(94px, 18vh, 145px); width: clamp(88px, 17vh, 135px); color: var(--soul-light); filter: drop-shadow(0 0 20px var(--soul-light)); animation: stFloat 3.5s ease-in-out infinite; }
+#soul-tally .st-sigil svg { display: block; width: 100%; height: 100%; }
+#soul-tally.st-burst .st-sigil { animation: stSoulPulse .95s ease-out, stFloat 3.5s .95s ease-in-out infinite; }
+#soul-tally .st-headline { font-size: 13px; letter-spacing: .21em; margin: 24px 0 4px; color: #9fbace; }
+#soul-tally .st-number {
+  font: 600 clamp(47px, 12vw, 72px)/1.12 Georgia, serif; letter-spacing: -.03em; font-variant-numeric: tabular-nums;
+  color: #f0fdff; text-shadow: 0 0 20px var(--soul-light), 0 0 55px var(--soul-haze);
+}
+#soul-tally.st-burst .st-number { animation: stCountPulse .8s ease-out; }
+#soul-tally .st-stage { color: var(--soul-light); font-size: 12px; letter-spacing: .16em; margin: 16px 0 4px; }
+#soul-tally .st-factor { font: 600 27px/1.2 Georgia,serif; color: var(--soul-light); text-shadow: 0 0 16px var(--soul-haze); }
+#soul-tally .st-modifiers { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; align-content: center; max-width: 295px; min-height: 75px; margin: 8px 0 14px; }
+#soul-tally .st-chip { align-self: center; padding: 5px 9px; border: 1px solid currentColor; border-radius: 20px; font: 600 12px/1 Georgia,serif; opacity: .85; animation: stChip .35s ease-out both; }
+#soul-tally .st-chip.blue { color: #65adff; background: rgba(65,112,198,.18); }
+#soul-tally .st-chip.gold { color: #ffd56b; background: rgba(175,137,35,.18); }
+#soul-tally .st-chip.red { color: #ff636e; background: rgba(172,45,57,.18); }
+#soul-tally .st-ledger { width: min(84%,300px); border-top: 1px solid rgba(145,208,227,.26); padding: 12px 0; display: flex; align-items: baseline; justify-content: space-between; gap: 14px; color: #a3bccd; font-size: 12px; letter-spacing: .09em; }
+#soul-tally .st-ledger strong { color: #e0faff; font: 600 24px Georgia,serif; font-variant-numeric: tabular-nums; }
+#soul-tally .st-continue { width: min(84%,300px); min-height: 46px; margin-top: 8px; padding: 11px; border: 1px solid rgba(130,197,216,.65); border-radius: 11px; background: rgba(29,67,84,.72); color: #edf9fe; font: 600 14px Georgia,serif; letter-spacing: .08em; cursor: pointer; touch-action: manipulation; }
+#soul-tally.st-complete .st-continue { border-color: #a5f4e0; background: linear-gradient(120deg, #275c65, #253e61); box-shadow: 0 0 22px rgba(118,206,213,.27); }
+@keyframes stBreath { from { opacity: .38; transform: scale(.88); } to { opacity: .85; transform: scale(1.06); } }
+@keyframes stNova { 0% { opacity: 1; transform: scale(.42); } 45% { opacity: .85; transform: scale(1.05); } 100% { opacity: .5; transform: scale(1.18); } }
+@keyframes stRing { 0% { transform: scale(.45); opacity: .9; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes stShard { 0% { opacity: 0; transform: translate(0,0) scale(.25); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.5); } }
+@keyframes stFloat { 0%,100% { transform: translateY(2px); } 50% { transform: translateY(-6px); } }
+@keyframes stSoulPulse { 0% { transform: scale(.65); filter: drop-shadow(0 0 4px var(--soul-light)); } 35% { transform: scale(1.19); filter: drop-shadow(0 0 26px var(--soul-light)); } 100% { transform: scale(1); } }
+@keyframes stCountPulse { 0% { transform: scale(.89); } 40% { transform: scale(1.09); } 100% { transform: scale(1); } }
+@keyframes stRedImpact { 0% { filter: brightness(1.5); } 20% { filter: brightness(2.4); } 100% { filter: brightness(1); } }
+@keyframes stChip { from { opacity: 0; transform: translateY(8px) scale(.8); } to { opacity: .85; transform: none; } }
+@media (max-height: 690px) {
+  #soul-tally .st-overline { margin-bottom: 16px; }
+  #soul-tally .st-sigil { height: 78px; width: 76px; }
+  #soul-tally .st-headline { margin-top: 12px; }
+  #soul-tally .st-stage { margin-top: 8px; }
+  #soul-tally .st-modifiers { min-height: 48px; margin: 5px 0 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #soul-tally .st-radiance, #soul-tally .st-sigil, #soul-tally .st-halo::before, #soul-tally .st-halo::after,
+  #soul-tally .st-embers i, #soul-tally .st-number { animation: none !important; }
 }

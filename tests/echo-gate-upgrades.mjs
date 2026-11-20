@@ -7,10 +7,11 @@ import { UPGRADES, chances, pickChoices, applyUpgrade } from '../echo-gate/src/u
 
 const clone = () => structuredClone(CONFIG);
 
-test('five upgrades with equal chances summing to 100', () => {
-  assert.equal(UPGRADES.length, 5);
+test('eight upgrades with soul bonuses in ascending rarity', () => {
+  assert.equal(UPGRADES.length, 8);
   const c = chances(CONFIG);
-  assert.equal(Object.values(c).reduce((a, b) => a + b, 0), 100);
+  assert.ok(Math.abs(Object.values(c).reduce((a, b) => a + b, 0) - 100) < 1e-9);
+  assert.ok(c.soul10 > c.soul50 && c.soul50 > c.soul100);
   for (const u of UPGRADES) assert.ok(CONFIG.upgrades[u.id], u.id);
 });
 
@@ -72,4 +73,18 @@ test('block duration upgrade lengthens block', () => {
   const b = new Block(CONFIG.block);
   b.durMult = 1.2;
   assert.ok(Math.abs(b.duration - 1.8) < 1e-9);
+});
+
+test('soul bonus caps: 5 ×1.1, 3 ×1.5, 1 ×2', () => {
+  const cfg = clone();
+  const stats = new Stats(cfg);
+  for (const [id, limit] of Object.entries({ soul10: 5, soul50: 3, soul100: 1 })) {
+    assert.equal(UPGRADES.find(x => x.id === id).maxPicks, limit);
+    for (let i = 0; i < limit; i++) assert.equal(applyUpgrade(cfg, stats, id), true);
+    assert.equal(stats.soulMods[id], limit);
+    assert.equal(applyUpgrade(cfg, stats, id), false);
+    for (let i = 0; i < 20; i++) assert.ok(!pickChoices(cfg, 8, Math.random, stats).some(u => u.id === id));
+  }
+  stats.reset();
+  assert.deepEqual(stats.soulMods, { soul10: 0, soul50: 0, soul100: 0 });
 });

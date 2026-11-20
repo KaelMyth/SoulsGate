@@ -58,6 +58,7 @@ export class LevelUp {
   fillCard(card, u) {
     card.replaceChildren();
     card.style.visibility = u ? '' : 'hidden';
+    card.dataset.rarity = u?.rarity || 'common';
     if (!u) return;
     const ic = el('div', { class: 'lu-icon' });
     ic.innerHTML = u.icon;

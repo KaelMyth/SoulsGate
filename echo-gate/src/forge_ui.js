@@ -2,7 +2,7 @@
 // Камни вложены в ячейку по умолчанию, характеристики открываются по кнопке «i». Цена в камнях и шанс берутся из sharpen.js, таблицы из CONFIG.sharpen.
 import { makeStaffIcons } from './staff_icons.js';
 import { sharpenInfo, attemptSharpen, sharpenedStats } from './sharpen.js';
-import { GEM_ICON, COIN } from './inventory_ui.js';
+import { GEM_ICON, SOUL_ICON } from './inventory_ui.js';
 
 function el(tag, attrs = {}, ...kids) {
   const n = document.createElement(tag);
@@ -26,9 +26,9 @@ export class ForgeUi {
     this.icons = null;
 
     this.title = el('div', { class: 'fg-title' }, 'Enchanting');
-    this.coins = el('b', {}, '0');
+    this.souls = el('b', {}, '0');
     this.closeBtn = el('button', { type: 'button', class: 'fg-close', 'aria-label': 'Close' }, '✕');
-    const top = el('div', { class: 'fg-top' }, this.closeBtn, this.title, el('div', { class: 'fg-coins' }, this.coins, ico(COIN)));
+    const top = el('div', { class: 'fg-top' }, this.closeBtn, this.title, el('div', { class: 'fg-coins' }, this.souls, ico(SOUL_ICON)));
 
     this.chips = el('div', { class: 'fg-chips' });
 
@@ -104,7 +104,7 @@ export class ForgeUi {
 
   refresh() {
     const inv = this.inv;
-    this.coins.textContent = String(inv.coins);
+    this.souls.textContent = String(inv.souls);
     const list = this.staffs();
     if (!list.includes(this.sel)) this.sel = list[0] || null;
     this.chips.innerHTML = '';

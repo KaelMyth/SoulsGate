@@ -1,4 +1,4 @@
-// Данные инвентаря и метапрогресса: ячейки с предметами (лимит из конфига), надетые предметы, сила духа, монеты.
+// Данные инвентаря и метапрогресса: экипировка, предметы и единственная валюта — Souls.
 // Без графики и DOM. onChange вызывается при любом изменении. Надетые предметы в лимит ячеек не входят.
 import { startingTome, startingStaff } from './items.js';
 
@@ -8,28 +8,35 @@ export class Inventory {
     this.limit = cfg.limit;
     this.slots = new Array(cfg.limit).fill(null); // Item или null
     this.equipped = { tome: startingTome(), staff: startingStaff() };     // по названию места экипировки (Item.slot)
-    this.spirit = 0;     // сила духа: растёт с каждым забегом
-    this.coins = 0;
-    this.broken = [];    // сломанные при заточке предметы: выкупаются за золото или рекламу
+    this.souls = 0;      // как в Dark Souls: единая добываемая и расходуемая валюта
+    this.broken = [];    // выкуп за души или рекламу
     this.onChange = null; // один главный слушатель (окно инвентаря)
     this.listeners = [];  // остальные слушатели: listen(fn)
     this.loadBanked();
   }
 
-  /** Между посещениями сохраняются только заработанные при пробуждении валюты. */
+  /** Старая валюта переносится один раз: spirit + coins → souls, без потери накоплений. */
   loadBanked() {
     try {
       if (typeof localStorage === 'undefined') return;
-      const v = JSON.parse(localStorage.getItem('echo-gate-banked-v1') || '{}');
-      if (Number.isFinite(v.spirit) && v.spirit >= 0) this.spirit = v.spirit;
-      if (Number.isFinite(v.coins) && v.coins >= 0) this.coins = v.coins;
+      const fresh = localStorage.getItem('echo-gate-souls-v1');
+      if (fresh !== null) {
+        const saved = JSON.parse(fresh);
+        if (Number.isSafeInteger(saved.souls) && saved.souls >= 0) this.souls = saved.souls;
+        return;
+      }
+      const old = JSON.parse(localStorage.getItem('echo-gate-banked-v1') || '{}');
+      const spirit = Number.isFinite(old.spirit) ? Math.max(0, Math.floor(old.spirit)) : 0;
+      const coins = Number.isFinite(old.coins) ? Math.max(0, Math.floor(old.coins)) : 0;
+      this.souls = spirit + coins;
+      this.saveBanked();
     } catch (_) { /* браузер может блокировать хранилище */ }
   }
 
   saveBanked() {
     try {
       if (typeof localStorage !== 'undefined')
-        localStorage.setItem('echo-gate-banked-v1', JSON.stringify({ spirit: this.spirit, coins: this.coins }));
+        localStorage.setItem('echo-gate-souls-v1', JSON.stringify({ souls: this.souls }));
     } catch (_) { /* приватный режим */ }
   }
 
@@ -113,19 +120,23 @@ export class Inventory {
     return found;
   }
 
-  /** Выкупить сломанный предмет i: mode 'gold' списывает золото (cost), 'ad' бесплатный (показ рекламы будет позже). false, если не хватает золота или нет места. */
+  /** Выкупить сломанный предмет за души или тестовым рекламным способом. */
   repairBroken(i, mode, cost) {
     const it = this.broken[i];
-    if (!it || this.full) return false;
-    if (mode === 'gold') { if (this.coins < cost) return false; this.coins -= cost; }
+    if (!it || this.full || (mode !== 'souls' && mode !== 'ad')) return false;
+    if (mode === 'souls' && (!Number.isFinite(cost) || cost < 0 || this.souls < cost)) return false;
+    if (mode === 'souls') this.souls -= cost;
     this.broken.splice(i, 1);
     this.slots[this.firstEmpty()] = it;
     this.changed();
     return true;
   }
 
-  addCoins(n) { this.coins = Math.max(0, this.coins + n); this.changed(); }
-  addSpirit(n) { this.spirit = Math.max(0, this.spirit + n); this.changed(); }
+  addSouls(n) {
+    if (!Number.isFinite(n) || n <= 0) return;
+    this.souls += Math.floor(n);
+    this.changed();
+  }
   changed() {
     this.saveBanked();
     if (this.onChange) this.onChange(this);

@@ -32,7 +32,7 @@ function icon(svg) {
 }
 
 const FLAME = `<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="inv-fl" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#2f6dff"/><stop offset="0.6" stop-color="#5fc8ff"/><stop offset="1" stop-color="#d8f6ff"/></linearGradient></defs><path fill="url(#inv-fl)" d="M12.6 1.8c.5 3.200-1.300 4.900-3 6.800-1.800 2-3.400 3.900-3.400 7 0 3.600 2.600 6.400 6 6.400s6-2.700 6-6.200c0-2.300-1-4-2.300-5.400-.3 1.300-.9 2.100-1.800 2.600.5-3.600-.2-8.100-1.500-11.200z"/><path fill="#eafaff" opacity=".85" d="M12 21.200c-1.700 0-3-1.300-3-3 0-1.800 1.400-2.800 2.300-4.300.2 1 1.100 1.600 1.700 2.200.5.500.9 1.200.9 2.100 0 1.600-.9 3-1.900 3z"/></svg>`;
-export const COIN = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#e0a93e"/><circle cx="12" cy="12" r="10" fill="none" stroke="#fff0b0" stroke-width="1.200" opacity=".9"/><circle cx="12" cy="12" r="6.800" fill="none" stroke="#a8741a" stroke-width="1.600"/><path d="M8.500 6.500a8 8 0 0 1 5-1" fill="none" stroke="#fff6d0" stroke-width="1.400" stroke-linecap="round" opacity=".8"/></svg>`;
+export const SOUL_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.2C9 7 4 9.4 4 15.2a8 8 0 0 0 16 0C20 9.4 15 7 12 1.2z" fill="#499bb5" stroke="#bff4f8" stroke-width="1.15"/><path d="M12 7.2c-1.3 3-4.1 5.4-4.1 8.2a4.1 4.1 0 0 0 8.2 0c0-2.8-2.8-5.2-4.1-8.2z" fill="#dffaff"/><path d="M12 10.3c-.6 1.4-1.6 2.5-1.6 4a1.6 1.6 0 0 0 3.2 0c0-1.5-1-2.6-1.6-4z" fill="#ffffff"/></svg>`;
 
 export class InventoryUi {
   /** root: рамка игры (#phone); inv: Inventory; renderer: THREE.WebGLRenderer; cfg: CONFIG.inventory; onClose: после закрытия */
@@ -52,13 +52,11 @@ export class InventoryUi {
       staff: el('div', { class: 'inv-hint staff' }, 'Drag the staff here'),
     };
     this.stage = el('div', { class: 'inv-stage' }, this.hints.tome, this.hints.staff);
-    this.spirit = el('b', {}, '0');
+    this.souls = el('b', {}, '0');
     this.count = el('b', {}, '0 / 0');
-    this.coins = el('b', {}, '0');
     const strip = el('div', { class: 'inv-strip' },
-      el('div', { class: 'inv-stat spirit', title: 'Spirit power' }, icon(FLAME), this.spirit),
-      el('div', { class: 'inv-stat items', title: 'Items' }, this.count),
-      el('div', { class: 'inv-stat coins', title: 'Coins' }, this.coins, icon(COIN)));
+      el('div', { class: 'inv-stat souls', title: 'Souls' }, icon(SOUL_ICON), this.souls),
+      el('div', { class: 'inv-stat items', title: 'Items' }, this.count));
     this.grid = el('div', { class: 'inv-grid' });
     this.grid.style.setProperty('--cols', String(cfg.columns));
     this.cells = [];
@@ -102,10 +100,10 @@ export class InventoryUi {
     this.refresh();
   }
 
-  /** Вкладка «Broken»: сломанные при заточке предметы, выкуп за золото или рекламу. */
+  /** Вкладка «Broken»: сломанные предметы, выкуп за души или рекламу. */
   renderBroken() {
     const inv = this.inv;
-    const cost = this.cfg.repairGold;
+    const cost = this.cfg.repairSouls;
     this.tabBroken.textContent = inv.broken.length ? `Broken (${inv.broken.length})` : 'Broken';
     this.broken.innerHTML = '';
     if (!inv.broken.length) { this.broken.append(el('div', { class: 'empty' }, 'Nothing is broken')); return; }
@@ -113,14 +111,14 @@ export class InventoryUi {
       const row = el('div', { class: 'row' });
       row.style.setProperty('--rar', it.rarityInfo.color);
       row.innerHTML = `<span class="it">${this.iconOf(it)}</span><div class="nm"><div class="name">${it.label}</div><div class="sub">Broken while sharpening</div></div>`;
-      const gold = el('button', { type: 'button', class: 'gold' }, `Repair ${cost}`);
-      gold.append(icon(COIN));
-      gold.disabled = inv.coins < cost || inv.full;
-      gold.addEventListener('click', () => inv.repairBroken(i, 'gold', cost));
+      const souls = el('button', { type: 'button', class: 'gold' }, `Repair ${cost}`);
+      souls.append(icon(SOUL_ICON));
+      souls.disabled = inv.souls < cost || inv.full;
+      souls.addEventListener('click', () => inv.repairBroken(i, 'souls', cost));
       const ad = el('button', { type: 'button', class: 'ad' }, '▶ Watch ad');
       ad.disabled = inv.full;
       ad.addEventListener('click', () => inv.repairBroken(i, 'ad', 0)); // реклама подключится позже: пока выкуп сразу
-      row.append(el('div', { class: 'acts' }, gold, ad));
+      row.append(el('div', { class: 'acts' }, souls, ad));
       this.broken.append(row);
     });
   }
@@ -128,9 +126,8 @@ export class InventoryUi {
   /** Обновить числа, ячейки и витрину. */
   refresh() {
     const inv = this.inv;
-    this.spirit.textContent = String(inv.spirit);
+    this.souls.textContent = String(inv.souls);
     this.count.textContent = `${inv.count} / ${inv.limit}`;
-    this.coins.textContent = String(inv.coins);
     this.renderBroken();
     const lift = this.drag && this.drag.src.type === 'slot' ? this.drag.src.i : -1;
     this.cells.forEach((c, i) => {
