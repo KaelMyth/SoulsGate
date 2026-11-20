@@ -197,6 +197,7 @@ export class Game {
         { x: 0, z: 0, r: H.fireRadius }, // костёр: сквозь него не пройти
         { x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 },
         { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
+        { x: H.enchantX, z: H.enchantZ, hx: H.enchantHalfW, hz: H.enchantHalfD },
       ] };
     this.motion.x = H.startDown * Math.sin(a);
     this.motion.z = H.startDown * Math.cos(a);
