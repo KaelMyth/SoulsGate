@@ -19,6 +19,7 @@ import { Bull } from './bull.js';
 import { LevelUp } from './levelup.js';
 import { pickChoices, applyUpgrade } from './upgrades.js';
 import { Block } from './block.js';
+import { Roulette } from './roulette.js';
 import { BlockView } from './block_view.js';
 import { Rock } from './rock.js';
 import { Midges } from './midges.js';
@@ -69,6 +70,7 @@ export class Game {
     this.loot.onCollect = (type, v) => {
       this.stats.collect(type, v);
       this.bus.emit('loot:collected', { type, value: v });
+      if (type === 'skill' && this.roulette && this.playing) this.roulette.request(); // фиолетовый камень: рулетка
       if (type === 'power' && this.staffUi) this.staffUi.open(); // кристалл усиления: открыть экран посоха
     };
     this.attack.onKill = (e) => {
@@ -118,6 +120,12 @@ export class Game {
       });
       this.stats.onLevel = () => { if (this.playing) this.levelUp.request(); };
     }
+    this.rolling = false;
+    if (o.ui.root) this.roulette = new Roulette(o.ui.root, {
+      onOpen: () => { this.rolling = true; this.stick.cancel(); },
+      onClose: () => { this.rolling = false; },
+      onResult: (v) => this.bus.emit('roulette:result', { value: v }),
+    });
     this.pauseBtn = o.ui.pauseBtn;
     this.dashBtn = o.ui.dashBtn;
     if (this.dashBtn) this.dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (this.playing && !this.paused && !this.choosing) this.dashFromInput(); });
@@ -145,6 +153,7 @@ export class Game {
     this.block.reset();
     this.spawner.reset();
     if (this.levelUp) this.levelUp.reset();
+    if (this.roulette) this.roulette.reset();
     this.enemyShots.clear();
     this.telegraphs.update({ alive: [] });
     this.midges.clear();
@@ -344,7 +353,7 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.paused && !this.invOpen && !this.choosing) advance(dt, (s) => this.step(s));
+    if (!this.paused && !this.invOpen && !this.choosing && !this.rolling) advance(dt, (s) => this.step(s));
     this.drawStick();
     if (!this.paused && !this.invOpen) this.hub.update(dt, this.motion.x, this.motion.z);
     if (this.invOpen) this.invUi.render(dt);
