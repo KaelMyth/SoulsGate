@@ -1,4 +1,4 @@
-// Лавка воспоминаний: псевдо-3D каменный киоск с тканевым навесом, освещением и живым торговцем.
+// Торговый вагончик хаба: китайская лавка на колёсах с красной крышей, бумажными фонарями и вывеской SHOP.
 // Внутри за прилавком улыбающийся человеко-пёс хаски. Модель собрана из примитивов, лицом к +z (к камере).
 // Снаружи нужно: Shop.group (ставит Hub) и Shop.update(dt).
 import * as THREE from 'three';
@@ -186,225 +186,274 @@ class Husky {
 export class Shop {
   constructor() {
     this.group = new THREE.Group();
-    this.group.name = 'MemoryMerchantStall';
     this.t = 0;
-    this.lanterns = [];
-    this.lights = [];
     this.steam = [];
-    // Narrow depth, real volume for the counter/pillars and layered fabric planes:
-    // a readable pseudo-3D façade rather than the old closed wheeled caravan.
-    const G = this.group, W = 5.2, hd = 1.45;
-    const rock = mat(0x35405a), rockTop = mat(0x4e6670), rockShadow = mat(0x212639);
-    const mortar = mat(0x26283b), wood = mat(0x553e42), edge = mat(0x8d695b);
-    const copper = mat(0xb28a64, 0.5), purple = mat(0x59314d), oxblood = mat(0x713a55);
-    const gold = mat(0xcaa879, 0.55);
-    const emissive = (c, k = 0.8) => mat(c, 0.42, { emissive: c, emissiveIntensity: k });
-    const wallBox = (w, h, d, m, x, y, z) => box(w, h, d, m, x, y, z, G);
+    this.cat = null;
+    const W = 5.2, D = 2.8, base = 0.5, postH = 3.3;
+    const red = mat(C.red), redD = mat(C.redDark), gold = mat(C.gold, 0.5), wood = mat(C.wood), woodD = mat(C.woodDark);
+    const hw = W / 2, hd = D / 2;
 
-    // Broken stone foundation, steps and individual masonry blocks.
-    wallBox(5.65, 0.32, 3.35, rockShadow, 0, 0.19, 0);
-    wallBox(5.37, 0.12, 3.10, rockTop, 0, 0.39, 0);
-    for (let i = 0; i < 3; i++) {
-      const x = -2.04 + i * 2.04;
-      wallBox(1.98, 0.13, 0.75, i === 1 ? rockTop : rock, x, 0.18, 1.87);
+    // Колёса и платформа.
+    for (const sx of [-1, 1]) for (const sz of [-0.9, 0.9]) {
+      const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.22, 10), woodD);
+      wh.rotation.z = Math.PI / 2;
+      wh.position.set(sx * (hw + 0.05), 0.5, sz);
+      this.group.add(wh);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.28, 6), gold);
+      hub.rotation.z = Math.PI / 2;
+      hub.position.copy(wh.position);
+      this.group.add(hub);
     }
-    // Back wall: broken brick courses form an architectural silhouette.
-    wallBox(5.1, 2.65, 0.28, mortar, 0, 1.76, -1.22);
-    for (let y = 0; y < 8; y++) {
-      const z = -1.04;
-      const brickH = 0.34, n = y % 2 ? 8 : 7, w = 5.0 / n;
-      for (let i = 0; i < n; i++) {
-        const x = -2.5 + (i + 0.5) * w;
-        const c = (i + y * 3) % 6;
-        const m = c === 1 ? rockTop : c === 4 ? rockShadow : rock;
-        const brick = wallBox(w - 0.048, brickH - 0.028,
-          0.12 + c % 3 * 0.027, m, x, 0.49 + y * 0.34, z);
-        brick.rotation.z = (i * 11 + y * 7) % 13 === 0 ? 0.028 : 0;
-      }
-    }
-    // Dark recess makes the merchant and potion silhouettes stand out.
-    wallBox(3.1, 1.9, 0.045, mat(0x151b2e), 0, 1.93, -0.982);
-    for (const sx of [-1, 1]) {
-      // Narrow stone pillars frame the arch, with irregular cap stones and corbels.
-      wallBox(0.63, 2.85, 0.72, rockShadow, sx * 2.37, 1.88, -0.55);
-      for (let j = 0; j < 7; j++) {
-        wallBox(0.73 + (j % 3) * 0.035, 0.38, 0.79, j % 3 ? rock : rockTop,
-          sx * 2.37, 0.55 + j * 0.40, -0.55 + (j % 2 ? 0.015 : -0.015));
-      }
-      wallBox(0.94, 0.30, 0.97, rockTop, sx * 2.37, 3.49, -0.55);
-      wallBox(0.81, 0.14, 0.85, copper, sx * 2.37, 0.54, -0.55);
-    }
-    // Angular masonry arch with a 3D keystone.
-    wallBox(3.58, 0.3, 0.48, rockShadow, 0, 3.08, -0.89);
-    for (const sx of [-1, 1]) {
-      const arch = wallBox(0.65, 0.29, 0.57, rockTop, sx * 1.53, 2.86, -0.85);
-      arch.rotation.z = -sx * 0.28;
-      wallBox(0.84, 0.35, 0.65, rockTop, sx * 1.05, 3.24, -0.84);
-    }
-    const keystone = new THREE.Mesh(new THREE.OctahedronGeometry(0.36, 0), copper);
-    keystone.scale.set(0.85, 0.95, 0.65);
-    keystone.position.set(0, 3.22, -0.55);
-    G.add(keystone);
+    box(W + 0.2, 0.18, D + 0.2, wood, 0, base, 0, this.group);
 
-    // Real wood beams, but a shallow multi-faceted cloth roof: deliberately 2.5D.
-    for (const sx of [-1, 1]) {
-      wallBox(0.21, 2.6, 0.25, wood, sx * 2.14, 1.89, 1.14);
-      wallBox(0.27, 0.21, 2.6, wood, sx * 2.14, 3.13, 0.08);
-      wallBox(0.16, 0.16, 2.75, copper, sx * 2.14, 3.23, 0.08);
-      wallBox(0.3, 0.22, 0.28, copper, sx * 2.14, 2.91, 1.13);
-    }
-    wallBox(4.52, 0.19, 0.2, wood, 0, 3.03, 1.18);
-    wallBox(4.56, 0.07, 0.23, gold, 0, 2.92, 1.20);
-    const fabric = [mat(0x58314b), mat(0x703550), mat(0x4a2b47), mat(0x763b55)];
-    for (let i = 0; i < 9; i++) {
-      const x0 = -2.24 + i * 0.5, x1 = x0 + 0.5;
-      const sag = (i % 3) * 0.035;
-      const meshGeo = new THREE.BufferGeometry();
-      meshGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-        x0, 3.36, -1.04, x1, 3.36, -1.04, x0 + 0.03, 3.08 - sag, 0.12,
-        x1, 3.36, -1.04, x1 - 0.03, 3.08 - sag, 0.12, x0 + 0.03, 3.08 - sag, 0.12,
-        x0 + 0.03, 3.08 - sag, 0.12, x1 - 0.03, 3.08 - sag, 0.12, x0 + 0.045, 2.91, 1.19,
-        x1 - 0.03, 3.08 - sag, 0.12, x1 - 0.045, 2.91, 1.19, x0 + 0.045, 2.91, 1.19,
-      ], 3));
-      meshGeo.computeVertexNormals();
-      const canopy = new THREE.Mesh(meshGeo, fabric[i % 4]);
-      canopy.material.side = THREE.DoubleSide;
-      G.add(canopy);
-      // Cloth valance: thin vertical planes rather than a solid roof over the NPC.
-      wallBox(0.46, 0.33 + 0.05 * Math.sin(i * 1.6), 0.028,
-        fabric[i % 4], (x0 + x1) * 0.5, 2.78, 1.22);
-      const stitch = wallBox(0.45, 0.022, 0.04, copper, (x0 + x1) * 0.5, 2.93, 1.245);
-      stitch.rotation.z = Math.sin(i * 1.3) * 0.05;
-    }
-    // Embroidered diamond sigils stitched into the awning hem.
-    for (const x of [-1.52, 0, 1.52]) {
-      const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.095, 0), gold);
-      rune.scale.set(0.6, 1.4, 0.2);
-      rune.position.set(x, 2.78, 1.26);
-      G.add(rune);
-    }
+    // Задняя и боковые стенки (тёмные внутри, красные снаружи), нижний ряд спереди = прилавок.
+    box(W, postH - base, 0.14, mat(C.inner), 0, base + (postH - base) / 2, -hd + 0.07, this.group);
+    for (const sx of [-1, 1]) box(0.14, postH - base, D, redD, sx * (hw - 0.07), base + (postH - base) / 2, 0, this.group);
+    const counterH = 0.75;
+    box(W, counterH, 0.4, red, 0, base + counterH / 2, hd - 0.2, this.group);
+    box(W + 0.16, 0.1, 0.62, wood, 0, base + counterH + 0.05, hd - 0.15, this.group); // столешница
+    // Золотая кайма прилавка и красные полосы-панели.
+    box(W, 0.06, 0.42, gold, 0, base + 0.1, hd - 0.2, this.group);
+    for (let i = -2; i <= 2; i++) box(0.8, 0.4, 0.04, redD, i * 1.1, base + 0.42, hd + 0.01, this.group);
 
-    // Counter: worn timber with a deep violet hanging textile and metallic embroidery.
-    wallBox(4.44, 0.89, 0.72, wood, 0, 0.97, 1.11);
-    wallBox(4.66, 0.14, 0.96, edge, 0, 1.46, 1.09);
-    wallBox(4.44, 0.06, 0.86, copper, 0, 1.54, 1.09);
-    wallBox(3.15, 0.67, 0.038, purple, 0, 1.02, 1.49);
-    wallBox(3.01, 0.045, 0.05, gold, 0, 1.31, 1.52);
-    wallBox(3.01, 0.045, 0.05, gold, 0, 0.74, 1.52);
+    // Столбики и крыша.
     for (const sx of [-1, 1]) {
-      wallBox(0.035, 0.56, 0.05, copper, sx * 1.5, 1.02, 1.52);
-      const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.18, 0), gold);
-      rune.scale.set(0.75, 1.25, 0.22);
-      rune.position.set(sx * 0.82, 1.01, 1.54);
-      G.add(rune);
+      box(0.18, postH - base, 0.18, gold, sx * (hw - 0.05), base + (postH - base) / 2, hd - 0.05, this.group);
+      box(0.18, postH - base, 0.18, gold, sx * (hw - 0.05), base + (postH - base) / 2, -hd + 0.05, this.group);
     }
-    // Open book + layered paper stacks on the counter (each page has visible thickness).
-    for (const sx of [-1, 1]) {
-      const book = wallBox(0.52, 0.06, 0.45, mat(0xd7c8aa), sx * 0.28, 1.61, 1.15);
-      book.rotation.z = sx * 0.09;
+    box(W + 0.3, 0.14, D + 0.3, redD, 0, postH, 0, this.group); // потолочная рама
+    // Крыша низкая и без вылета над проёмом: камера смотрит сверху под 35°, высокий скат закрыл бы хаски.
+    const pyr = (h, color, ox, oz, y) => {
+      const g = new THREE.ConeGeometry(1, h, 4);
+      g.rotateY(Math.PI / 4);
+      const m = new THREE.Mesh(g, color);
+      m.scale.set((W + ox) / 1.414, 1, (D + oz) / 1.414);
+      m.position.y = y;
+      this.group.add(m);
+    };
+    pyr(0.55, red, 0.9, 0.9, postH + 0.07 + 0.275);
+    pyr(0.22, gold, 1.15, 1.15, postH + 0.07 + 0.09); // золотая кайма: нижний слой чуть шире
+    // Загнутые вверх углы крыши.
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 4), gold);
+      tip.position.set(sx * (W / 2 + 0.6), postH + 0.2, sz * (D / 2 + 0.6));
+      tip.rotation.set(sz * 0.7, 0, -sx * 0.7);
+      this.group.add(tip);
     }
-    wallBox(1.10, 0.06, 0.08, gold, 0, 1.61, 1.12);
-    for (let k = 0; k < 5; k++) {
-      const x = -1.8 + k * 0.8, c = [0x66d3d8,0xa68cfa,0xc179d8,0x64b5cf,0xe9a55e][k];
-      const vial = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.32 + (k % 2) * 0.15, 7), mat(c, 0.3, { emissive: c, emissiveIntensity: 0.5 }));
-      vial.position.set(x, 1.72 + (k % 2) * 0.075, 0.85);
-      G.add(vial);
-      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.065, 0.12, 7), copper);
-      neck.position.set(x, vial.position.y + 0.22, 0.85);
-      G.add(neck);
-      const light = softGlow('rgba(160,220,255,A)', 0.76);
-      light.position.set(x, vial.position.y, 0.88);
-      G.add(light);
-    }
-    // Potion shelves in the shadowed opening.
-    for (const y of [1.67, 2.31]) {
-      wallBox(3.32, 0.10, 0.45, wood, 0, y, -0.74);
-      wallBox(3.38, 0.034, 0.48, copper, 0, y + 0.065, -0.74);
-      for (let k = 0; k < 6; k++) {
-        const c = [0xdba16e,0x90d5cf,0xa88cbb][(k + (y > 2 ? 1 : 0)) % 3];
-        const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.24, 6), mat(c, 0.5));
-        pot.position.set(-1.45 + k * 0.59, y + 0.22, -0.70);
-        G.add(pot);
-      }
-    }
-    // Old shopkeeper remains functional, eye/blink/wave tracking retained.
+    const fin = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 0), gold);
+    fin.position.y = postH + 0.07 + 0.62;
+    this.group.add(fin);
+
+    // Вывеска SHOP: большая светящаяся доска стоит на крыше у переднего края и чуть откинута назад (видна с камеры целиком).
+    const signW = 4.8, signH = 1.5;
+    const signG = new THREE.Group();
+    signG.position.set(0, postH + 0.5 + signH / 2, hd - 0.1);
+    signG.rotation.x = -0.18;
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(signW, signH, 0.14), mat(C.redDark));
+    signG.add(sign);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(signW - 0.12, signH - 0.12), new THREE.MeshBasicMaterial({ map: signTexture('SHOP') }));
+    face.position.z = 0.075;
+    signG.add(face);
+    for (const sx of [-1, 1]) box(0.12, 0.5, 0.12, gold, sx * (signW / 2 - 0.3), -signH / 2 - 0.1, 0, signG); // ножки
+    this.group.add(signG);
+
+    // Внутри: полка с баночками и тёплая лампа.
+    box(W - 0.8, 0.08, 0.5, wood, 0, base + 1.55, -hd + 0.4, this.group);
+    const jarCols = [0xd98a96, 0x8fdcff, 0xe0a93e, 0xa6d88a, 0xd98a96];
+    jarCols.forEach((c, i) => {
+      const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.32, 6), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.25, roughness: 0.6, flatShading: true }));
+      jar.position.set(-2 + i * 1.0, base + 1.75, -hd + 0.4);
+      this.group.add(jar);
+    });
+
+    // Хаски за прилавком.
     this.husky = new Husky();
-    this.husky.group.scale.setScalar(0.91);
-    this.husky.group.position.set(0, 0.48, -0.09);
-    G.add(this.husky.group);
+    this.husky.group.position.set(0, base + 0.55, hd - 1.2); // повыше, чтобы голова не уходила в стол
+    this.husky.group.scale.setScalar(1.18);
+    this.group.add(this.husky.group);
 
-    // Facade lanterns: warm light against cold cyan stone, with metal cage geometry.
-    const lanternMaterial = emissive(0xffaa52, 1.35);
+    // Фонари: пять красных бумажных по линии крыши (передний край) и два по бокам, качаются.
+    this.lanterns = [];
+    const lanternMat = new THREE.MeshStandardMaterial({ color: 0xff5a3c, emissive: 0xff4a28, emissiveIntensity: 1.1, roughness: 0.7, flatShading: true });
+    const mk = (x, y, z, s) => {
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.28 * s, 8, 6), lanternMat);
+      body.scale.y = 0.85;
+      body.position.y = -0.42 * s;
+      g.add(body);
+      for (const dy of [-0.16, -0.68]) {
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.12 * s, 0.06 * s, 6), gold);
+        cap.position.y = dy * s;
+        g.add(cap);
+      }
+      const tassel = new THREE.Mesh(new THREE.ConeGeometry(0.05 * s, 0.3 * s, 4), gold);
+      tassel.rotation.x = Math.PI;
+      tassel.position.y = -0.85 * s;
+      g.add(tassel);
+      const gl = softGlow('rgba(255,150,80,A)', 2.6 * s);
+      gl.position.y = -0.42 * s;
+      g.add(gl);
+      g.userData = { ph: Math.random() * 6 };
+      this.group.add(g);
+      this.lanterns.push(g);
+    };
+    const ly = postH - 0.05;
     for (const sx of [-1, 1]) {
-      const lantern = new THREE.Group();
-      lantern.position.set(sx * 2.13, 2.74, 1.34);
-      wallBox(0.13, 0.2, 0.14, copper, sx * 2.13, 2.91, 1.34);
-      const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), lanternMaterial);
-      flame.scale.set(0.78, 1.16, 0.8);
-      flame.position.y = -0.36;
-      lantern.add(flame);
-      const cage = mat(0x463348, 0.42);
-      for (const dx of [-0.18, 0.18]) for (const dz of [-0.16, 0.16])
-        box(0.045, 0.52, 0.045, cage, dx, -0.37, dz, lantern);
-      box(0.48, 0.09, 0.42, copper, 0, -0.12, 0, lantern);
-      box(0.48, 0.09, 0.42, copper, 0, -0.63, 0, lantern);
-      const glow = softGlow('rgba(255,152,70,A)', 2.65);
-      glow.position.y = -0.38;
-      lantern.add(glow);
-      lantern.userData.ph = sx;
-      G.add(lantern);
-      this.lanterns.push(lantern);
+      mk(sx * (hw + 0.45), ly + 0.1, hd + 0.35, 0.9);
+      mk(sx * (hw + 0.45), ly + 0.1, -0.1, 0.8);
+      mk(sx * (hw + 0.45), ly + 0.1, -hd + 0.2, 0.8);
     }
-    const inner = new THREE.PointLight(0xffa05e, 5.6, 7.2, 1.6);
-    inner.position.set(0, 2.25, 0.56);
-    const side = new THREE.PointLight(0xffa463, 3.4, 6.0, 1.7);
-    side.position.set(-2.0, 2.0, 1.20);
-    G.add(inner, side);
-    this.lights.push(inner, side);
-    const pool = softGlow('rgba(255,140,70,A)', 7);
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), new THREE.MeshBasicMaterial({
-      map: pool.material.map, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending,
+
+    // Мягкий свет ламп: тёплый заполняющий внутри и два спереди. Без резких пятен: большой радиус, малая сила.
+    const inner = new THREE.PointLight(0xffc98a, 7, 7, 1.5);
+    inner.position.set(0, 2.3, 0.2);
+    this.group.add(inner);
+    const front = new THREE.PointLight(0xff9a5c, 6, 9, 1.5);
+    front.position.set(0, 2.2, hd + 1.3);
+    this.group.add(front);
+    this.lights = [inner, front];
+    const pool = softGlow('rgba(255,170,100,A)', 11); // тёплое пятно на земле перед лавкой (плоское, чтобы земля его не обрезала)
+    const poolMesh = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), new THREE.MeshBasicMaterial({
+      map: pool.material.map, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(0, 0.47, 2.0);
-    G.add(mesh);
-
-    // Scattered slate slabs, moss and worn wood around the façade.
-    const moss = mat(0x355d5b), glowStone = mat(0x5c8181);
-    for (let i = 0; i < 13; i++) {
-      const x = (i % 2 ? 1 : -1) * (2.65 + (i % 3) * 0.22);
-      const z = -1.4 + (i * 1.17) % 3.5;
-      const slab = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + (i % 3) * 0.05, 0), i % 4 ? rock : rockTop);
-      slab.scale.set(1.1, 0.35, 0.8);
-      slab.position.set(x, 0.13, z);
-      G.add(slab);
-    }
-    for (let i = 0; i < 10; i++) {
-      const x = (i % 2 ? 1 : -1) * (2.0 + (i % 3) * 0.15);
-      const leaf = new THREE.Mesh(new THREE.TetrahedronGeometry(0.13, 0), i % 3 ? moss : glowStone);
-      leaf.position.set(x, 3.10 - (i % 5) * 0.28, -1.01 + (i % 4) * 0.09);
-      leaf.rotation.set(i, i * 0.4, 0);
-      G.add(leaf);
-    }
-    // Two decayed hanging tapestries (2D cloth planes with actual depth in tassels).
-    for (const sx of [-1, 1]) {
-      wallBox(0.48, 1.04, 0.04, oxblood, sx * 2.75, 2.17, -0.55);
-      wallBox(0.5, 0.05, 0.07, gold, sx * 2.75, 2.73, -0.55);
-      const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), copper);
-      rune.scale.set(0.6, 1.6, 0.22);
-      rune.position.set(sx * 2.75, 2.23, -0.51);
-      G.add(rune);
-    }
+    poolMesh.rotation.x = -Math.PI / 2;
+    poolMesh.position.set(0, 0.04, hd + 1.0);
+    const pool_ = poolMesh;
+    this.group.add(pool_);
+    this.decorate(W, D, base, counterH);
     this.update(0);
   }
 
+  /** Убранство прилавка: красно-золотая дорожка, пароварки, чайник, кот-манэки, светящиеся склянки, ящики. */
+  decorate(W, D, base, counterH) {
+    const hd = D / 2;
+    const top = base + counterH + 0.1;   // уровень столешницы
+    const zc = hd - 0.15;                // середина столешницы по z
+    const G = this.group;
+    const gold = mat(C.gold, 0.45);
+    // Светлая столешница и дорожка: стол теперь не сливается с тёмным фоном.
+    box(W + 0.16, 0.03, 0.62, mat(0xc79a62), 0, top + 0.015, zc, G);
+    box(W - 0.3, 0.025, 0.5, mat(0xb8372f), 0, top + 0.04, zc + 0.02, G);
+    for (const sx of [-1, 1]) box(0.05, 0.03, 0.5, gold, sx * (W / 2 - 0.5), top + 0.06, zc + 0.02, G);
+    // Золотая кайма по верхнему краю фасада и светящиеся «окошки» панелей.
+    box(W + 0.2, 0.05, 0.05, gold, 0, top - 0.02, hd + 0.17, G);
+    for (let i = -2; i <= 2; i++) {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.02), new THREE.MeshBasicMaterial({ color: 0xffb25a }));
+      w.position.set(i * 1.1, base + 0.42, hd + 0.04);
+      G.add(w);
+    }
+
+    // Стопка бамбуковых пароварок слева, над ними пар.
+    const bam = mat(0xd8b46a), bamD = mat(0x9c7a3e);
+    const sx0 = -1.75, sz0 = zc;
+    for (let i = 0; i < 3; i++) {
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.14, 10), bam);
+      r.position.set(sx0, top + 0.1 + i * 0.15, sz0);
+      G.add(r);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.03, 10), bamD);
+      band.position.set(sx0, top + 0.1 + i * 0.15 + 0.03, sz0);
+      G.add(band);
+    }
+    const lid = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.16, 10), bamD);
+    lid.position.set(sx0, top + 0.1 + 3 * 0.15 + 0.02, sz0);
+    G.add(lid);
+    this.steam = [];
+    const steamTex = new THREE.CanvasTexture((() => {
+      const c = document.createElement('canvas'); c.width = c.height = 32;
+      const g = c.getContext('2d'); const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gr.addColorStop(0, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return c;
+    })());
+    for (let i = 0; i < 4; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, transparent: true, depthWrite: false, opacity: 0 }));
+      s.userData = { life: i / 4, x: sx0 + (i % 2 ? 0.1 : -0.1), y: top + 0.75, z: sz0, ph: i * 1.7 };
+      this.steam.push(s);
+      G.add(s);
+    }
+
+    // Чайник и две чашки справа.
+    const tea = mat(0x5fb0a8, 0.4);
+    const pot = new THREE.Mesh(new THREE.SphereGeometry(0.24, 9, 7), tea);
+    pot.scale.y = 0.8;
+    pot.position.set(1.55, top + 0.2, zc);
+    G.add(pot);
+    const potLid = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.12, 6), gold);
+    potLid.position.set(1.55, top + 0.43, zc);
+    G.add(potLid);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.28, 5), tea);
+    spout.position.set(1.8, top + 0.26, zc);
+    spout.rotation.z = -0.9;
+    G.add(spout);
+    for (const dx of [0.0, 0.3]) {
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.06, 0.1, 8), mat(0xeef3f8, 0.4));
+      cup.position.set(1.4 + dx, top + 0.05, zc + 0.2);
+      G.add(cup);
+    }
+
+    // Кот-манэки у правого края: белый, красный воротник, золотая монета, машущая лапа.
+    const cat = new THREE.Group();
+    cat.position.set(2.2, top, zc);
+    const white = mat(0xf2f5f9);
+    const cb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), white);
+    cb.scale.y = 1.1; cb.position.y = 0.22; cat.add(cb);
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), white);
+    ch.position.y = 0.52; cat.add(ch);
+    for (const sx of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), white);
+      ear.position.set(sx * 0.11, 0.69, 0); cat.add(ear);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02, 5, 4), new THREE.MeshBasicMaterial({ color: 0x14171e }));
+      eye.position.set(sx * 0.06, 0.55, 0.15); cat.add(eye);
+    }
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 5, 10), mat(0xb8372f));
+    collar.rotation.x = Math.PI / 2; collar.position.y = 0.38; cat.add(collar);
+    const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.025, 8), new THREE.MeshStandardMaterial({ color: C.gold, emissive: C.gold, emissiveIntensity: 0.35, roughness: 0.4, flatShading: true }));
+    coin.rotation.x = Math.PI / 2; coin.position.set(0, 0.28, 0.2); cat.add(coin);
+    const arm = new THREE.Group();
+    arm.position.set(0.17, 0.35, 0.05);
+    const paw = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.16, 3, 6), white);
+    paw.position.y = 0.1; arm.add(paw);
+    cat.add(arm);
+    this.cat = arm;
+    G.add(cat);
+
+    // Светящиеся склянки по центру-слева и стопка ящиков справа сзади.
+    const vials = [[-0.95, 0x8fdcff], [-0.7, 0xd98aff], [-0.45, 0xa6ff8a]];
+    vials.forEach(([x, c], i) => {
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.2 + (i % 2) * 0.06, 6), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.3, flatShading: true }));
+      v.position.set(x - 0.4, top + 0.12, zc + 0.12);
+      G.add(v);
+      const gl = softGlow('rgba(200,220,255,A)', 0.9);
+      gl.position.set(x - 0.4, top + 0.18, zc + 0.12);
+      G.add(gl);
+    });
+    const crate = mat(0x8a5a36), crateD = mat(0x6e4627);
+    box(0.5, 0.36, 0.4, crate, 1.0, top + 0.18, zc - 0.05, G);
+    box(0.52, 0.04, 0.42, crateD, 1.0, top + 0.37, zc - 0.05, G);
+    box(0.38, 0.28, 0.32, crate, 1.0, top + 0.55, zc - 0.05, G);
+    box(0.4, 0.04, 0.34, gold, 1.0, top + 0.71, zc - 0.05, G);
+  }
+
+  /** (tx, tz): положение игрока в осях лавки (+z к камере). */
   update(dt, tx = 0, tz = 9) {
     this.t += dt;
-    this.husky.update(dt, tx, tz);
-    for (const lantern of this.lanterns) {
-      lantern.rotation.z = Math.sin(this.t * 1.8 + lantern.userData.ph) * 0.038;
+    const t = this.t;
+    for (const l of this.lanterns) {
+      const p = l.userData.ph;
+      l.rotation.z = 0.05 * Math.sin(t * 1.3 + p);
+      l.rotation.x = 0.04 * Math.sin(t * 1.1 + p * 2);
     }
-    this.lights[0].intensity = 5.6 * (1 + Math.sin(this.t * 5.0) * 0.055);
-    this.lights[1].intensity = 3.4 * (1 + Math.sin(this.t * 3.8) * 0.07);
+    const f = 1 + 0.05 * Math.sin(t * 2.3) + 0.03 * Math.sin(t * 5.1);
+    this.lights[0].intensity = 7 * f;
+    this.lights[1].intensity = 6 * f;
+    this.husky.update(dt, tx, tz);
+    if (this.cat) this.cat.rotation.z = -0.5 + 0.35 * Math.sin(t * 3.2); // кот-манэки машет лапой
+    for (const s of this.steam) { // пар над корзинками
+      const u = s.userData;
+      u.life = (u.life + dt * 0.5) % 1;
+      s.position.set(u.x + Math.sin(t * 2 + u.ph) * 0.06, u.y + u.life * 0.8, u.z);
+      s.material.opacity = 0.5 * Math.sin(u.life * Math.PI);
+      s.scale.setScalar(0.3 + u.life * 0.4);
+    }
   }
 }

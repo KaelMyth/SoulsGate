@@ -1,5 +1,5 @@
 {
-  "build": 60,
-  "commit": "cb9594d",
-  "notes": "v0.2.4 — Forgotten Bazaar: 3D mage restyle and layered pseudo-3D merchant stall."
+  "build": 61,
+  "commit": "b087cc7",
+  "notes": "v0.2.5 — Revert #60: restore the original mage and merchant stall models."
 }
