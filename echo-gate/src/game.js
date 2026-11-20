@@ -119,6 +119,8 @@ export class Game {
       this.stats.onLevel = () => { if (this.playing) this.levelUp.request(); };
     }
     this.pauseBtn = o.ui.pauseBtn;
+    this.dashBtn = o.ui.dashBtn;
+    if (this.dashBtn) this.dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (this.playing && !this.paused && !this.choosing) this.dashFromInput(); });
     this.pauseEl = o.ui.pause;
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
     if (this.pauseEl) this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
@@ -177,6 +179,7 @@ export class Game {
     const a = Math.PI / 4;
     this.inHub = true;
     this.playing = false;
+    if (this.dashBtn) this.dashBtn.classList.add('gone');
     this.world.setHubGround(true, H.halfW - 0.5, H.halfD - 0.5);
     this.hub.setActive(true);
     this.scatter.setVisible(false);
@@ -236,6 +239,7 @@ export class Game {
       this.spawner.start();
       if (this.hud) { this.hud.show(); this.settings.show(); }
       if (this.pauseBtn) this.pauseBtn.classList.remove('gone');
+      if (this.dashBtn) this.dashBtn.classList.remove('gone');
       if (fade) fade.classList.remove('on');
       this.switching = false;
     }, ms);
@@ -272,6 +276,7 @@ export class Game {
     this.block.durMult = 1 + this.stats.bonus.block;
     this.block.update(dt, inp.x !== 0 || inp.z !== 0 || m.dashing, this.playing);
     this.hero.update(dt, m, this.cfg.hero.speed * m.speedMult);
+    if (this.dashBtn) this.dashBtn.classList.toggle('wait', m.cooldown > 0 || m.dashing);
     this.stats.update(dt);
     this.blockView.update(dt, this.block, m.x, m.z, this.cfg.hero.radius);
     this.invuln = Math.max(0, this.invuln - dt);

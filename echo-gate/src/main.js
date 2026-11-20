@@ -15,6 +15,7 @@ const ui = {
   shopBtn: document.getElementById('shop-btn'),
   gearBtn: document.getElementById('gear-btn'),
   pauseBtn: document.getElementById('pause-btn'),
+  dashBtn: document.getElementById('dash-btn'),
   pause: document.getElementById('pause'),
 };
 const R = CONFIG.stick.radius;
