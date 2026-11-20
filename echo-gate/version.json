@@ -1,5 +1,5 @@
 {
-  "build": 44,
+  "build": 45,
   "commit": "dcf0ecb",
-  "notes": "Gravity, Laser and Blades staffs: models in the inventory, equip on the mage."
+  "notes": "Ground: minimal low-poly baked texture without snow."
 }
