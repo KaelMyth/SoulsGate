@@ -365,7 +365,7 @@ export class Game {
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);
     const ag = this.hub.gearButtonAnchor(this.anchor);
     this.gearBtn.update(dt, this.hub.distToGear(this.motion.x, this.motion.z), this.world, hubOn, ag.x, ag.y, ag.z);
-    if (this.hud) { this.hud.update(dt, this.hero); this.settings.refresh(); }
+    if (this.hud) { this.hud.update(dt, this.hero, this.block); this.settings.refresh(); }
     requestAnimationFrame((n) => this.frame(n));
   }
 
