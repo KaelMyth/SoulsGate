@@ -1,5 +1,5 @@
 {
-  "build": 54,
-  "commit": "2f8555b",
-  "notes": "Sharpening: anvil window with pedestal, gem socket, chance and stat gains; broken tab; gold in the hub."
+  "build": 55,
+  "commit": "9a5b356",
+  "notes": "Sharpening window simplified: gems are placed automatically, stats on the info button."
 }

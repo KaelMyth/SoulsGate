@@ -342,7 +342,7 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge .fg-socket.filled b { font-size: 14px; color: #fff; }
 #forge .fg-socket.drop { transform: scale(1.12); border-color: #ffe08a; box-shadow: 0 0 28px rgba(255, 224, 138, 0.9); }
 #forge .fg-socket-hint { text-align: center; font-size: 12px; font-style: italic; color: var(--dim); line-height: 1.2; }
-#forge .fg-info { flex: 0 0 auto; margin: 0 14px; padding: 10px 14px 8px; border: 1px solid #3d2f66; border-radius: 14px; background: linear-gradient(rgba(34, 22, 66, 0.75), rgba(14, 9, 30, 0.85)); box-shadow: 0 0 20px rgba(120, 80, 220, 0.2); }
+#forge .fg-info-old { flex: 0 0 auto; margin: 0 14px; padding: 10px 14px 8px; border: 1px solid #3d2f66; border-radius: 14px; background: linear-gradient(rgba(34, 22, 66, 0.75), rgba(14, 9, 30, 0.85)); box-shadow: 0 0 20px rgba(120, 80, 220, 0.2); }
 #forge .fg-chance { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px; color: var(--dim); }
 #forge .fg-chance b { font-size: 26px; color: #fff; text-shadow: 0 0 10px rgba(200, 170, 255, 0.6); }
 #forge .fg-bar { height: 7px; margin: 4px 0 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); overflow: hidden; }
@@ -364,3 +364,12 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge .fg-toast { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); max-width: 80%; padding: 8px 16px; border-radius: 12px; background: rgba(12, 8, 26, 0.9); border: 1px solid #8e72d6; color: #fff; font-size: 16px; text-align: center; opacity: 0; pointer-events: none; }
 #forge .fg-toast.on { animation: fgToast 2.4s ease-out forwards; }
 @keyframes fgToast { 0% { opacity: 0; transform: translate(-50%, 8px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+
+/* Упрощение окна: шанс на виду, характеристики по кнопке «i», камни вложены сами. */
+#forge .fg-chance { position: absolute; left: 5%; top: 32%; width: 92px; flex-direction: column; align-items: center; text-align: center; font-size: 14px; color: var(--dim); display: flex; }
+#forge .fg-chance b { font-size: 30px; color: var(--c, #fff); text-shadow: 0 0 12px var(--c, #fff); }
+#forge .fg-i { flex: 0 0 auto; width: 48px; height: 48px; padding: 0; border: 1px solid #5a4690; border-radius: 50%; background: rgba(40, 28, 74, 0.8); color: #d9c8ff; font: italic 700 24px Georgia, serif; cursor: pointer; }
+#forge .fg-sheet { position: absolute; left: 14px; right: 14px; bottom: 82px; padding: 10px 14px; border: 1px solid #5a4690; border-radius: 14px; background: rgba(18, 11, 38, 0.96); box-shadow: 0 0 24px rgba(0, 0, 0, 0.6); opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
+#forge .fg-sheet.on { opacity: 1; transform: none; pointer-events: auto; }
+#forge .fg-go { flex: 1 1 auto; }
+#forge .fg-stage { bottom: 14%; }
