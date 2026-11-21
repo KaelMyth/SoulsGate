@@ -51,15 +51,16 @@ function basicStaff(glowTex, matBelt) {
   return { group, crystal, glow, update() {} };
 }
 
-/** Огненный: обугленное древко с тлеющими кольцами, железная жаровня с когтями, живое пламя и искры. */
-function fireStaff(glowTex, matBelt) {
+/** Огненный посох, три ступени (+0..4 / +5..9 / +10): жаровня с малым пламенем; раскалённая жаровня с кольцом угольков; живое пламя: огненный шар над жаровней с малыми шарами и язычками. */
+function fireStaff(glowTex, matBelt, tier = 0) {
   const group = new THREE.Group();
   const char = std(0x2a1812, { roughness: 0.95 });
   const iron = std(0x3b3030, { roughness: 0.45, metalness: 0.7 });
-  const ember = basic(0xff7a24);
+  const ember = basic(tier === 2 ? 0xffb040 : 0xff7a24);
   shaftParts(group, char, iron, matBelt);
-  for (const y of [-0.05, 0.35, 0.75, 1.15]) { // тлеющие трещины-кольца
-    const r = new THREE.Mesh(new THREE.TorusGeometry(0.046, 0.009, 6, 18), ember);
+  const cracks = tier === 0 ? [0.35, 1.15] : tier === 1 ? [-0.05, 0.35, 0.75, 1.15] : [-0.15, 0.15, 0.45, 0.75, 1.05, 1.3];
+  for (const y of cracks) { // тлеющие трещины-кольца: на высшей ступени раскалены сильнее
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.046, tier === 2 ? 0.015 : 0.009, 6, 18), ember);
     r.rotation.x = Math.PI / 2;
     r.position.y = y;
     group.add(r);
@@ -67,31 +68,59 @@ function fireStaff(glowTex, matBelt) {
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.1, 12), iron);
   collar.position.y = 1.52;
   group.add(collar);
-  // Жаровня: пять изогнутых когтей вверх.
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
+  // Жаровня: когти вверх, ступень 0 три коротких, 1 пять, 2 семь разведённых широко.
+  const nClaws = [3, 5, 7][tier];
+  const spread = [0.12, 0.15, 0.24][tier];
+  const topY = [1.82, 1.95, 2.05][tier];
+  for (let i = 0; i < nClaws; i++) {
+    const a = (i / nClaws) * Math.PI * 2;
     const c = Math.cos(a), s = Math.sin(a);
-    group.add(tube([[c * 0.05, 1.55, s * 0.05], [c * 0.15, 1.68, s * 0.15], [c * 0.13, 1.84, s * 0.13], [c * 0.07, 1.95, s * 0.07]], 0.016, iron, 14));
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.06, 6), ember);
-    tip.position.set(c * 0.07, 1.97, s * 0.07);
+    group.add(tube([[c * 0.05, 1.55, s * 0.05], [c * spread, 1.68, s * spread], [c * spread * 0.85, (1.68 + topY) / 2 + 0.05, s * spread * 0.85], [c * (spread * 0.5), topY, s * (spread * 0.5)]], tier === 2 ? 0.02 : 0.016, iron, 14));
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.02, tier === 2 ? 0.09 : 0.06, 6), ember);
+    tip.position.set(c * spread * 0.5, topY + 0.02, s * spread * 0.5);
     group.add(tip);
   }
-  const crystal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.075, 0), std(0xff7a24, { emissive: 0xff5a10, emissiveIntensity: 1.2, roughness: 0.3 }));
+  const crystal = new THREE.Mesh(new THREE.IcosahedronGeometry([0.06, 0.075, 0.09][tier], 0), std(0xff7a24, { emissive: 0xff5a10, emissiveIntensity: 1.2, roughness: 0.3 }));
   crystal.scale.y = 1.25;
-  crystal.position.y = 1.72;
-  const flameOuter = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.62, 8, 1, true), basic(0xff6a1f, { transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
-  const flameInner = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.44, 8, 1, true), basic(0xffd36a, { transparent: true, opacity: 0.95, side: THREE.DoubleSide }));
-  flameOuter.position.y = 2.02;
-  flameInner.position.y = 1.92;
-  const glow = halo(glowTex, 0xff8a2e, 1.3, 0.75);
-  glow.position.y = 1.9;
+  crystal.position.y = [1.68, 1.72, 1.78][tier];
+  const fs = [0.7, 1.1, 0.95][tier]; // размер пламени
+  const flameOuter = new THREE.Mesh(new THREE.ConeGeometry(0.18 * fs, 0.62 * fs, 8, 1, true), basic(0xff6a1f, { transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
+  const flameInner = new THREE.Mesh(new THREE.ConeGeometry(0.1 * fs, 0.44 * fs, 8, 1, true), basic(0xffd36a, { transparent: true, opacity: 0.95, side: THREE.DoubleSide }));
+  const baseY = [1.88, 2.02, 1.9][tier];
+  flameOuter.position.y = baseY;
+  flameInner.position.y = baseY - 0.1;
+  const glow = halo(glowTex, tier === 2 ? 0xff5a14 : 0xff8a2e, [1.0, 1.5, 2.3][tier], [0.6, 0.8, 0.9][tier]);
+  glow.position.y = 1.9 + 0.05 * tier;
   const sparks = [];
-  for (let i = 0; i < 6; i++) {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.014, 0), basic(0xffc060));
+  const nS = [4, 8, 14][tier];
+  for (let i = 0; i < nS; i++) {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.014 + 0.004 * tier, 0), basic(0xffc060));
     group.add(m);
     sparks.push({ m, a: Math.random() * 6.28, ph: Math.random(), sp: 0.5 + Math.random() * 0.5 });
   }
   group.add(crystal, flameOuter, flameInner, glow);
+  // Ступень +5: ярче горит и по кольцу вокруг пламени бегут угольки. Ступень +10: над жаровней висит живой огненный шар,
+  // вокруг него три малых шара и язычки; с шара срываются капли огня.
+  const orbs = [];
+  let lifeBall = null, lifeCore = null, lifeHalo = null;
+  if (tier === 1) {
+    for (let i = 0; i < 4; i++) { const m = halo(glowTex, 0xffa030, 0.14, 0.9); group.add(m); orbs.push({ m, a: (i / 4) * 6.28, r: 0.26, h: 0 }); }
+  }
+  if (tier === 2) {
+    lifeBall = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 1), basic(0xff5a14, { transparent: true, opacity: 0.8 }));
+    lifeBall.position.y = 2.36;
+    lifeCore = halo(glowTex, 0xfff0b0, 0.34, 1);
+    lifeCore.position.y = 2.36;
+    lifeHalo = halo(glowTex, 0xff6a1f, 0.9, 0.9);
+    lifeHalo.position.y = 2.36;
+    group.add(lifeBall, lifeCore, lifeHalo);
+    for (let i = 0; i < 3; i++) { const m = halo(glowTex, 0xffb040, 0.17, 0.95); group.add(m); orbs.push({ m, a: (i / 3) * 6.28, r: 0.36, h: 0.05 }); }
+    for (let i = 0; i < 6; i++) { // язычки вокруг шара
+      const m = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.2, 5), basic(0xff8a2a, { transparent: true, opacity: 0.8 }));
+      group.add(m);
+      orbs.push({ m, a: (i / 6) * 6.28, r: 0.2, h: 0.0, tongue: true });
+    }
+  }
   return {
     group, crystal, glow,
     update(t, k) {
@@ -99,11 +128,30 @@ function fireStaff(glowTex, matBelt) {
       flameOuter.scale.set(1 + 0.05 * Math.sin(t * 17), f, 1 + 0.05 * Math.cos(t * 15));
       flameInner.scale.set(1, f * 1.1, 1);
       flameOuter.rotation.y = t * 2;
-      flameOuter.position.y = 2.02 + (f - 1) * 0.2;
+      flameOuter.position.y = baseY + (f - 1) * 0.2 * fs;
       for (const s of sparks) {
         const u = (t * s.sp + s.ph) % 1;
-        s.m.position.set(Math.cos(s.a + t) * (0.05 + u * 0.1), 1.8 + u * 0.55, Math.sin(s.a + t) * (0.05 + u * 0.1));
+        const rr = (0.05 + u * 0.1) * (1 + tier * 0.8);
+        s.m.position.set(Math.cos(s.a + t) * rr, 1.8 + u * (0.55 + 0.4 * tier), Math.sin(s.a + t) * rr);
         s.m.scale.setScalar(1 - u);
+      }
+      for (const o of orbs) {
+        const a = o.a + t * (o.tongue ? 1.4 : 2.2);
+        const cy = tier === 2 ? 2.36 : 2.0;
+        if (o.tongue) {
+          o.m.position.set(Math.cos(a) * o.r, cy + 0.06 * Math.sin(t * 6 + o.a), Math.sin(a) * o.r);
+          o.m.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2);
+          o.m.scale.y = 1 + 0.4 * Math.sin(t * 11 + o.a * 3);
+        } else {
+          o.m.position.set(Math.cos(a) * o.r, cy + o.h + 0.05 * Math.sin(t * 3 + o.a), Math.sin(a) * o.r);
+        }
+      }
+      if (lifeBall) {
+        const p = 1 + 0.1 * Math.sin(t * 9) + 0.05 * Math.sin(t * 19);
+        lifeBall.scale.setScalar(p);
+        lifeBall.rotation.set(t * 1.3, t * 1.9, 0);
+        lifeCore.scale.set(0.34 * p, 0.34 * p, 1);
+        lifeHalo.material.opacity = 0.75 + 0.15 * Math.sin(t * 7);
       }
     },
   };
@@ -532,5 +580,5 @@ export function buildStaffModel(variant, glowTex, matBelt, tier = 0) {
   const v = BUILDERS[variant] ? variant : 'basic';
   const m = BUILDERS[v](glowTex, matBelt, tier);
   m.glowTex = glowTex;
-  return tier > 0 && v !== 'ice' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
+  return tier > 0 && v !== 'ice' && v !== 'fire' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
 }

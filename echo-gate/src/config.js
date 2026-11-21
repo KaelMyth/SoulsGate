@@ -214,10 +214,18 @@ export const CONFIG = {
   fire: {
     burnTime: 3,         // с: сколько горит (каждое попадание обновляет)
     burnDps: 0.25,       // урон в секунду за стак (в выстрелах: 0.25 = четверть выстрела в секунду)
-    stacksToExplode: 3,  // стаков поджога до взрыва
+    maxStacks: 3,        // стаков поджога макссимум (взрыва на стаках нет)
     explosionRadius: 2.2, // м
     explosionDamage: 1.5, // урон взрыва по каждому в радиусе (в выстрелах)
-    deathScale: 0.7,      // взрыв при смерти горящего врага: доля радиуса и урона обычного взрыва (0 = выкл.)
+    deathScale: 0.7,      // взрыв при смерти горящего врага: доля радиуса и урона обычного взрыва
+    // Ступени посоха по заточке (+0..4, +5..9, +10): 1 только поджигает; 2 горящие враги взрываются при смерти; 3 после смерти и взрыва из огня собирается шар (живое пламя) и летит в ближайшего врага, вешая 1 стак.
+    tiers: [
+      { deathExplosion: false, liveFlame: false },
+      { deathExplosion: true, liveFlame: false },
+      { deathExplosion: true, liveFlame: true },
+    ],
+    flameGather: 0.6,    // с: за сколько огонь собирается в шар над врагом
+    flameSpeed: 14,      // м/с: скорость шара
   },
 
   // Электрический посох: вместо снаряда мгновенная дуга, стаки электризации, цепная молния.
@@ -250,7 +258,7 @@ export const CONFIG = {
     // Вид снаряда стихийных посохов по ступеням (+0..4 / +5..9 / +10): size — размер, dens — густота частиц, halo — цвет свечения, width — толщина дуги.
     look: {
       ice:      [{ size: 0.8, dens: 0.6, halo: 0x9fd8ff }, { size: 1.1, dens: 1.0, halo: 0x6fc8ff }, { size: 1.3, dens: 2.0, halo: 0x38e8ff }],
-      fire:     [{ size: 0.75, dens: 0.6, halo: 0xff8a2a }, { size: 1.2, dens: 1.0, halo: 0xff6a10 }, { size: 1.6, dens: 2.0, halo: 0xff3a08 }],
+      fire:     [{ size: 0.7, dens: 0.5, halo: 0xff8a2a }, { size: 1.15, dens: 1.0, halo: 0xff6a10 }, { size: 1.45, dens: 2.2, halo: 0xff3a08 }],
       gravity:  [{ size: 0.75, dens: 0.6, halo: 0xa0a6b4 }, { size: 1.2, dens: 1.0, halo: 0x8c93a3 }, { size: 1.6, dens: 2.0, halo: 0x6a5cff }],
       electric: [{ size: 1, dens: 0.6, width: 0.8 }, { size: 1, dens: 1.0, width: 1.3 }, { size: 1, dens: 2.0, width: 1.9 }],
     },
