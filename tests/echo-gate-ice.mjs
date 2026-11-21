@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../echo-gate/src/config.js';
-import { resetStatus, applyIce, tickStatus, applyFire, burnTick } from '../echo-gate/src/status.js';
+import { resetStatus, applyIce, tickStatus, applyFire, burnTick, applyShock } from '../echo-gate/src/status.js';
 
 const ice = CONFIG.ice;
 const mk = (o = {}) => { const e = { ...o }; resetStatus(e); return e; };
@@ -55,4 +55,16 @@ test('огонь: горение гаснет через burnTime, послед�
   for (let i = 0; i < 100; i++) total += burnTick(e, 0.1, fire, 1);
   assert.ok(Math.abs(total - fire.burnDps * fire.burnTime) < 1e-6);
   assert.equal(e.burn, 0);
+});
+
+test('электричество: два стака вызывают цепную молнию, стак гаснет через stackTime', () => {
+  const el = CONFIG.electric;
+  const e = mk();
+  assert.equal(applyShock(e, el), 'shock');
+  assert.equal(e.shock, 1);
+  tickStatus(e, el.stackTime + 0.1, CONFIG.ice);
+  assert.equal(e.shock, 0);
+  applyShock(e, el);
+  assert.equal(applyShock(e, el), 'chain');
+  assert.equal(e.shock, 0);
 });
