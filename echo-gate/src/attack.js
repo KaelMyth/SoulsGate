@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { Particles } from './particles.js';
 import { applyIce, applyFire, burnTick, applyShock, gravityFactor } from './status.js';
 import { Lightning } from './lightning.js';
+import { Laser } from './laser.js';
+import { Blades } from './blades.js';
 
 const BLUE = 0x2f86ff;
 const DEEP = 0x1f5bff;
@@ -79,6 +81,8 @@ const PAL = {
   gravity: { flash: 'glow', flashC: 0xd8dce6, ring: 0x9aa0b0, muz0: 0xffffff, muz1: 0x7d8494, sp0: 0xffffff, sp1: 0x7d8494, spG: 6, spD: 2.5, spS: 0.05, mote0: 0xcfd3dc, mote1: 0x4a4f5c, moteG: -0.4, shock: 0x9aa0b0 },
   fire: { flash: 'glow', flashC: 0xffc060, ring: 0xff7a1a, muz0: 0xfff0b0, muz1: 0xff5a10, sp0: 0xffe9a0, sp1: 0xff3a10, spG: 6, spD: 2.2, spS: 0.06, mote0: 0xffa040, mote1: 0x802010, moteG: -1.6, shock: 0xff7a1a },
 };
+PAL.laser = { flash: 'glow', flashC: 0xff6a78, ring: 0xff3345, muz0: 0xffffff, muz1: 0xff3345, sp0: 0xffffff, sp1: 0xff3345, spG: 4, spD: 3, spS: 0.03, mote0: 0xff8a95, mote1: 0x8a0f20, moteG: 0, shock: 0xff3345 };
+PAL.blades = { flash: 'glow', flashC: 0xdff4ff, ring: 0x8fc8ff, muz0: 0xffffff, muz1: 0x6fb4ff, sp0: 0xffffff, sp1: 0x6fb4ff, spG: 5, spD: 2.6, spS: 0.05, mote0: 0xe8f6ff, mote1: 0x4a78c8, moteG: -0.3, shock: 0x8fc8ff };
 const pal = (el) => PAL[el] || PAL.basic;
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
@@ -97,6 +101,7 @@ function makeSpike() {
   g.visible = false;
   return g;
 }
+const LASER_CFG = () => ({ glow: 0xff3345, core: 0xffffff, glowWidth: 0.9, coreWidth: 0.16, life: 0.24 });
 const KILL_COLOR = { beetle: 0xff6a55, shooter: 0xc07bff, bull: 0xffa040, rock: 0xa9b8d0 }; // осколки убитого врага
 const rr = (a, b) => a + Math.random() * (b - a);
 
@@ -114,6 +119,7 @@ export class Attack {
     this.fx = [];      // пул вспышек и колец попадания
     this.parts = new Particles(scene, this.glow); // искры, осколки, огоньки
     this.lightning = new Lightning(scene, this.glow); // дуги электрического посоха
+    this.laser = new Laser(scene, LASER_CFG());
     this.shocks = [];  // кольца-волны на земле
     for (let i = 0; i < SHOCKS; i++) this.shocks.push(this.makeShock());
     this.cool = 0;
@@ -121,6 +127,20 @@ export class Attack {
     this.onKill = null; // (жук) => void, вызывается при убийстве
     this.tip = new THREE.Vector3();
     this.dir = new THREE.Vector3();
+    this.blades = null; // Blades: создаётся, когда game передаст CONFIG.blades (attack.setBlades)
+  }
+
+  /** Конец забега: убрать клинок и лучи сразу. */
+  clearStaffFx() {
+    if (this.blades) this.blades.hideNow();
+    for (const b of this.laser.pool) { b.on = false; b.glow.visible = b.core.visible = false; }
+  }
+
+  /** Подключить посохи лазера и клинков: их числа лежат в CONFIG.laser / CONFIG.blades. */
+  setStaffCfgs(laserCfg, bladesCfg) {
+    this.laserCfg = laserCfg;
+    this.laser.cfg = laserCfg;
+    this.blades = new Blades(this.scene, bladesCfg, this);
   }
 
   makeBolt() {
@@ -253,6 +273,7 @@ export class Attack {
     this.hero.staffTip(this.tip);
     const tx = target.state.x, tz = target.state.z, ty = 0.4;
     this.dir.set(tx - this.tip.x, ty - this.tip.y, tz - this.tip.z).normalize();
+    if (this.getElement && this.getElement() === 'laser') { this.fireLaser(target); return; } // лазерный посох: мгновенный пробивающий луч
     if (this.getElement && this.getElement() === 'electric') { this.zap(target); return; } // электрический посох: мгновенная дуга вместо снаряда
     const b = this.bolts.find((e) => !e.active) || this.makeBolt();
     b.active = true;
@@ -298,13 +319,13 @@ export class Attack {
   }
 
   /** Удар током по врагу: урон, лёгкое откидывание, искры. true, если враг убит (тогда он исчезает, награда как обычно). */
-  strike(e, dmg, dx, dz) {
+  strike(e, dmg, dx, dz, el = 'electric') {
     const x = e.state.x, z = e.state.z;
     e.hp -= dmg;
     this.spawner.knock(e, dx, dz);
     const kill = e.hp <= 0;
-    this.burst(x, 0.45, z, this.cfg.hitSize * (kill ? 1.8 : 0.9), kill ? 0.45 : 0.26, 'electric');
-    this.impact(x, 0.45, z, dx, dz, kill, e.kind, 'electric');
+    this.burst(x, 0.45, z, this.cfg.hitSize * (kill ? 1.8 : 0.9), kill ? 0.45 : 0.26, el);
+    this.impact(x, 0.45, z, dx, dz, kill, e.kind, el);
     if (kill) { this.spawner.kill(e); if (this.onKill) this.onKill(e); }
     return kill;
   }
@@ -330,6 +351,42 @@ export class Attack {
       this.strike(best, dmg, nx - px, nz - pz);
       px = nx; pz = nz; dmg *= (1 - E.chainFalloff);
     }
+  }
+
+  /** Лазерный посох: луч из кристалла в сторону цели на всю дальность, бьёт каждого врага на линии (и сбивает мошек). */
+  fireLaser(target) {
+    const c = this.cfg, L = this.laserCfg, R = this.cur().range;
+    const tx = target.state.x, tz = target.state.z;
+    let dx = tx - this.tip.x, dz = tz - this.tip.z;
+    const d = Math.hypot(dx, dz) || 1;
+    dx /= d; dz /= d;
+    this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
+    const ex = this.tip.x + dx * R, ez = this.tip.z + dz * R;
+    this.laser.shoot(this.tip.x, this.tip.y, this.tip.z, ex, 0.5, ez);
+    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize * 1.4, 0.2, 'laser');
+    this.muzzle(this.tip.x, this.tip.y, this.tip.z, dx, 0, dz, 'laser');
+    const dmg = this.cur().damage * L.damageMul;
+    const hits = [];
+    for (const e of this.spawner.alive) {
+      const rx = e.state.x - this.tip.x, rz = e.state.z - this.tip.z;
+      const t = rx * dx + rz * dz;
+      if (t < 0 || t > R + e.radius) continue;
+      if (Math.abs(rx * dz - rz * dx) < L.halfWidth + e.radius) hits.push(e);
+    }
+    for (const e of hits) this.strike(e, dmg, dx, dz, 'laser');
+    if (this.midges) for (let t = 1; t < R; t += 0.7) {
+      const mid = this.midges.hitTest(this.tip.x + dx * t, this.tip.z + dz * t, L.halfWidth + 0.15);
+      if (mid) { this.midges.kill(mid, 'shot'); this.impact(mid.x, 0.7, mid.z, dx, dz, false, null, 'laser'); }
+    }
+    // искры вдоль луча: жар
+    for (let i = 0; i < this.n(14); i++) {
+      const t = rr(0.5, R), side = rr(-0.25, 0.25);
+      this.parts.emit({ x: this.tip.x + dx * t - dz * side, y: this.tip.y + (0.5 - this.tip.y) * (t / R) + rr(-0.1, 0.2), z: this.tip.z + dz * t + dx * side,
+        vx: rr(-0.6, 0.6), vy: rr(0.2, 1.4), vz: rr(-0.6, 0.6), life: rr(0.2, 0.45), size0: rr(0.08, 0.16), size1: 0, c0: 0xffffff, c1: 0xff3345, drag: 3, grav: 0, alpha: 0.9 });
+    }
+    // конец луча: тёплая вспышка и пятно на земле
+    this.burst(ex, 0.5, ez, c.hitSize * 0.9, 0.25, 'laser');
+    this.shock(ex, ez, c.hitSize * 1.8, 0.3, 0xff3345);
   }
 
   /** Электризованные враги искрят: мелкие жёлтые искры вокруг. */
@@ -500,7 +557,9 @@ export class Attack {
   update(dt, hx, hz) {
     const c = this.cfg;
     this.cool -= dt;
-    if (this.cool <= 0) {
+    const el = this.getElement ? this.getElement() : null;
+    if (this.blades) this.blades.update(dt, hx, hz, el === 'blades'); // клинок живёт сам: орбита и рывки на врагов в досягаемости
+    if (el !== 'blades' && this.cool <= 0) {
       const target = this.nearest(hx, hz);
       if (target) { this.fire(target); this.cool = this.cur().interval; }
       else this.cool = 0.1; // нет цели: проверяем чаще, чтобы выстрел вышел сразу, как жук появится
@@ -575,6 +634,7 @@ export class Attack {
     this.burn(dt);
     this.sparkle(dt);
     this.lightning.update(dt);
+    this.laser.update(dt);
     this.parts.update(dt);
     for (const k of this.shocks) {
       if (!k.on) continue;

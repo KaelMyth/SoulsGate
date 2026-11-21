@@ -80,6 +80,7 @@ export class Game {
     this.attack.fireCfg = this.cfg.fire;
     this.attack.elec = this.cfg.electric;
     this.attack.gravCfg = this.cfg.gravity;
+    this.attack.setStaffCfgs(this.cfg.laser, this.cfg.blades);
     this.attack.getElement = () => { const s = this.inventory.equipped.staff; return s ? s.element : null; };
     this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
     this.loot.onCollect = (type, v) => {
@@ -236,6 +237,7 @@ export class Game {
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
     for (const b of this.attack.bolts) this.attack.deactivate(b);
+    this.attack.clearStaffFx();
   }
 
   /** Удар жука по герою: учитывает неуязвимость после удара. Возвращает true, если урон прошёл. */
@@ -376,6 +378,7 @@ export class Game {
     this.midges.clear();
     this.midgeView.update(0, this.midges.items);
     for (const b of this.attack.bolts) this.attack.deactivate(b);
+    this.attack.clearStaffFx();
     this.loot.vacuumAll();
     if (this.pauseBtn) this.pauseBtn.classList.add('gone');
     if (this.dashBtn) this.dashBtn.classList.add('gone');

@@ -1,5 +1,5 @@
 {
-  "build": 78,
+  "build": 79,
   "commit": "071bbb8",
-  "notes": "Snowstorm: starts at level 1, +1 level every 2 minutes; flakes no longer jump when wind changes."
+  "notes": "Laser staff (piercing beam) and Blades staff (orbiting spectral blade). XP and power/skill drop rates halved."
 }
