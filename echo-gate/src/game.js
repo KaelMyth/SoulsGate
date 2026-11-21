@@ -497,6 +497,7 @@ export class Game {
     this.floorClearTime = 0;
     this.inHub = false;
     this.playing = true;
+    this.blizzard.startRun();
     this.hub.setActive(false);
     this.scatter.setVisible(true);
     this.world.setHubGround(false);
@@ -581,7 +582,8 @@ export class Game {
       if (this.floorClearTime >= 1.4) this.showFloorCleared();
     }
     this.world.follow(dt, m.x, m.z, false);
-    this.blizzard.setTarget(this.playing ? this.cfg.blizzard.level : 0); // в хабе тихо
+    if (this.playing) this.blizzard.runT += dt;
+    this.blizzard.setTarget(this.playing ? this.blizzard.stageTarget() : 0); // в хабе тихо
     this.blizzard.update(dt, m.x, m.z, this.world);
   }
 

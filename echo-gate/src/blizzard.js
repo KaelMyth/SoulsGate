@@ -45,6 +45,9 @@ export class Blizzard {
     this.target = 0;     // куда едем
     this.t = 0;          // время бури, с
     this.scroll = new THREE.Vector2();
+    this.drift = new THREE.Vector2();
+    this.fallT = 0;
+    this.runT = 0;       // время забега, с: каждые cfg.stageSeconds сила бури растёт на уровень
     this.windDir = new THREE.Vector3(1, 0, 0);
     this.hero = new THREE.Vector3();
     this.px = new THREE.Vector3();
@@ -119,20 +122,27 @@ export class Blizzard {
     this.flakeMat = new THREE.ShaderMaterial({
       transparent: true, depthTest: false, depthWrite: false,
       uniforms: {
-        uTime: { value: 0 }, uHero: { value: new THREE.Vector3() }, uBox: { value: new THREE.Vector3(this.cfg.box, this.cfg.height, this.cfg.box) },
+        uTime: { value: 0 }, uDrift: { value: new THREE.Vector2() }, uFallT: { value: 0 }, uHero: { value: new THREE.Vector3() }, uBox: { value: new THREE.Vector3(this.cfg.box, this.cfg.height, this.cfg.box) },
         uWind: { value: new THREE.Vector2(1, 0) }, uSpeed: { value: 0 }, uFall: { value: 2 }, uStreak: { value: 0.15 },
         uSize: { value: 0.04 }, uAlpha: { value: 0 }, uGust: { value: 0 }, uNear: { value: 8 },
         uColor: { value: new THREE.Color(this.cfg.flakeColor) },
       },
       vertexShader: `
         attribute vec4 aSeed; attribute vec2 aCorner;
-        uniform float uTime, uSpeed, uFall, uStreak, uSize, uAlpha, uGust, uNear;
+        uniform vec2 uDrift; uniform float uFallT; uniform float uTime, uSpeed, uFall, uStreak, uSize, uAlpha, uGust, uNear;
         uniform vec3 uHero, uBox; uniform vec2 uWind;
         varying vec2 vC; varying float vA;
         void main() {
           float spd = uSpeed * (0.55 + 0.9 * aSeed.w);
           vec3 vel = vec3(uWind.x * spd, -uFall * (0.6 + 0.8 * aSeed.z), uWind.y * spd);
-          vec3 p = aSeed.xyz * uBox + vel * uTime;
+          // положение = интеграл скорости (копится на процессоре): смена ветра и уровня не дёргает снежинки назад
+          vec3 p = aSeed.xyz * uBox;
+          p.xz += uDrift * (0.55 + 0.9 * aSeed.w);
+          p.y -= uFallT * (0.6 + 0.8 * aSeed.z);
+          // живое колыхание: каждая снежинка слегка качается поперёк ветра, не замирая
+          float ph = uTime * (0.9 + 1.6 * aSeed.y) + aSeed.x * 40.0;
+          p.xz += vec2(-uWind.y, uWind.x) * sin(ph) * 0.35 * (0.4 + uGust);
+          p.y += cos(ph * 0.8) * 0.12;
           vec3 lo = vec3(uHero.x - uBox.x * 0.5, 0.0, uHero.z - uBox.z * 0.5);
           p.x = lo.x + mod(p.x - lo.x, uBox.x);
           p.z = lo.z + mod(p.z - lo.z, uBox.z);
@@ -172,6 +182,16 @@ export class Blizzard {
     this.flakes.frustumCulled = false;
     this.flakeScene = new THREE.Scene();
     this.flakeScene.add(this.flakes);
+  }
+
+  /** Новый забег: буря с нуля, первый уровень сразу, дальше каждые cfg.stageSeconds на уровень выше. */
+  startRun() { this.runT = 0; this.level = 0; }
+
+  /** Цель силы по времени забега: 1 в начале, +1 за каждые stageSeconds, не выше числа уровней. */
+  stageTarget() {
+    const c = this.cfg;
+    if (!(c.stageSeconds > 0)) return c.level;
+    return Math.min(c.levels.length, 1 + Math.floor(this.runT / c.stageSeconds));
   }
 
   /** Сила бури 0..4 (цель); переход плавный. */
@@ -241,6 +261,12 @@ export class Blizzard {
 
     // снежинки
     const mu = this.flakeMat.uniforms;
+    // накопленный снос ветром и падение (в м при множителе 1): плавно при любой смене силы
+    this.drift.x = (this.drift.x + gx * P.speed * gustSpeed * dt) % 4096;
+    this.drift.y = (this.drift.y + gz * P.speed * gustSpeed * dt) % 4096;
+    this.fallT = (this.fallT + P.fall * dt) % 4096;
+    mu.uDrift.value.copy(this.drift);
+    mu.uFallT.value = this.fallT;
     mu.uTime.value = this.t;
     mu.uHero.value.set(hx, 0, hz);
     mu.uWind.value.set(gx, gz);
