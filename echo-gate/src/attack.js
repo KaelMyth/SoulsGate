@@ -294,6 +294,8 @@ export class Attack {
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
     b.el = this.getElement ? this.getElement() : null; // стихия надетого посоха задаёт вид снаряда и эффект попадания
     const ice = b.el === 'ice', fire = b.el === 'fire', grav = b.el === 'gravity', P = pal(b.el);
+    b.pierce = this.getMods ? this.getMods().pierce : 0; // сколько целей шарик пробьёт насквозь (модификатор Пробитие)
+    if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = grav; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
     const tier = this.tierNow();
     b.tier = tier && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0;
@@ -458,7 +460,8 @@ export class Attack {
       this.spawner.kill(e);
       if (this.onKill) this.onKill(e);
     }
-    this.deactivate(b);
+    if (b.pierce > 0) { b.pierce--; b.hitSet.add(e); } // пробил: летит дальше к следующему
+    else this.deactivate(b);
   }
 
   /** Убийство не выстрелом (горение, взрыв): вспышка, осколки, враг исчезает, награда как обычно. */
@@ -518,8 +521,9 @@ export class Attack {
   advance(b, c) {
     for (const e of this.spawner.alive) {
       if (b.y >= 1.0 + e.radius) continue; // выше спины жука: пролетает
+      if (b.hitSet && b.hitSet.has(e)) continue; // уже пробитый жук
       const dx = e.state.x - b.x, dz = e.state.z - b.z, r = c.hitRadius + e.radius;
-      if (dx * dx + dz * dz < r * r) { this.hit(b, e); return true; }
+      if (dx * dx + dz * dz < r * r) { this.hit(b, e); return !b.active; }
     }
     const mid = this.midges && this.midges.hitTest(b.x, b.z, c.hitRadius);
     if (mid) { this.midges.kill(mid, 'shot'); this.burst(mid.x, 0.7, mid.z, c.hitSize * 0.7, 0.25, b.el); this.impact(mid.x, 0.7, mid.z, b.vx, b.vz, false, null, b.el); this.deactivate(b); return true; }
@@ -584,6 +588,20 @@ export class Attack {
           const other = this.nearest(hx, hz, target);
           if (other) this.fire(other, { quiet: true });
           else this.fire(target, { quiet: true, spread: 0.22 });
+        }
+        const extra = this.getMods ? Math.round(this.getMods().shots) - 1 : 0; // модификаторы Эпический/Легендарный на посохе: больше снарядов за выстрел
+        if (extra > 0) {
+          const used = [target];
+          for (let k = 1; k <= extra; k++) {
+            let other = null, bd = Infinity;
+            for (const e of this.spawner.alive) { // ближайший ещё не выбранный враг в досягаемости
+              if (used.includes(e)) continue;
+              const dx = e.state.x - hx, dz = e.state.z - hz, d = dx * dx + dz * dz;
+              if (d < bd && d < this.cur().range * this.cur().range) { bd = d; other = e; }
+            }
+            if (other) { used.push(other); this.fire(other, { quiet: true }); }
+            else if (el !== 'laser' && el !== 'electric') this.fire(target, { quiet: true, spread: 0.16 * Math.ceil(k / 2) * (k % 2 ? 1 : -1) }); // врагов не хватило: веером
+          }
         }
         this.cool = this.cur().interval;
       }

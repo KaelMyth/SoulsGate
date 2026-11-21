@@ -1,12 +1,15 @@
 // Магическая рулетка при подборе фиолетового камня (кристалла умения): лента карточек катится справа налево,
 // замедляется и встаёт так, что выигрыш оказывается под меткой в центре, как кейс в CS:GO.
 // Пока внутри только цифры. Бой на время рулетки стоит. Если камней подобрано несколько, рулетки идут по очереди.
+import { MOD_INFO } from './mods.js';
+import { MOD_ICON } from './mod_icons.js';
+
 // Логика ленты (makeRoll) чистая, без DOM, тестируется в Node.
 
 /** Лента: cells чисел, выигрыш на позиции win; offset: на сколько px сдвинуть ленту, чтобы выигрыш встал под метку. */
-export function makeRoll(rnd, { cells = 60, win = 49, cellW = 88, gap = 8, max = 99 } = {}) {
+export function makeRoll(rnd, { cells = 60, win = 49, cellW = 88, gap = 8, max = 99, pick = null } = {}) {
   const items = [];
-  for (let i = 0; i < cells; i++) items.push(1 + Math.floor(rnd() * max));
+  for (let i = 0; i < cells; i++) items.push(pick ? pick() : 1 + Math.floor(rnd() * max)); // pick: свой выбор карточки (модификаторы)
   const pitch = cellW + gap;
   const jitter = (rnd() - 0.5) * cellW * 0.7; // метка не всегда ровно по центру карточки
   return { items, win, value: items[win], offset: win * pitch + cellW / 2 + jitter, pitch, cellW };
@@ -27,7 +30,9 @@ function el(tag, attrs = {}, ...kids) {
 
 export class Roulette {
   /** root: рамка игры; onOpen/onClose: бой ставят на паузу и снимают; onResult(число) */
-  constructor(root, { onOpen, onClose, onResult, spinMs = 5200, rnd = Math.random } = {}) {
+  constructor(root, { onOpen, onClose, onResult, onPick, pick, spinMs = 5200, rnd = Math.random } = {}) {
+    this.onPick = onPick || null; // (выигрыш, done): после «Tap to continue» открыть своё окно, потом вызвать done
+    this.pick = pick || null;     // () => карточка ленты; без неё катятся числа
     this.onOpen = onOpen || (() => {});
     this.onClose = onClose || (() => {});
     this.onResult = onResult || (() => {});
@@ -59,8 +64,8 @@ export class Roulette {
     this.open = true;
     this.done = false;
     this.onOpen();
-    this.roll = makeRoll(this.rnd);
-    this.strip.replaceChildren(...this.roll.items.map((n) => el('div', { class: 'rl-cell ' + tier(n) }, String(n))));
+    this.roll = makeRoll(this.rnd, { pick: this.pick });
+    this.strip.replaceChildren(...this.roll.items.map((n) => this.card(n)));
     this.strip.style.transform = 'translateX(0)';
     this.hint.textContent = '';
     this.hint.classList.remove('on');
@@ -71,6 +76,16 @@ export class Roulette {
     this.t0 = performance.now() + 500; // сначала окно плавно появляется
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** Карточка ленты: число или модификатор (иконка и название). */
+  card(n) {
+    if (typeof n === 'number') return el('div', { class: 'rl-cell ' + tier(n) }, String(n));
+    const info = MOD_INFO[n];
+    const c = el('div', { class: 'rl-cell mod ' + info.tier });
+    c.style.setProperty('--m', info.color);
+    c.innerHTML = `<span class="mi">${MOD_ICON[n]}</span><span class="mn">${info.name}</span>`;
+    return c;
   }
 
   frame(now) {
@@ -98,9 +113,10 @@ export class Roulette {
     this.open = false;
     this.root.classList.remove('on');
     clearTimeout(this.timer);
+    const next = () => { if (this.queue > 0) this.show(); else this.onClose(); };
     this.timer = setTimeout(() => {
       this.root.style.display = 'none';
-      if (this.queue > 0) this.show(); else this.onClose();
+      if (this.onPick && typeof this.roll.value === 'string') this.onPick(this.roll.value, next); else next();
     }, 350);
   }
 
