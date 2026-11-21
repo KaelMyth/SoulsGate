@@ -19,6 +19,7 @@ import { Bull } from './bull.js';
 import { LevelUp } from './levelup.js';
 import { pickChoices, applyUpgrade } from './upgrades.js';
 import { Block } from './block.js';
+import { Frost } from './frost.js';
 import { Roulette } from './roulette.js';
 import { BlockView } from './block_view.js';
 import { Rock } from './rock.js';
@@ -71,6 +72,9 @@ export class Game {
     this.attack.midges = this.midges; // выстрел сбивает мошек
     this.stats = new Stats(this.cfg);
     this.loot = new Loot(this.world.scene, this.cfg.loot);
+    this.frost = new Frost();
+    this.attack.ice = this.cfg.ice;
+    this.attack.getElement = () => { const s = this.inventory.equipped.staff; return s ? s.element : null; };
     this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
     this.loot.onCollect = (type, v) => {
       this.stats.collect(type, v);
@@ -560,6 +564,7 @@ export class Game {
     if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);
     if (this.playing) this.attack.update(dt, m.x, m.z);
+    this.frost.update(this.spawner.alive, this.stats.time || performance.now() / 1000);
     this.loot.update(dt, m.x, m.z);
     if (this.floorCleared && !this.floorChoiceShown) {
       this.floorClearTime += dt;

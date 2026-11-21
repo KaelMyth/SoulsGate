@@ -10,6 +10,7 @@
 //   на slam.range замирает на замах (на земле кольцо), бьёт в землю и выпускает мошек (onSlam; мошки: midges.js).
 //   Градации: доля стрелков и быков в волнах 6+ растёт с волной (waves.mix).
 // Числа: CONFIG.waves, CONFIG.beetle, CONFIG.shooter, CONFIG.bull, CONFIG.rock, CONFIG.guards, CONFIG.swarm. Для тестов фабрику жуков можно подменить (make).
+import { resetStatus, tickStatus } from './status.js';
 import { Swarm } from './swarm.js';
 
 const TAU = Math.PI * 2;
@@ -146,6 +147,7 @@ export class Spawner {
     b.yaw = Math.atan2(b.hx, b.hz); // лицом к герою
     b.age = 0;
     b.flash = 0;
+    resetStatus(b);
     b.aim = 0; b.aimTotal = def.aimTime || 0; b.fireTimer = def.firstShotDelay || 0;
     b.guardOf = null; b.goalOn = false; b.goalX = b.goalZ = 0;
     b.gen = ++this.gen;
@@ -422,12 +424,15 @@ export class Spawner {
   }
 
   /** Движение жуков к герою (стрелки держат дистанцию, охрана идёт на место в кольце) с учётом стаи, откидывания и касаний. hero: { x, z, radius }. */
-  moveBeetles(dt, hero) {
+  moveBeetles(dt0, hero) {
+    let dt = dt0;
     const list = this.alive;
     this.updateGuards(hero);
     this.swarm.steer(list);
     for (const e of list) {
       const def = e.def;
+      e.timeMul = tickStatus(e, dt0, this.cfg.ice); // лёд: замедление и заморозка
+      dt = dt0 * e.timeMul;
       if (e.goalOn) e.swX = e.swZ = 0; // стая охранников не тянет их друг к другу
       const hdx = hero.x - e.x, hdz = hero.z - e.z;
       const d = Math.hypot(hdx, hdz) || 1e-4;
@@ -459,9 +464,10 @@ export class Spawner {
       e.x += (vx + e.kbVx) * dt;
       e.z += (vz + e.kbVz) * dt;
       if (def.attack && e.atk.state === 'strike') { e.state.vx = e.atk.dirX * def.attack.length / def.attack.strike; e.state.vz = e.atk.dirZ * def.attack.length / def.attack.strike; } // для анимации
-      const decay = Math.exp(-dt / Math.max(0.01, e.kbTau));
+      const decay = Math.exp(-dt0 / Math.max(0.01, e.kbTau));
       e.kbVx *= decay; e.kbVz *= decay;
     }
+    dt = dt0;
     this.swarm.separate(list, hero);
     for (const e of list) {
       e.touchTimer = Math.max(0, e.touchTimer - dt);
@@ -470,7 +476,7 @@ export class Spawner {
       e.state.x = e.x; e.state.z = e.z;
       const reach = hero.radius + e.radius + 0.1;
       const dx = hero.x - e.x, dz = hero.z - e.z;
-      if (e.touchTimer <= 0 && dx * dx + dz * dz <= reach * reach && this.onTouch && this.onTouch(e)) e.touchTimer = e.def.touchCooldown;
+      if (e.touchTimer <= 0 && !(e.freezeT > 0) && dx * dx + dz * dz <= reach * reach && this.onTouch && this.onTouch(e)) e.touchTimer = e.def.touchCooldown;
     }
   }
 
@@ -480,6 +486,6 @@ export class Spawner {
     else this.updateWaves(dt, hero.x, hero.z, R, rnd);
     this.respawnFar(dt, hero, R, rnd);
     this.moveBeetles(dt, hero);
-    for (const b of this.alive) b.update(dt, b.state);
+    for (const b of this.alive) b.update(dt * (b.timeMul === undefined ? 1 : b.timeMul), b.state); // замороженный замирает и в анимации
   }
 }
