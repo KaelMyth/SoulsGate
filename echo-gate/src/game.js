@@ -201,8 +201,6 @@ export class Game {
     });
     if (o.ui.root) this.modMenu = new ModMenu(o.ui.root, this);
     this.pauseBtn = o.ui.pauseBtn;
-    this.dashBtn = o.ui.dashBtn;
-    if (this.dashBtn) this.dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (this.playing && !this.paused && !this.choosing) this.dashFromInput(); });
     this.pauseEl = o.ui.pause;
     if (o.ui.wakeBtn) o.ui.wakeBtn.addEventListener('click', () => this.wakeUp());
     if (o.ui.continueBtn) o.ui.continueBtn.addEventListener('click', () => this.continueFloor());
@@ -286,7 +284,6 @@ export class Game {
     this.midgeView.update(0, this.midges.items);
     this.loot.clear();
     if (this.pauseBtn) this.pauseBtn.classList.add('gone');
-    if (this.dashBtn) this.dashBtn.classList.add('gone');
     for (const key of ['floorBanner', 'floorCleared', 'bossHealth'])
       if (this.ui[key]) this.ui[key].classList.add('gone');
     if (this.hud) { this.hud.hide(); this.settings.hide(); }
@@ -402,7 +399,6 @@ export class Game {
     this.attack.clearStaffFx();
     this.loot.vacuumAll();
     if (this.pauseBtn) this.pauseBtn.classList.add('gone');
-    if (this.dashBtn) this.dashBtn.classList.add('gone');
     if (this.ui.bossHealth) this.ui.bossHealth.classList.add('gone');
   }
 
@@ -451,7 +447,6 @@ export class Game {
     const a = Math.PI / 4;
     this.inHub = true;
     this.playing = false;
-    if (this.dashBtn) this.dashBtn.classList.add('gone');
     const fullD = (2 * H.halfD + H.testD) / 2; // поле хаба вместе с тестовым полем под ним: полувысота и центр по z
     this.world.setHubGround(true, H.halfW - 0.5, fullD - 0.5, fullD - H.halfD);
     this.hub.setActive(true);
@@ -541,7 +536,6 @@ export class Game {
     this.spawner.startFloor(this.floor);
     if (this.hud) { this.hud.show(); this.settings.show(); }
     if (this.pauseBtn) this.pauseBtn.classList.remove('gone');
-    if (this.dashBtn) this.dashBtn.classList.remove('gone');
     if (this.ui.bossHealth) this.ui.bossHealth.classList.add('gone');
     if (this.pendingLevelUps && this.levelUp) {
       const count = this.pendingLevelUps;
@@ -590,7 +584,6 @@ export class Game {
     this.block.durMult = 1 + this.stats.bonus.block;
     this.block.update(dt, inp.x !== 0 || inp.z !== 0 || m.dashing, this.playing);
     this.hero.update(dt, m, this.cfg.hero.speed * m.speedMult);
-    if (this.dashBtn) this.dashBtn.classList.toggle('wait', m.cooldown > 0 || m.dashing);
     this.stats.update(dt);
     this.blockView.update(dt, this.block, m.x, m.z, this.cfg.hero.radius);
     this.invuln = Math.max(0, this.invuln - dt);
@@ -628,7 +621,6 @@ export class Game {
     if (inTest !== this.inTest) {
       this.inTest = inTest;
       this.world.setView(inTest ? 'run' : 'hub');
-      if (this.dashBtn) this.dashBtn.classList.toggle('gone', !inTest);
       if (!inTest && this.testSpawn) this.stopTest(false);
     }
     if (!inTest) return;
@@ -673,9 +665,9 @@ export class Game {
     u.knob.style.transform = `translate(${s.baseX + s.kx - R * 0.42}px, ${s.baseY + s.ky - R * 0.42}px)`;
   }
 
-  /** Сохранение доступно в лагере: код содержит только постоянный прогресс. */
+  /** Сохранение доступно из меню паузы (и в лагере): код содержит только постоянный прогресс. */
   openSaves() {
-    if (!this.inHub || this.switching || this.dead || this.invOpen || this.forgeOpen || this.devOpen
+    if (!(this.inHub || this.paused) || this.switching || this.dead || this.invOpen || this.forgeOpen || this.devOpen
       || this.saveUi?.open || this.soulTallyUi?.open || !this.saveUi) return;
     this.stick.cancel();
     if (this.settings) this.settings.toggle(false);
@@ -793,7 +785,7 @@ export class Game {
     if (this.staffUi) this.staffUi.update(dt);
     const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.devOpen
       && !this.soulTallyUi?.open && !this.saveUi?.open;
-    if (this.ui.saveBtn) this.ui.saveBtn.classList.toggle('gone', !hubOn);
+    if (hubOn && this.ui.start && this.motion.speed > 0.3) this.ui.start.classList.add('gone'); // как только герой пошёл, название и версия плавно гаснут
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);
     this.shopBtn.update(dt, this.hub.distToShop(this.motion.x, this.motion.z), this.world, hubOn, an.x, an.y, an.z);

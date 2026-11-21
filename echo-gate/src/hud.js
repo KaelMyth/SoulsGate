@@ -31,7 +31,7 @@ export class Hud {
     this.hpShow = 0;
     this.pt = { x: 0, y: 0 };
 
-    this.level = el('div', { id: 'hud-level' }, 'ур. 1');
+    this.level = el('div', { id: 'hud-level' }, 'Level 1');
     this.xpFill = el('i');
     this.xpBar = el('div', { id: 'hud-xp' }, this.xpFill);
     this.flash = el('div', { id: 'hud-flash' });
@@ -89,7 +89,7 @@ export class Hud {
     const k = (tau) => 1 - Math.exp(-dt / tau);
     this.xp += (s.xpFraction - this.xp) * k(0.12);
     this.xpFill.style.width = (this.xp * 100).toFixed(1) + '%';
-    const lv = 'ур. ' + s.level;
+    const lv = 'Level ' + s.level;
     if (this.level.textContent !== lv) this.level.textContent = lv;
 
     // «Уровень N»: проявляется быстро, гаснет к концу flashTime.
