@@ -156,7 +156,8 @@ export class Settings {
       el('h3', {}, 'Настройки'),
       tabs,
       ...this.pages.values(),
-      el('div', { class: 'cfg-btns' }, el('button', { type: 'button', onclick: () => this.resetAll() }, 'Сбросить параметры')));
+      el('div', { class: 'cfg-btns' }, el('button', { type: 'button', onclick: () => this.resetAll() }, 'Сбросить параметры'),
+        this.wipeBtn = el('button', { type: 'button', class: 'cfg-wipe', onclick: () => this.wipe() }, 'Обнулить прогресс')));
     root.append(this.btn, this.panel);
     this.select(this.pages.keys().next().value);
   }
@@ -218,6 +219,23 @@ export class Settings {
     this.panel.hidden = !open;
     this.btn.classList.toggle('on', open);
     if (open) this.refresh();
+  }
+
+  /** Обнулить прогресс: стирает все достижения, предметы и души. Два нажатия подряд, чтобы не стереть случайно. */
+  wipe() {
+    if (!this.wipeSure) {
+      this.wipeSure = true;
+      this.wipeBtn.classList.add('sure');
+      this.wipeBtn.textContent = 'Нажми ещё раз: всё сотрётся';
+      clearTimeout(this.wipeTimer);
+      this.wipeTimer = setTimeout(() => {
+        this.wipeSure = false;
+        this.wipeBtn.classList.remove('sure');
+        this.wipeBtn.textContent = 'Обнулить прогресс';
+      }, 3000);
+      return;
+    }
+    this.o.game.resetProgress();
   }
 
   resetAll() {

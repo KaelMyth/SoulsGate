@@ -1,5 +1,5 @@
 {
-  "build": 90,
+  "build": 91,
   "commit": "071bbb8",
-  "notes": "Modifier menu as a constellation: two branches from the staff, stars and light strips, up to 8 cells per branch."
+  "notes": "Reset progress button in settings; Arcane Roll 30% shorter."
 }

@@ -72,6 +72,15 @@ export class Inventory {
     this.achievements = data.achievements;
   }
 
+  /** Стереть весь постоянный прогресс (души, предметы, экипировку, достижения) и сами записи в браузере. Игру после этого перезагружают. */
+  wipeProgress() {
+    this.deferSave = true; // пока стираем, ничего не пишем обратно
+    try {
+      if (typeof localStorage !== 'undefined')
+        for (const k of [SAVE_STORAGE_KEY, 'echo-gate-souls-v1', 'echo-gate-banked-v1']) localStorage.removeItem(k);
+    } catch (_) { /* хранилище недоступно */ }
+  }
+
   /** Код несёт сам прогресс и подходит для любого устройства без облака. */
   exportSaveCode() { return encodeSaveCode(captureProgress(this)); }
 

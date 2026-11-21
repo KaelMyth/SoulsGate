@@ -7,7 +7,7 @@ import { MOD_ICON } from './mod_icons.js';
 // Логика ленты (makeRoll) чистая, без DOM, тестируется в Node.
 
 /** Лента: cells чисел, выигрыш на позиции win; offset: на сколько px сдвинуть ленту, чтобы выигрыш встал под метку. */
-export function makeRoll(rnd, { cells = 60, win = 49, cellW = 88, gap = 8, max = 99, pick = null } = {}) {
+export function makeRoll(rnd, { cells = 43, win = 34, cellW = 88, gap = 8, max = 99, pick = null } = {}) {
   const items = [];
   for (let i = 0; i < cells; i++) items.push(pick ? pick() : 1 + Math.floor(rnd() * max)); // pick: свой выбор карточки (модификаторы)
   const pitch = cellW + gap;
@@ -30,7 +30,7 @@ function el(tag, attrs = {}, ...kids) {
 
 export class Roulette {
   /** root: рамка игры; onOpen/onClose: бой ставят на паузу и снимают; onResult(число) */
-  constructor(root, { onOpen, onClose, onResult, onPick, pick, spinMs = 5200, rnd = Math.random } = {}) {
+  constructor(root, { onOpen, onClose, onResult, onPick, pick, spinMs = 3640, rnd = Math.random } = {}) {
     this.onPick = onPick || null; // (выигрыш, done): после «Tap to continue» открыть своё окно, потом вызвать done
     this.pick = pick || null;     // () => карточка ленты; без неё катятся числа
     this.onOpen = onOpen || (() => {});
@@ -73,7 +73,7 @@ export class Roulette {
     this.root.style.display = 'flex';
     void this.root.offsetWidth;
     this.root.classList.add('on');
-    this.t0 = performance.now() + 500; // сначала окно плавно появляется
+    this.t0 = performance.now() + 350; // сначала окно плавно появляется
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame((t) => this.frame(t));
   }
@@ -117,7 +117,7 @@ export class Roulette {
     this.timer = setTimeout(() => {
       this.root.style.display = 'none';
       if (this.onPick && typeof this.roll.value === 'string') this.onPick(this.roll.value, next); else next();
-    }, 350);
+    }, 250);
   }
 
   reset() {
