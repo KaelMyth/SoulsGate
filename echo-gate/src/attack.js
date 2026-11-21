@@ -5,7 +5,7 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
-import { applyIce } from './status.js';
+import { applyIce, applyFire, burnTick } from './status.js';
 
 const BLUE = 0x2f86ff;
 const DEEP = 0x1f5bff;
@@ -70,6 +70,13 @@ function sprite(map, color, opacity) {
 const TRAIL = 8;
 const SHOCKS = 10;
 const ICE = 0xa8e6ff;
+// Палитры эффектов по стихии посоха (null = обычный синий).
+const PAL = {
+  basic: { flash: 'ball', flashC: 0xffffff, ring: BLUE, muz0: 0xeaf8ff, muz1: 0x3a8cff, sp0: 0xf4fdff, sp1: 0x2a6dff, spG: 11, spD: 2.6, spS: 0.04, mote0: 0x8fd0ff, mote1: 0x2447d8, moteG: -0.3, shock: BLUE },
+  ice: { flash: 'glow', flashC: 0xdaf6ff, ring: ICE, muz0: 0xffffff, muz1: 0x7fd0ff, sp0: 0xf4fdff, sp1: 0x8fd8ff, spG: 14, spD: 1.8, spS: 0.1, mote0: 0xeafaff, mote1: 0x9fdcff, moteG: -0.3, shock: ICE },
+  fire: { flash: 'glow', flashC: 0xffc060, ring: 0xff7a1a, muz0: 0xfff0b0, muz1: 0xff5a10, sp0: 0xffe9a0, sp1: 0xff3a10, spG: 6, spD: 2.2, spS: 0.06, mote0: 0xffa040, mote1: 0x802010, moteG: -1.6, shock: 0xff7a1a },
+};
+const pal = (el) => PAL[el] || PAL.basic;
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 /** Ледяной шип: острый кристалл с остриём вперёд (+Y), бледное свечение вокруг. Ориентируется по скорости снаряда. */
@@ -161,25 +168,27 @@ export class Attack {
   n(count) { return Math.max(0, Math.round(count * (this.cfg.fxAmount === undefined ? 1 : this.cfg.fxAmount))); }
 
   /** Вспышка и искры у кристалла при выстреле: веер вперёд по направлению шарика. */
-  muzzle(x, y, z, dx, dy, dz, ice = false) {
+  muzzle(x, y, z, dx, dy, dz, el = null) {
+    const P = pal(el);
     const L = Math.hypot(dx, dz) || 1;
     for (let i = 0; i < this.n(9); i++) {
       const sp = rr(2, 6), sx = rr(-0.55, 0.55), sy = rr(-0.2, 0.5), sz = rr(-0.55, 0.55);
       this.parts.emit({ x, y, z, vx: (dx / L + sx * (dz / L)) * sp, vy: (dy + sy) * sp * 0.6, vz: (dz / L - sx * (dx / L) + sz * 0.2) * sp,
-        life: rr(0.16, 0.34), size0: rr(0.14, 0.24), size1: 0, c0: ice ? 0xffffff : 0xeaf8ff, c1: ice ? 0x7fd0ff : 0x3a8cff, drag: 5, grav: 2 });
+        life: rr(0.16, 0.34), size0: rr(0.14, 0.24), size1: 0, c0: P.muz0, c1: P.muz1, drag: 5, grav: el === 'fire' ? -1 : 2 });
     }
     for (let i = 0; i < this.n(3); i++) { // медленные огоньки вокруг кристалла
       this.parts.emit({ x: x + rr(-0.08, 0.08), y: y + rr(-0.08, 0.08), z: z + rr(-0.08, 0.08), vx: rr(-0.4, 0.4), vy: rr(0.2, 0.9), vz: rr(-0.4, 0.4),
-        life: rr(0.3, 0.5), size0: 0.22, size1: 0, c0: 0x9fd8ff, c1: 0x2f6bff, drag: 2, grav: -0.4, alpha: 0.8 });
+        life: rr(0.3, 0.5), size0: 0.22, size1: 0, c0: P.muz0, c1: P.muz1, drag: 2, grav: -0.4, alpha: 0.8 });
     }
   }
 
   /** Попадание: белая вспышка, волна по земле, веер искр назад к стрелку и в стороны, огоньки; big при убийстве (ещё осколки). */
-  impact(x, y, z, dx, dz, big, kind, ice = false) {
+  impact(x, y, z, dx, dz, big, kind, el = null) {
     const c = this.cfg;
+    const P = pal(el), ice = el === 'ice', fire = el === 'fire';
     const L = Math.hypot(dx, dz) || 1;
     dx /= L; dz /= L;
-    this.shock(x, z, c.hitSize * (big ? 4.2 : 2.6), big ? 0.5 : 0.36, ice ? ICE : BLUE);
+    this.shock(x, z, c.hitSize * (big ? 4.2 : 2.6), big ? 0.5 : 0.36, P.shock);
     if (big) this.shock(x, z, c.hitSize * 2.2, 0.3, 0xcfe8ff);
     const back = Math.atan2(-dz, -dx);
     const count = this.n(big ? 26 : 13);
@@ -188,16 +197,21 @@ export class Attack {
       const a = fwd ? Math.atan2(dz, dx) + rr(-0.5, 0.5) : (big && i % 3 === 0 ? rr(0, 6.283) : back + rr(-1.15, 1.15));
       const sp = rr(2.2, big ? 8.5 : 6.2);
       this.parts.emit({ x, y, z, vx: Math.cos(a) * sp, vy: rr(0.8, big ? 5.2 : 3.6), vz: Math.sin(a) * sp,
-        life: rr(0.28, big ? 0.7 : 0.55), size0: rr(0.2, 0.36), size1: ice ? 0.1 : 0.04, c0: 0xf4fdff, c1: ice ? 0x8fd8ff : 0x2a6dff, drag: ice ? 1.8 : 2.6, grav: ice ? 14 : 11 });
+        life: rr(0.28, big ? 0.7 : 0.55), size0: rr(0.2, 0.36), size1: P.spS, c0: P.sp0, c1: P.sp1, drag: P.spD, grav: P.spG });
     }
     for (let i = 0; i < this.n(big ? 6 : 3); i++) { // плывущие вверх огоньки
       this.parts.emit({ x: x + rr(-0.15, 0.15), y: y + rr(-0.05, 0.15), z: z + rr(-0.15, 0.15), vx: rr(-0.6, 0.6), vy: rr(0.7, 1.7), vz: rr(-0.6, 0.6),
-        life: rr(0.6, 1.1), size0: rr(0.26, 0.4), size1: 0, c0: ice ? 0xeafaff : 0x8fd0ff, c1: ice ? 0x9fdcff : 0x2447d8, drag: 1.4, grav: -0.3, alpha: 0.7 });
+        life: rr(0.6, 1.1), size0: rr(0.26, 0.4), size1: 0, c0: P.mote0, c1: P.mote1, drag: 1.4, grav: P.moteG, alpha: 0.7 });
     }
     if (ice) { // ледяная крошка: быстрые белые осколки веером и россыпь снежинок
       for (let i = 0; i < this.n(10); i++) {
         const a = rr(0, 6.283), sp = rr(3, 7.5);
         this.parts.emit({ x, y, z, vx: Math.cos(a) * sp, vy: rr(1.5, 4.5), vz: Math.sin(a) * sp, life: rr(0.35, 0.7), size0: rr(0.12, 0.2), size1: 0.08, c0: 0xffffff, c1: 0x6fc8ff, drag: 1.5, grav: 13 });
+      }
+    }
+    if (fire) { // язычки пламени: крупные, быстро тухнут и поднимаются
+      for (let i = 0; i < this.n(7); i++) {
+        this.parts.emit({ x: x + rr(-0.2, 0.2), y, z: z + rr(-0.2, 0.2), vx: rr(-1.2, 1.2), vy: rr(1, 2.6), vz: rr(-1.2, 1.2), life: rr(0.3, 0.6), size0: rr(0.34, 0.55), size1: 0.05, c0: 0xffd070, c1: 0xd02a08, drag: 2, grav: -2, alpha: 0.75 });
       }
     }
     if (big) { // осколки цвета убитого врага
@@ -211,12 +225,13 @@ export class Attack {
   }
 
   /** Вспышка в точке: размер size (м). */
-  burst(x, y, z, size, dur, ice = false) {
+  burst(x, y, z, size, dur, el = null) {
+    const P = pal(el);
     const f = this.fx.find((e) => !e.active) || this.makeFx();
     f.active = true; f.t = 0; f.dur = dur; f.x = x; f.y = y; f.z = z; f.size = size;
-    f.flash.material.map = ice ? this.glow : this.ball; // у льда бледная вспышка, у обычного синяя
-    f.flash.material.color.setHex(ice ? 0xdaf6ff : 0xffffff);
-    f.ring.material.color.setHex(ice ? ICE : BLUE);
+    f.flash.material.map = P.flash === 'glow' ? this.glow : this.ball; // у льда бледная вспышка, у огня жёлто-оранжевая, у обычного синяя
+    f.flash.material.color.setHex(P.flashC);
+    f.ring.material.color.setHex(P.ring);
     f.flash.material.needsUpdate = true;
   }
 
@@ -234,15 +249,19 @@ export class Attack {
     b.launch = 0;
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
     b.el = this.getElement ? this.getElement() : null; // стихия надетого посоха задаёт вид снаряда и эффект попадания
-    const ice = b.el === 'ice';
-    b.halo.material.color.setHex(ice ? ICE : BLUE);
+    const ice = b.el === 'ice', fire = b.el === 'fire', P = pal(b.el);
+    b.halo.material.color.setHex(ice ? ICE : fire ? 0xff7a1a : BLUE);
     b.halo.visible = true;
+    b.core.material.map = fire ? this.glow : this.ball; // огонь: тёплое ядро из мягкого пятна
+    b.core.material.color.setHex(fire ? 0xfff0b0 : 0xffffff);
+    b.core.material.needsUpdate = true;
+    for (const t of b.trail) { t.s.material.map = fire ? this.glow : this.ball; t.s.material.needsUpdate = true; }
     b.core.visible = !ice;
     b.spike.visible = ice;
     if (ice) b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir);
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
-    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, ice); // вспышка у кристалла
-    this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, ice);
+    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, b.el); // вспышка у кристалла
+    this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, b.el);
     b.launch = 0.12; // шарик в начале полёта крупнее и сжимается
   }
 
@@ -266,13 +285,14 @@ export class Attack {
     e.hp -= this.cur().damage;
     this.spawner.knock(e, b.vx, b.vz); // откидывание по ходу шарика
     const kill = e.hp <= 0;
-    const ice = b.el === 'ice';
-    this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize * 0.9, 0.26, ice);
-    this.impact(b.x, Math.max(0.25, b.y), b.z, b.vx, b.vz, kill, e.kind, ice);
+    const ice = b.el === 'ice', fire = b.el === 'fire';
+    this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize * 0.9, 0.26, b.el);
+    this.impact(b.x, Math.max(0.25, b.y), b.z, b.vx, b.vz, kill, e.kind, b.el);
+    if (fire && !kill && applyFire(e, this.fireCfg) === 'explode') this.explode(e);
     if (ice && !kill) {
       const r = applyIce(e, this.ice); // замедление; три стака замораживают
       if (r === 'freeze') {
-        this.burst(e.state.x, 0.5, e.state.z, c.hitSize * 2.2, 0.4, true);
+        this.burst(e.state.x, 0.5, e.state.z, c.hitSize * 2.2, 0.4, 'ice');
         this.shock(e.state.x, e.state.z, c.hitSize * 4.5, 0.5, 0xe8f9ff);
         for (let i = 0; i < this.n(16); i++) {
           const a = rr(0, 6.283), sp = rr(2, 6);
@@ -286,6 +306,59 @@ export class Attack {
       if (this.onKill) this.onKill(e);
     }
     this.deactivate(b);
+  }
+
+  /** Убийство не выстрелом (горение, взрыв): вспышка, осколки, враг исчезает, награда как обычно. */
+  killFx(e, el) {
+    this.burst(e.state.x, 0.35, e.state.z, this.cfg.hitSize * 1.9, 0.45, el);
+    this.impact(e.state.x, 0.4, e.state.z, 0, 1, true, e.kind, el);
+    this.spawner.kill(e);
+    if (this.onKill) this.onKill(e);
+  }
+
+  /** Огненный взрыв на третьем стаке поджога: урон всем в радиусе, откидывание от центра, вспышка, волны, пламя и угли. */
+  explode(e) {
+    const F = this.fireCfg, c = this.cfg;
+    const cx = e.state.x, cz = e.state.z, R = F.explosionRadius;
+    const dmg = F.explosionDamage * this.cur().damage;
+    this.burst(cx, 0.5, cz, c.hitSize * 3.4, 0.5, 'fire');
+    this.shock(cx, cz, R * 2.2, 0.55, 0xff7a1a);
+    this.shock(cx, cz, R * 1.4, 0.4, 0xffd070);
+    for (let i = 0; i < this.n(40); i++) {
+      const a = rr(0, 6.283), sp = rr(3, 10);
+      this.parts.emit({ x: cx, y: 0.4, z: cz, vx: Math.cos(a) * sp, vy: rr(1.5, 6), vz: Math.sin(a) * sp, life: rr(0.35, 0.8), size0: rr(0.2, 0.38), size1: 0.04, c0: 0xffe9a0, c1: 0xff3a10, drag: 2, grav: 6 });
+    }
+    for (let i = 0; i < this.n(14); i++) {
+      const a = rr(0, 6.283), sp = rr(0.5, 3);
+      this.parts.emit({ x: cx + Math.cos(a) * 0.3, y: 0.3, z: cz + Math.sin(a) * 0.3, vx: Math.cos(a) * sp, vy: rr(1.5, 3.5), vz: Math.sin(a) * sp, life: rr(0.5, 0.9), size0: rr(0.5, 0.85), size1: 0.1, c0: 0xffb040, c1: 0x401006, drag: 1.5, grav: -1.5, alpha: 0.7 });
+    }
+    for (let i = 0; i < this.n(12); i++) {
+      this.parts.emit({ x: cx + rr(-0.4, 0.4), y: rr(0.2, 0.8), z: cz + rr(-0.4, 0.4), vx: rr(-1, 1), vy: rr(1.5, 3.5), vz: rr(-1, 1), life: rr(0.8, 1.4), size0: rr(0.1, 0.2), size1: 0, c0: 0xffd070, c1: 0xc02008, drag: 0.8, grav: -0.4 });
+    }
+    for (const o of [...this.spawner.alive]) {
+      const dx = o.state.x - cx, dz = o.state.z - cz;
+      if (Math.hypot(dx, dz) > R + o.radius) continue;
+      o.hp -= dmg;
+      this.spawner.knock(o, dx || rr(-1, 1), dz || rr(-1, 1));
+      if (o.hp <= 0) this.killFx(o, 'fire');
+    }
+  }
+
+  /** Горение: урон в секунду по всем подожжённым и языки пламени над ними. */
+  burn(dt) {
+    const F = this.fireCfg;
+    if (!F) return;
+    const dmg = this.cur().damage;
+    for (const e of [...this.spawner.alive]) {
+      if (!(e.burnT > 0)) continue;
+      e.hp -= burnTick(e, dt, F, dmg);
+      e.emberT = (e.emberT || 0) + dt;
+      while (e.emberT >= 0.07) {
+        e.emberT -= 0.07;
+        this.parts.emit({ x: e.state.x + rr(-0.25, 0.25), y: rr(0.2, 0.7), z: e.state.z + rr(-0.25, 0.25), vx: rr(-0.3, 0.3), vy: rr(0.8, 1.8), vz: rr(-0.3, 0.3), life: rr(0.3, 0.6), size0: rr(0.18, 0.3), size1: 0, c0: 0xffc060, c1: 0xd0300a, drag: 1.2, grav: -1.5, alpha: 0.8 });
+      }
+      if (e.hp <= 0) this.killFx(e, 'fire');
+    }
   }
 
   deactivate(b) {
@@ -345,19 +418,30 @@ export class Attack {
         for (const t of b.trail) t.s.visible = false;
         continue;
       }
+      const fireB = b.el === 'fire';
       b.core.position.set(b.x, b.y, b.z);
       b.halo.position.set(b.x, b.y, b.z);
-      b.core.scale.setScalar(c.size * 1.2 * pulse);
-      b.halo.scale.setScalar(c.size * 2.2 * pulse);
+      b.core.scale.setScalar(c.size * (fireB ? 1.5 : 1.2) * pulse);
+      b.halo.scale.setScalar(c.size * (fireB ? 2.8 : 2.2) * pulse);
       for (let i = 0; i < TRAIL; i++) {
         const t = b.trail[i];
         const k = 1 - i / TRAIL;
         t.s.visible = true;
         t.s.position.set(t.x, t.y, t.z);
-        t.s.scale.setScalar(c.size * (0.3 + 0.7 * k));
-        t.s.material.opacity = 0.55 * k * k;
+        t.s.scale.setScalar(c.size * (fireB ? 0.5 + 1.0 * k : 0.3 + 0.7 * k));
+        t.s.material.opacity = (fireB ? 0.7 : 0.55) * k * k;
+        if (fireB) t.s.material.color.setHex(i < 2 ? 0xffd070 : i < 5 ? 0xff8a20 : 0xd0300a); // от жёлтого к тёмно-красному по хвосту
+        else t.s.material.color.setHex(0xffffff);
+      }
+      if (fireB) { // искры и язычки, отлетающие от огненного шара
+        b.snowT += dt;
+        while (b.snowT >= 0.02) {
+          b.snowT -= 0.02;
+          this.parts.emit({ x: b.x + rr(-0.06, 0.06), y: b.y + rr(-0.06, 0.06), z: b.z + rr(-0.06, 0.06), vx: rr(-0.7, 0.7), vy: rr(0.3, 1.4), vz: rr(-0.7, 0.7), life: rr(0.25, 0.5), size0: rr(0.12, 0.22), size1: 0, c0: 0xffd070, c1: 0xd0300a, drag: 2, grav: -2, alpha: 0.85 });
+        }
       }
     }
+    this.burn(dt);
     this.parts.update(dt);
     for (const k of this.shocks) {
       if (!k.on) continue;

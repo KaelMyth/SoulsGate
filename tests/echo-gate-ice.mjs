@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../echo-gate/src/config.js';
-import { resetStatus, applyIce, tickStatus } from '../echo-gate/src/status.js';
+import { resetStatus, applyIce, tickStatus, applyFire, burnTick } from '../echo-gate/src/status.js';
 
 const ice = CONFIG.ice;
 const mk = (o = {}) => { const e = { ...o }; resetStatus(e); return e; };
@@ -33,4 +33,26 @@ test('лёд: огромных врагов только замедляет, н�
   for (let i = 0; i < 6; i++) assert.equal(applyIce(e, ice), 'chill');
   assert.equal(e.chill, 2);
   assert.ok(tickStatus(e, 0.1, ice) > 0);
+});
+
+test('огонь: стаки поджога, урон горения, на третьем стаке взрыв', () => {
+  const fire = CONFIG.fire;
+  const e = mk();
+  assert.equal(applyFire(e, fire), 'burn');
+  assert.ok(Math.abs(burnTick(e, 1, fire, 1) - 0.25) < 1e-9); // 1 стак: 0.25 выстрела за секунду
+  assert.equal(applyFire(e, fire), 'burn');
+  assert.ok(Math.abs(burnTick(e, 1, fire, 2) - 1.0) < 1e-9); // 2 стака, урон 2: 0.25*2*1*2
+  assert.equal(applyFire(e, fire), 'explode');
+  assert.equal(e.burn, 0); assert.equal(e.burnT, 0);
+  assert.equal(burnTick(e, 1, fire, 1), 0);
+});
+
+test('огонь: горение гаснет через burnTime, последний тик не больше остатка', () => {
+  const fire = CONFIG.fire;
+  const e = mk();
+  applyFire(e, fire);
+  let total = 0;
+  for (let i = 0; i < 100; i++) total += burnTick(e, 0.1, fire, 1);
+  assert.ok(Math.abs(total - fire.burnDps * fire.burnTime) < 1e-6);
+  assert.equal(e.burn, 0);
 });
