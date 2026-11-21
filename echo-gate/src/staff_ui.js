@@ -8,13 +8,14 @@ import { PARTS, staffStats } from './staff.js';
 import { buildGem, makeEnvironment } from './staff_model.js'; // старый посох (buildStaff) остаётся в staff_model.js для позднего использования
 import { buildStaffModel } from './staff_models.js';
 import { glowTexture } from './staff_icons.js';
+import { lookTier } from './staff_tiers.js';
 
 const HALO = { basic: 0x35f2ff, fire: 0xff8a2a, ice: 0x9fdcff, electric: 0xffe45a, gravity: 0xb06bff, laser: 0xff3345, blades: 0xa8d4ff };
 const PART_Y = { power: 1.75, speed: 0.9, range: -0.05 };
 
 /** Посох с витрины (staff_models.js) для экрана прокачки: тот же вид, плюс по ореолу у каждой из трёх частей для подсветки. */
-function buildShowcaseStaff(variant, glowTex) {
-  const m = buildStaffModel(variant, glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }));
+function buildShowcaseStaff(variant, glowTex, tier = 0) {
+  const m = buildStaffModel(variant, glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }), tier);
   const halos = {};
   for (const [p, size] of [['power', 1.3], ['speed', 0.95], ['range', 0.95]]) {
     const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: HALO[variant] || HALO.basic, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
@@ -133,10 +134,12 @@ export class StaffUi {
   syncStaff() {
     const eq = this.game.inventory && this.game.inventory.equipped.staff;
     const variant = (eq && eq.element) || 'basic';
-    if (variant === this.variant) return;
+    const tier = eq ? lookTier(eq.sharpen || 0) : 0;
+    if (variant === this.variant && tier === this.tier) return;
     if (this.staff) this.staffRoot.remove(this.staff.group);
     this.variant = variant;
-    this.staff = buildShowcaseStaff(variant, this.glowTex);
+    this.tier = tier;
+    this.staff = buildShowcaseStaff(variant, this.glowTex, tier);
     this.staffRoot.add(this.staff.group);
   }
 

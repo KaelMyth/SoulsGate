@@ -4,6 +4,7 @@
 // Положение ячеек считается само: дерево раскладывается по экрану силами отталкивания и пружинами к родителю в пределах своей половины.
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
+import { lookTier } from './staff_tiers.js';
 import { glowTexture } from './staff_icons.js';
 import { MOD_INFO, isMult, multOf } from './mods.js';
 import { MOD_ICON } from './mod_icons.js';
@@ -289,10 +290,12 @@ export class ModMenu {
   setStaff() {
     const eq = this.game.inventory && this.game.inventory.equipped.staff;
     const variant = (eq && eq.element) || 'basic';
-    if (variant === this.variant || !this.scene) return;
+    const tier = eq ? lookTier(eq.sharpen || 0) : 0;
+    if ((variant === this.variant && tier === this.tier) || !this.scene) return;
     this.variant = variant;
+    this.tier = tier;
     if (this.staff) this.scene.remove(this.staff.group);
-    this.staff = buildStaffModel(variant, this.glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }));
+    this.staff = buildStaffModel(variant, this.glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }), tier);
     this.staff.group.scale.setScalar(1.9);
     this.scene.add(this.staff.group);
     this.t = 0;
