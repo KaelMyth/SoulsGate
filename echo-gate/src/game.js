@@ -74,6 +74,7 @@ export class Game {
     this.loot = new Loot(this.world.scene, this.cfg.loot);
     this.frost = new Frost();
     this.attack.ice = this.cfg.ice;
+    this.attack.fireCfg = this.cfg.fire;
     this.attack.getElement = () => { const s = this.inventory.equipped.staff; return s ? s.element : null; };
     this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
     this.loot.onCollect = (type, v) => {
