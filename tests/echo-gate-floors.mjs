@@ -63,3 +63,23 @@ test('banked currency persists; unbanked currency does not touch inventory', () 
     else globalThis.localStorage = previous;
   }
 });
+
+test('поток идёт без остановки: затишья реже и меньше, орды чаще и больше', () => {
+  const { cfg, spawner } = make();
+  cfg.floors.duration = 9999;
+  cfg.waves.maxAlive = 9999;
+  cfg.waves.patterns[0].maxAlive = 9999;
+  cfg.waves.patterns[0].count = 9999;
+  cfg.floors.rhythm.jitter = 0;
+  spawner.startFloor(1);
+  let lull = 0, horde = 0, lullT = 0, hordeT = 0, prev = 0;
+  for (let i = 0; i < 20 * 60; i++) { // 20 с, шаг 1/60
+    spawner.update(1 / 60, hero, 12, () => 0.3);
+    for (const e of [...spawner.alive]) if (hero.z - e.z > 99) spawner.kill(e); // не копим
+    const made = spawner.spawned - prev; prev = spawner.spawned;
+    if (spawner.rhythmPhase === 'horde') { horde += made; hordeT += 1 / 60; } else { lull += made; lullT += 1 / 60; }
+  }
+  assert.ok(lullT > 0 && hordeT > 0, 'обе фазы случились');
+  assert.ok(lull > 0, 'в затишье поток не прерывается');
+  assert.ok(horde / hordeT > 2.5 * (lull / lullT), `орда густее затишья: ${horde / hordeT} против ${lull / lullT}`);
+});

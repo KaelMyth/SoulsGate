@@ -59,6 +59,8 @@ export class Spawner {
     this.floorPhase = 'mobs';
     this.wave = 1 + (this.floorIndex - 1) * 6;
     this.spawnTimer = 0.5;
+    this.rhythmPhase = 'lull'; // ритм потока: небольшое затишье, потом орда, и так по кругу
+    this.rhythmT = this.cfg.floors.rhythm.firstLull;
     this.enabled = true;
   }
 
@@ -100,12 +102,31 @@ export class Spawner {
       this.spawnFloorBoss(hx, hz, R, rnd);
     }
     const pat = this.row(this.wave);
+    // Ритм: затишье (враги идут реже и меньшими пачками, но поток не прерывается) и орда (пачки больше и чаще). Без плавных переходов: фазы сменяются сразу.
+    const RH = this.cfg.floors.rhythm;
+    const rhythmOn = RH.on && this.floorPhase === 'mobs' && !this.testWave;
+    if (rhythmOn) {
+      this.rhythmT -= dt;
+      if (this.rhythmT <= 0) {
+        const horde = this.rhythmPhase === 'lull';
+        this.rhythmPhase = horde ? 'horde' : 'lull';
+        const len = horde ? RH.horde : RH.lull;
+        this.rhythmT = len * (1 + (rnd() * 2 - 1) * RH.jitter);
+        if (horde) this.spawnTimer = Math.min(this.spawnTimer, 0.2); // орда начинается сразу
+      }
+    }
+    const horde = rhythmOn && this.rhythmPhase === 'horde';
+    const lull = rhythmOn && this.rhythmPhase === 'lull';
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
-      const size = this.floorPhase === 'boss' ? Math.max(1, Math.ceil(pat.groupSize / 2)) : pat.groupSize;
-      if (this.alive.length + size <= this.cap()) {
+      let size = this.floorPhase === 'boss' ? Math.max(1, Math.ceil(pat.groupSize / 2)) : pat.groupSize;
+      if (horde) size = Math.ceil(size * RH.hordeGroup);
+      if (lull) size = Math.max(1, Math.ceil(size * RH.lullGroup));
+      const cap = horde ? Math.min(this.cfg.waves.maxAlive, Math.ceil(this.cap() * RH.hordeCap)) : this.cap();
+      if (this.alive.length + size <= cap) {
         this.spawned += this.spawnGroup(size, pat, hx, hz, R, rnd);
-        this.spawnTimer = Math.max(0.75, pat.interval);
+        const mul = horde ? 1 / RH.hordeRate : lull ? 1 / RH.lullRate : 1;
+        this.spawnTimer = Math.max(horde ? 0.5 : 0.75, pat.interval * mul);
       } else this.spawnTimer = 0.25;
     }
   }
