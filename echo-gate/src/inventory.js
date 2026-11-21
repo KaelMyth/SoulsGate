@@ -185,6 +185,14 @@ export class Inventory {
     return true;
   }
 
+  /** Потратить n душ; false, если не хватает. */
+  spendSouls(n) {
+    if (!Number.isFinite(n) || n < 0 || this.souls < n) return false;
+    this.souls -= n;
+    this.changed();
+    return true;
+  }
+
   addSouls(n) {
     if (!Number.isFinite(n) || n <= 0) return;
     this.souls += Math.floor(n);

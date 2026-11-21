@@ -53,7 +53,7 @@ function signTexture(text) {
 }
 
 /** Хаски-человек: голова с белой маской, острые уши, голубые глаза, улыбка, фартук. Центр у ног, лицом к +z. */
-class Husky {
+export class Husky {
   constructor() {
     this.group = new THREE.Group();
     const fur = mat(C.fur), furD = mat(C.furDark), white = mat(C.white);
