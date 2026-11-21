@@ -91,14 +91,15 @@ export class Loot {
     for (const type of kinds) this.add(type, x, z, type === 'xp' ? xpValue : 1);
   }
 
-  add(type, x, z, value) {
+  /** dev: добыча, созданная кнопками хаба для проверки (её подбор открывает окна и в хабе). */
+  add(type, x, z, value, dev = false) {
     const c = this.cfg;
     if (this.drops.length >= c.maxDrops) this.collect(0); // переполнение: самая старая сразу достаётся герою
     const a = Math.random() * Math.PI * 2;
     const d = type === 'xp' ? 0.3 + Math.random() * 0.7 : 0.6 + Math.random() * 0.6;
     const drop = {
       type, value, ox: x, oz: z, tx: x + Math.cos(a) * d, tz: z + Math.sin(a) * d,
-      x, y: 0.2, z, age: 0, ph: Math.random() * 6.28, spin: 0.8 + Math.random() * 0.8, magnet: false, vx: 0, vz: 0, glow: null,
+      dev, x, y: 0.2, z, age: 0, ph: Math.random() * 6.28, spin: 0.8 + Math.random() * 0.8, magnet: false, vx: 0, vz: 0, glow: null,
     };
     if (type !== 'xp') {
       let s = this.glows.pop();
@@ -118,7 +119,7 @@ export class Loot {
     const d = this.drops[i];
     this.drops.splice(i, 1);
     if (d.glow) { d.glow.visible = false; this.glows.push(d.glow); }
-    if (this.onCollect) this.onCollect(d.type, d.value);
+    if (this.onCollect) this.onCollect(d.type, d.value, d);
   }
 
   /** Ускоренное визуальное всасывание всех предметов после победы. */

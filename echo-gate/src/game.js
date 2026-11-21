@@ -95,12 +95,19 @@ export class Game {
       const m = this.stats.mods.effects();
       return { ...s, damage: s.damage * m.damage, interval: s.interval / m.rate };
     };
-    this.loot.onCollect = (type, v) => {
+    this.loot.onCollect = (type, v, drop) => {
       this.stats.collect(type, v);
       this.bus.emit('loot:collected', { type, value: v });
-      if (type === 'skill' && this.roulette && this.playing && !this.floorCleared) this.roulette.request();
-      if (type === 'power' && this.staffUi && this.playing && !this.floorCleared) this.staffUi.open();
+      const live = (this.playing || (drop && drop.dev)) && !this.floorCleared; // кнопки хаба дают проверочную добычу: окна открываются и в хабе
+      if (type === 'skill' && this.roulette && live) this.roulette.request();
+      if (type === 'power' && this.staffUi && live) this.staffUi.open();
     };
+    if (o.ui.devLoot) {
+      o.ui.devLoot.addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-loot]');
+        if (b) this.spawnTestLoot(b.dataset.loot);
+      });
+    }
     this.attack.onKill = (e) => {
       if (this.playing) this.creditKill(e); // на тестовом поле ни душ, ни добычи
       this.bus.emit('enemy:killed', e);
@@ -713,6 +720,13 @@ export class Game {
     return s ? s.sharpen || 0 : 0;
   }
 
+  /** Проверочная добыча рядом с героем (кнопки в хабе): 'power' оранжевый кристалл, 'skill' фиолетовый, 'page' пергамент. */
+  spawnTestLoot(type) {
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen) return;
+    const a = Math.random() * Math.PI * 2, r = 3.4; // вне магнитного радиуса: герой сам подойдёт и подберёт
+    this.loot.add(type, this.motion.x + Math.cos(a) * r, this.motion.z + Math.sin(a) * r, 1, true);
+  }
+
   /** Консоль разработчика в углу хаба: хаб замирает, поверх окно со всеми посохами. */
   openDev() {
     if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.devUi) return;
@@ -813,6 +827,7 @@ export class Game {
       const b = this.ui.soulHud.firstChild;
       if (b.textContent !== String(this.inventory.souls)) b.textContent = String(this.inventory.souls);
     }
+    if (this.ui.devLoot) this.ui.devLoot.classList.toggle('gone', !hubOn);
     const ad = this.hub.devButtonAnchor(this.anchor);
     this.devBtn.update(dt, this.hub.distToDev(this.motion.x, this.motion.z), this.world, hubOn, ad.x, ad.y, ad.z);
     const ae = this.hub.enchantButtonAnchor(this.anchor);
