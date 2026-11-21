@@ -9,3 +9,8 @@ export function tierOf(cfg, sharpen) {
 export function forceTier(cfg, sharpen) {
   return cfg.tiers.force[tierOf(cfg, sharpen)];
 }
+
+/** Ступень по заточке для вида посоха (пороги 5 и 10 те же, что в CONFIG.tiers.thresholds). */
+export function lookTier(sharpen, thresholds = [5, 10]) {
+  return sharpen >= thresholds[1] ? 2 : sharpen >= thresholds[0] ? 1 : 0;
+}

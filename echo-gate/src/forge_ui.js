@@ -1,7 +1,8 @@
 // Окно заточки (наковальня в мастерской зачарования): посох на постаменте, ячейка для камня, шанс и прибавка к характеристикам.
 // Камни вложены в ячейку по умолчанию, характеристики открываются по кнопке «i». Цена в камнях и шанс берутся из sharpen.js, таблицы из CONFIG.sharpen.
-import { makeStaffIcons } from './staff_icons.js';
+import { makeStaffIcons, iconOf } from './staff_icons.js';
 import { ForgeScene } from './forge_scene.js';
+import { lookTier } from './staff_tiers.js';
 import { sharpenInfo, attemptSharpen, sharpenedStats } from './sharpen.js';
 import { GEM_ICON, SOUL_ICON } from './inventory_ui.js';
 
@@ -116,7 +117,7 @@ export class ForgeUi {
     if (this.onClose) this.onClose();
   }
 
-  urlOf(item) { return (this.icons && this.icons[item.element || 'basic']) || ''; }
+  urlOf(item) { return iconOf(this.icons, item) || ''; }
 
   say(t) {
     this.toast.textContent = t;
@@ -139,7 +140,7 @@ export class ForgeUi {
     }
     const it = this.sel;
     if (!it) { this.name.textContent = 'No staff'; this.rows.innerHTML = ''; this.go.disabled = true; return; }
-    if (this.scene) { if (this.scene.broken) this.scene.restore(); this.scene.setStaff(it.element || 'basic'); }
+    if (this.scene) { if (this.scene.broken) this.scene.restore(); this.scene.setStaff(it.element || 'basic', lookTier(it.sharpen || 0)); }
     this.name.textContent = it.label;
     this.name.style.setProperty('--rar', it.rarityInfo.color);
     const info = sharpenInfo(this.cfg, it.sharpen);

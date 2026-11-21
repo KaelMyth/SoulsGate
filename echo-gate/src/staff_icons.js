@@ -18,6 +18,13 @@ export function glowTexture() {
   return t;
 }
 
+/** Иконка предмета-посоха из набора makeStaffIcons: с учётом ступени заточки. */
+export function iconOf(icons, item) {
+  if (!icons) return undefined;
+  const v = item.element || 'basic', t = (item.sharpen || 0) >= 10 ? 2 : (item.sharpen || 0) >= 5 ? 1 : 0;
+  return icons[t ? `${v}:${t}` : v] || icons[v];
+}
+
 /** Вернуть { basic, fire, ice, electric: dataURL }. size: сторона кадра в пикселях. При ошибке WebGL вернёт пустой объект (останутся SVG-иконки). */
 export function makeStaffIcons(size = 192) {
   const out = {};
@@ -41,16 +48,18 @@ export function makeStaffIcons(size = 192) {
     const glowTex = glowTexture();
     const belt = new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 });
     for (const variant of ['basic', 'fire', 'ice', 'electric', 'gravity', 'laser', 'blades']) {
-      const model = buildStaffModel(variant, glowTex, belt);
-      model.update(1.3, 0.4);
-      const holder = new THREE.Group();
-      holder.add(model.group);
-      model.group.position.y = -1.3;          // в центр кадра верх посоха: голова крупно, древко уходит за край
-      holder.rotation.set(0.12, -0.35, -0.5); // по диагонали, с лёгким поворотом для объёма
-      scene.add(holder);
-      renderer.render(scene, camera);
-      out[variant] = canvas.toDataURL('image/png');
-      scene.remove(holder);
+      for (let tier = 0; tier < 3; tier++) { // ступени заточки: +0..4 / +5..9 / +10
+        const model = buildStaffModel(variant, glowTex, belt, tier);
+        model.update(1.3, 0.4);
+        const holder = new THREE.Group();
+        holder.add(model.group);
+        model.group.position.y = -1.3;          // в центр кадра верх посоха: голова крупно, древко уходит за край
+        holder.rotation.set(0.12, -0.35, -0.5); // по диагонали, с лёгким поворотом для объёма
+        scene.add(holder);
+        renderer.render(scene, camera);
+        out[tier ? `${variant}:${tier}` : variant] = canvas.toDataURL('image/png');
+        scene.remove(holder);
+      }
     }
   } catch (e) {
     return out; // без WebGL остаются обычные иконки

@@ -157,11 +157,12 @@ export class ForgeScene {
     this.flashSprite = new THREE.Sprite(this.glowMat(0xffffff, 0)); this.flashSprite.scale.set(9, 9, 1); this.flashSprite.position.copy(this.halo.position); S.add(this.flashSprite);
   }
 
-  setStaff(variant) {
-    if (variant === this.variant) return;
+  setStaff(variant, tier = 0) {
+    if (variant === this.variant && tier === this.tier) return;
     this.variant = variant;
+    this.tier = tier;
     if (this.staff) this.staffAnchor.remove(this.staff.group);
-    const m = buildStaffModel(variant, this.glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }));
+    const m = buildStaffModel(variant, this.glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }), tier);
     this.staff = m;
     this.staffAnchor.add(m.group);
     m.group.visible = true;

@@ -349,12 +349,13 @@ export class Hero {
   }
 
   /** Сменить посох в руке: 'basic' | 'fire' | 'ice' | 'electric' (всё остальное считается обычным). */
-  setStaff(variant) {
+  setStaff(variant, tier = 0) {
     const v = variant || 'basic';
-    if (v === this.staffVariant) return;
+    if (v === this.staffVariant && tier === this.staffTier) return;
     this.staffVariant = v;
+    this.staffTier = tier;
     if (this.staffModel) this.staff.remove(this.staffModel.group);
-    this.staffModel = buildStaffModel(v, this.glowTex, this.matBelt);
+    this.staffModel = buildStaffModel(v, this.glowTex, this.matBelt, tier);
     this.staff.add(this.staffModel.group);
     this.crystal = this.staffModel.crystal;   // камень на верхушке: отсюда вылетает снаряд
     this.staffGlow = this.staffModel.glow;

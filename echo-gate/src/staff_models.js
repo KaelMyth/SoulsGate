@@ -404,7 +404,58 @@ function bladesStaff(glowTex, matBelt) {
 
 const BUILDERS = { basic: basicStaff, fire: fireStaff, ice: iceStaff, electric: electricStaff, gravity: gravityStaff, laser: laserStaff, blades: bladesStaff };
 
-/** variant: 'basic' (по умолчанию) | 'fire' | 'ice' | 'electric' | 'gravity' | 'laser' | 'blades'. */
-export function buildStaffModel(variant, glowTex, matBelt) {
-  return (BUILDERS[variant] || basicStaff)(glowTex, matBelt);
+// Цвет украшений навершия по виду посоха (кольца и искры ступеней +5 и +10).
+const TIER_COLOR = { basic: 0x35f2ff, fire: 0xff7a24, ice: 0x8fe0ff, electric: 0xbfe4ff, gravity: 0xa89cff, laser: 0xff3345, blades: 0xcfe0ff };
+
+/** Ступень +5: камень крупнее, ореол ярче, вокруг навершия медленное кольцо. +10: камень ещё крупнее, два кольца в разные стороны и рой искр. */
+function decorate(m, variant, tier) {
+  const g = m.group;
+  g.updateMatrixWorld(true);
+  const c = g.worldToLocal(m.crystal.getWorldPosition(new THREE.Vector3()));
+  const col = TIER_COLOR[variant] || TIER_COLOR.basic;
+  const k = tier === 2 ? 1.5 : 1.25;
+  m.crystal.scale.multiplyScalar(k);
+  m.glow.scale.multiplyScalar(tier === 2 ? 1.7 : 1.3);
+  const rings = [], sparks = [];
+  const ringMat = () => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
+  const addRing = (r, tilt, dir) => {
+    const pivot = new THREE.Group();
+    pivot.position.copy(c);
+    pivot.rotation.x = tilt;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 6, 36), ringMat());
+    ring.rotation.x = Math.PI / 2;
+    pivot.add(ring);
+    const bead = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    bead.position.set(r, 0, 0);
+    ring.add(bead);
+    g.add(pivot);
+    rings.push({ pivot, dir });
+  };
+  addRing(0.22 * k, 0.5, 1);
+  if (tier === 2) {
+    addRing(0.3 * k, -0.7, -1);
+    for (let i = 0; i < 6; i++) {
+      const s = halo(m.glowTex || m.glow.material.map, col, 0.12, 0.9);
+      g.add(s);
+      sparks.push({ s, a: (i / 6) * 6.28, r: 0.18 + 0.05 * (i % 3), h: (i % 2 ? 1 : -1) * 0.1 });
+    }
+  }
+  const base = m.update;
+  m.update = (t, kk) => {
+    base(t, kk);
+    for (const r of rings) r.pivot.rotation.y = t * 0.9 * r.dir * (1 + kk * 0.6);
+    for (const sp of sparks) {
+      const a = sp.a + t * 1.6;
+      sp.s.position.set(c.x + Math.cos(a) * sp.r * k, c.y + sp.h + Math.sin(t * 2.3 + sp.a) * 0.08, c.z + Math.sin(a) * sp.r * k);
+    }
+  };
+  return m;
+}
+
+/** variant: 'basic' (по умолчанию) | 'fire' | 'ice' | 'electric' | 'gravity' | 'laser' | 'blades'; tier 0..2 по заточке (+0..4 / +5..9 / +10). */
+export function buildStaffModel(variant, glowTex, matBelt, tier = 0) {
+  const v = BUILDERS[variant] ? variant : 'basic';
+  const m = BUILDERS[v](glowTex, matBelt);
+  m.glowTex = glowTex;
+  return tier > 0 ? decorate(m, v, tier) : m;
 }

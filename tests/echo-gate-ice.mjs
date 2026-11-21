@@ -105,3 +105,8 @@ test('вид стихийных снарядов растёт со ступен�
     assert.ok(L[0].size < L[1].size && L[1].size < L[2].size, el);
   }
 });
+
+test('ступень вида посоха по заточке', async () => {
+  const { lookTier } = await import('../echo-gate/src/staff_tiers.js');
+  assert.deepEqual([0, 4, 5, 9, 10].map((s) => lookTier(s)), [0, 0, 1, 1, 2]);
+});
