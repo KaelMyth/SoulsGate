@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Shop } from './shop.js';
 import { GearPile } from './gear.js';
+import { DevConsole } from './devconsole.js';
 import { EnchantingNook } from './enchanting.js';
 
 function mat(color, rough = 0.95) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, flatShading: true }); }
@@ -165,6 +166,12 @@ export class Hub {
     this.enchant.group.scale.setScalar(cfg.enchantScale);
     this.group.add(this.enchant.group);
 
+    // Консоль разработчика в углу поля (справа внизу на экране).
+    this.dev = new DevConsole();
+    this.dev.group.position.set(cfg.devX, 0, cfg.devZ);
+    this.dev.group.scale.setScalar(cfg.devScale);
+    this.group.add(this.dev.group);
+
     const hx = cfg.halfW;
     const hz = cfg.halfD;
 
@@ -217,6 +224,27 @@ export class Hub {
     return Math.hypot(dx, dz);
   }
 
+  /** Расстояние (м) от мировой точки до прямоугольника консоли разработчика: 0 внутри. */
+  distToDev(wx, wz) {
+    const a = this.group.rotation.y;
+    const lx = wx * Math.cos(a) - wz * Math.sin(a);
+    const lz = wx * Math.sin(a) + wz * Math.cos(a);
+    const dx = Math.max(0, Math.abs(lx - this.cfg.devX) - this.cfg.devHalfW);
+    const dz = Math.max(0, Math.abs(lz - this.cfg.devZ) - this.cfg.devHalfD);
+    return Math.hypot(dx, dz);
+  }
+
+  /** Мировая точка над консолью, откуда выходит кнопка. */
+  devButtonAnchor(out) {
+    const a = this.group.rotation.y;
+    const lx = this.cfg.devX;
+    const lz = this.cfg.devZ;
+    out.x = lx * Math.cos(a) + lz * Math.sin(a);
+    out.z = -lx * Math.sin(a) + lz * Math.cos(a);
+    out.y = 3.6;
+    return out;
+  }
+
   /** Мировая точка над столом зачарования, откуда выходит иконка наковальни. */
   enchantButtonAnchor(out) {
     const a = this.group.rotation.y;
@@ -264,6 +292,7 @@ export class Hub {
     const lz = px * Math.sin(a) + pz * Math.cos(a);
     this.gear.update(dt);
     this.enchant.update(dt);
+    this.dev.update(dt);
     this.shop.update(dt, lx - this.shop.group.position.x, lz - this.shop.group.position.z);
   }
 }

@@ -35,6 +35,7 @@ import { Hud } from './hud.js';
 import { Settings } from './settings.js';
 import { Hub, PopButton } from './hub.js';
 import { ForgeUi } from './forge_ui.js';
+import { DevConsoleUi } from './devconsole_ui.js';
 import { Inventory } from './inventory.js';
 import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
 import { InventoryUi, GEM_ICON } from './inventory_ui.js';
@@ -81,6 +82,8 @@ export class Game {
     this.attack.elec = this.cfg.electric;
     this.attack.gravCfg = this.cfg.gravity;
     this.attack.setStaffCfgs(this.cfg.laser, this.cfg.blades);
+    this.attack.tiers = this.cfg;
+    this.attack.getSharpen = () => this.equippedSharpen();
     this.attack.getElement = () => { const s = this.inventory.equipped.staff; return s ? s.element : null; };
     this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
     this.loot.onCollect = (type, v) => {
@@ -114,6 +117,7 @@ export class Game {
     this.shopBtn = new PopButton(o.ui.shopBtn, { radius: H.shopRadius, hysteresis: H.shopHysteresis, rise: H.shopButtonRise }, () => this.bus.emit('shop:open', {}));
     this.anvilBtn = new PopButton(o.ui.anvilBtn, { radius: H.enchantRadius, hysteresis: H.enchantHysteresis, rise: H.enchantButtonRise }, () => this.bus.emit('enchant:open', {})); // окна пока нет
     this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
+    this.devBtn = new PopButton(o.ui.devBtn, { radius: H.devRadius, hysteresis: H.devHysteresis, rise: H.devButtonRise }, () => this.openDev());
     this.anchor = { x: 0, y: 0, z: 0 };
     this.inventory = new Inventory(this.cfg.inventory);
     this.floor = 1;
@@ -153,6 +157,8 @@ export class Game {
       this.forgeUi = new ForgeUi(o.ui.root, this, () => { this.forgeOpen = false; });
       this.bus.on('enchant:open', () => this.openForge());
     }
+    this.devOpen = false;
+    if (o.ui.root) this.devUi = new DevConsoleUi(o.ui.root, this, () => { this.devOpen = false; });
     // Экипировка настоящая: что снято в инвентаре, того нет и на модели героя в мире.
     this.inventory.listen(() => this.syncEquipment());
     this.syncEquipment();
@@ -440,6 +446,7 @@ export class Game {
         { x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 },
         { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
         { x: H.enchantX, z: H.enchantZ, hx: H.enchantHalfW, hz: H.enchantHalfD },
+        { x: H.devX, z: H.devZ, hx: H.devHalfW, hz: H.devHalfD },
       ] };
     this.motion.x = H.startDown * Math.sin(a);
     this.motion.z = H.startDown * Math.cos(a);
@@ -605,7 +612,7 @@ export class Game {
 
   /** Сохранение доступно в лагере: код содержит только постоянный прогресс. */
   openSaves() {
-    if (!this.inHub || this.switching || this.dead || this.invOpen || this.forgeOpen
+    if (!this.inHub || this.switching || this.dead || this.invOpen || this.forgeOpen || this.devOpen
       || this.saveUi?.open || this.soulTallyUi?.open || !this.saveUi) return;
     this.stick.cancel();
     if (this.settings) this.settings.toggle(false);
@@ -614,7 +621,7 @@ export class Game {
 
   /** Окно инвентаря из хаба: хаб замирает, вместо мира рисуется витрина мага. */
   openInventory() {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen
       || this.saveUi?.open || this.soulTallyUi?.open || !this.invUi) return;
     this.stick.cancel();
     try {
@@ -634,9 +641,17 @@ export class Game {
     return s ? s.sharpen || 0 : 0;
   }
 
+  /** Консоль разработчика в углу хаба: хаб замирает, поверх окно со всеми посохами. */
+  openDev() {
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.devUi) return;
+    this.devOpen = true;
+    this.stick.cancel();
+    this.devUi.show();
+  }
+
   /** Окно заточки из хаба: хаб замирает, поверх окно с постаментом. */
   openForge() {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || !this.forgeUi) return;
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.forgeUi) return;
     this.forgeOpen = true;
     this.stick.cancel();
     this.forgeUi.show();
@@ -706,14 +721,14 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.choosing && !this.rolling)
+    if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.choosing && !this.rolling)
       advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen)
+    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen && !this.devOpen)
       this.hub.update(dt, this.motion.x, this.motion.z);
     if (!this.invOpen || !this.invUi.render(dt)) this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
-    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen
+    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.devOpen
       && !this.soulTallyUi?.open && !this.saveUi?.open;
     if (this.ui.saveBtn) this.ui.saveBtn.classList.toggle('gone', !hubOn);
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
@@ -726,6 +741,8 @@ export class Game {
       const b = this.ui.soulHud.firstChild;
       if (b.textContent !== String(this.inventory.souls)) b.textContent = String(this.inventory.souls);
     }
+    const ad = this.hub.devButtonAnchor(this.anchor);
+    this.devBtn.update(dt, this.hub.distToDev(this.motion.x, this.motion.z), this.world, hubOn, ad.x, ad.y, ad.z);
     const ae = this.hub.enchantButtonAnchor(this.anchor);
     this.anvilBtn.update(dt, this.hub.distToEnchant(this.motion.x, this.motion.z), this.world, hubOn, ae.x, ae.y, ae.z);
     if (this.hud) { this.hud.update(dt, this.hero, this.block); this.settings.refresh(); }

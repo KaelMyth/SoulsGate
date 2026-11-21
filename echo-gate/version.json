@@ -1,5 +1,5 @@
 {
-  "build": 79,
+  "build": 80,
   "commit": "071bbb8",
-  "notes": "Laser staff (piercing beam) and Blades staff (orbiting spectral blade). XP and power/skill drop rates halved."
+  "notes": "Force staff tiers by sharpening (+1 spark, +5 bolt, +10 twin bolt); dev console in the hub corner with every staff."
 }
