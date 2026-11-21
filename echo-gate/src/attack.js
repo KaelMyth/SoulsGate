@@ -173,7 +173,7 @@ function makeFlameTail() {
   return g;
 }
 const LASER_CFG = () => ({ glow: 0xdde8ff, core: 0xffffff, aura: 0xc6d4ff, glowWidth: 0.7, coreWidth: 0.13, life: 0.24 });
-const KILL_COLOR = { beetle: 0xff6a55, shooter: 0xc07bff, bull: 0xffa040, rock: 0xa9b8d0 }; // осколки убитого врага
+const KILL_COLOR = { beetle: 0xff6a55, shooter: 0xc07bff, hunter: 0x6ee06a, bull: 0xffa040, rock: 0xa9b8d0 }; // осколки убитого врага
 const rr = (a, b) => a + Math.random() * (b - a);
 
 export class Attack {

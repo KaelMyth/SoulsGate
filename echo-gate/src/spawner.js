@@ -150,7 +150,7 @@ export class Spawner {
     b.state = { x, z, vx: 0, vz: 0 };
     b.x = x; b.z = z;
     b.radius = def.radius;
-    b.hp = b.maxHp = this.hpFor(this.wave, def.hp);
+    b.hp = b.maxHp = def.fixedHp ? def.hp : this.hpFor(this.wave, def.hp); // охотник: здоровье не растёт с волной
     b.touchTimer = 0;
     b.kbVx = b.kbVz = 0;
     b.kbTau = 0.07;
@@ -175,11 +175,13 @@ export class Spawner {
   /** Тип жука волны: по lineup рисунка, иначе в волнах 6+ бык с шансом bullShare и стрелок с шансом shooterShare. */
   pickKind(pat, index, rnd) {
     if (pat.lineup) return pat.lineup[index % pat.lineup.length];
+    if (pat.kind) return pat.kind;
     if (!pat.formation && this.wave > this.cfg.waves.patterns.length) {
       const r = rnd();
-      const bull = this.share('bull'), shooter = this.share('shooter');
+      const bull = this.share('bull'), shooter = this.share('shooter'), hunter = this.share('hunter');
       if (r < bull) return 'bull';
       if (r < bull + shooter) return 'shooter';
+      if (r < bull + shooter + hunter) return 'hunter';
     }
     return 'beetle';
   }

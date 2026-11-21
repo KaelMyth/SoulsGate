@@ -314,3 +314,15 @@ test('охрана закрывает стрелка веером со стор�
   sp.moveBeetles(1 / 60, { x: g0.x + 1.5, z: g0.z, radius: 0.47 });
   assert.ok(guards.every((g) => g.guardOf === null && !g.goalOn));
 });
+
+test('охотник: волна 4 только из охотников, здоровье не растёт с волной, не в стае', () => {
+  const { sp } = mk();
+  sp.wave = 4;
+  assert.equal(sp.pickKind(sp.row(4), 0, rnd), 'hunter');
+  const h = sp.spawnAt(5, 0, 0, 0, 'hunter');
+  assert.equal(h.hp, sp.cfg.hunter.hp);
+  assert.equal(h.swarm, false);
+  sp.wave = 30;
+  const h2 = sp.spawnAt(6, 0, 0, 0, 'hunter');
+  assert.equal(h2.hp, sp.cfg.hunter.hp);
+});

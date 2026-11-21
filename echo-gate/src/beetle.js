@@ -17,7 +17,7 @@ const BONE = 0xd9c7a3;
 
 const OUTLINE = [
   [0.56, -0.5], [0.1, -0.78], [-0.6, -0.62], [-0.98, -0.15], [-0.98, 0.15], [-0.6, 0.62], [0.1, 0.78], [0.56, 0.5],
-].map(([f, s]) => new THREE.Vector3(s * R, 0, f * R));
+].map(([f, s]) => new THREE.Vector3(s * R * 1.12, 0, f * R * 1.05)); // панцирь плотнее: шире и длиннее
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 let glowTex = null;
@@ -98,12 +98,12 @@ function bake(root) {
   }
 }
 
-const PROFILE = { base: 0.16 * R, up: 0.78 * R, apex: 0.98 * R };
+const PROFILE = { base: 0.1 * R, up: 0.9 * R, apex: 1.12 * R }; // ниже посадка, выше и полнее горб
 
 /** Панцирь: грани с плоским затенением, высокий горб. Верхние грани светлее. */
 function makeShell() {
   const base = OUTLINE.map((p) => p.clone().setY(PROFILE.base));
-  const up = OUTLINE.map((p) => p.clone().multiplyScalar(0.72).setY(PROFILE.up));
+  const up = OUTLINE.map((p) => p.clone().multiplyScalar(0.86).setY(PROFILE.up));
   const apex = V(-0.1 * R, PROFILE.apex, 0);
   const pos = [];
   const col = [];
@@ -129,8 +129,8 @@ function makeShell() {
 
 /** Высота панциря на оси (x=0) в точке z, по тем же граням. */
 function spineY(z) {
-  const zf = 0.56 * 0.72 * R;
-  const zb = -0.98 * 0.72 * R;
+  const zf = 0.56 * 0.86 * R;
+  const zb = -0.98 * 0.86 * R;
   const za = -0.1 * R;
   if (z >= za) return PROFILE.apex - (PROFILE.apex - PROFILE.up) * Math.min(1, (z - za) / (zf - za));
   return PROFILE.apex - (PROFILE.apex - PROFILE.up) * Math.min(1, (za - z) / (za - zb));
@@ -215,9 +215,9 @@ export class Beetle {
       for (const s of [-1, 1]) {
         const leg = new THREE.Group();
         leg.position.set(0, 0, lz);
-        const hip = V(s * 0.5 * R, 0.3 * R, 0);
-        const knee = V(s * 1.0 * R, 0.78 * R, reach * 0.5 + (i === 0 ? 0.2 * R : 0));
-        const foot = V(s * 1.45 * R, 0.0, reach + (i === 0 ? 0.35 * R : i === 2 ? -0.15 * R : 0.1 * R));
+        const hip = V(s * 0.55 * R, 0.26 * R, 0);
+        const knee = V(s * 0.85 * R, 0.5 * R, reach * 0.4 + (i === 0 ? 0.12 * R : 0));
+        const foot = V(s * 1.08 * R, 0.0, reach * 0.8 + (i === 0 ? 0.22 * R : i === 2 ? -0.1 * R : 0.06 * R)); // лапы короче и ближе к телу
         leg.add(limb(hip, knee, 0.055 * R, 0.04 * R, legMat));
         leg.add(limb(knee, foot, 0.04 * R, 0.014 * R, legMat));
         leg.add(spike(foot, V(s * 0.3, -1, 0.35), 0.03 * R, 0.14 * R, boneMat));
