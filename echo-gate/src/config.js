@@ -248,7 +248,7 @@ export const CONFIG = {
     ],
     // Вид снаряда стихийных посохов по ступеням (+0..4 / +5..9 / +10): size — размер, dens — густота частиц, halo — цвет свечения, width — толщина дуги.
     look: {
-      ice:      [{ size: 0.75, dens: 0.6, halo: 0x9fd8ff }, { size: 1.2, dens: 1.0, halo: 0x6fc8ff }, { size: 1.6, dens: 2.0, halo: 0x38e8ff }],
+      ice:      [{ size: 0.8, dens: 0.6, halo: 0x9fd8ff }, { size: 1.1, dens: 1.0, halo: 0x6fc8ff }, { size: 1.3, dens: 2.0, halo: 0x38e8ff }],
       fire:     [{ size: 0.75, dens: 0.6, halo: 0xff8a2a }, { size: 1.2, dens: 1.0, halo: 0xff6a10 }, { size: 1.6, dens: 2.0, halo: 0xff3a08 }],
       gravity:  [{ size: 0.75, dens: 0.6, halo: 0xa0a6b4 }, { size: 1.2, dens: 1.0, halo: 0x8c93a3 }, { size: 1.6, dens: 2.0, halo: 0x6a5cff }],
       electric: [{ size: 1, dens: 0.6, width: 0.8 }, { size: 1, dens: 1.0, width: 1.3 }, { size: 1, dens: 2.0, width: 1.9 }],
