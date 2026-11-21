@@ -665,6 +665,12 @@ export class Game {
     u.knob.style.transform = `translate(${s.baseX + s.kx - R * 0.42}px, ${s.baseY + s.ky - R * 0.42}px)`;
   }
 
+  /** Обнулить весь прогресс: стереть сохранение и начать с чистого листа (страница перезагружается, стартовые предметы выдаются заново). */
+  resetProgress() {
+    this.inventory.wipeProgress();
+    location.reload();
+  }
+
   /** Сохранение доступно из меню паузы (и в лагере): код содержит только постоянный прогресс. */
   openSaves() {
     if (!(this.inHub || this.paused) || this.switching || this.dead || this.invOpen || this.forgeOpen || this.devOpen
