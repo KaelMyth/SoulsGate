@@ -72,6 +72,7 @@ export class Motion {
   /** Не выпускать за прямоугольник bounds; скорость вдоль упёртой стены гасится. */
   clamp() {
     const { hx, hz, ang } = this.bounds;
+    const cx = this.bounds.cx || 0, cz = this.bounds.cz || 0; // центр прямоугольника в местных осях (по умолчанию начало)
     const c = Math.cos(ang);
     const s = Math.sin(ang);
     // Мировые (x, z) в местные (lx, lz): поворот на -ang.
@@ -79,8 +80,8 @@ export class Motion {
     let lz = this.x * s + this.z * c;
     let lvx = this.vx * c - this.vz * s;
     let lvz = this.vx * s + this.vz * c;
-    if (lx > hx) { lx = hx; if (lvx > 0) lvx = 0; } else if (lx < -hx) { lx = -hx; if (lvx < 0) lvx = 0; }
-    if (lz > hz) { lz = hz; if (lvz > 0) lvz = 0; } else if (lz < -hz) { lz = -hz; if (lvz < 0) lvz = 0; }
+    if (lx > cx + hx) { lx = cx + hx; if (lvx > 0) lvx = 0; } else if (lx < cx - hx) { lx = cx - hx; if (lvx < 0) lvx = 0; }
+    if (lz > cz + hz) { lz = cz + hz; if (lvz > 0) lvz = 0; } else if (lz < cz - hz) { lz = cz - hz; if (lvz < 0) lvz = 0; }
     // Препятствия (местные прямоугольники {x, z, hx, hz} и круги {x, z, r}): выталкиваем по оси с меньшим проникновением.
     for (const b of this.bounds.blocks || []) {
       const dx = lx - b.x, dz = lz - b.z;

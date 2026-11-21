@@ -44,6 +44,7 @@ export class Spawner {
     this.spawnTimer = 0;
     this.lastAngle = null;
     this.floorMode = false;
+    this.testWave = 0;
     this.boss = null;
   }
 
@@ -57,6 +58,19 @@ export class Spawner {
     this.floorElapsed = 0;
     this.floorPhase = 'mobs';
     this.wave = 1 + (this.floorIndex - 1) * 6;
+    this.spawnTimer = 0.5;
+    this.enabled = true;
+  }
+
+  /** Тестовое поле: бесконечный спавн по одной фиксированной волне, без босса. */
+  startTest(wave = 6) {
+    this.reset();
+    this.floorMode = true;
+    this.testWave = Math.max(1, Math.floor(wave));
+    this.floorIndex = 1;
+    this.floorElapsed = 0;
+    this.floorPhase = 'test';
+    this.wave = this.testWave;
     this.spawnTimer = 0.5;
     this.enabled = true;
   }
@@ -80,7 +94,7 @@ export class Spawner {
   /** Бесконечный поток: используем состав и ограничения существующих волн. */
   updateFloorSpawns(dt, hx, hz, R, rnd) {
     this.floorElapsed += dt;
-    this.wave = 1 + (this.floorIndex - 1) * 6
+    this.wave = this.testWave || 1 + (this.floorIndex - 1) * 6
       + Math.floor(this.floorElapsed / this.cfg.floors.spawnStageSeconds);
     if (this.floorPhase === 'mobs' && this.floorElapsed >= this.cfg.floors.duration) {
       this.spawnFloorBoss(hx, hz, R, rnd);

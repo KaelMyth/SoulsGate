@@ -45,7 +45,8 @@ export class World {
         uFade: { value: F.fade },
         uTint: { value: F.tint },
         uDim: { value: F.outsideDim },
-        uHub: { value: new THREE.Vector4(0, 0, 1.4, 0) }, // x,y: полуразмеры поля хаба (повёрнуто на 45°), z: мягкость края, w: включено
+        uHub: { value: new THREE.Vector4(0, 0, 1.4, 0) },
+        uHubC: { value: new THREE.Vector2(0, 0) }, // центр поля хаба в местных осях (поле вытянуто вниз до тестового поля) // x,y: полуразмеры поля хаба (повёрнуто на 45°), z: мягкость края, w: включено
         uBase: { value: new THREE.Color(F.base) },
       },
       vertexShader: `
@@ -57,7 +58,7 @@ export class World {
         }`,
       fragmentShader: `
         varying vec2 vW;
-        uniform sampler2D uTex; uniform vec2 uCenter; uniform vec3 uBase; uniform vec4 uHub;
+        uniform sampler2D uTex; uniform vec2 uCenter; uniform vec3 uBase; uniform vec4 uHub; uniform vec2 uHubC;
         uniform float uTile, uFade, uTint, uDim;
         float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
         float vnoise(vec2 p) {
@@ -73,7 +74,7 @@ export class World {
           c = mix(c, c * vec3(1.03, 1.0, 0.96), smoothstep(0.1, 0.4, m1 + 0.5 * m2) * 0.5);
           // За краем поля хаба земля темнее, чтобы база читалась.
           vec2 hl = vec2(vW.x - vW.y, vW.x + vW.y) * 0.70711;
-          vec2 hq = uHub.xy - abs(hl);
+          vec2 hq = uHub.xy - abs(hl - uHubC);
           float inHub = smoothstep(-0.3, uHub.z, min(hq.x, hq.y));
           c *= 1.0 - uHub.w * (1.0 - inHub) * uDim;
           float d = length(vW - uCenter) / uFade;
@@ -92,9 +93,10 @@ export class World {
   }
 
   /** Внутри поля хаба (полуразмеры hw/hd) земля обычная, за краем темнее (чтобы база читалась). */
-  setHubGround(on, hw = 0, hd = 0) {
+  setHubGround(on, hw = 0, hd = 0, cz = 0) {
     const u = this.floorMat.uniforms;
     u.uHub.value.set(hw, hd, 1.4, on ? 1 : 0);
+    u.uHubC.value.set(0, cz);
   }
 
   resize() {
