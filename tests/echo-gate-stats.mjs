@@ -21,6 +21,7 @@ test('нужный опыт по формуле SoulsGate: 5, 8, 13 ...', () => 
 
 test('опыт поднимает уровень, остаток переходит дальше, можно сразу несколько уровней', () => {
   const s = fresh();
+  s.cfg.xp.gainMult = 1; // в игре 0.5, тест считает по формуле уровней
   const seen = [];
   s.onLevel = (l) => seen.push(l);
   s.addXp(6);
@@ -79,6 +80,7 @@ test('лечение со временем и сброс', () => {
 
 test('collect: xp gem gives xp, crystals and pages go to counters', () => {
   const s = new Stats(JSON.parse(JSON.stringify(CONFIG)));
+  s.cfg.xp.gainMult = 1;
   s.collect('xp', 2);
   assert.equal(s.xp, 2);
   s.collect('power'); s.collect('power'); s.collect('skill'); s.collect('page');
