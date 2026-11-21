@@ -292,3 +292,24 @@ test('отставший враг переносится на кольцо за 
   sp.farTimer = 0; sp.respawnFar(0.01, hero, R, rnd);
   assert.equal(off.x, 90);
 });
+
+test('охрана закрывает стрелка веером со стороны героя, а когда герой подошёл к одному охраннику, нападает вся охрана', () => {
+  const { sp } = mk();
+  sp.wave = 2;
+  sp.spawnGroup(6, sp.row(2), 0, 0, 12, rnd);
+  const leader = sp.alive.find((b) => b.kind === 'shooter');
+  const guards = sp.alive.filter((b) => b.guardOf === leader);
+  const far = { x: leader.x + 20, z: leader.z - 6, radius: 0.47 };
+  for (let t = 0; t < 4; t += 1 / 60) sp.moveBeetles(1 / 60, far); // герой далеко: охрана встаёт на место
+  const toHero = Math.atan2(far.z - leader.z, far.x - leader.x);
+  for (const g of guards) {
+    assert.ok(g.guardOf, 'держит строй');
+    let da = Math.atan2(g.goalZ - leader.z, g.goalX - leader.x) - toHero;
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    assert.ok(Math.abs(da) <= 1.4, 'цель на стороне героя');
+  }
+  // герой подходит только к одному охраннику: нападает вся охрана
+  const g0 = guards[0];
+  sp.moveBeetles(1 / 60, { x: g0.x + 1.5, z: g0.z, radius: 0.47 });
+  assert.ok(guards.every((g) => g.guardOf === null && !g.goalOn));
+});
