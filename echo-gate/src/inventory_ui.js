@@ -57,7 +57,8 @@ export class InventoryUi {
       tome: el('div', { class: 'inv-hint tome' }, 'Drag the tome here'),
       staff: el('div', { class: 'inv-hint staff' }, 'Drag the staff here'),
     };
-    this.stage = el('div', { class: 'inv-stage' }, this.hints.tome, this.hints.staff);
+    this.nameTag = el('div', { class: 'inv-name' }, '');
+    this.stage = el('div', { class: 'inv-stage' }, this.nameTag, this.hints.tome, this.hints.staff);
     this.souls = el('b', {}, '0');
     this.count = el('b', {}, '0 / 0');
     const strip = el('div', { class: 'inv-strip' },
@@ -133,6 +134,7 @@ export class InventoryUi {
   refresh() {
     const inv = this.inv;
     this.souls.textContent = String(inv.souls);
+    this.nameTag.textContent = inv.achievements.playerName || '';
     this.count.textContent = `${inv.count} / ${inv.limit}`;
     this.renderBroken();
     const lift = this.drag && this.drag.src.type === 'slot' ? this.drag.src.i : -1;

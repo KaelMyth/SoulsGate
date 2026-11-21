@@ -22,6 +22,7 @@ import { pickChoices, applyUpgrade } from './upgrades.js';
 import { Block } from './block.js';
 import { Frost } from './frost.js';
 import { Roulette } from './roulette.js';
+import { NamePrompt, NAME_KEY } from './name_prompt.js';
 import { ModMenu } from './mod_ui.js';
 import { pickMod } from './mods.js';
 import { BlockView } from './block_view.js';
@@ -190,6 +191,16 @@ export class Game {
         if (this.playing) this.levelUp.request();
         else if (this.floorCleared) this.pendingLevelUps++;
       };
+    }
+    this.naming = false;
+    if (o.ui.root) {
+      this.namePrompt = new NamePrompt(o.ui.root, {
+        onOpen: () => { this.naming = true; this.stick.cancel(); },
+        onClose: () => { this.naming = false; },
+        onDone: (name) => { this.inventory.achievements[NAME_KEY] = name; this.inventory.changed(); },
+      });
+      if (!this.inventory.achievements[NAME_KEY]) this.namePrompt.show(); // первый вход или после обнуления
+      this.inventory.listen(() => { if (!this.inventory.achievements[NAME_KEY] && !this.namePrompt.open) this.namePrompt.show(); }); // например, код сохранения без имени
     }
     this.rolling = false;
     if (o.ui.root) this.roulette = new Roulette(o.ui.root, {
@@ -785,12 +796,12 @@ export class Game {
     if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.choosing && !this.rolling)
       advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen && !this.devOpen)
+    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.naming)
       this.hub.update(dt, this.motion.x, this.motion.z);
     if (!this.invOpen || !this.invUi.render(dt)) this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
     const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.devOpen
-      && !this.soulTallyUi?.open && !this.saveUi?.open;
+      && !this.soulTallyUi?.open && !this.saveUi?.open && !this.naming;
     if (hubOn && this.ui.start && this.motion.speed > 0.3) this.ui.start.classList.add('gone'); // как только герой пошёл, название и версия плавно гаснут
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
     const an = this.hub.shopButtonAnchor(this.anchor);

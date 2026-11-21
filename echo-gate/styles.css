@@ -698,3 +698,14 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #modmenu .mm-link.lit.grow .glow, #modmenu .mm-link.lit.grow .core { stroke-dasharray: 1; animation: mmdraw 1s ease-out both; }
 @keyframes mmflow { to { stroke-dashoffset: -0.33; } }
 @keyframes mmdraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Имя игрока: окно ввода и подпись над магом в инвентаре. */
+#name-prompt { position: absolute; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, rgba(31, 52, 75, 0.96), rgba(4, 9, 19, 0.99) 85%); }
+#name-prompt.on { display: flex; }
+#name-prompt .np-box { display: flex; flex-direction: column; align-items: center; gap: 18px; width: min(300px, 82%); }
+#name-prompt .np-title { font: 500 24px/1.1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.18em; text-indent: 0.18em; text-align: center; color: #dbe7f7; text-shadow: 0 0 18px rgba(120, 170, 255, 0.4); }
+#name-prompt .np-input { width: 100%; box-sizing: border-box; height: 48px; padding: 0 14px; border: 1px solid rgba(160, 200, 255, 0.5); border-radius: 12px; background: rgba(8, 13, 26, 0.7); color: #eaf2ff; font: 18px "Iowan Old Style", Georgia, serif; text-align: center; outline: none; }
+#name-prompt .np-input:focus { border-color: #ffb14a; box-shadow: 0 0 14px rgba(255, 177, 74, 0.3); }
+#name-prompt .np-ok { width: 100%; height: 48px; border: 2px solid #ffb14a; border-radius: 12px; background: radial-gradient(circle at 35% 30%, #ff9a2e, #c2410c 85%); color: #fff6e0; font: 600 16px Georgia, serif; letter-spacing: 0.2em; cursor: pointer; touch-action: manipulation; }
+#name-prompt .np-ok:disabled { opacity: 0.35; cursor: default; }
+#inv .inv-name { position: absolute; z-index: 1; left: 0; right: 0; top: max(14px, env(safe-area-inset-top)); text-align: center; pointer-events: none; font: 500 20px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.14em; color: #dbe7f7; text-shadow: 0 2px 10px rgba(5, 9, 20, 0.9), 0 0 14px rgba(120, 170, 255, 0.4); }

@@ -5,6 +5,7 @@ export class Keys {
     this.down = new Set();
     this.onDash = onDash;
     window.addEventListener('keydown', (e) => {
+      if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return; // печать в поле (имя, код сохранения) не двигает героя
       const k = e.key.toLowerCase();
       if (k === ' ') { e.preventDefault(); if (!e.repeat) this.onDash(); return; }
       this.down.add(k);
