@@ -60,6 +60,18 @@ export class Hud {
     this.hpSvg.append(this.track, this.trail, this.fill, this.text);
     this.hpSvg.style.opacity = '0';
     this.root.append(this.hpSvg);
+
+    // Перезарядка блока: полукруглая полоса под героем, заполняется по мере готовности щита.
+    const B0 = Math.PI * 0.14, B1 = Math.PI * 0.86;
+    const bd = `M${(c + R * Math.cos(B0)).toFixed(2)} ${(c + R * Math.sin(B0)).toFixed(2)}A${R} ${R} 0 0 1 ${(c + R * Math.cos(B1)).toFixed(2)} ${(c + R * Math.sin(B1)).toFixed(2)}`;
+    const barc = (stroke, w) => sv('path', { d: bd, fill: 'none', stroke, 'stroke-width': w, 'stroke-linecap': 'round', pathLength: 100 });
+    this.blkTrack = barc('rgba(160,205,255,0.14)', 4);
+    this.blkFill = barc('#8ec5ff', 4);
+    this.blkSvg = sv('svg', { id: 'hud-blk', width: S, height: S, viewBox: `0 0 ${S} ${S}` });
+    this.blkSvg.append(this.blkTrack, this.blkFill);
+    this.blkSvg.style.opacity = '0';
+    this.blkShow = 0;
+    this.root.append(this.blkSvg);
     root.append(this.root);
   }
 
@@ -67,7 +79,7 @@ export class Hud {
   hide() { this.root.classList.add('gone'); }
 
   /** Каждый кадр после отрисовки мира. hero: Hero (положение и радиус). */
-  update(dt, hero) {
+  update(dt, hero, block) {
     const s = this.stats;
     for (const key in this.lootEls) {
       const e = this.lootEls[key];
@@ -87,6 +99,8 @@ export class Hud {
       this.flash.textContent = 'Уровень ' + s.level;
       this.flash.style.opacity = String(Math.max(0, Math.min(1, t * 3, (1 - t) * 8)));
     } else this.flash.style.opacity = '0';
+
+    if (block) this.updateBlock(dt, hero, block);
 
     // Здоровье: дуга над героем, видна, пока оно не полное.
     const full = s.hp >= s.maxHp - 1e-6;
@@ -110,5 +124,20 @@ export class Hud {
     const sc = Math.max(0.6, Math.min(2, ppm / 42));
     this.hpSvg.style.transform = `translate(${(this.pt.x - 48).toFixed(1)}px, ${(this.pt.y - 48).toFixed(1)}px) scale(${sc.toFixed(3)})`;
     this.hpSvg.style.opacity = this.hpShow.toFixed(2);
+  }
+
+  /** Полоса перезарядки блока: видна, пока щит перезаряжается, плавно гаснет, когда готов. */
+  updateBlock(dt, hero, block) {
+    const cooling = !block.active && block.cd > 0;
+    this.blkShow += ((cooling ? 1 : 0) - this.blkShow) * (1 - Math.exp(-dt / (cooling ? 0.08 : 0.25)));
+    if (this.blkShow < 0.02) { this.blkSvg.style.opacity = '0'; return; }
+    if (cooling) this.blkFill.setAttribute('stroke-dasharray', `${(block.ready * 100).toFixed(2)} 100`);
+    const p = hero.group.position;
+    this.world.project(p.x, 0.8, p.z, this.pt);
+    const box = this.hpSvg.parentElement.parentElement;
+    const ppm = Math.min(box.clientWidth, box.clientHeight) / (2 * this.world.span);
+    const sc = Math.max(0.6, Math.min(2, ppm / 42));
+    this.blkSvg.style.transform = `translate(${(this.pt.x - 48).toFixed(1)}px, ${(this.pt.y - 48).toFixed(1)}px) scale(${sc.toFixed(3)})`;
+    this.blkSvg.style.opacity = this.blkShow.toFixed(2);
   }
 }

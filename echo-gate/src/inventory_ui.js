@@ -2,6 +2,7 @@
 // (сила духа слева, предметов из лимита по центру, монеты справа) и ячейки инвентаря. Открывается кнопкой у кучи снаряжения.
 import { InventoryView } from './inventory_view.js';
 import { makeStaffIcons } from './staff_icons.js';
+import { repairCost } from './sharpen.js';
 
 const TOME_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="4" width="19" height="24" rx="2.500" fill="#3a2a3d" stroke="#c9a25a" stroke-width="1.400"/><rect x="9.500" y="6.500" width="14" height="19" rx="1.500" fill="#e9e2cf"/><rect x="7" y="4" width="4" height="24" rx="2" fill="#2a1d2d"/><path d="M17.500 11.500l3.200 4.200-3.200 4.200-3.200-4.200z" fill="none" stroke="#1fc8e6" stroke-width="1.600"/><circle cx="17.500" cy="15.700" r="1.100" fill="#35f2ff"/></svg>`;
 const STAFF_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21.500 9.500" stroke="#9a6a3e" stroke-width="3" stroke-linecap="round"/><path d="M9 28L21.500 9.500" stroke="#c9a25a" stroke-width="1" stroke-linecap="round" opacity=".7"/><path d="M17 7.200a6 6 0 0 1 9 5" fill="none" stroke="#c9a25a" stroke-width="2.200" stroke-linecap="round"/><path d="M22.500 3.500l3.200 4.500-3.200 4.500-3.200-4.500z" fill="#5ee6ff" stroke="#d8f8ff" stroke-width="1"/></svg>`;
@@ -9,7 +10,8 @@ const FIRE_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21
 const ICE_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L20.500 12" stroke="#9cc0de" stroke-width="3" stroke-linecap="round"/><path d="M9 28L20.500 12" stroke="#f1f8ff" stroke-width="1" stroke-linecap="round" stroke-dasharray="2 2"/><path d="M23 2.500l3 5.500-1.600 6.500h-2.800L20 8z" fill="#bdeeff" stroke="#effaff" stroke-width="1" stroke-linejoin="round"/><path d="M17 8l3.500 3-1 4zM29 9l-2.500 3.500 1 3.500z" fill="#8fdcff" stroke="#effaff" stroke-width=".8" stroke-linejoin="round"/></svg>`;
 const ELECTRIC_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 28L21 12" stroke="#3a4256" stroke-width="3" stroke-linecap="round"/><path d="M9 28L21 12" stroke="#c9742f" stroke-width="1" stroke-linecap="round" stroke-dasharray="2 2"/><path d="M17 8c-.5-3 1-5 3-5.500M27 8c.5-3-1-5-3-5.500" fill="none" stroke="#8d9ab5" stroke-width="2" stroke-linecap="round"/><path d="M23.500 3.500l-3.800 5.200h2.800l-2 4.800 5.200-6.200h-3z" fill="#fff0a0" stroke="#ffe060" stroke-width="1" stroke-linejoin="round"/></svg>`;
 const STAFF_ICONS = { fire: FIRE_ICON, ice: ICE_ICON, electric: ELECTRIC_ICON };
-const ICONS = { tome: TOME_ICON, staff: STAFF_ICON };
+export const GEM_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#efe6f4"/><stop offset="1" stop-color="#c9d4ea"/></linearGradient></defs><path d="M9 5h14l5 7-12 16L4 12z" fill="url(#pg)" stroke="#fffaff" stroke-width="1.200" stroke-linejoin="round"/><path d="M4 12h24M9 5l7 7 7-7M16 12v16" fill="none" stroke="#b8a9d4" stroke-width=".9" stroke-linejoin="round" opacity=".85"/><path d="M11 7.500l3 3M20 8l-2 2.500" stroke="#fff" stroke-width="1.400" stroke-linecap="round"/></svg>`;
+const ICONS = { tome: TOME_ICON, staff: STAFF_ICON, gem: GEM_ICON };
 const DRAG_PX = 7;        // на сколько сдвинуть палец или мышь, чтобы началось перетаскивание
 const HOLD_MS = 170;      // долгое касание начинает перетаскивание, а короткое сдвигание прокручивает сетку
 
@@ -31,7 +33,7 @@ function icon(svg) {
 }
 
 const FLAME = `<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="inv-fl" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#2f6dff"/><stop offset="0.6" stop-color="#5fc8ff"/><stop offset="1" stop-color="#d8f6ff"/></linearGradient></defs><path fill="url(#inv-fl)" d="M12.6 1.8c.5 3.200-1.300 4.900-3 6.800-1.800 2-3.400 3.900-3.400 7 0 3.600 2.600 6.400 6 6.400s6-2.700 6-6.200c0-2.300-1-4-2.300-5.400-.3 1.300-.9 2.100-1.800 2.600.5-3.600-.2-8.100-1.500-11.200z"/><path fill="#eafaff" opacity=".85" d="M12 21.200c-1.700 0-3-1.300-3-3 0-1.800 1.400-2.800 2.300-4.300.2 1 1.100 1.600 1.700 2.200.5.500.9 1.200.9 2.100 0 1.600-.9 3-1.900 3z"/></svg>`;
-const COIN = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#e0a93e"/><circle cx="12" cy="12" r="10" fill="none" stroke="#fff0b0" stroke-width="1.200" opacity=".9"/><circle cx="12" cy="12" r="6.800" fill="none" stroke="#a8741a" stroke-width="1.600"/><path d="M8.500 6.500a8 8 0 0 1 5-1" fill="none" stroke="#fff6d0" stroke-width="1.400" stroke-linecap="round" opacity=".8"/></svg>`;
+export const SOUL_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.2C9 7 4 9.4 4 15.2a8 8 0 0 0 16 0C20 9.4 15 7 12 1.2z" fill="#499bb5" stroke="#bff4f8" stroke-width="1.15"/><path d="M12 7.2c-1.3 3-4.1 5.4-4.1 8.2a4.1 4.1 0 0 0 8.2 0c0-2.8-2.8-5.2-4.1-8.2z" fill="#dffaff"/><path d="M12 10.3c-.6 1.4-1.6 2.5-1.6 4a1.6 1.6 0 0 0 3.2 0c0-1.5-1-2.6-1.6-4z" fill="#ffffff"/></svg>`;
 
 export class InventoryUi {
   /** root: рамка игры (#phone); inv: Inventory; renderer: THREE.WebGLRenderer; cfg: CONFIG.inventory; onClose: после закрытия */
@@ -42,6 +44,10 @@ export class InventoryUi {
     this.onClose = onClose;
     this.open = false;
     this.view = null; // 3D-витрина создаётся при первом открытии (экономит память, пока окно не нужно)
+    this.viewInitFrame = null;
+    this.iconsInitTimer = null;
+    this.viewFailed = false;
+    this.iconsFailed = false;
     this.pending = null; // нажатие, которое может стать перетаскиванием или нажатием
     this.drag = null;    // идущее перетаскивание: { src, item, ghost }
 
@@ -51,13 +57,11 @@ export class InventoryUi {
       staff: el('div', { class: 'inv-hint staff' }, 'Drag the staff here'),
     };
     this.stage = el('div', { class: 'inv-stage' }, this.hints.tome, this.hints.staff);
-    this.spirit = el('b', {}, '0');
+    this.souls = el('b', {}, '0');
     this.count = el('b', {}, '0 / 0');
-    this.coins = el('b', {}, '0');
     const strip = el('div', { class: 'inv-strip' },
-      el('div', { class: 'inv-stat spirit', title: 'Spirit power' }, icon(FLAME), this.spirit),
-      el('div', { class: 'inv-stat items', title: 'Items' }, this.count),
-      el('div', { class: 'inv-stat coins', title: 'Coins' }, this.coins, icon(COIN)));
+      el('div', { class: 'inv-stat souls', title: 'Souls' }, icon(SOUL_ICON), this.souls),
+      el('div', { class: 'inv-stat items', title: 'Items' }, this.count));
     this.grid = el('div', { class: 'inv-grid' });
     this.grid.style.setProperty('--cols', String(cfg.columns));
     this.cells = [];
@@ -67,7 +71,14 @@ export class InventoryUi {
       this.cells.push(c);
       this.grid.append(c);
     }
-    this.panel = el('div', { class: 'inv-panel' }, strip, this.grid);
+    this.broken = el('div', { class: 'inv-broken' });
+    this.tabItems = el('button', { type: 'button', class: 'on' }, 'Items');
+    this.tabBroken = el('button', { type: 'button' }, 'Broken');
+    this.tabs = el('div', { class: 'inv-tabs' }, this.tabItems, this.tabBroken);
+    this.tab = 'items';
+    this.tabItems.addEventListener('click', () => this.setTab('items'));
+    this.tabBroken.addEventListener('click', () => this.setTab('broken'));
+    this.panel = el('div', { class: 'inv-panel' }, strip, this.tabs, this.grid, this.broken);
     this.detail = el('div', { class: 'inv-detail' });
     this.root = el('div', { id: 'inv' }, this.stage, this.panel, this.close, this.detail);
     this.root.style.setProperty('--stage', `${Math.round(cfg.stageFrac * 100)}%`);
@@ -86,19 +97,50 @@ export class InventoryUi {
     this.detail.addEventListener('click', (e) => { if (e.target === this.detail) this.hideDetail(); });
   }
 
+  setTab(t) {
+    this.tab = t;
+    this.tabItems.classList.toggle('on', t === 'items');
+    this.tabBroken.classList.toggle('on', t === 'broken');
+    this.panel.classList.toggle('show-broken', t === 'broken');
+    this.refresh();
+  }
+
+  /** Вкладка «Broken»: сломанные предметы, выкуп за души или рекламу. */
+  renderBroken() {
+    const inv = this.inv;
+    this.tabBroken.textContent = inv.broken.length ? `Broken (${inv.broken.length})` : 'Broken';
+    this.broken.innerHTML = '';
+    if (!inv.broken.length) { this.broken.append(el('div', { class: 'empty' }, 'Nothing is broken')); return; }
+    inv.broken.forEach((it, i) => {
+      const row = el('div', { class: 'row' });
+      row.style.setProperty('--rar', it.rarityInfo.color);
+      row.innerHTML = `<span class="it">${this.iconOf(it)}</span><div class="nm"><div class="name">${it.label}</div><div class="sub">Broken while sharpening</div></div>`;
+      const cost = repairCost({ inventory: this.cfg }, it);
+      const souls = el('button', { type: 'button', class: 'gold' }, `Repair ${cost.toLocaleString('en-US')}`);
+      souls.append(icon(SOUL_ICON));
+      souls.disabled = inv.souls < cost || inv.full;
+      souls.addEventListener('click', () => inv.repairBroken(i, 'souls', cost));
+      const ad = el('button', { type: 'button', class: 'ad' }, '▶ Watch ad');
+      ad.disabled = inv.full;
+      ad.addEventListener('click', () => inv.repairBroken(i, 'ad', 0)); // реклама подключится позже: пока выкуп сразу
+      row.append(el('div', { class: 'acts' }, souls, ad));
+      this.broken.append(row);
+    });
+  }
+
   /** Обновить числа, ячейки и витрину. */
   refresh() {
     const inv = this.inv;
-    this.spirit.textContent = String(inv.spirit);
+    this.souls.textContent = String(inv.souls);
     this.count.textContent = `${inv.count} / ${inv.limit}`;
-    this.coins.textContent = String(inv.coins);
+    this.renderBroken();
     const lift = this.drag && this.drag.src.type === 'slot' ? this.drag.src.i : -1;
     this.cells.forEach((c, i) => {
       const it = inv.slots[i];
       c.classList.toggle('full', !!it);
       c.classList.toggle('lift', i === lift);
       c.style.setProperty('--rar', it ? it.rarityInfo.color : 'transparent');
-      c.innerHTML = it ? `<span class="it">${this.iconOf(it)}</span>` : '';
+      c.innerHTML = it ? `<span class="it">${this.iconOf(it)}</span>${it.sharpen ? `<b class="plus">+${it.sharpen}</b>` : ''}` : '';
     });
     for (const slot of ['tome', 'staff']) {
       const carrying = !!(this.drag && this.drag.src.type === 'equip' && this.drag.src.slot === slot);
@@ -119,17 +161,58 @@ export class InventoryUi {
   }
 
   show() {
-    if (this.open) return;
-    if (!this.icons) this.icons = makeStaffIcons();
+    if (this.open) return true;
+    // Сначала открыть DOM-инвентарь: иконки и 3D-витрина необязательны для доступа к вещам.
+    // Иначе ошибка WebGL оставляла Game.invOpen=true при невидимом окне.
     this.open = true;
-    if (!this.view) this.view = new InventoryView(this.renderer);
-    this.refresh();
-    this.grid.scrollTop = 0;
     this.root.classList.add('on');
+    try {
+      this.refresh();
+      this.grid.scrollTop = 0;
+    } catch (error) {
+      this.open = false;
+      this.root.classList.remove('on');
+      throw error;
+    }
+    // Витрина создаётся на следующем кадре, чтобы клик не блокировался компиляцией шейдеров.
+    if (!this.view && !this.viewFailed) {
+      this.viewInitFrame = requestAnimationFrame(() => {
+        this.viewInitFrame = null;
+        if (!this.open || this.view || this.viewFailed) return;
+        try {
+          this.view = new InventoryView(this.renderer);
+          this.refresh();
+        } catch (error) {
+          this.view = null;
+          this.viewFailed = true;
+          console.warn('Inventory 3D preview unavailable; item grid remains accessible', error);
+        }
+      });
+    }
+    // Отдельный WebGL-контекст для иконок дорог на телефонах: загружаем после показа окна.
+    if (!this.icons && !this.iconsFailed) {
+      this.iconsInitTimer = setTimeout(() => {
+        this.iconsInitTimer = null;
+        if (!this.open || this.icons || this.iconsFailed) return;
+        try {
+          this.icons = makeStaffIcons();
+          if (!Object.keys(this.icons).length) this.iconsFailed = true;
+        } catch (error) {
+          this.iconsFailed = true;
+          console.warn('3D staff icons unavailable; using existing SVG icons', error);
+        }
+        if (this.open) this.refresh();
+      }, 250);
+    }
+    return true;
   }
 
   hide() {
     if (!this.open) return;
+    if (this.viewInitFrame !== null) cancelAnimationFrame(this.viewInitFrame);
+    if (this.iconsInitTimer !== null) clearTimeout(this.iconsInitTimer);
+    this.viewInitFrame = null;
+    this.iconsInitTimer = null;
     this.cancel();
     this.hideDetail();
     this.open = false;
@@ -139,8 +222,16 @@ export class InventoryUi {
 
   /** Кадр окна: 3D-витрина в прямоугольник .inv-stage. */
   render(dt) {
-    if (!this.open || !this.view) return;
-    this.view.render(dt, this.stage.getBoundingClientRect(), this.renderer.domElement.getBoundingClientRect());
+    if (!this.open || !this.view) return false;
+    try {
+      this.view.render(dt, this.stage.getBoundingClientRect(), this.renderer.domElement.getBoundingClientRect());
+      return true;
+    } catch (error) {
+      this.view = null;
+      this.viewFailed = true;
+      console.warn('Inventory 3D render unavailable; item grid remains accessible', error);
+      return false;
+    }
   }
 
   // --- Перетаскивание и нажатия ---------------------------------------------------------------------------------
@@ -278,7 +369,7 @@ export class InventoryUi {
     this.detail.innerHTML = `
       <div class="card" style="--rar:${item.rarityInfo.color}">
         <div class="head"><span class="it">${this.iconOf(item)}</span>
-          <div><div class="name">${item.name}</div><div class="sub">${item.kindInfo.label} · ${item.rarityInfo.label}${equipped ? ' · Equipped' : ''}</div></div></div>
+          <div><div class="name">${item.label}</div><div class="sub">${item.kindInfo.label} · ${item.rarityInfo.label}${equipped ? ' · Equipped' : ''}</div></div></div>
         <div class="rows">${rows}</div>
         <p class="desc">${item.desc}</p>
         <div class="acts"><button type="button" data-act="toggle">${equipped ? 'Unequip' : 'Equip'}</button><button type="button" data-act="close">Close</button></div>

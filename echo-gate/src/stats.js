@@ -8,13 +8,15 @@ export class Stats {
   }
 
   reset() {
-    this.maxHp = this.cfg.hero.maxHp;
+    this.bonus = { hp: 0, speed: 0, pickup: 0, xp: 0, block: 0 }; // усиления за уровни, доли (0.05 = +5%)
+    this.maxHp = this.baseMax();
     this.hp = this.maxHp;
     this.level = 1;
     this.xp = 0;
     this.kills = 0;
     this.upgrades = { power: 0, speed: 0, range: 0 }; // кристаллы усиления, вложенные в части посоха
     this.loot = { power: 0, skill: 0, page: 0 }; // подобранные кристаллы усиления, умения и обрывки страниц
+    this.soulMods = { soul10: 0, soul50: 0, soul100: 0 }; // множители только на текущий забег
     this.levelFlash = 0; // с: сколько ещё показывать «Уровень N»
   }
 
@@ -29,8 +31,11 @@ export class Stats {
   get hpFraction() { return this.maxHp > 0 ? Math.max(0, Math.min(1, this.hp / this.maxHp)) : 0; }
 
   /** Ползунок максимума здоровья: текущее здоровье меняется на ту же величину (не ниже 1, не выше максимума). */
+  /** Максимум здоровья с усилениями: +N% от базового. */
+  baseMax() { return Math.max(1, Math.round(this.cfg.hero.maxHp * (1 + this.bonus.hp))); }
+
   syncMax() {
-    const m = this.cfg.hero.maxHp;
+    const m = this.baseMax();
     if (m === this.maxHp) return;
     this.hp = Math.max(Math.min(1, m), Math.min(m, this.hp + (m - this.maxHp)));
     this.maxHp = m;
@@ -47,7 +52,7 @@ export class Stats {
 
   /** Опыт n (с множителем gainMult); может поднять сразу несколько уровней. */
   addXp(n) {
-    this.xp += n * this.cfg.xp.gainMult;
+    this.xp += n * this.cfg.xp.gainMult * (1 + this.bonus.xp);
     while (this.xp >= this.xpNeed()) {
       this.xp -= this.xpNeed();
       this.level++;

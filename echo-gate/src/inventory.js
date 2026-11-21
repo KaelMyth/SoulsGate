@@ -1,6 +1,7 @@
-// Данные инвентаря и метапрогресса: ячейки с предметами (лимит из конфига), надетые предметы, сила духа, монеты.
+// Данные инвентаря и метапрогресса: экипировка, предметы и единственная валюта — Souls.
 // Без графики и DOM. onChange вызывается при любом изменении. Надетые предметы в лимит ячеек не входят.
 import { startingTome, startingStaff } from './items.js';
+import { SAVE_STORAGE_KEY, captureProgress, validateProgress, encodeSaveCode, decodeSaveCode } from './savegame.js';
 
 export class Inventory {
   /** cfg: CONFIG.inventory { limit } */
@@ -8,10 +9,79 @@ export class Inventory {
     this.limit = cfg.limit;
     this.slots = new Array(cfg.limit).fill(null); // Item или null
     this.equipped = { tome: startingTome(), staff: startingStaff() };     // по названию места экипировки (Item.slot)
-    this.spirit = 0;     // сила духа: растёт с каждым забегом
-    this.coins = 0;
+    this.souls = 0;      // как в Dark Souls: единая добываемая и расходуемая валюта
+    this.broken = [];    // выкуп за души или рекламу
     this.onChange = null; // один главный слушатель (окно инвентаря)
     this.listeners = [];  // остальные слушатели: listen(fn)
+    this.achievements = {}; // поле для постоянных достижений тестовой версии
+    this.deferSave = false;
+    this.hasProgressSave = false;
+    this.loadBanked();
+    this.hasProgressSave = this.loadProgress();
+  }
+
+  /** Старая валюта переносится один раз: spirit + coins → souls, без потери накоплений. */
+  loadBanked() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const fresh = localStorage.getItem('echo-gate-souls-v1');
+      if (fresh !== null) {
+        const saved = JSON.parse(fresh);
+        if (Number.isSafeInteger(saved.souls) && saved.souls >= 0) this.souls = saved.souls;
+        return;
+      }
+      const old = JSON.parse(localStorage.getItem('echo-gate-banked-v1') || '{}');
+      const spirit = Number.isFinite(old.spirit) ? Math.max(0, Math.floor(old.spirit)) : 0;
+      const coins = Number.isFinite(old.coins) ? Math.max(0, Math.floor(old.coins)) : 0;
+      this.souls = spirit + coins;
+      this.saveBanked();
+    } catch (_) { /* браузер может блокировать хранилище */ }
+  }
+
+  saveBanked() {
+    try {
+      if (typeof localStorage !== 'undefined')
+        localStorage.setItem('echo-gate-souls-v1', JSON.stringify({ souls: this.souls }));
+    } catch (_) { /* приватный режим */ }
+  }
+
+  /** Восстановить постоянный прогресс, но никогда не восстанавливать текущий забег. */
+  loadProgress() {
+    try {
+      if (typeof localStorage === 'undefined') return false;
+      const text = localStorage.getItem(SAVE_STORAGE_KEY);
+      if (!text) return false;
+      const data = validateProgress(JSON.parse(text), this.limit);
+      this.applyProgress(data);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  saveProgress() {
+    try {
+      if (typeof localStorage !== 'undefined')
+        localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(captureProgress(this)));
+    } catch (_) { /* Local storage may be blocked or full */ }
+  }
+
+  applyProgress(data) {
+    this.souls = data.souls;
+    this.slots = data.slots;
+    this.equipped = data.equipped;
+    this.broken = data.broken;
+    this.achievements = data.achievements;
+  }
+
+  /** Код несёт сам прогресс и подходит для любого устройства без облака. */
+  exportSaveCode() { return encodeSaveCode(captureProgress(this)); }
+
+  /** Важно: сначала полная проверка, затем единая замена состояния. */
+  importSaveCode(code) {
+    const data = decodeSaveCode(code, this.limit);
+    this.applyProgress(data);
+    this.hasProgressSave = true;
+    this.changed();
+    return true;
   }
 
   /** Подписаться на любые изменения инвентаря и экипировки. */
@@ -70,9 +140,52 @@ export class Inventory {
     return i >= 0 && this.unequipTo(slot, i);
   }
 
-  addCoins(n) { this.coins = Math.max(0, this.coins + n); this.changed(); }
-  addSpirit(n) { this.spirit = Math.max(0, this.spirit + n); this.changed(); }
+  /** Сколько камней заточки (kind 'gem') лежит в ячейках. */
+  gemCount() { return this.slots.reduce((n, s) => n + (s && s.kind === 'gem' ? 1 : 0), 0); }
+
+  /** Забрать n камней заточки из ячеек. false (и ничего не забирает), если их меньше. */
+  takeGems(n) {
+    if (this.gemCount() < n) return false;
+    for (let i = 0, left = n; i < this.slots.length && left > 0; i++) {
+      if (this.slots[i] && this.slots[i].kind === 'gem') { this.slots[i] = null; left--; }
+    }
+    this.changed();
+    return true;
+  }
+
+  /** Предмет сломался: убрать из ячейки или с экипировки и положить во вкладку «сломанное». */
+  breakItem(item) {
+    let found = false;
+    const i = this.slots.indexOf(item);
+    if (i >= 0) { this.slots[i] = null; found = true; }
+    for (const k of Object.keys(this.equipped)) if (this.equipped[k] === item) { this.equipped[k] = null; found = true; }
+    if (found) this.broken.push(item);
+    this.changed();
+    return found;
+  }
+
+  /** Выкупить сломанный предмет за души или тестовым рекламным способом. */
+  repairBroken(i, mode, cost) {
+    const it = this.broken[i];
+    if (!it || this.full || (mode !== 'souls' && mode !== 'ad')) return false;
+    if (mode === 'souls' && (!Number.isFinite(cost) || cost < 0 || this.souls < cost)) return false;
+    if (mode === 'souls') this.souls -= cost;
+    this.broken.splice(i, 1);
+    this.slots[this.firstEmpty()] = it;
+    this.changed();
+    return true;
+  }
+
+  addSouls(n) {
+    if (!Number.isFinite(n) || n <= 0) return;
+    this.souls += Math.floor(n);
+    this.changed();
+  }
   changed() {
+    if (!this.deferSave) {
+      this.saveBanked();
+      this.saveProgress();
+    }
     if (this.onChange) this.onChange(this);
     for (const fn of this.listeners) fn(this);
   }

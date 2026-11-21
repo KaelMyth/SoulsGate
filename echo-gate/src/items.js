@@ -10,6 +10,7 @@ export const RARITY = {
 export const KINDS = {
   tome: { label: 'Tome', slot: 'tome' },
   staff: { label: 'Staff', slot: 'staff' },
+  gem: { label: 'Gem', slot: null },
 };
 
 export const ELEMENTS = { fire: 'Fire', ice: 'Ice', electric: 'Electric', gravity: 'Gravity', laser: 'Laser', blades: 'Blades' };
@@ -19,7 +20,8 @@ let nextId = 1;
 export class Item {
   /** o: { kind, name, rarity, level, sharpen, durability, desc } */
   constructor(o) {
-    this.id = o.id || nextId++;
+    this.id = Number.isSafeInteger(o.id) && o.id > 0 ? o.id : nextId++;
+    if (this.id >= nextId) nextId = this.id + 1;
     this.kind = o.kind;
     this.name = o.name || 'Unknown item';
     this.rarity = RARITY[o.rarity] ? o.rarity : 'common';
@@ -30,6 +32,8 @@ export class Item {
     this.element = o.element || null;  // стихия посоха: 'fire' | 'ice' | 'electric' (внешний вид; на атаку пока не влияет)
   }
 
+  /** Имя с заточкой: «Apprentice Staff +3». */
+  get label() { return this.sharpen ? `${this.name} +${this.sharpen}` : this.name; }
   get kindInfo() { return KINDS[this.kind] || { label: this.kind, slot: null }; }
   get rarityInfo() { return RARITY[this.rarity]; }
   /** Название места экипировки или null. */
@@ -37,6 +41,7 @@ export class Item {
 
   /** Основные данные для окна предмета: [[подпись, значение], ...]. */
   details() {
+    if (this.kind === 'gem') return [['Type', this.kindInfo.label], ['Rarity', this.rarityInfo.label]];
     return [
       ['Type', this.kindInfo.label],
       ...(this.element ? [['Element', ELEMENTS[this.element]]] : []),
@@ -83,4 +88,12 @@ export function laserStaff() {
 }
 export function bladesStaff() {
   return new Item({ kind: 'staff', element: 'blades', name: 'Bladestorm Staff', rarity: 'rare', level: 1, desc: 'A crown of steel with blades circling it. Its element will reshape your basic attack.' });
+}
+
+/** Жемчужный камень заточки: расходник для улучшения снаряжения (пока ничего не делает). */
+export function pearlGem() {
+  return new Item({
+    kind: 'gem', name: 'Pearl Sharpening Gem', rarity: 'rare',
+    desc: 'A pearl-white gem used to improve your equipment.',
+  });
 }

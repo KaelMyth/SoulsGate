@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Shop } from './shop.js';
 import { GearPile } from './gear.js';
+import { EnchantingNook } from './enchanting.js';
 
 function mat(color, rough = 0.95) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, flatShading: true }); }
 function glowMat(color, opacity) {
@@ -158,6 +159,12 @@ export class Hub {
     this.gear.group.scale.setScalar(cfg.gearScale);
     this.group.add(this.gear.group);
 
+    // Зачарованная мастерская справа от костра на экране (местная ось +x).
+    this.enchant = new EnchantingNook();
+    this.enchant.group.position.set(cfg.enchantX, 0, cfg.enchantZ);
+    this.enchant.group.scale.setScalar(cfg.enchantScale);
+    this.group.add(this.enchant.group);
+
     const hx = cfg.halfW;
     const hz = cfg.halfD;
 
@@ -200,6 +207,27 @@ export class Hub {
     return Math.hypot(dx, dz);
   }
 
+  /** Расстояние (м) от мировой точки до прямоугольника мастерской зачарования: 0 внутри. */
+  distToEnchant(wx, wz) {
+    const a = this.group.rotation.y;
+    const lx = wx * Math.cos(a) - wz * Math.sin(a);
+    const lz = wx * Math.sin(a) + wz * Math.cos(a);
+    const dx = Math.max(0, Math.abs(lx - this.cfg.enchantX) - this.cfg.enchantHalfW);
+    const dz = Math.max(0, Math.abs(lz - this.cfg.enchantZ) - this.cfg.enchantHalfD);
+    return Math.hypot(dx, dz);
+  }
+
+  /** Мировая точка над столом зачарования, откуда выходит иконка наковальни. */
+  enchantButtonAnchor(out) {
+    const a = this.group.rotation.y;
+    const lx = this.cfg.enchantX;
+    const lz = this.cfg.enchantZ + 0.5;
+    out.x = lx * Math.cos(a) + lz * Math.sin(a);
+    out.z = -lx * Math.sin(a) + lz * Math.cos(a);
+    out.y = 2.6;
+    return out;
+  }
+
   /** Мировая точка над кучей, откуда выходит иконка рюкзака. */
   gearButtonAnchor(out) {
     const a = this.group.rotation.y;
@@ -235,6 +263,7 @@ export class Hub {
     const lx = px * Math.cos(a) - pz * Math.sin(a);
     const lz = px * Math.sin(a) + pz * Math.cos(a);
     this.gear.update(dt);
+    this.enchant.update(dt);
     this.shop.update(dt, lx - this.shop.group.position.x, lz - this.shop.group.position.z);
   }
 }

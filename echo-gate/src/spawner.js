@@ -10,6 +10,7 @@
 //   на slam.range замирает на замах (на земле кольцо), бьёт в землю и выпускает мошек (onSlam; мошки: midges.js).
 //   Градации: доля стрелков и быков в волнах 6+ растёт с волной (waves.mix).
 // Числа: CONFIG.waves, CONFIG.beetle, CONFIG.shooter, CONFIG.bull, CONFIG.rock, CONFIG.guards, CONFIG.swarm. Для тестов фабрику жуков можно подменить (make).
+import { resetStatus, tickStatus } from './status.js';
 import { Swarm } from './swarm.js';
 
 const TAU = Math.PI * 2;
@@ -42,10 +43,58 @@ export class Spawner {
     this.spawned = 0;
     this.spawnTimer = 0;
     this.lastAngle = null;
+    this.floorMode = false;
+    this.boss = null;
   }
 
-  /** Включить: первая волна начинается после обычной паузы. */
-  start() { this.enabled = true; this.reset(); }
+  /** Старые волны остаются доступны для отладки и тестов. */
+  start() { this.reset(); this.enabled = true; }
+
+  startFloor(floor = 1) {
+    this.reset();
+    this.floorMode = true;
+    this.floorIndex = Math.max(1, Math.floor(floor));
+    this.floorElapsed = 0;
+    this.floorPhase = 'mobs';
+    this.wave = 1 + (this.floorIndex - 1) * 6;
+    this.spawnTimer = 0.5;
+    this.enabled = true;
+  }
+
+  endFloor() {
+    this.enabled = false;
+    this.floorPhase = 'cleared';
+    this.clear();
+  }
+
+  spawnFloorBoss(hx, hz, R, rnd) {
+    const r = R + this.cfg.waves.margin + this.cfg.rock.radius;
+    const a = rnd() * TAU;
+    const b = this.spawnAt(hx + Math.cos(a) * r, hz + Math.sin(a) * r, hx, hz, 'rock');
+    b.hp = b.maxHp = Math.ceil(this.hpFor(this.wave, this.cfg.rock.hp)
+      * this.cfg.floors.bossHpMult * Math.pow(1.25, this.floorIndex - 1));
+    this.boss = b;
+    this.floorPhase = 'boss';
+  }
+
+  /** Бесконечный поток: используем состав и ограничения существующих волн. */
+  updateFloorSpawns(dt, hx, hz, R, rnd) {
+    this.floorElapsed += dt;
+    this.wave = 1 + (this.floorIndex - 1) * 6
+      + Math.floor(this.floorElapsed / this.cfg.floors.spawnStageSeconds);
+    if (this.floorPhase === 'mobs' && this.floorElapsed >= this.cfg.floors.duration) {
+      this.spawnFloorBoss(hx, hz, R, rnd);
+    }
+    const pat = this.row(this.wave);
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) {
+      const size = this.floorPhase === 'boss' ? Math.max(1, Math.ceil(pat.groupSize / 2)) : pat.groupSize;
+      if (this.alive.length + size <= this.cap()) {
+        this.spawned += this.spawnGroup(size, pat, hx, hz, R, rnd);
+        this.spawnTimer = Math.max(0.75, pat.interval);
+      } else this.spawnTimer = 0.25;
+    }
+  }
 
   /** Рисунок волны n: { count, interval, maxAlive, groupSize, sides, spread }. */
   row(n) {
@@ -98,6 +147,7 @@ export class Spawner {
     b.yaw = Math.atan2(b.hx, b.hz); // лицом к герою
     b.age = 0;
     b.flash = 0;
+    resetStatus(b);
     b.aim = 0; b.aimTotal = def.aimTime || 0; b.fireTimer = def.firstShotDelay || 0;
     b.guardOf = null; b.goalOn = false; b.goalX = b.goalZ = 0;
     b.gen = ++this.gen;
@@ -184,6 +234,41 @@ export class Spawner {
     }
     this.lastAngle = pat.sides === 'ring' ? ring0 : base;
     return size;
+  }
+
+  /** Враги, отставшие от героя дальше R + margin + respawnFar, переносятся на кольцо за краем экрана в случайном месте
+   * (проверка раз в 0.5 с). Скалу и стрелков с охраной не трогаем: они идут отрядом. Здоровье и вид остаются. */
+  respawnFar(dt, hero, R, rnd) {
+    const W = this.cfg.waves;
+    if (!(W.respawnFar > 0)) return;
+    this.farTimer = (this.farTimer || 0) - dt;
+    if (this.farTimer > 0) return;
+    this.farTimer = 0.5;
+    const far = R + W.margin + W.respawnFar;
+    const r = R + W.margin;
+    for (const b of this.alive) {
+      if (b.heavy || b.guardOf) continue;
+      if (Math.hypot(b.x - hero.x, b.z - hero.z) <= far) continue;
+      if (this.alive.some((e) => e.guardOf === b)) continue; // у стрелка есть охрана
+      const a = rnd() * TAU;
+      this.moveTo(b, hero.x + Math.cos(a) * r, hero.z + Math.sin(a) * r, hero);
+    }
+  }
+
+  /** Перенос жука в точку (x, z) лицом к герою: движение и замахи сбрасываются. */
+  moveTo(b, x, z, hero) {
+    b.state.x = x; b.state.z = z; b.state.vx = b.state.vz = 0;
+    b.x = x; b.z = z;
+    b.kbVx = b.kbVz = 0;
+    b.swX = b.swZ = 0;
+    const d = Math.hypot(hero.x - x, hero.z - z) || 1;
+    b.hx = (hero.x - x) / d; b.hz = (hero.z - z) / d;
+    b.yaw = Math.atan2(b.hx, b.hz);
+    const A = b.atk, def = b.def;
+    A.state = 'idle'; A.t = 0; A.hit = false;
+    A.cd = def.attack ? def.attack.firstDelay : A.cd;
+    b.aim = 0; b.fireTimer = def.firstShotDelay || 0;
+    b.age = 0;
   }
 
   /** Убрать убитого жука с поля. */
@@ -339,12 +424,15 @@ export class Spawner {
   }
 
   /** Движение жуков к герою (стрелки держат дистанцию, охрана идёт на место в кольце) с учётом стаи, откидывания и касаний. hero: { x, z, radius }. */
-  moveBeetles(dt, hero) {
+  moveBeetles(dt0, hero) {
+    let dt = dt0;
     const list = this.alive;
     this.updateGuards(hero);
     this.swarm.steer(list);
     for (const e of list) {
       const def = e.def;
+      e.timeMul = tickStatus(e, dt0, this.cfg.ice); // лёд: замедление и заморозка
+      dt = dt0 * e.timeMul;
       if (e.goalOn) e.swX = e.swZ = 0; // стая охранников не тянет их друг к другу
       const hdx = hero.x - e.x, hdz = hero.z - e.z;
       const d = Math.hypot(hdx, hdz) || 1e-4;
@@ -376,9 +464,10 @@ export class Spawner {
       e.x += (vx + e.kbVx) * dt;
       e.z += (vz + e.kbVz) * dt;
       if (def.attack && e.atk.state === 'strike') { e.state.vx = e.atk.dirX * def.attack.length / def.attack.strike; e.state.vz = e.atk.dirZ * def.attack.length / def.attack.strike; } // для анимации
-      const decay = Math.exp(-dt / Math.max(0.01, e.kbTau));
+      const decay = Math.exp(-dt0 / Math.max(0.01, e.kbTau));
       e.kbVx *= decay; e.kbVz *= decay;
     }
+    dt = dt0;
     this.swarm.separate(list, hero);
     for (const e of list) {
       e.touchTimer = Math.max(0, e.touchTimer - dt);
@@ -387,14 +476,16 @@ export class Spawner {
       e.state.x = e.x; e.state.z = e.z;
       const reach = hero.radius + e.radius + 0.1;
       const dx = hero.x - e.x, dz = hero.z - e.z;
-      if (e.touchTimer <= 0 && dx * dx + dz * dz <= reach * reach && this.onTouch && this.onTouch(e)) e.touchTimer = e.def.touchCooldown;
+      if (e.touchTimer <= 0 && !(e.freezeT > 0) && dx * dx + dz * dz <= reach * reach && this.onTouch && this.onTouch(e)) e.touchTimer = e.def.touchCooldown;
     }
   }
 
   update(dt, hero, R, rnd = Math.random) {
     if (!this.enabled) return;
-    this.updateWaves(dt, hero.x, hero.z, R, rnd);
+    if (this.floorMode) this.updateFloorSpawns(dt, hero.x, hero.z, R, rnd);
+    else this.updateWaves(dt, hero.x, hero.z, R, rnd);
+    this.respawnFar(dt, hero, R, rnd);
     this.moveBeetles(dt, hero);
-    for (const b of this.alive) b.update(dt, b.state);
+    for (const b of this.alive) b.update(dt * (b.timeMul === undefined ? 1 : b.timeMul), b.state); // замороженный замирает и в анимации
   }
 }

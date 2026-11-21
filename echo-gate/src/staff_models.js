@@ -280,111 +280,124 @@ function gravityStaff(glowTex, matBelt) {
   };
 }
 
-/** Лазерный: светлое керамическое древко с красными линиями, корпус-излучатель с линзой, лучевая игла и вращающиеся призмы. */
+/** Клинок-ромб (как эфирный меч в SoulsGate): плоский, сужается к кончику и к низу. */
+function kiteGeo(len, w) {
+  const sh = new THREE.Shape();
+  sh.moveTo(0, 0); sh.lineTo(w, len * 0.28); sh.lineTo(0, len); sh.lineTo(-w, len * 0.28); sh.closePath();
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.014, bevelEnabled: false });
+  g.translate(0, 0, -0.007);
+  return g;
+}
+
+/** Звёздная вспышка: два вытянутых ореола крест-накрест. */
+function flare(glowTex, color, size) {
+  const g = new THREE.Group();
+  for (const r of [0, Math.PI / 2]) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, rotation: r, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.scale.set(size, size * 0.12, 1);
+    g.add(s);
+  }
+  return g;
+}
+
+/** Лазерный (по лазеру из SoulsGate): тёмное древко с голубыми линиями, ромб-излучатель, прямой луч с белой жилой и звёздная вспышка на конце. */
 function laserStaff(glowTex, matBelt) {
   const group = new THREE.Group();
-  const ceramic = std(0xdfe3ea, { roughness: 0.3, metalness: 0.3 });
-  const graphite = std(0x2c3038, { roughness: 0.35, metalness: 0.7 });
-  const red = basic(0xff2a3a);
-  shaftParts(group, ceramic, graphite, matBelt);
-  for (const y of [0.0, 0.45, 0.9]) { // красные световые полосы
-    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.047, 0.04, 12), red);
+  const navy = std(0x1c2638, { roughness: 0.4, metalness: 0.6 });
+  const steel = std(0x8fa3c0, { roughness: 0.3, metalness: 0.85 });
+  const cyan = basic(0x6ecdff);
+  shaftParts(group, navy, steel, matBelt);
+  for (const y of [0.05, 0.5, 0.95]) {
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.025, 12), cyan);
     r.position.y = y;
     group.add(r);
   }
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.06, 0.3, 8), graphite);
-  body.position.y = 1.65;
-  const fins = [];
-  for (const s of [-1, 1]) { // боковые стабилизаторы
-    const f = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.1), ceramic);
-    f.position.set(s * 0.13, 1.72, 0);
-    f.rotation.z = -s * 0.22;
-    fins.push(f);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.05, 0.12, 8), steel);
+  collar.position.y = 1.5;
+  group.add(collar);
+  for (const s of [-1, 1]) { // две скобы-«усика» у излучателя
+    group.add(tube([[s * 0.05, 1.55, 0], [s * 0.17, 1.62, 0], [s * 0.2, 1.78, 0]], 0.014, steel, 12));
   }
-  const lensRim = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.016, 8, 20), graphite);
-  lensRim.rotation.x = Math.PI / 2;
-  lensRim.position.y = 1.81;
-  const crystal = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), std(0xff4455, { emissive: 0xff1f33, emissiveIntensity: 1.6, roughness: 0.15 }));
-  crystal.position.y = 1.83;
-  const needleMat = basic(0xff6a78, { transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
-  const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.016, 0.7, 6), needleMat);
-  needle.position.y = 2.25;
-  const prisms = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0).scale(0.7, 1.5, 0.7), std(0xff8a96, { emissive: 0xff2a3a, emissiveIntensity: 0.9, roughness: 0.2 }));
-    const a = (i / 3) * Math.PI * 2;
-    m.position.set(Math.cos(a) * 0.17, 0, Math.sin(a) * 0.17);
-    prisms.add(m);
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0).scale(0.8, 1.15, 0.8), std(0x8fdcff, { emissive: 0x3aaeff, emissiveIntensity: 1.5, roughness: 0.15, flatShading: true }));
+  crystal.position.y = 1.72;
+  const innerCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0).scale(0.8, 1.15, 0.8), basic(0xe8f8ff));
+  innerCore.position.y = 1.72;
+  const beam = new THREE.Group(); // луч вверх: четыре слоя, как в игре
+  const layers = [];
+  for (const [r, col, op] of [[0.1, 0x6ecdff, 0.1], [0.055, 0x6ecdff, 0.22], [0.03, 0x6ecdff, 0.7], [0.014, 0xe8f8ff, 1]]) {
+    const m = basic(col, { transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.5, 10, 1, true), m);
+    c.position.y = 2.1;
+    beam.add(c);
+    layers.push({ c, m, op });
   }
-  prisms.position.y = 1.83;
-  const glow = halo(glowTex, 0xff3345, 0.9, 0.65);
-  glow.position.y = 1.83;
-  group.add(body, ...fins, lensRim, crystal, needle, prisms, glow);
+  const tipFlare = flare(glowTex, 0xcdeeff, 0.8);
+  tipFlare.position.y = 2.38;
+  const glow = halo(glowTex, 0x6ecdff, 1.0, 0.6);
+  glow.position.y = 1.72;
+  group.add(crystal, innerCore, beam, tipFlare, glow);
   return {
     group, crystal, glow,
     update(t, k) {
-      prisms.rotation.y = t * (2.2 + k * 2);
-      needle.scale.set(1 + 0.3 * Math.sin(t * 17), 1 + 0.08 * Math.sin(t * 9), 1);
-      needleMat.opacity = 0.6 + 0.3 * Math.abs(Math.sin(t * 11));
-      glow.material.opacity = 0.55 + 0.15 * Math.sin(t * 6);
+      const f = 0.9 + 0.1 * Math.sin(t * 70) + 0.05 * Math.sin(t * 23);
+      for (const l of layers) { l.c.scale.x = l.c.scale.z = f; l.m.opacity = Math.min(1, l.op * (0.85 + 0.25 * f + k * 0.2)); }
+      tipFlare.scale.setScalar(0.9 + 0.2 * Math.sin(t * 9));
+      tipFlare.rotation.z = Math.sin(t * 1.3) * 0.1;
+      crystal.rotation.y = t * 1.5;
+      glow.material.opacity = 0.5 + 0.12 * Math.sin(t * 6);
     },
   };
 }
 
-/** Посох клинков: стальное древко, ступица с венцом из четырёх клинков и кольцо парящих лезвий, кромка блестит. */
+/** Посох клинков (по спектральным клинкам и эфирному мечу SoulsGate): светящийся веер из трёх фиолетово-белых клинков над изогнутой гардой, вокруг парят мечи остриём вниз. */
 function bladesStaff(glowTex, matBelt) {
   const group = new THREE.Group();
-  const steel = std(0xaab6c8, { roughness: 0.35, metalness: 0.5, emissive: 0x4a5870, emissiveIntensity: 0.6 });
-  const dark = std(0x2b2f3a, { roughness: 0.4, metalness: 0.7 });
-  const edge = std(0xdbe8ff, { roughness: 0.3, metalness: 0.4, emissive: 0x7a90b0, emissiveIntensity: 0.7 });
-  const gold = std(0xc9a25a, { roughness: 0.4, metalness: 0.6 });
-  shaftParts(group, dark, steel, matBelt);
+  const dark = std(0x2a2448, { roughness: 0.45, metalness: 0.6 });
+  const lav = std(0x9381ea, { roughness: 0.3, metalness: 0.6, emissive: 0x6a5cc8, emissiveIntensity: 0.5 });
+  const blade = std(0xb9b0ff, { roughness: 0.25, metalness: 0.3, emissive: 0x6a5cc8, emissiveIntensity: 0.55 });
+  shaftParts(group, dark, lav, matBelt);
   for (const y of [0.2, 0.7]) {
-    const r = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 16), gold);
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.011, 6, 16), lav);
     r.rotation.x = Math.PI / 2;
     r.position.y = y;
     group.add(r);
   }
-  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), gold);
-  hub.position.y = 1.6;
-  group.add(hub);
-  const blade = (len, w, mat) => {
-    const m = new THREE.Mesh(new THREE.ConeGeometry(w, len, 4).translate(0, len / 2, 0), mat);
-    m.scale.z = 0.22;
-    return m;
-  };
-  for (let i = 0; i < 4; i++) { // венец: клинки веером вверх и в стороны
-    const a = (i / 4) * Math.PI * 2;
-    const b = blade(0.62, 0.07, edge);
-    b.position.set(Math.cos(a) * 0.05, 1.64, Math.sin(a) * 0.05);
-    b.rotation.set(Math.sin(a) * 0.55, a, -Math.cos(a) * 0.55);
-    group.add(b);
+  const hubY = 1.56;
+  const fan = new THREE.Group();
+  fan.position.y = hubY;
+  for (const a of [-34, 0, 34]) { // веер как на иконке: клинки из одной точки
+    const b = new THREE.Mesh(kiteGeo(a === 0 ? 0.95 : 0.8, 0.095), blade);
+    const pivot = new THREE.Group();
+    pivot.rotation.z = -a * Math.PI / 180;
+    b.position.y = 0.05;
+    pivot.add(b);
+    fan.add(pivot);
   }
-  const mid = blade(0.8, 0.06, edge);
-  mid.position.y = 1.66;
-  group.add(mid);
-  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), std(0xbfe4ff, { emissive: 0x7cc4ff, emissiveIntensity: 1.2, roughness: 0.15 }));
-  crystal.scale.y = 1.4;
-  crystal.position.y = 1.6;
+  const guard = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.028, 8, 20, Math.PI), lav); // изогнутая гарда под веером
+  guard.rotation.z = Math.PI;
+  guard.position.y = hubY + 0.02;
+  const crystal = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), basic(0xe7d9ff));
+  crystal.position.y = hubY - 0.05;
   const flyers = new THREE.Group();
-  for (let i = 0; i < 5; i++) {
-    const m = blade(0.2, 0.035, steel);
-    const a = (i / 5) * Math.PI * 2;
-    m.position.set(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3);
-    m.rotation.set(Math.PI / 2, 0, -a); // остриём по касательной
-    m.rotation.order = 'YXZ';
+  for (let i = 0; i < 3; i++) {
+    const m = new THREE.Mesh(kiteGeo(0.34, 0.055), blade);
+    m.rotation.z = Math.PI; // остриём вниз, как падающие мечи
+    m.position.set(Math.cos((i / 3) * Math.PI * 2) * 0.34, 0.17, Math.sin((i / 3) * Math.PI * 2) * 0.34);
     flyers.add(m);
   }
-  flyers.position.y = 1.7;
-  const glow = halo(glowTex, 0xa8d4ff, 0.8, 0.35);
-  glow.position.y = 1.7;
-  group.add(crystal, flyers, glow);
+  flyers.position.y = hubY + 0.1;
+  const glow = halo(glowTex, 0xa39bff, 1.3, 0.35);
+  glow.position.y = hubY + 0.35;
+  const glow2 = halo(glowTex, 0xe6e0ff, 0.5, 0.7);
+  glow2.position.y = hubY - 0.05;
+  group.add(fan, guard, crystal, flyers, glow, glow2);
   return {
     group, crystal, glow,
     update(t, k) {
-      flyers.rotation.y = t * (1.6 + k * 1.5);
-      flyers.position.y = 1.7 + Math.sin(t * 1.7) * 0.03;
-      glow.material.opacity = 0.3 + 0.1 * Math.sin(t * 3) + 0.1 * Math.max(0, Math.sin(t * 5.3));
+      flyers.rotation.y = t * (1.3 + k * 1.5);
+      flyers.position.y = hubY + 0.1 + Math.sin(t * 1.7) * 0.03;
+      fan.rotation.z = Math.sin(t * 1.2) * 0.04;
+      glow.material.opacity = 0.3 + 0.08 * Math.sin(t * 3);
     },
   };
 }

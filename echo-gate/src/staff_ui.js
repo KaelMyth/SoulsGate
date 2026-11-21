@@ -177,7 +177,7 @@ export class StaffUi {
   /** Числа посоха и счётчики усилений на экране. */
   refresh(flashPart) {
     const s = this.game.stats;
-    const st = staffStats(this.cfg, s.upgrades);
+    const st = staffStats(this.cfg, s.upgrades, this.game.equippedSharpen());
     this.q('#st-might b').textContent = st.might;
     this.q('#st-type').textContent = this.cfg.staff.type;
     this.q('#st-dmg').textContent = st.damage.toFixed(1);
