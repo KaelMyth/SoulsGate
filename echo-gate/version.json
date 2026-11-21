@@ -1,5 +1,5 @@
 {
-  "build": 92,
+  "build": 93,
   "commit": "071bbb8",
-  "notes": "Enter-your-name prompt on first launch and after progress reset; name shown above the mage in the backpack."
+  "notes": "Staff tier look also in the staff upgrade screen and the mod menu."
 }
