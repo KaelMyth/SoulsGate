@@ -1,4 +1,4 @@
-// Лазерный посох: мгновенный луч из кристалла вдоль линии на цель, пробивает всех врагов на пути до предельной дальности.
+// Лазерный посох: белый магический луч из кристалла (удерживаемый hold/release или короткий shoot). Лента с мягким краем, три слоя: аура, свечение, сердцевина.
 // Луч это плоская лента, всегда повёрнутая к камере (см. faceCamBasis), двумя слоями: широкое красное свечение и тонкая белая сердцевина.
 // Живёт доли секунды: сужается и гаснет. Мешей немного (пул), на кадр это пара матриц.
 import * as THREE from 'three';
@@ -63,7 +63,7 @@ export class Laser {
       this.scene.add(mesh);
       return mesh;
     };
-    const b = { on: false, t: 0, glow: mk(this.cfg.glow), core: mk(this.cfg.core), x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0, w: 1 };
+    const b = { on: false, t: 0, aura: mk(this.cfg.aura || this.cfg.glow), glow: mk(this.cfg.glow), core: mk(this.cfg.core), x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0, w: 1 };
     this.pool.push(b);
     return b;
   }
@@ -73,9 +73,25 @@ export class Laser {
     const b = this.pool.find((e) => !e.on) || this.make();
     b.on = true; b.t = 0;
     b.x0 = x0; b.y0 = y0; b.z0 = z0; b.x1 = x1; b.y1 = y1; b.z1 = z1;
-    b.glow.visible = b.core.visible = true;
+    b.glow.visible = b.core.visible = b.aura.visible = true;
     this.place(b, 1);
   }
+
+  /** Удерживаемый луч (пока идёт атака): вызывать каждый кадр; k: толщина (1 = обычная). release() гасит его. */
+  hold(x0, y0, z0, x1, y1, z1, k = 1) {
+    if (!this.ch) { this.ch = this.make(); this.ch.hold = true; }
+    const b = this.ch;
+    b.on = true; b.held = true; b.rel = 0;
+    b.x0 = x0; b.y0 = y0; b.z0 = z0; b.x1 = x1; b.y1 = y1; b.z1 = z1;
+    b.glow.visible = b.core.visible = b.aura.visible = true;
+    this.place(b, k * (0.94 + 0.12 * Math.random()));
+    b.glow.material.opacity = 0.8; b.core.material.opacity = 1; b.aura.material.opacity = 0.28;
+    b.k = k;
+  }
+
+  release() { if (this.ch) this.ch.held = false; }
+
+  clear() { for (const b of this.pool) { b.on = false; b.held = false; b.glow.visible = b.core.visible = b.aura.visible = false; } }
 
   place(b, k) {
     const c = this.cfg;
@@ -83,6 +99,8 @@ export class Laser {
     const L = this.d.length();
     faceCamBasis(this.m, this.d, L, c.glowWidth * k, b.x0, b.y0, b.z0);
     b.glow.matrix.copy(this.m);
+    faceCamBasis(this.m, this.d, L, c.glowWidth * 2.6 * k, b.x0, b.y0, b.z0);
+    b.aura.matrix.copy(this.m);
     faceCamBasis(this.m, this.d, L, c.coreWidth * k, b.x0, b.y0, b.z0);
     b.core.matrix.copy(this.m);
   }
@@ -91,14 +109,24 @@ export class Laser {
     const life = this.cfg.life;
     for (const b of this.pool) {
       if (!b.on) continue;
+      if (b.hold) { // удерживаемый луч: пока held, его рисует hold(); отпущенный быстро гаснет
+        if (b.held) continue;
+        b.rel += dt;
+        const f = 1 - b.rel / 0.18;
+        if (f <= 0) { b.on = false; b.glow.visible = b.core.visible = b.aura.visible = false; continue; }
+        this.place(b, (b.k || 1) * (0.4 + 0.6 * f));
+        b.glow.material.opacity = 0.8 * f; b.core.material.opacity = f; b.aura.material.opacity = 0.28 * f;
+        continue;
+      }
       b.t += dt;
       const q = b.t / life;
-      if (q >= 1) { b.on = false; b.glow.visible = b.core.visible = false; continue; }
+      if (q >= 1) { b.on = false; b.glow.visible = b.core.visible = b.aura.visible = false; continue; }
       const fade = 1 - q;
       // вспышка в начале: луч сразу полный и яркий, потом быстро сужается
       const k = q < 0.12 ? 1 + 0.5 * (1 - q / 0.12) : 1 - 0.75 * ((q - 0.12) / 0.88);
       this.place(b, k);
       b.glow.material.opacity = 0.85 * fade * fade;
+      b.aura.material.opacity = 0.28 * fade * fade;
       b.core.material.opacity = Math.min(1, 1.4 * fade);
     }
   }

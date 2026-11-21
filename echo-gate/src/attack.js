@@ -5,7 +5,7 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
-import { applyIce, applyFire, burnTick, gravityFactor } from './status.js';
+import { applyIce, applyFire, burnTick, applyShock, gravityFactor } from './status.js';
 import { Lightning } from './lightning.js';
 import { Laser } from './laser.js';
 import { Blades } from './blades.js';
@@ -83,7 +83,7 @@ const PAL = {
   gravity: { flash: 'glow', flashC: 0xd8dce6, ring: 0x9aa0b0, muz0: 0xffffff, muz1: 0x7d8494, sp0: 0xffffff, sp1: 0x7d8494, spG: 6, spD: 2.5, spS: 0.05, mote0: 0xcfd3dc, mote1: 0x4a4f5c, moteG: -0.4, shock: 0x9aa0b0 },
   fire: { flash: 'glow', flashC: 0xffc060, ring: 0xff7a1a, muz0: 0xfff0b0, muz1: 0xff5a10, sp0: 0xffe9a0, sp1: 0xff3a10, spG: 6, spD: 2.2, spS: 0.06, mote0: 0xffa040, mote1: 0x802010, moteG: -1.6, shock: 0xff7a1a },
 };
-PAL.laser = { flash: 'glow', flashC: 0xff6a78, ring: 0xff3345, muz0: 0xffffff, muz1: 0xff3345, sp0: 0xffffff, sp1: 0xff3345, spG: 4, spD: 3, spS: 0.03, mote0: 0xff8a95, mote1: 0x8a0f20, moteG: 0, shock: 0xff3345 };
+PAL.laser = { flash: 'glow', flashC: 0xffffff, ring: 0xdde8ff, muz0: 0xffffff, muz1: 0xb8c8ff, sp0: 0xffffff, sp1: 0xb8c8ff, spG: 4, spD: 3, spS: 0.03, mote0: 0xffffff, mote1: 0xaebcff, moteG: 0, shock: 0xdde8ff };
 PAL.blades = { flash: 'glow', flashC: 0xdff4ff, ring: 0x8fc8ff, muz0: 0xffffff, muz1: 0x6fb4ff, sp0: 0xffffff, sp1: 0x6fb4ff, spG: 5, spD: 2.6, spS: 0.05, mote0: 0xe8f6ff, mote1: 0x4a78c8, moteG: -0.3, shock: 0x8fc8ff };
 const pal = (el) => PAL[el] || PAL.basic;
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -172,7 +172,7 @@ function makeFlameTail() {
   g.visible = false;
   return g;
 }
-const LASER_CFG = () => ({ glow: 0xff3345, core: 0xffffff, glowWidth: 0.9, coreWidth: 0.16, life: 0.24 });
+const LASER_CFG = () => ({ glow: 0xdde8ff, core: 0xffffff, aura: 0xc6d4ff, glowWidth: 0.7, coreWidth: 0.13, life: 0.24 });
 const KILL_COLOR = { beetle: 0xff6a55, shooter: 0xc07bff, bull: 0xffa040, rock: 0xa9b8d0 }; // осколки убитого врага
 const rr = (a, b) => a + Math.random() * (b - a);
 
@@ -188,8 +188,9 @@ export class Attack {
     this.ring = ringTexture();
     this.bolts = [];
     this.orbs = []; // шары живого пламени (пул)
+    this.beam = { on: false, t: 0, tickT: 0, T: null, target: null, locked: false, ang: 0, cur: 0, sign: 1, dmgPerTick: 0 }; // лазерный посох: идущая атака
+    this.laserGap = 0;
     this.balls = []; // шаровые молнии (пул)
-    this.zapCount = 0;
     this.fx = [];      // пул вспышек и колец попадания
     this.parts = new Particles(scene, this.glow); // искры, осколки, огоньки
     this.lightning = new Lightning(scene, this.glow, 24); // дуги электрического посоха
@@ -430,8 +431,9 @@ export class Attack {
     return { width: (look ? look.width : 1) * 1.2, color: [0xfffbe0, 0xeaf6ff, 0xffffff][tier], glow: [0xffe45a, 0x6fc8ff, 0xa98bff][tier] };
   }
 
-  /** Электрический посох: дуга от кристалла в цель бьёт мгновенно и перескакивает по цепочке: на +0..4 на 2 врагов, дальше на 4 (урон 2-й цели 75%,
-   * 3-й 50%, 4-й 25%). На +10 каждый ballEvery-й разряд выпускает ещё и шаровую молнию. */
+  /** Электрический посох. +0..4 и +5..9: дуга от кристалла бьёт мгновенно основную цель и ещё врагов по цепочке (2 или 4 врага, урон 2-й, 3-й и 4-й цели 75/50/25%).
+   * Кроме того, как раньше: на втором стаке электризации или если дуга убила цель, цепная молния бежит дальше по ещё не задетым врагам (звенья на 50% слабее).
+   * +10: вместо разряда выпускается шаровая молния (одновременно не больше ball.max). */
   zap(target) {
     const c = this.cfg, E = this.elec;
     const tx = target.state.x, tz = target.state.z;
@@ -439,14 +441,16 @@ export class Attack {
     this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, 'electric');
     this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, 'electric');
     const tier = this.stormTier(), T = E && E.tiers ? E.tiers[tier] : { targets: 2 };
+    if (T.ball) { this.spawnBall(tx, tz); return; }
     const st = this.arcStyle(tier);
     this.lightning.arc([this.tip.x, this.tip.y, this.tip.z], [tx, 0.45, tz], { life: 0.22, ...st });
     const dmg = this.cur().damage;
-    this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
-    if (T.targets > 1) this.chain(target, dmg, T.targets - 1, st);
-    if (T.ball) {
-      this.zapCount = (this.zapCount || 0) + 1;
-      if (this.zapCount % (E.ballEvery || 3) === 0) this.spawnBall(tx, tz);
+    const killed = this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
+    let seen = new Set([target]);
+    if (T.targets > 1) seen = this.chain(target, dmg, T.targets - 1, st, seen, E.falloff);
+    if (killed || (E && applyShock(target, E) === 'chain')) {
+      const f = Array.from({ length: E.chainJumps }, (_, j) => Math.pow(1 - E.chainFalloff, j + 1));
+      this.chain(target, dmg, E.chainJumps, st, seen, f);
     }
   }
 
@@ -463,10 +467,10 @@ export class Attack {
   }
 
   /** Цепь от врага from: extra следующих врагов по цепочке (каждый ближайший к предыдущему в chainRange, ещё не задетый). Урон: доли E.falloff от основного. */
-  chain(from, dmg0, extra, st) {
+  chain(from, dmg0, extra, st, seen = new Set([from]), falloff = null) {
     const E = this.elec;
-    if (!E) return;
-    const seen = new Set([from]);
+    if (!E) return seen;
+    falloff = falloff || E.falloff;
     let px = from.state.x, pz = from.state.z;
     for (let j = 0; j < extra; j++) {
       let best = null, bd = E.chainRange * E.chainRange;
@@ -479,13 +483,16 @@ export class Attack {
       seen.add(best);
       const nx = best.state.x, nz = best.state.z;
       this.lightning.arc([px, 0.45, pz], [nx, 0.45, nz], { life: 0.22, delay: 0.07 * (j + 1), ...st, width: Math.max(0.6, 1 - 0.1 * j) * st.width });
-      this.strike(best, dmg0 * (E.falloff[Math.min(j, E.falloff.length - 1)]), nx - px, nz - pz);
+      this.strike(best, dmg0 * (falloff[Math.min(j, falloff.length - 1)]), nx - px, nz - pz);
       px = nx; pz = nz;
     }
+    return seen;
   }
 
   /** Шаровая молния: рождается у кристалла, плывёт к ближайшему врагу, бьёт врагов рядом ball.hits раз и пропадает. */
   spawnBall(tx, tz) {
+    const Bc = this.elec.ball;
+    if (this.balls.filter((q) => q.on).length >= (Bc.max || 3)) return; // шаров одновременно не больше потолка
     let o = this.balls.find((q) => !q.on);
     if (!o) {
       o = { on: false, core: sprite(this.glow, 0xffffff, 1), halo: sprite(this.glow, 0x8f78ff, 0.8), t: 0 };
@@ -538,40 +545,101 @@ export class Attack {
     }
   }
 
-  /** Лазерный посох: луч из кристалла в сторону цели на всю дальность, бьёт каждого врага на линии (и сбивает мошек). */
+  /** Лазерный посох: магический белый луч держится дольше и бьёт частыми слабыми тиками (updateBeam).
+   * +0..4: бьёт одного врага (первого на линии на цель). +5..9: тики и толщина растут; если цель погибла, луч прошивает её и уходит за экран, пока не упрётся в следующего.
+   * +10: луч уходит за экран по направлению врага и ведёт в сторону (случайно вверх или вниз), бьёт всех на пути. */
   fireLaser(target) {
-    const c = this.cfg, L = this.laserCfg, R = this.cur().range;
+    if (this.beam.on) return;
+    const L = this.laserCfg, c = this.cfg;
+    const tier = this.tierIndex(), T = L.tiers ? L.tiers[tier] : { dur: 0.6, ramp: 0, width: 1 };
     const tx = target.state.x, tz = target.state.z;
-    let dx = tx - this.tip.x, dz = tz - this.tip.z;
-    const d = Math.hypot(dx, dz) || 1;
-    dx /= d; dz /= d;
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
-    const ex = this.tip.x + dx * R, ez = this.tip.z + dz * R;
-    this.laser.shoot(this.tip.x, this.tip.y, this.tip.z, ex, 0.5, ez);
-    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize * 1.4, 0.2, 'laser');
-    this.muzzle(this.tip.x, this.tip.y, this.tip.z, dx, 0, dz, 'laser');
-    const dmg = this.cur().damage * L.damageMul;
-    const hits = [];
+    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize * 1.3, 0.2, 'laser');
+    this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, 0, this.dir.z, 'laser');
+    const B = this.beam;
+    B.on = true; B.t = 0; B.tickT = 0; B.T = T; B.target = target; B.locked = false;
+    B.ang = Math.atan2(tx - this.tip.x, tz - this.tip.z); // угол от оси +z к +x: направление луча (dx = sin, dz = cos)
+    B.sign = Math.random() < 0.5 ? -1 : 1;
+    B.dmgPerTick = this.cur().damage * L.damageMul * L.totalMul * L.tick / T.dur;
+    this.laserGap = T.dur + L.gap;
+  }
+
+  /** Номер ступени посоха (0..2) по заточке. */
+  tierIndex() { return this.tiers && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; }
+
+  endBeam(early = false) {
+    this.beam.on = false;
+    this.laser.release();
+    if (early) this.cool = Math.min(this.cool, 0.15);
+  }
+
+  /** Шаг луча: направление, длина до первого врага (или за экран), тики урона, искры. */
+  updateBeam(dt) {
+    const B = this.beam;
+    if (!B.on) return;
+    const L = this.laserCfg, T = B.T;
+    if (this.getElement && this.getElement() !== 'laser') { this.endBeam(); return; } // сменили посох
+    B.t += dt;
+    if (B.t >= T.dur) { this.endBeam(); return; }
+    this.hero.staffTip(this.tip);
+    const k = B.t / T.dur;
+    // направление
+    if (T.sweep) B.cur = B.ang + B.sign * (T.sweep * Math.PI / 180) * k; // +10: ведёт в сторону
+    else if (!B.locked) {
+      if (B.target && this.spawner.alive.includes(B.target)) B.cur = Math.atan2(B.target.state.x - this.tip.x, B.target.state.z - this.tip.z);
+      else if (T.pierceDead) B.locked = true; // цель погибла: луч прошивает и идёт дальше в ту же сторону
+      else { this.endBeam(true); return; }
+      if (!B.locked) B.ang = B.cur;
+    }
+    if (B.locked) B.cur = B.ang;
+    const dx = Math.sin(B.cur), dz = Math.cos(B.cur);
+    // длина и цели
+    let len = L.far, first = null, ft = Infinity;
+    const all = [];
     for (const e of this.spawner.alive) {
       const rx = e.state.x - this.tip.x, rz = e.state.z - this.tip.z;
       const t = rx * dx + rz * dz;
-      if (t < 0 || t > R + e.radius) continue;
-      if (Math.abs(rx * dz - rz * dx) < L.halfWidth + e.radius) hits.push(e);
+      if (t < 0) continue;
+      if (Math.abs(rx * dz - rz * dx) >= L.halfWidth + e.radius) continue;
+      all.push(e);
+      if (t < ft) { ft = t; first = e; }
     }
-    for (const e of hits) this.strike(e, dmg, dx, dz, 'laser');
-    if (this.midges) for (let t = 1; t < R; t += 0.7) {
+    const hits = T.pierceAll ? all : first ? [first] : [];
+    if (!T.pierceAll && first) len = ft;
+    const wk = (T.width || 1) * (1 + (T.ramp ? 0.5 * k : 0)) * (1 + 0.06 * Math.sin(B.t * 40));
+    const ex = this.tip.x + dx * len, ez = this.tip.z + dz * len;
+    this.laser.hold(this.tip.x, this.tip.y, this.tip.z, ex, 0.5, ez, wk);
+    // тики урона, к концу атаки сильнее (ramp)
+    B.tickT += dt;
+    const mult = 1 + (T.ramp || 0) * k;
+    while (B.tickT >= L.tick) {
+      B.tickT -= L.tick;
+      for (const e of hits) this.laserTick(e, B.dmgPerTick * mult, dx, dz);
+    }
+    // магические искры вдоль луча и на конце
+    const n = Math.min(len, 14);
+    for (let i = 0; i < 3; i++) {
+      const t = rr(0.3, n), side = rr(-0.3, 0.3);
+      this.parts.emit({ x: this.tip.x + dx * t - dz * side, y: this.tip.y + (0.5 - this.tip.y) * (t / Math.max(1, len)) + rr(-0.1, 0.25), z: this.tip.z + dz * t + dx * side,
+        vx: rr(-0.4, 0.4), vy: rr(0.3, 1.2), vz: rr(-0.4, 0.4), life: rr(0.35, 0.7), size0: rr(0.06, 0.13), size1: 0, c0: 0xffffff, c1: 0xb8c8ff, drag: 1.5, grav: -0.5, alpha: 0.9 });
+    }
+    if (first || T.pierceAll) for (const e of (T.pierceAll ? hits : [first])) {
+      if (Math.random() < 0.7) this.parts.emit({ x: e.state.x + rr(-0.2, 0.2), y: 0.45 + rr(-0.15, 0.2), z: e.state.z + rr(-0.2, 0.2), vx: rr(-1.5, 1.5), vy: rr(0.3, 1.8), vz: rr(-1.5, 1.5), life: rr(0.2, 0.4), size0: rr(0.08, 0.15), size1: 0, c0: 0xffffff, c1: 0xb8c8ff, drag: 2, grav: 3 });
+    }
+    if (this.midges) for (let t = 1; t < Math.min(len, 14); t += 0.7) {
       const mid = this.midges.hitTest(this.tip.x + dx * t, this.tip.z + dz * t, L.halfWidth + 0.15);
       if (mid) { this.midges.kill(mid, 'shot'); this.impact(mid.x, 0.7, mid.z, dx, dz, false, null, 'laser'); }
     }
-    // искры вдоль луча: жар
-    for (let i = 0; i < this.n(14); i++) {
-      const t = rr(0.5, R), side = rr(-0.25, 0.25);
-      this.parts.emit({ x: this.tip.x + dx * t - dz * side, y: this.tip.y + (0.5 - this.tip.y) * (t / R) + rr(-0.1, 0.2), z: this.tip.z + dz * t + dx * side,
-        vx: rr(-0.6, 0.6), vy: rr(0.2, 1.4), vz: rr(-0.6, 0.6), life: rr(0.2, 0.45), size0: rr(0.08, 0.16), size1: 0, c0: 0xffffff, c1: 0xff3345, drag: 3, grav: 0, alpha: 0.9 });
-    }
-    // конец луча: тёплая вспышка и пятно на земле
-    this.burst(ex, 0.5, ez, c.hitSize * 0.9, 0.25, 'laser');
-    this.shock(ex, ez, c.hitSize * 1.8, 0.3, 0xff3345);
+  }
+
+  /** Один тик лазера по врагу: урон без откидывания; смерть как у обычного удара. Если цель погибла, а это основная, луч «прошивает» (см. updateBeam). */
+  laserTick(e, dmg, dx, dz) {
+    e.hp -= dmg;
+    if (e.hp > 0) return;
+    const x = e.state.x, z = e.state.z;
+    this.burst(x, 0.45, z, this.cfg.hitSize * 1.8, 0.45, 'laser');
+    this.impact(x, 0.45, z, dx, dz, true, e.kind, 'laser');
+    this.spawner.kill(e); if (this.onKill) this.onKill(e); this.deathBurst(e, 0);
   }
 
   /** Электризованные враги искрят: мелкие жёлтые искры вокруг. */
@@ -884,6 +952,7 @@ export class Attack {
           }
         }
         this.cool = this.cur().interval;
+        if (this.laserGap) { this.cool = Math.max(this.cool, this.laserGap); this.laserGap = 0; } // лазер держит луч, следующая атака после паузы
       }
       else this.cool = 0.1; // нет цели: проверяем чаще, чтобы выстрел вышел сразу, как жук появится
     }
@@ -974,6 +1043,7 @@ export class Attack {
     }
     this.burn(dt);
     this.updateFlames(dt);
+    this.updateBeam(dt);
     this.updateBalls(dt);
     this.sparkle(dt);
     this.updateFx(dt);
@@ -990,6 +1060,7 @@ export class Attack {
   }
 
   hideFlames() {
+    this.beam.on = false; this.laser.clear();
     for (const o of this.orbs) { o.on = false; o.core.visible = o.halo.visible = false; }
     this.hideBalls();
   }

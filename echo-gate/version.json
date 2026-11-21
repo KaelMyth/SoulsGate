@@ -1,5 +1,5 @@
 {
-  "build": 100,
+  "build": 101,
   "commit": "x",
-  "notes": "Storm staff tiers: discharge hits 2 / 4 enemies (75/50/25%), ball lightning at +10; new storm staff looks and arc colours."
+  "notes": "Laser staff: white magic beam with 3 tiers (single target ticks / ramp + pierce on kill / sweeping beam); storm +10 ball replaces discharge, chain on 2nd stack or kill restored."
 }
