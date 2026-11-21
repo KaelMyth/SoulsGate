@@ -1,6 +1,7 @@
-// Меню модификатора после рулетки: сверху выпавший модификатор с описанием, внизу навершие текущего посоха (3D),
-// от него вверх три энергетических потока к едва заметным ячейкам. Тап по ячейке вешает модификатор;
-// над занятой ячейкой вырастает новый поток к новой пустой ячейке (всего пять).
+// Меню модификатора после рулетки в виде созвездия (как в Skyrim): внизу навершие посоха (3D), от него две ветки.
+// Сначала линий нет, только два слегка подсвеченных ареола: туда можно повесить модификатор. Когда модификатор повешен, ареол
+// загорается звездой, от посоха к ней прорисовывается полоска света, и от звезды отходят ещё два ареола (в ветке до branchMax ячеек).
+// Положение ячеек считается само: дерево раскладывается по экрану силами отталкивания и пружинами к родителю в пределах своей половины.
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 import { glowTexture } from './staff_icons.js';
@@ -16,18 +17,66 @@ function el(tag, attrs = {}, ...kids) {
 const NS = 'http://www.w3.org/2000/svg';
 const svgEl = (tag, attrs = {}) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
 
-const HEAD = { x: 50, y: 91 };                              // навершие на поле, %
-const ROOTS = [{ x: 19, y: 66 }, { x: 50, y: 58 }, { x: 81, y: 66 }];
+const HEAD_Y = 0.91; // навершие по высоте поля (доля), по ширине в центре
 
-/** Положение ячейки на поле (%): корни фиксированы, остальные над своим родителем. */
-export function cellPos(cells, i) {
-  const c = cells[i];
-  if (c.parent === -1) return ROOTS[i];
-  const p = cellPos(cells, c.parent);
-  return { x: p.x + (p.x - 50) * 0.18, y: p.y - 27 };
+/** Раскладка ячеек по полю W x H (px): положения всех ячеек, дерево само расходится по своей половине экрана. */
+export function layoutCells(cells, W, H) {
+  const hx = W * 0.5, hy = H * HEAD_Y;
+  const n = cells.length;
+  const step = Math.max(58, Math.min(H * 0.115, W * 0.26)); // длина звена
+  const minD = Math.max(50, Math.min(W * 0.17, H * 0.085));
+  const pos = new Array(n);
+  const dirs = new Array(n);
+  const kids = cells.map(() => []);
+  cells.forEach((c, i) => { if (c.parent >= 0) kids[c.parent].push(i); });
+  // Первое приближение: звено от родителя вверх и в сторону своей ветки, дети веером.
+  const place = (i) => {
+    const c = cells[i];
+    let from, base;
+    if (c.parent === -1) { from = { x: hx, y: hy }; base = (c.branch === 0 ? -1 : 1) * 0.62; }
+    else {
+      from = pos[c.parent];
+      const sibs = kids[c.parent];
+      const k = sibs.indexOf(i);
+      const spread = sibs.length > 1 ? (k === 0 ? -0.55 : 0.55) : 0;
+      base = Math.max(-1.25, Math.min(1.25, dirs[c.parent] + spread));
+    }
+    dirs[i] = base;
+    const len = c.parent === -1 ? step * 1.9 : step;
+    pos[i] = { x: from.x + Math.sin(base) * len, y: from.y - Math.cos(base) * len };
+  };
+  const order = [];
+  const walk = (i) => { order.push(i); kids[i].forEach(walk); };
+  cells.forEach((c, i) => { if (c.parent === -1) walk(i); });
+  order.forEach(place);
+  // Релаксация: отталкивание, пружины к родителю, границы, своя половина экрана.
+  for (let it = 0; it < 140; it++) {
+    const f = pos.map(() => ({ x: 0, y: 0 }));
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        if (d < minD) { const push = (minD - d) * 0.5; f[i].x += dx / d * push; f[i].y += dy / d * push; f[j].x -= dx / d * push; f[j].y -= dy / d * push; }
+      }
+      const c = cells[i];
+      const from = c.parent === -1 ? { x: hx, y: hy } : pos[c.parent];
+      const rest = c.parent === -1 ? step * 1.9 : step;
+      const dx = pos[i].x - from.x, dy = pos[i].y - from.y, d = Math.hypot(dx, dy) || 0.01;
+      const k = (d - rest) * 0.12;
+      f[i].x -= dx / d * k; f[i].y -= dy / d * k;
+      if (c.parent >= 0) { f[c.parent].x += dx / d * k * 0.5; f[c.parent].y += dy / d * k * 0.5; }
+    }
+    for (let i = 0; i < n; i++) {
+      pos[i].x += f[i].x; pos[i].y += f[i].y;
+      const side = cells[i].branch === 0 ? [W * 0.09, W * 0.46] : [W * 0.54, W * 0.91];
+      pos[i].x = Math.max(side[0], Math.min(side[1], pos[i].x));
+      pos[i].y = Math.max(H * 0.22, Math.min(H * 0.8, pos[i].y));
+    }
+  }
+  return pos;
 }
 
-/** Короткая подпись под ячейкой по модификатору и усилению. */
+/** Короткая подпись под звездой по модификатору и усилению. */
 function valueText(mod, root, boost, cfg) {
   if (isMult(mod)) return root ? `×${multOf(cfg, mod) * boost} shots` : `×${multOf(cfg, mod) * boost} boost`;
   if (mod === 'might') return `+${Math.round(cfg.damage * boost * 100)}% dmg`;
@@ -43,8 +92,8 @@ export class ModMenu {
     this.busy = false;
     this.mod = null;
     this.done = null;
-    this.cellEls = [];
-    this.streams = [];
+    this.nodes = [];
+    this.size = { w: 0, h: 0 };
 
     this.cardIcon = el('div', { class: 'mm-icon' });
     this.cardName = el('div', { class: 'mm-name' });
@@ -52,9 +101,9 @@ export class ModMenu {
     this.cardDesc = el('div', { class: 'mm-desc' });
     this.card = el('div', { class: 'mm-card' }, this.cardIcon, el('div', { class: 'mm-text' }, this.cardTag, this.cardName, this.cardDesc));
     this.canvas = el('canvas', { class: 'mm-canvas' });
-    this.svg = svgEl('svg', { class: 'mm-streams', viewBox: '0 0 100 100', preserveAspectRatio: 'none' });
+    this.svg = svgEl('svg', { class: 'mm-streams', viewBox: '0 0 100 100' });
     this.field = el('div', { class: 'mm-field' });
-    this.hint = el('div', { class: 'mm-hint' }, 'Tap a cell to attach');
+    this.hint = el('div', { class: 'mm-hint' }, 'Tap a glowing point to attach');
     this.skip = el('button', { type: 'button', class: 'mm-skip' }, 'Discard');
     this.root = el('div', { id: 'modmenu', role: 'dialog', 'aria-label': 'Modifier' }, this.canvas, this.svg, this.field, this.card, this.hint, this.skip);
     root.append(this.root);
@@ -79,6 +128,7 @@ export class ModMenu {
     this.cardDesc.textContent = info.desc;
     this.card.className = 'mm-card ' + info.tier;
     this.root.style.display = 'flex';
+    this.field.replaceChildren(); this.svg.replaceChildren(); this.nodes = [];
     this.rebuild(false);
     this.initScene();
     void this.root.offsetWidth;
@@ -112,38 +162,69 @@ export class ModMenu {
     this.root.style.display = 'none';
   }
 
-  /** Перерисовать ячейки и потоки; grow: индекс только что выросшей ячейки (появляется плавно). */
-  rebuild(animate, grow = -1) {
+  /** Синхронизировать звёзды и линии с ячейками: новые ячейки создаются у родителя и плавно уезжают на своё место;
+   * lit: индекс только что загоревшейся звезды (у неё прорисовывается линия), grown: индексы только что выросших ареолов. */
+  rebuild(animate, lit = -1, grown = []) {
     const cells = this.mods.cells, C = this.game.cfg.mods;
-    this.field.replaceChildren();
-    this.svg.replaceChildren();
-    this.cellEls = [];
+    const w = this.root.clientWidth || 360, h = this.root.clientHeight || 740;
+    this.size = { w, h };
+    this.svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const pos = layoutCells(cells, w, h);
+    const head = { x: w * 0.5, y: h * HEAD_Y };
     cells.forEach((c, i) => {
-      const p = cellPos(cells, i);
-      const from = c.parent === -1 ? HEAD : cellPos(cells, c.parent);
-      this.addStream(from, p, i === grow);
-      const d = el('button', { type: 'button', class: 'mm-cell' + (c.mod ? ' filled' : '') + (i === grow ? ' grow' : ''), 'aria-label': 'Cell ' + (i + 1) });
-      d.style.left = p.x + '%'; d.style.top = p.y + '%';
-      if (c.mod) {
+      let nd = this.nodes[i];
+      if (!nd) {
+        const from = c.parent === -1 ? head : this.nodes[c.parent] || head;
+        nd = { x: from.x, y: from.y, tx: pos[i].x, ty: pos[i].y, born: 0 };
+        nd.el = el('button', { type: 'button', class: 'mm-node', 'aria-label': 'Slot ' + (i + 1) });
+        nd.el.addEventListener('click', () => this.equip(i));
+        nd.g = svgEl('g', { class: 'mm-link' });
+        nd.glow = svgEl('path', { class: 'glow', pathLength: '1' });
+        nd.core = svgEl('path', { class: 'core', pathLength: '1' });
+        nd.flow = svgEl('path', { class: 'flow', pathLength: '1' });
+        nd.g.append(nd.glow, nd.core, nd.flow);
+        this.svg.append(nd.g);
+        this.field.append(nd.el);
+        this.nodes[i] = nd;
+      }
+      nd.tx = pos[i].x; nd.ty = pos[i].y;
+      nd.parent = c.parent;
+      nd.root = c.parent === -1;
+      const filled = !!c.mod;
+      nd.el.classList.toggle('filled', filled);
+      nd.el.classList.toggle('grow', grown.includes(i));
+      nd.el.classList.toggle('flash', i === lit);
+      nd.g.setAttribute('class', 'mm-link ' + (filled ? 'lit' : nd.root ? 'none' : 'faint') + (i === lit ? ' grow' : ''));
+      if (filled) {
         const info = MOD_INFO[c.mod];
-        d.style.setProperty('--m', info.color);
-        d.innerHTML = `<span class="mi">${MOD_ICON[c.mod]}</span><span class="mv">${valueText(c.mod, c.parent === -1, this.mods.boost(i), C)}</span>`;
-      } else d.innerHTML = '<span class="mi"></span>';
-      d.addEventListener('click', () => this.equip(i));
-      this.field.append(d);
-      this.cellEls.push(d);
+        nd.el.style.setProperty('--m', info.color);
+        nd.el.innerHTML = `<span class="star"></span><span class="mv"><span class="mi">${MOD_ICON[c.mod]}</span>${valueText(c.mod, nd.root, this.mods.boost(i), C)}</span>`;
+        nd.g.style.setProperty('--m', info.color);
+      } else {
+        nd.el.innerHTML = '<span class="halo"></span>';
+      }
     });
+    this.head = head;
+    if (!animate) for (const nd of this.nodes) { nd.x = nd.tx; nd.y = nd.ty; }
+    this.moveNodes(0);
   }
 
-  addStream(a, b, grow) {
-    const my = (a.y + b.y) / 2;
-    const dpath = `M${a.x},${a.y} C${a.x},${my + (a.y - b.y) * 0.1} ${b.x},${my + (a.y - b.y) * 0.4} ${b.x},${b.y}`;
-    const g = svgEl('g', { class: 'mm-stream' + (grow ? ' grow' : '') });
-    for (const cls of ['glow', 'core', 'flow']) {
-      const p = svgEl('path', { d: dpath, class: cls, pathLength: '1', 'vector-effect': 'non-scaling-stroke' });
-      g.append(p);
-    }
-    this.svg.append(g);
+  /** Плавный переезд звёзд на новые места и перерисовка линий (кривые от родителя к звезде). */
+  moveNodes(dt) {
+    const k = dt > 0 ? 1 - Math.exp(-dt * 5) : 1;
+    this.nodes.forEach((nd, i) => {
+      if (!nd) return;
+      nd.x += (nd.tx - nd.x) * k; nd.y += (nd.ty - nd.y) * k;
+      nd.el.style.transform = `translate(${nd.x.toFixed(1)}px, ${nd.y.toFixed(1)}px)`;
+      const a = nd.root ? this.head : this.nodes[nd.parent];
+      const ax = a.x, ay = a.y;
+      const mx = (ax + nd.x) / 2, my = (ay + nd.y) / 2;
+      const len = Math.hypot(nd.x - ax, nd.y - ay) || 1;
+      const bend = (i % 2 ? 1 : -1) * len * 0.1;
+      const cx = mx + (-(nd.y - ay) / len) * bend, cy = my + ((nd.x - ax) / len) * bend;
+      const d = `M${ax.toFixed(1)},${ay.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${nd.x.toFixed(1)},${nd.y.toFixed(1)}`;
+      nd.glow.setAttribute('d', d); nd.core.setAttribute('d', d); nd.flow.setAttribute('d', d);
+    });
   }
 
   equip(i) {
@@ -151,8 +232,8 @@ export class ModMenu {
     this.busy = true;
     this.hint.classList.add('off');
     this.skip.classList.add('off');
-    const cell = this.cellEls[i];
-    // Значок перелетает из карточки в ячейку.
+    const cell = this.nodes[i].el;
+    // Значок перелетает из карточки к ячейке.
     const a = this.cardIcon.getBoundingClientRect(), b = cell.getBoundingClientRect();
     const fly = el('div', { class: 'mm-fly' });
     fly.innerHTML = MOD_ICON[this.mod];
@@ -164,12 +245,10 @@ export class ModMenu {
     setTimeout(() => {
       fly.remove();
       const grown = this.mods.equip(i, this.mod);
-      this.rebuild(true, grown);
-      const c2 = this.cellEls[i];
-      c2.classList.add('flash');
+      this.rebuild(true, i, grown);
       this.root.classList.add('pulse');
       setTimeout(() => this.root.classList.remove('pulse'), 600);
-      setTimeout(() => this.close(), grown >= 0 ? 1500 : 900);
+      setTimeout(() => this.close(), grown.length ? 1900 : 1100);
     }, 620);
   }
 
@@ -203,6 +282,7 @@ export class ModMenu {
   }
 
   renderScene(dt) {
+    this.moveNodes(dt);
     if (!this.r || !this.staff) return;
     const w = this.root.clientWidth, h = this.root.clientHeight;
     if (w !== this.w || h !== this.h) {
@@ -211,8 +291,9 @@ export class ModMenu {
       this.cam.left = -H * A / 2; this.cam.right = H * A / 2; this.cam.top = H / 2; this.cam.bottom = -H / 2; this.cam.updateProjectionMatrix();
       // навершие (высота 1.65*1.9 в мире) должно встать в точку HEAD поля
       this.headY = 1.65 * 1.9;
-      const cy = this.headY + (HEAD.y / 100 - 0.5) * H;
+      const cy = this.headY + (HEAD_Y - 0.5) * H;
       this.cam.position.y = cy; this.cam.lookAt(0, cy, 0);
+      if (this.nodes.length) this.rebuild(true); // размер поля изменился: раскладка заново
     }
     this.t += dt;
     this.staff.group.rotation.y = this.t * 0.6;
