@@ -5,6 +5,7 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
+import { applyIce } from './status.js';
 
 const BLUE = 0x2f86ff;
 const DEEP = 0x1f5bff;
@@ -68,6 +69,24 @@ function sprite(map, color, opacity) {
 
 const TRAIL = 8;
 const SHOCKS = 10;
+const ICE = 0xa8e6ff;
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+/** Ледяной шип: острый кристалл с остриём вперёд (+Y), бледное свечение вокруг. Ориентируется по скорости снаряда. */
+function makeSpike() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xe6f8ff }));
+  body.position.y = 0.1;
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), new THREE.MeshBasicMaterial({ color: 0x7fcfff }));
+  tail.position.y = -0.45;
+  tail.rotation.x = Math.PI;
+  const glow = new THREE.Mesh(new THREE.ConeGeometry(0.17, 1.0, 6), new THREE.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.position.y = 0.05;
+  g.add(glow, body, tail);
+  g.renderOrder = 5;
+  g.visible = false;
+  return g;
+}
 const KILL_COLOR = { beetle: 0xff6a55, shooter: 0xc07bff, bull: 0xffa040, rock: 0xa9b8d0 }; // осколки убитого врага
 const rr = (a, b) => a + Math.random() * (b - a);
 
@@ -97,7 +116,10 @@ export class Attack {
     const b = { active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, trailT: 0, trail: [] };
     b.halo = sprite(this.glow, BLUE, 0.5);
     b.core = sprite(this.ball, 0xffffff, 1);
-    this.scene.add(b.halo, b.core);
+    b.spike = makeSpike();
+    b.el = null;
+    b.snowT = 0;
+    this.scene.add(b.halo, b.core, b.spike);
     for (let i = 0; i < TRAIL; i++) {
       const s = sprite(this.ball, 0xffffff, 0.6);
       this.scene.add(s);
@@ -139,12 +161,12 @@ export class Attack {
   n(count) { return Math.max(0, Math.round(count * (this.cfg.fxAmount === undefined ? 1 : this.cfg.fxAmount))); }
 
   /** Вспышка и искры у кристалла при выстреле: веер вперёд по направлению шарика. */
-  muzzle(x, y, z, dx, dy, dz) {
+  muzzle(x, y, z, dx, dy, dz, ice = false) {
     const L = Math.hypot(dx, dz) || 1;
     for (let i = 0; i < this.n(9); i++) {
       const sp = rr(2, 6), sx = rr(-0.55, 0.55), sy = rr(-0.2, 0.5), sz = rr(-0.55, 0.55);
       this.parts.emit({ x, y, z, vx: (dx / L + sx * (dz / L)) * sp, vy: (dy + sy) * sp * 0.6, vz: (dz / L - sx * (dx / L) + sz * 0.2) * sp,
-        life: rr(0.16, 0.34), size0: rr(0.14, 0.24), size1: 0, c0: 0xeaf8ff, c1: 0x3a8cff, drag: 5, grav: 2 });
+        life: rr(0.16, 0.34), size0: rr(0.14, 0.24), size1: 0, c0: ice ? 0xffffff : 0xeaf8ff, c1: ice ? 0x7fd0ff : 0x3a8cff, drag: 5, grav: 2 });
     }
     for (let i = 0; i < this.n(3); i++) { // медленные огоньки вокруг кристалла
       this.parts.emit({ x: x + rr(-0.08, 0.08), y: y + rr(-0.08, 0.08), z: z + rr(-0.08, 0.08), vx: rr(-0.4, 0.4), vy: rr(0.2, 0.9), vz: rr(-0.4, 0.4),
@@ -153,11 +175,11 @@ export class Attack {
   }
 
   /** Попадание: белая вспышка, волна по земле, веер искр назад к стрелку и в стороны, огоньки; big при убийстве (ещё осколки). */
-  impact(x, y, z, dx, dz, big, kind) {
+  impact(x, y, z, dx, dz, big, kind, ice = false) {
     const c = this.cfg;
     const L = Math.hypot(dx, dz) || 1;
     dx /= L; dz /= L;
-    this.shock(x, z, c.hitSize * (big ? 4.2 : 2.6), big ? 0.5 : 0.36);
+    this.shock(x, z, c.hitSize * (big ? 4.2 : 2.6), big ? 0.5 : 0.36, ice ? ICE : BLUE);
     if (big) this.shock(x, z, c.hitSize * 2.2, 0.3, 0xcfe8ff);
     const back = Math.atan2(-dz, -dx);
     const count = this.n(big ? 26 : 13);
@@ -166,11 +188,17 @@ export class Attack {
       const a = fwd ? Math.atan2(dz, dx) + rr(-0.5, 0.5) : (big && i % 3 === 0 ? rr(0, 6.283) : back + rr(-1.15, 1.15));
       const sp = rr(2.2, big ? 8.5 : 6.2);
       this.parts.emit({ x, y, z, vx: Math.cos(a) * sp, vy: rr(0.8, big ? 5.2 : 3.6), vz: Math.sin(a) * sp,
-        life: rr(0.28, big ? 0.7 : 0.55), size0: rr(0.2, 0.36), size1: 0.04, c0: 0xf4fdff, c1: 0x2a6dff, drag: 2.6, grav: 11 });
+        life: rr(0.28, big ? 0.7 : 0.55), size0: rr(0.2, 0.36), size1: ice ? 0.1 : 0.04, c0: 0xf4fdff, c1: ice ? 0x8fd8ff : 0x2a6dff, drag: ice ? 1.8 : 2.6, grav: ice ? 14 : 11 });
     }
     for (let i = 0; i < this.n(big ? 6 : 3); i++) { // плывущие вверх огоньки
       this.parts.emit({ x: x + rr(-0.15, 0.15), y: y + rr(-0.05, 0.15), z: z + rr(-0.15, 0.15), vx: rr(-0.6, 0.6), vy: rr(0.7, 1.7), vz: rr(-0.6, 0.6),
-        life: rr(0.6, 1.1), size0: rr(0.26, 0.4), size1: 0, c0: 0x8fd0ff, c1: 0x2447d8, drag: 1.4, grav: -0.3, alpha: 0.7 });
+        life: rr(0.6, 1.1), size0: rr(0.26, 0.4), size1: 0, c0: ice ? 0xeafaff : 0x8fd0ff, c1: ice ? 0x9fdcff : 0x2447d8, drag: 1.4, grav: -0.3, alpha: 0.7 });
+    }
+    if (ice) { // ледяная крошка: быстрые белые осколки веером и россыпь снежинок
+      for (let i = 0; i < this.n(10); i++) {
+        const a = rr(0, 6.283), sp = rr(3, 7.5);
+        this.parts.emit({ x, y, z, vx: Math.cos(a) * sp, vy: rr(1.5, 4.5), vz: Math.sin(a) * sp, life: rr(0.35, 0.7), size0: rr(0.12, 0.2), size1: 0.08, c0: 0xffffff, c1: 0x6fc8ff, drag: 1.5, grav: 13 });
+      }
     }
     if (big) { // осколки цвета убитого врага
       const col = KILL_COLOR[kind] || KILL_COLOR.beetle;
@@ -183,9 +211,13 @@ export class Attack {
   }
 
   /** Вспышка в точке: размер size (м). */
-  burst(x, y, z, size, dur) {
+  burst(x, y, z, size, dur, ice = false) {
     const f = this.fx.find((e) => !e.active) || this.makeFx();
     f.active = true; f.t = 0; f.dur = dur; f.x = x; f.y = y; f.z = z; f.size = size;
+    f.flash.material.map = ice ? this.glow : this.ball; // у льда бледная вспышка, у обычного синяя
+    f.flash.material.color.setHex(ice ? 0xdaf6ff : 0xffffff);
+    f.ring.material.color.setHex(ice ? ICE : BLUE);
+    f.flash.material.needsUpdate = true;
   }
 
   fire(target) {
@@ -201,10 +233,16 @@ export class Attack {
     b.trailT = 0;
     b.launch = 0;
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
-    b.halo.visible = b.core.visible = true;
+    b.el = this.getElement ? this.getElement() : null; // стихия надетого посоха задаёт вид снаряда и эффект попадания
+    const ice = b.el === 'ice';
+    b.halo.material.color.setHex(ice ? ICE : BLUE);
+    b.halo.visible = true;
+    b.core.visible = !ice;
+    b.spike.visible = ice;
+    if (ice) b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir);
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
-    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16); // вспышка у кристалла
-    this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z);
+    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, ice); // вспышка у кристалла
+    this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, ice);
     b.launch = 0.12; // шарик в начале полёта крупнее и сжимается
   }
 
@@ -228,8 +266,20 @@ export class Attack {
     e.hp -= this.cur().damage;
     this.spawner.knock(e, b.vx, b.vz); // откидывание по ходу шарика
     const kill = e.hp <= 0;
-    this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize * 0.9, 0.26);
-    this.impact(b.x, Math.max(0.25, b.y), b.z, b.vx, b.vz, kill, e.kind);
+    const ice = b.el === 'ice';
+    this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize * 0.9, 0.26, ice);
+    this.impact(b.x, Math.max(0.25, b.y), b.z, b.vx, b.vz, kill, e.kind, ice);
+    if (ice && !kill) {
+      const r = applyIce(e, this.ice); // замедление; три стака замораживают
+      if (r === 'freeze') {
+        this.burst(e.state.x, 0.5, e.state.z, c.hitSize * 2.2, 0.4, true);
+        this.shock(e.state.x, e.state.z, c.hitSize * 4.5, 0.5, 0xe8f9ff);
+        for (let i = 0; i < this.n(16); i++) {
+          const a = rr(0, 6.283), sp = rr(2, 6);
+          this.parts.emit({ x: e.state.x, y: 0.5, z: e.state.z, vx: Math.cos(a) * sp, vy: rr(1, 4), vz: Math.sin(a) * sp, life: rr(0.4, 0.8), size0: rr(0.14, 0.24), size1: 0.06, c0: 0xffffff, c1: 0x7fcfff, drag: 1.6, grav: 12 });
+        }
+      }
+    }
     if (kill) {
       this.burst(e.state.x, 0.35, e.state.z, c.hitSize * 1.9, 0.45);
       this.spawner.kill(e);
@@ -240,7 +290,7 @@ export class Attack {
 
   deactivate(b) {
     b.active = false;
-    b.halo.visible = b.core.visible = false;
+    b.halo.visible = b.core.visible = b.spike.visible = false;
     for (const t of b.trail) t.s.visible = false;
   }
 
@@ -281,6 +331,20 @@ export class Attack {
       }
       b.launch = Math.max(0, b.launch - dt);
       const pulse = (1 + Math.sin(b.life * 40) * 0.12) * (1 + 1.3 * (b.launch / 0.12));
+      if (b.el === 'ice') { // шип: сам кристалл, холодное свечение и снежный след вместо синих точек
+        b.spike.position.set(b.x, b.y, b.z);
+        b.spike.scale.setScalar(c.size * 1.5 * (1 + 0.6 * (b.launch / 0.12)));
+        b.halo.position.set(b.x, b.y, b.z);
+        b.halo.scale.setScalar(c.size * 2.0 * (1 + 0.08 * Math.sin(b.life * 30)));
+        b.snowT += dt;
+        while (b.snowT >= 0.016) {
+          b.snowT -= 0.016;
+          this.parts.emit({ x: b.x - b.vx * 0.012 + rr(-0.05, 0.05), y: b.y + rr(-0.05, 0.05), z: b.z - b.vz * 0.012 + rr(-0.05, 0.05), vx: rr(-0.5, 0.5), vy: rr(0.1, 0.7), vz: rr(-0.5, 0.5),
+            life: rr(0.3, 0.55), size0: rr(0.1, 0.18), size1: 0, c0: 0xffffff, c1: 0x8fd8ff, drag: 2, grav: 1.5, alpha: 0.9 });
+        }
+        for (const t of b.trail) t.s.visible = false;
+        continue;
+      }
       b.core.position.set(b.x, b.y, b.z);
       b.halo.position.set(b.x, b.y, b.z);
       b.core.scale.setScalar(c.size * 1.2 * pulse);
