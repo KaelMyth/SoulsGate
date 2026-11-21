@@ -1,5 +1,5 @@
 {
-  "build": 101,
+  "build": 102,
   "commit": "x",
-  "notes": "Laser staff: white magic beam with 3 tiers (single target ticks / ramp + pierce on kill / sweeping beam); storm +10 ball replaces discharge, chain on 2nd stack or kill restored."
+  "notes": "Green hunter beetle ported from SoulsGate; red beetle with denser shell and smaller legs."
 }

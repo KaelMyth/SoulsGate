@@ -61,6 +61,16 @@ export const CONFIG = {
     knockbackTime: 0.07, // с: за какое время
   },
 
+  // Жук-охотник (SoulsGate enemies.hunter): зелёный, хрупкий и намного быстрее жука, бьёт при касании, держится сам по себе (не в стае). Здоровье не растёт с волной.
+  hunter: {
+    hp: 1.333,           // в выстрелах (SoulsGate 16 при уроне выстрела 12), одно и то же на всех волнах
+    fixedHp: true,
+    speed: 3.83,         // м/с (115 ед./с; у жука 2,83)
+    radius: 0.37,        // м (11 ед.)
+    touchDamage: 9,
+    touchCooldown: 0.7,
+  },
+
   // Жук-стрелок (SoulsGate enemies.shooter): держит дистанцию, замирает на прицеливании и выпускает медленный шар. Не в стае.
   shooter: {
     hp: 1.173,           // здоровье на первой волне, в выстрелах (SoulsGate 14.08 при уроне выстрела 12)
@@ -160,15 +170,16 @@ export const CONFIG = {
     mix: {
       shooter: { from: 6, start: 0.12, step: 0.02, max: 0.3 },
       bull: { from: 6, start: 0.06, step: 0.015, max: 0.2 },
+      hunter: { from: 6, start: 0.1, step: 0.02, max: 0.25 },
     },
     maxAlive: 100,   // жёсткий потолок жуков на поле (защита от тормозов)
     patterns: [      // волны 1-5 (formation: стрелок в кольце охраны, остальные в пачке жуки-охранники): groupSize (пачка), sides ('varied' с разных сторон, 'ring' по всему кольцу), spread (м, куча)
       { count: 16, interval: 2.6, maxAlive: 16, groupSize: 4, sides: 'varied', spread: 0.8 },
       { count: 24, interval: 3.4, maxAlive: 24, groupSize: 6, sides: 'varied', formation: true },
       { count: 30, interval: 3.0, maxAlive: 30, groupSize: 6, sides: 'varied', formation: true, support: { kind: 'bull', every: 2 } },
-      { count: 36, interval: 2.7, maxAlive: 36, groupSize: 12, sides: 'ring', spread: 0 },
+      { count: 36, interval: 2.7, maxAlive: 36, groupSize: 12, sides: 'ring', spread: 0, kind: 'hunter' }, // волна 4: одни охотники (как в SoulsGate)
       { count: 32, interval: 3.0, maxAlive: 32, groupSize: 8, sides: 'ring', spread: 0,
-        lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'bull', 'beetle', 'beetle'] },
+        lineup: ['beetle', 'beetle', 'beetle', 'beetle', 'shooter', 'bull', 'hunter', 'beetle'] },
     ],
     table: [         // волны 6-10 (строки таблицы SoulsGate); дальше +4 жука, интервал короче на 0,01 и потолок +2 за волну
       { count: 25, interval: 0.7, maxAlive: 20 },

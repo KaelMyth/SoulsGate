@@ -16,6 +16,7 @@ import { StaffUi } from './staff_ui.js';
 import { staffStats } from './staff.js';
 import { Beetle } from './beetle.js';
 import { Shooter } from './shooter.js';
+import { Hunter } from './hunter.js';
 import { Bull } from './bull.js';
 import { LevelUp } from './levelup.js';
 import { pickChoices, applyUpgrade } from './upgrades.js';
@@ -62,7 +63,7 @@ export class Game {
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
     this.scatter.setVisible(false);
-    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : kind === 'bull' ? new Bull() : kind === 'rock' ? new Rock() : new Beetle()));
+    this.spawner = new Spawner(this.world.scene, this.cfg, (kind) => (kind === 'shooter' ? new Shooter() : kind === 'hunter' ? new Hunter() : kind === 'bull' ? new Bull() : kind === 'rock' ? new Rock() : new Beetle()));
     this.enemyShots = new EnemyShots(this.world.scene);
     this.telegraphs = new Telegraphs(this.world.scene);
     this.midges = new Midges(this.cfg);
