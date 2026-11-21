@@ -16,6 +16,12 @@ export const CATALOG = [
   { make: bladesStaff, price: 3500 },
 ];
 const CELLS = 12;
+const LINES = {
+  hello: ['Welcome, traveler!', 'Fresh stock today!', 'Take a look around!', 'Best prices in the camp!'],
+  look: ['Good eye!', 'Ah, a fine choice.', 'That one is popular.', 'Tempting, isn\'t it?'],
+  buy: ['Pleasure doing business!', 'Woof! Thank you!', 'Come back anytime!', 'Use it well!'],
+};
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
@@ -31,7 +37,8 @@ export class ShopUi {
     this.preview = CATALOG.map((e) => e.make());
     this.close = el('button', { id: 'shop-close', type: 'button', 'aria-label': 'Close' }, '✕');
     this.detail = el('div', { class: 'shop-detail' });
-    this.stage = el('div', { class: 'inv-stage shop-stage' }, this.detail);
+    this.bubble = el('div', { class: 'shop-bubble' });
+    this.stage = el('div', { class: 'inv-stage shop-stage' }, this.bubble, this.detail);
     this.souls = el('b', {}, '0');
     const ico = el('span', { class: 'inv-ico' });
     ico.innerHTML = SOUL_ICON;
@@ -43,6 +50,7 @@ export class ShopUi {
     this.cells = [];
     for (let i = 0; i < CELLS; i++) {
       const c = el('div', { class: 'inv-cell shop-cell' });
+      c.style.setProperty('--d', `${i * 45}ms`);
       c.dataset.i = String(i);
       c.addEventListener('click', () => { if (CATALOG[i]) this.select(i); });
       this.cells.push(c);
@@ -74,13 +82,15 @@ export class ShopUi {
       c.classList.toggle('full', !!e);
       c.classList.toggle('sel', i === this.sel);
       c.style.setProperty('--rar', it ? it.rarityInfo.color : 'transparent');
-      c.innerHTML = e ? `<span class="it">${this.icon(it)}</span><b class="price${this.inv.souls < e.price ? ' poor' : ''}">${e.price.toLocaleString('en-US')}</b>` : '';
+      c.innerHTML = e ? `<span class="it">${this.icon(it)}</span><b class="price${this.inv.souls < e.price ? ' poor' : ''}">${e.price.toLocaleString('en-US')}</b>`
+        : '<span class="lock"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><b class="soon">soon</b>';
     });
     if (this.sel >= 0) this.renderDetail();
   }
 
   /** i < 0: вернуть пса. Иначе показать карточку товара i на месте пса. */
   select(i) {
+    if (i >= 0 && i !== this.sel) this.say(pick(LINES.look));
     this.sel = i;
     this.cells.forEach((c, k) => c.classList.toggle('sel', k === i));
     this.detail.classList.toggle('on', i >= 0);
@@ -108,7 +118,20 @@ export class ShopUi {
     const e = CATALOG[this.sel];
     if (!e || this.inv.full || !this.inv.spendSouls(e.price)) return;
     this.inv.add(e.make());
+    this.souls.classList.remove('spent'); void this.souls.offsetWidth; this.souls.classList.add('spent'); // счётчик душ коротко вспыхивает
+    this.select(-1); // возвращаем пса: он радуется покупке
+    if (this.view) this.view.celebrate();
+    this.say(pick(LINES.buy), 3200);
     this.refresh();
+  }
+
+  /** Реплика пса над прилавком. */
+  say(text, ms = 2600) {
+    if (!text) return;
+    this.bubble.textContent = text;
+    this.bubble.classList.remove('on'); void this.bubble.offsetWidth; this.bubble.classList.add('on');
+    clearTimeout(this.bubbleT);
+    this.bubbleT = setTimeout(() => this.bubble.classList.remove('on'), ms);
   }
 
   show() {
@@ -118,6 +141,8 @@ export class ShopUi {
     this.select(-1);
     this.refresh();
     this.grid.scrollTop = 0;
+    this.grid.classList.remove('pop'); void this.grid.offsetWidth; this.grid.classList.add('pop'); // ячейки по очереди выпрыгивают
+    this.say(pick(LINES.hello), 3200);
     if (!this.view && !this.viewFailed) {
       this.initFrame = requestAnimationFrame(() => {
         this.initFrame = null;
@@ -143,6 +168,7 @@ export class ShopUi {
     this.initFrame = this.iconsTimer = null;
     this.open = false;
     this.root.classList.remove('on');
+    this.bubble.classList.remove('on');
     if (this.onClose) this.onClose();
   }
 

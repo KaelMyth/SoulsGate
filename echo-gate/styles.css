@@ -773,3 +773,31 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #shop .card .acts button:disabled { opacity: 0.45; cursor: default; }
 #shop .card .acts button:not(:disabled):active { border-color: #ffb14a; }
 #shop .card .acts .inv-ico { width: 18px; height: 18px; }
+
+/* Магазин: оживление. Реплики пса, ячейки выпрыгивают, вспышка счётчика, замки у пустых мест, золотая отделка панели. */
+#shop .inv-panel { border-top: 2px solid #8a6a2a; box-shadow: 0 -10px 24px rgba(5, 9, 20, 0.6), 0 -1px 18px rgba(255, 177, 74, 0.25); background: radial-gradient(ellipse at 50% 0%, rgba(255, 177, 74, 0.08), transparent 55%), linear-gradient(#0d1424, #080d19); }
+#shop .inv-strip { background: linear-gradient(rgba(36, 48, 78, 0.9), rgba(20, 30, 52, 0.9)); border-bottom: 1px solid #5a4a2a; }
+#shop .shop-title { text-shadow: 0 0 12px rgba(255, 177, 74, 0.6); }
+#shop .shop-title::before, #shop .shop-title::after { content: '◆'; margin: 0 8px; font-size: 9px; color: #b88a3a; vertical-align: middle; }
+#shop .shop-bubble { position: absolute; z-index: 5; left: 50%; top: 12%; max-width: 62%; padding: 8px 14px; transform: translate(-50%, 8px) scale(0.85); opacity: 0; pointer-events: none; border: 2px solid #8a6a2a; border-radius: 16px; background: linear-gradient(#fff3d6, #f0dcae); color: #3a2814; font: italic 600 15px/1.2 "Iowan Old Style", Georgia, serif; text-align: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+#shop .shop-bubble::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg); background: #f0dcae; border-right: 2px solid #8a6a2a; border-bottom: 2px solid #8a6a2a; }
+#shop .shop-bubble.on { animation: shop-say 3.2s ease-out forwards; }
+@keyframes shop-say { 0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); } 10% { opacity: 1; transform: translate(-50%, 0) scale(1.04); } 16% { transform: translate(-50%, 0) scale(1); } 85% { opacity: 1; transform: translate(-50%, -3px) scale(1); } 100% { opacity: 0; transform: translate(-50%, -8px) scale(0.96); } }
+#shop .inv-grid.pop .shop-cell { animation: shop-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both; animation-delay: var(--d, 0ms); }
+@keyframes shop-pop { 0% { opacity: 0; transform: translateY(14px) scale(0.85); } 100% { opacity: 1; transform: none; } }
+#shop .inv-cell.full { background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rar) 22%, transparent), transparent 70%), linear-gradient(rgba(26, 40, 64, 0.65), rgba(14, 22, 38, 0.8)); transition: transform 0.12s, box-shadow 0.12s; }
+#shop .inv-cell.full:active { transform: scale(0.95); }
+#shop .inv-cell.full::before { content: ''; position: absolute; inset: 0; border-radius: 10px; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.12) 50%, transparent 60%); background-size: 250% 100%; animation: shop-shine 4.5s ease-in-out infinite; animation-delay: var(--d, 0ms); pointer-events: none; }
+@keyframes shop-shine { 0%, 55% { background-position: 150% 0; } 100% { background-position: -100% 0; } }
+#shop .inv-cell:not(.full) { border-style: dashed; border-color: #26364f; background: rgba(12, 18, 32, 0.55); box-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+#shop .lock { width: 26px; height: 26px; opacity: 0.4; }
+#shop .lock svg { width: 100%; height: 100%; fill: none; stroke: #8fa6c6; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+#shop .soon { font: italic 11px "Iowan Old Style", Georgia, serif; color: #5d7494; letter-spacing: 0.1em; }
+#shop .price { display: flex; align-items: center; justify-content: center; text-shadow: 0 1px 3px #000, 0 0 8px rgba(95, 200, 255, 0.4); }
+#shop .inv-stat.souls b.spent { animation: shop-spent 0.6s ease-out; }
+@keyframes shop-spent { 0% { color: #ffd98a; transform: scale(1.35); text-shadow: 0 0 14px #ffb14a; } 100% { transform: none; } }
+#shop .card .acts button.buy:not(:disabled) { animation: shop-buy 1.8s ease-in-out infinite; }
+@keyframes shop-buy { 0%, 100% { box-shadow: 0 0 6px rgba(255, 177, 74, 0.3); } 50% { box-shadow: 0 0 16px rgba(255, 177, 74, 0.75); } }
+#shop .shop-detail { animation: none; }
+#shop .shop-detail.on .card { animation: shop-card 0.22s ease-out; }
+@keyframes shop-card { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
