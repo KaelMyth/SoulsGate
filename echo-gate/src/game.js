@@ -40,6 +40,7 @@ import { Hub, PopButton } from './hub.js';
 import { ForgeUi } from './forge_ui.js';
 import { lookTier } from './staff_tiers.js';
 import { DevConsoleUi } from './devconsole_ui.js';
+import { ShopUi } from './shop_ui.js';
 import { Inventory } from './inventory.js';
 import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
 import { InventoryUi, GEM_ICON } from './inventory_ui.js';
@@ -176,6 +177,11 @@ export class Game {
     }
     this.devOpen = false;
     if (o.ui.root) this.devUi = new DevConsoleUi(o.ui.root, this, () => { this.devOpen = false; });
+    this.shopOpen = false;
+    if (o.ui.root) {
+      this.shopUi = new ShopUi(o.ui.root, this.inventory, this.world.renderer, this.cfg.shop, () => { this.shopOpen = false; });
+      this.bus.on('shop:open', () => this.openShop());
+    }
     // Экипировка настоящая: что снято в инвентаре, того нет и на модели героя в мире.
     this.inventory.listen(() => this.syncEquipment());
     this.syncEquipment();
@@ -693,7 +699,7 @@ export class Game {
 
   /** Сохранение доступно из меню паузы (и в лагере): код содержит только постоянный прогресс. */
   openSaves() {
-    if (!(this.inHub || this.paused) || this.switching || this.dead || this.invOpen || this.forgeOpen || this.devOpen
+    if (!(this.inHub || this.paused) || this.switching || this.dead || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen
       || this.saveUi?.open || this.soulTallyUi?.open || !this.saveUi) return;
     this.stick.cancel();
     if (this.settings) this.settings.toggle(false);
@@ -702,7 +708,7 @@ export class Game {
 
   /** Окно инвентаря из хаба: хаб замирает, вместо мира рисуется витрина мага. */
   openInventory() {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen
       || this.saveUi?.open || this.soulTallyUi?.open || !this.invUi) return;
     this.stick.cancel();
     try {
@@ -724,22 +730,30 @@ export class Game {
 
   /** Проверочная добыча рядом с героем (кнопки в хабе): 'power' оранжевый кристалл, 'skill' фиолетовый, 'page' пергамент. */
   spawnTestLoot(type) {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen) return;
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen) return;
     const a = Math.random() * Math.PI * 2, r = 3.4; // вне магнитного радиуса: герой сам подойдёт и подберёт
     this.loot.add(type, this.motion.x + Math.cos(a) * r, this.motion.z + Math.sin(a) * r, 1, true);
   }
 
   /** Стенд сборки посоха на тестовом поле: админское меню созвездия (любые моды в любые точки, удаление). Окно считается открытой консолью. */
   openBench() {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.modMenu) return;
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen || !this.modMenu) return;
     this.devOpen = true;
     this.stick.cancel();
     this.modMenu.showAdmin(() => { this.devOpen = false; });
   }
 
+  /** Магазин: хаб замирает, поверх окно с псом-продавцом и товарами. */
+  openShop() {
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen || !this.shopUi) return;
+    this.shopOpen = true;
+    this.stick.cancel();
+    this.shopUi.show();
+  }
+
   /** Консоль разработчика в углу хаба: хаб замирает, поверх окно со всеми посохами. */
   openDev() {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.devUi) return;
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen || !this.devUi) return;
     this.devOpen = true;
     this.stick.cancel();
     this.devUi.show();
@@ -747,7 +761,7 @@ export class Game {
 
   /** Окно заточки из хаба: хаб замирает, поверх окно с постаментом. */
   openForge() {
-    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.forgeUi) return;
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || this.shopOpen || !this.forgeUi) return;
     this.forgeOpen = true;
     this.stick.cancel();
     this.forgeUi.show();
@@ -817,14 +831,14 @@ export class Game {
     const dt = Math.min(0.1, this.last ? t - this.last : 1 / 60);
     this.last = t;
     this.tickFps(dt);
-    if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.choosing && !this.rolling)
+    if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.shopOpen && !this.choosing && !this.rolling)
       advance(dt, (s) => this.step(s));
     this.drawStick();
-    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.naming)
+    if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.shopOpen && !this.naming)
       this.hub.update(dt, this.motion.x, this.motion.z);
-    if (!this.invOpen || !this.invUi.render(dt)) this.world.render();
+    if (!(this.shopOpen && this.shopUi.render(dt)) && (!this.invOpen || !this.invUi.render(dt))) this.world.render();
     if (this.staffUi) this.staffUi.update(dt);
-    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.devOpen
+    const hubOn = this.inHub && !this.switching && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.shopOpen
       && !this.soulTallyUi?.open && !this.saveUi?.open && !this.naming;
     if (hubOn && this.ui.start && this.motion.speed > 0.3) this.ui.start.classList.add('gone'); // как только герой пошёл, название и версия плавно гаснут
     this.playBtn.update(dt, Math.hypot(this.motion.x, this.motion.z), this.world, hubOn, 0, this.cfg.hub.buttonFromY, 0);
