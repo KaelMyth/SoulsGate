@@ -1,5 +1,5 @@
 {
-  "build": 81,
+  "build": 82,
   "commit": "071bbb8",
-  "notes": "In-run staff modifiers from the arcane roulette: Might, Swiftness, Piercing, Epic x2, Legendary x3; five-cell modifier menu."
+  "notes": "Hit impacts v2, death explosion of burning enemies, no effects carried to the camp."
 }
