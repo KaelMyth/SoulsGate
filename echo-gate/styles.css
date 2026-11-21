@@ -116,8 +116,13 @@ body.staff-open #dash-btn { visibility: hidden; }
 #pause.on { display: flex; }
 #pause .box { display: flex; flex-direction: column; align-items: center; gap: 22px; }
 #pause .ttl { font: 500 30px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.3em; text-indent: 0.3em; color: #dbe7f7; text-shadow: 0 0 18px rgba(120, 170, 255, 0.4); }
+#pause .row { display: flex; align-items: center; gap: 26px; }
 #pause button { width: 76px; height: 76px; padding: 0; border: 2px solid #ffb14a; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ff9a2e, #c2410c 85%); color: #fff6e0; cursor: pointer; box-shadow: 0 0 24px rgba(255, 140, 50, 0.5); }
 #pause button svg { width: 36px; height: 36px; margin-left: 4px; fill: currentColor; }
+#pause button.home { width: 60px; height: 60px; border: 1px solid rgba(160, 200, 255, 0.5); background: linear-gradient(160deg, rgba(120, 170, 255, 0.25), rgba(8, 13, 26, 0.45)); color: #dbe7f7; box-shadow: 0 0 14px rgba(110, 170, 255, 0.25); }
+#pause button.home svg { width: 28px; height: 28px; margin-left: 0; }
+#pause button.home.sure { border-color: #ff7a5a; background: linear-gradient(160deg, rgba(255, 110, 80, 0.45), rgba(40, 10, 10, 0.5)); box-shadow: 0 0 18px rgba(255, 110, 80, 0.45); }
+#pause .hint { height: 18px; font: 14px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.08em; color: #ffb09a; }
 
 /* Иконка рюкзака: выходит над кучей снаряжения, когда герой рядом. Инвентарь пока не открывается. */
 #gear-btn {
