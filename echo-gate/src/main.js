@@ -36,6 +36,7 @@ const ui = {
   saveBtn: document.getElementById('save-btn'),
   anvilBtn: document.getElementById('anvil-btn'),
   devBtn: document.getElementById('dev-btn'),
+  devLoot: document.getElementById('dev-loot'),
   pauseBtn: document.getElementById('pause-btn'),
   pause: document.getElementById('pause'),
 };

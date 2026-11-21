@@ -24,7 +24,7 @@ export function layoutCells(cells, W, H) {
   const hx = W * 0.5, hy = H * HEAD_Y;
   const n = cells.length;
   const step = Math.max(58, Math.min(H * 0.115, W * 0.26)); // длина звена
-  const minD = Math.max(50, Math.min(W * 0.17, H * 0.085));
+  const minD = Math.max(54, Math.min(W * 0.17, H * 0.08));
   const pos = new Array(n);
   const dirs = new Array(n);
   const kids = cells.map(() => []);
@@ -38,7 +38,7 @@ export function layoutCells(cells, W, H) {
       from = pos[c.parent];
       const sibs = kids[c.parent];
       const k = sibs.indexOf(i);
-      const spread = sibs.length > 1 ? (k === 0 ? -0.55 : 0.55) : 0;
+      const spread = sibs.length > 1 ? (k === 0 ? -0.4 : 0.4) : 0;
       base = Math.max(-1.25, Math.min(1.25, dirs[c.parent] + spread));
     }
     dirs[i] = base;
@@ -54,9 +54,10 @@ export function layoutCells(cells, W, H) {
     const f = pos.map(() => ({ x: 0, y: 0 }));
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
+        // расстояние считаем с запасом по горизонтали: у звезды справа подпись, соседи не должны на неё налезать
         const dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
-        const d = Math.hypot(dx, dy) || 0.01;
-        if (d < minD) { const push = (minD - d) * 0.5; f[i].x += dx / d * push; f[i].y += dy / d * push; f[j].x -= dx / d * push; f[j].y -= dy / d * push; }
+        const d = Math.hypot(dx * 0.65, dy) || 0.01;
+        if (d < minD) { const push = (minD - d) * 0.5; f[i].x += dx / (Math.hypot(dx, dy) || 1) * push; f[i].y += dy / (Math.hypot(dx, dy) || 1) * push; f[j].x -= dx / (Math.hypot(dx, dy) || 1) * push; f[j].y -= dy / (Math.hypot(dx, dy) || 1) * push; }
       }
       const c = cells[i];
       const from = c.parent === -1 ? { x: hx, y: hy } : pos[c.parent];
@@ -67,11 +68,27 @@ export function layoutCells(cells, W, H) {
       if (c.parent >= 0) { f[c.parent].x += dx / d * k * 0.5; f[c.parent].y += dy / d * k * 0.5; }
     }
     for (let i = 0; i < n; i++) {
+      // Мягкая направляющая: слабая пружина к оси своей ветки, чтобы дерево росло столбом, а не уходило к краю.
+      const axis = hx + (cells[i].branch === 0 ? -1 : 1) * W * 0.2;
+      f[i].x += (axis - pos[i].x) * 0.03;
       pos[i].x += f[i].x; pos[i].y += f[i].y;
-      const side = cells[i].branch === 0 ? [W * 0.09, W * 0.46] : [W * 0.54, W * 0.91];
+      const side = cells[i].branch === 0 ? [W * 0.02, W * 0.49] : [W * 0.51, W * 0.98];
       pos[i].x = Math.max(side[0], Math.min(side[1], pos[i].x));
-      pos[i].y = Math.max(H * 0.22, Math.min(H * 0.8, pos[i].y));
+      pos[i].y = Math.max(H * 0.1, Math.min(H * 0.86, pos[i].y));
     }
+  }
+  // Подгонка: если ветка вылезла за свою рамку, всё созвездие ветки сжимается к посоху (форма сохраняется), звёзды до края не доходят.
+  const padX = Math.max(34, W * 0.1), top = H * 0.24;
+  for (let b = 0; b < 2; b++) {
+    let s = 1;
+    for (let i = 0; i < n; i++) {
+      if (cells[i].branch !== b) continue;
+      const dx = Math.abs(pos[i].x - hx), dy = hy - pos[i].y;
+      const roomX = (b === 0 ? hx - padX : W - padX - hx);
+      if (dx > roomX) s = Math.min(s, roomX / dx);
+      if (dy > hy - top) s = Math.min(s, (hy - top) / dy);
+    }
+    if (s < 1) for (let i = 0; i < n; i++) if (cells[i].branch === b) { pos[i].x = hx + (pos[i].x - hx) * s; pos[i].y = hy + (pos[i].y - hy) * s; }
   }
   return pos;
 }

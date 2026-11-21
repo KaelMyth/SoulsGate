@@ -135,6 +135,13 @@ body { display: grid; place-items: center; font-family: system-ui, -apple-system
 #anvil-btn svg { width: 36px; height: 36px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(20, 8, 50, 0.6)); }
 #gear-btn svg { width: 36px; height: 36px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(8, 20, 50, 0.6)); }
 
+/* Кнопки проверочной добычи в хабе: оранжевый кристалл, фиолетовый кристалл, пергамент. */
+#dev-loot { position: absolute; left: 12px; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 12; display: flex; flex-direction: column; gap: 8px; }
+#dev-loot.gone { display: none; }
+#dev-loot button { width: 46px; height: 46px; padding: 0; border: 1px solid rgba(190, 210, 255, 0.4); border-radius: 12px; background: rgba(10, 16, 34, 0.72); cursor: pointer; display: flex; align-items: center; justify-content: center; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#dev-loot button svg { width: 28px; height: 28px; display: block; pointer-events: none; }
+#dev-loot button:active { transform: scale(0.93); }
+
 /* Кнопка консоли разработчика: выходит над консолью в углу базы. */
 #dev-btn {
   position: absolute; left: 0; top: 0; z-index: 10; width: 60px; height: 60px; padding: 0; border: 2px solid #9dffc8; border-radius: 50%;
