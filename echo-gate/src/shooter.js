@@ -5,11 +5,12 @@ import * as THREE from 'three';
 
 const R = 0.46;
 // Фиолетовый стрелок: аметистовый панцирь, брюшко с розовато-лиловым свечением, голубовато-белые глаза.
-const SHELL = 0x3a1a6e;
-const ABD = 0x6a2fc0;
-const EDGE = 0xe08bff;
-const LEG = 0x6b4aa8;
+const SHELL = 0x5a22a8;
+const ABD = 0x9a3df0;
+const EDGE = 0xf2a8ff;
+const LEG = 0x3d1a78;
 const AURA = 0xb84dff;
+const CREST = 0xd68bff;
 
 let glowTex = null;
 function glow() {
@@ -31,6 +32,7 @@ function glow() {
 const M_SHELL = new THREE.MeshStandardMaterial({ color: SHELL, flatShading: true, roughness: 0.55 });
 const M_ABD = new THREE.MeshStandardMaterial({ color: ABD, flatShading: true, roughness: 0.5, emissive: 0x000000 });
 const M_LEG = new THREE.MeshStandardMaterial({ color: LEG, roughness: 0.7 });
+const M_CREST = new THREE.MeshStandardMaterial({ color: CREST, flatShading: true, roughness: 0.35, emissive: 0x6a1fb0, emissiveIntensity: 0.5 });
 const M_EDGE = new THREE.MeshBasicMaterial({ color: EDGE });
 const G_LEG = new THREE.CylinderGeometry(0.02, 0.016, 1, 5);
 
@@ -77,11 +79,33 @@ export class Shooter {
     head.position.set(0, 0.38 * R, 0.95 * R);
     head.rotation.y = Math.PI / 6;
     this.body.add(head);
+    for (let i = 0; i < 3; i++) { // гребень из трёх шипов на голове и груди
+      const sp = new THREE.Mesh(new THREE.ConeGeometry((0.09 - i * 0.015) * R, (0.42 - i * 0.07) * R, 5), M_CREST);
+      sp.position.set(0, (0.62 + (i === 0 ? 0.05 : 0)) * R, (0.8 - i * 0.42) * R);
+      sp.rotation.x = -0.45;
+      this.body.add(sp);
+    }
+    for (const s of [-1, 1]) { // усики: тонкие, изогнутые вперёд
+      const an = new THREE.Mesh(new THREE.CylinderGeometry(0.012 * R, 0.02 * R, 0.7 * R, 4), M_LEG);
+      an.position.set(s * 0.15 * R, 0.62 * R, 1.35 * R);
+      an.rotation.set(1.0, 0, -s * 0.5);
+      this.body.add(an);
+      const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.045 * R, 0), M_CREST);
+      tip.position.set(s * 0.32 * R, 0.8 * R, 1.6 * R);
+      this.body.add(tip);
+    }
+    for (const s of [-1, 1]) { // боковые пластины-крылышки на груди
+      const wing = new THREE.Mesh(new THREE.OctahedronGeometry(0.34 * R, 0), M_ABD);
+      wing.scale.set(0.35, 0.18, 1.0);
+      wing.position.set(s * 0.52 * R, 0.62 * R, -0.05 * R);
+      wing.rotation.z = -s * 0.45;
+      this.body.add(wing);
+    }
     this.eyes = [];
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09 * R, 8, 6), new THREE.MeshBasicMaterial({ color: 0xd8f4ff }));
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09 * R, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe0ff }));
       eye.position.set(s * 0.16 * R, 0.46 * R, 1.14 * R);
-      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0x7de8ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), color: 0xff5cf0, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
       g.scale.setScalar(0.7 * R);
       g.position.copy(eye.position);
       this.body.add(eye, g);
@@ -156,7 +180,7 @@ export class Shooter {
     this.abd.scale.setScalar(s * wob);
     this.abd.position.z = (-0.7 - 0.3 * this.ab) * R;
     this.core.material.opacity = 0.15 + 0.7 * this.ab * this.ab;
-    this.abdMat.emissive.setRGB(0.4 * k * k + (this.flash > 0 ? 0.6 : 0), 0.2 * k * k + (this.flash > 0 ? 0.5 : 0), 0.7 * k * k + (this.flash > 0 ? 0.5 : 0));
+    this.abdMat.emissive.setRGB(0.55 * k * k + (this.flash > 0 ? 0.6 : 0), 0.1 * k * k + (this.flash > 0 ? 0.5 : 0), 0.85 * k * k + (this.flash > 0 ? 0.5 : 0));
     const sh = aiming ? k * 0.02 : 0;
     this.body.position.set(Math.sin(t * 61) * sh, moving ? Math.abs(Math.sin(t * 11 + this.ph)) * 0.02 : 0, Math.cos(t * 53) * sh);
 

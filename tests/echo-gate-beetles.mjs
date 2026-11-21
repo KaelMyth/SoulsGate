@@ -83,7 +83,7 @@ test('жуки не слипаются в точку и не заходят в �
   for (const b of sp.alive) assert.ok(Math.hypot(b.x, b.z) >= 0.47 + 0.5 - 0.1);
 });
 
-test('стрелок: здоровье 14.08/12, держит дистанцию 6.33 м и стреляет после 1.2 с + прицеливание 0.5 с', () => {
+test('стрелок: здоровье 14.08/12, держит дистанцию 10 м и стреляет после 1.2 с + прицеливание 0.5 с', () => {
   const { sp } = mk();
   sp.enabled = true; sp.phase = 'active'; sp.spawned = 999;
   const s = sp.spawnAt(12, 0, 0, 0, 'shooter');
@@ -94,11 +94,11 @@ test('стрелок: здоровье 14.08/12, держит дистанцию
   for (; t < 12 && shots.length === 0; t += 1 / 60) sp.moveBeetles(1 / 60, hero);
   assert.equal(shots.length, 1);
   const d = Math.hypot(s.x, s.z);
-  assert.ok(Math.abs(d - 6.33) < 0.2, `дистанция ${d}`);
+  assert.ok(Math.abs(d - 10) < 0.2, `дистанция ${d}`);
   assert.ok(shots[0][2] < -0.99); // стреляет в героя (в сторону -x)
 });
 
-test('стрелок не стреляет, пока герой дальше 8.67 м', () => {
+test('стрелок не стреляет, пока герой дальше 13 м', () => {
   const { sp } = mk();
   const s = sp.spawnAt(30, 0, 0, 0, 'shooter');
   let n = 0;
@@ -129,7 +129,8 @@ test('охрана держится кольцом, пока герой дале
   sp.spawnGroup(6, sp.row(2), 0, 0, 12, rnd);
   for (let t = 0; t < 2; t += 1 / 60) sp.moveBeetles(1 / 60, hero);
   assert.ok(sp.alive.some((b) => b.guardOf));
-  sp.moveBeetles(1 / 60, { x: sp.alive.find((b) => b.kind === 'shooter').x + 1, z: 0, radius: 0.47 });
+  const ld = sp.alive.find((b) => b.kind === 'shooter');
+  sp.moveBeetles(1 / 60, { x: ld.x + 1, z: ld.z, radius: 0.47 });
   assert.ok(sp.alive.every((b) => !b.guardOf));
 });
 
