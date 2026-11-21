@@ -228,6 +228,17 @@ export const CONFIG = {
     holdFraction: 0.72, // доля времени, когда снаряд почти стоит
   },
 
+  // Ступени посоха по заточке: до +4, +5..+9, +10. Пока описан только стандартный посох Force (синий шарик):
+  // +0..+4 мелкий слабый, +5 крупнее и сильнее, +10 так же, но два снаряда в разных врагов рядом.
+  tiers: {
+    thresholds: [5, 10],
+    force: [
+      { name: 'Spark',     size: 0.7,  damage: 0.8, shots: 1, halo: 0x7fb4ff, trail: 4 },
+      { name: 'Bolt',      size: 1.35, damage: 1.3, shots: 1, halo: 0x2f86ff, trail: 8 },
+      { name: 'Twin Bolt', size: 1.35, damage: 1.3, shots: 2, halo: 0x56e0ff, trail: 8 },
+    ],
+  },
+
   // Лазерный посох: мгновенный красный луч на всю дальность, пробивает всех на линии.
   laser: {
     damageMul: 1,      // урон луча к урону посоха
@@ -360,6 +371,14 @@ export const CONFIG = {
     enchantRadius: 1.4,  // м: ближе этого к мастерской выходит иконка наковальни
     enchantHysteresis: 0.8,
     enchantButtonRise: 60, // px
+    devX: 10.2,          // м: консоль разработчика в углу поля справа внизу (местные координаты)
+    devZ: 26.2,
+    devScale: 1.15,
+    devHalfW: 2.4,       // м: полуразмер для столкновений
+    devHalfD: 1.7,
+    devRadius: 2.2,      // м: ближе этого к консоли выходит кнопка
+    devHysteresis: 0.8,
+    devButtonRise: 60,   // px
     rockStep: 2.1,       // м: шаг камней по краю
     playRadius: 3.2,     // м: ближе этого к костру из огня выходит Play
     playHysteresis: 0.9, // м: запас, чтобы кнопка не мигала на границе

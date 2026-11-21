@@ -35,6 +35,7 @@ const ui = {
   soulHud: document.getElementById('souls-hud'),
   saveBtn: document.getElementById('save-btn'),
   anvilBtn: document.getElementById('anvil-btn'),
+  devBtn: document.getElementById('dev-btn'),
   pauseBtn: document.getElementById('pause-btn'),
   dashBtn: document.getElementById('dash-btn'),
   pause: document.getElementById('pause'),
