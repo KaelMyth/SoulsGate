@@ -233,6 +233,17 @@ export class Attack {
       this.parts.emit({ x, y, z, vx: Math.cos(a) * sp, vy: rr(0.8, big ? 5.2 : 3.6), vz: Math.sin(a) * sp,
         life: rr(0.28, big ? 0.7 : 0.55), size0: rr(0.2, 0.36), size1: P.spS, c0: P.sp0, c1: P.sp1, drag: P.spD, grav: P.spG });
     }
+    for (let i = 0; i < this.n(big ? 10 : 6); i++) { // быстрые лучи: короткие яркие штрихи, дают резкий «удар»
+      const a = i % 4 === 0 ? Math.atan2(dz, dx) + rr(-0.4, 0.4) : back + rr(-1.5, 1.5), sp = rr(9, 15);
+      this.parts.emit({ x, y, z, vx: Math.cos(a) * sp, vy: rr(-0.5, 1.5), vz: Math.sin(a) * sp, life: rr(0.09, 0.17), size0: rr(0.1, 0.16), size1: 0.02, c0: 0xffffff, c1: P.sp1, drag: 7, grav: 0 });
+    }
+    if (kind) { // облачко цвета того, во что попали
+      const col = KILL_COLOR[kind] || KILL_COLOR.beetle;
+      for (let i = 0; i < this.n(big ? 6 : 3); i++) {
+        const a = rr(0, 6.283), sp = rr(0.6, 2.2);
+        this.parts.emit({ x, y: y * 0.8, z, vx: Math.cos(a) * sp, vy: rr(0.3, 1.2), vz: Math.sin(a) * sp, life: rr(0.3, 0.55), size0: rr(0.2, 0.3), size1: 0.5, c0: col, c1: 0x201014, drag: 2.5, grav: 0, alpha: 0.35 });
+      }
+    }
     for (let i = 0; i < this.n(big ? 6 : 3); i++) { // плывущие вверх огоньки
       this.parts.emit({ x: x + rr(-0.15, 0.15), y: y + rr(-0.05, 0.15), z: z + rr(-0.15, 0.15), vx: rr(-0.6, 0.6), vy: rr(0.7, 1.7), vz: rr(-0.6, 0.6),
         life: rr(0.6, 1.1), size0: rr(0.26, 0.4), size1: 0, c0: P.mote0, c1: P.mote1, drag: 1.4, grav: P.moteG, alpha: 0.7 });
@@ -343,7 +354,7 @@ export class Attack {
     const kill = e.hp <= 0;
     this.burst(x, 0.45, z, this.cfg.hitSize * (kill ? 1.8 : 0.9), kill ? 0.45 : 0.26, el);
     this.impact(x, 0.45, z, dx, dz, kill, e.kind, el);
-    if (kill) { this.spawner.kill(e); if (this.onKill) this.onKill(e); }
+    if (kill) { this.spawner.kill(e); if (this.onKill) this.onKill(e); this.deathBurst(e, 0); }
     return kill;
   }
 
@@ -459,28 +470,38 @@ export class Attack {
       this.burst(e.state.x, 0.35, e.state.z, c.hitSize * 1.9, 0.45);
       this.spawner.kill(e);
       if (this.onKill) this.onKill(e);
+      this.deathBurst(e, 0);
     }
     if (b.pierce > 0) { b.pierce--; b.hitSet.add(e); } // пробил: летит дальше к следующему
     else this.deactivate(b);
   }
 
   /** Убийство не выстрелом (горение, взрыв): вспышка, осколки, враг исчезает, награда как обычно. */
-  killFx(e, el) {
+  killFx(e, el, depth = 0) {
     this.burst(e.state.x, 0.35, e.state.z, this.cfg.hitSize * 1.9, 0.45, el);
     this.impact(e.state.x, 0.4, e.state.z, 0, 1, true, e.kind, el);
     this.spawner.kill(e);
     if (this.onKill) this.onKill(e);
+    this.deathBurst(e, depth);
+  }
+
+  /** Враг умер горящим (любым уроном): небольшой взрыв на его месте. Взрыв может добить других горящих, цепочка до 3 звеньев. */
+  deathBurst(e, depth) {
+    const F = this.fireCfg;
+    if (!F || !(F.deathScale > 0) || depth >= 3 || !(e.burnT > 0) || !(e.burn > 0)) return;
+    e.burn = 0; e.burnT = 0;
+    this.explode(e, F.deathScale, depth + 1);
   }
 
   /** Огненный взрыв на третьем стаке поджога: урон всем в радиусе, откидывание от центра, вспышка, волны, пламя и угли. */
-  explode(e) {
+  explode(e, scale = 1, depth = 0) {
     const F = this.fireCfg, c = this.cfg;
-    const cx = e.state.x, cz = e.state.z, R = F.explosionRadius;
-    const dmg = F.explosionDamage * this.cur().damage;
-    this.burst(cx, 0.5, cz, c.hitSize * 3.4, 0.5, 'fire');
+    const cx = e.state.x, cz = e.state.z, R = F.explosionRadius * scale;
+    const dmg = F.explosionDamage * scale * this.cur().damage;
+    this.burst(cx, 0.5, cz, c.hitSize * 3.4 * scale, 0.5, 'fire');
     this.shock(cx, cz, R * 2.2, 0.55, 0xff7a1a);
     this.shock(cx, cz, R * 1.4, 0.4, 0xffd070);
-    for (let i = 0; i < this.n(40); i++) {
+    for (let i = 0; i < this.n(40 * scale); i++) {
       const a = rr(0, 6.283), sp = rr(3, 10);
       this.parts.emit({ x: cx, y: 0.4, z: cz, vx: Math.cos(a) * sp, vy: rr(1.5, 6), vz: Math.sin(a) * sp, life: rr(0.35, 0.8), size0: rr(0.2, 0.38), size1: 0.04, c0: 0xffe9a0, c1: 0xff3a10, drag: 2, grav: 6 });
     }
@@ -496,7 +517,7 @@ export class Attack {
       if (Math.hypot(dx, dz) > R + o.radius) continue;
       o.hp -= dmg;
       this.spawner.knock(o, dx || rr(-1, 1), dz || rr(-1, 1));
-      if (o.hp <= 0) this.killFx(o, 'fire');
+      if (o.hp <= 0) this.killFx(o, 'fire', depth);
     }
   }
 
@@ -686,6 +707,20 @@ export class Attack {
     }
     this.burn(dt);
     this.sparkle(dt);
+    this.updateFx(dt);
+  }
+
+  /** Мгновенно убрать все эффекты и снаряды: при выходе в лагерь ничего не должно переехать с боя. */
+  clearFx() {
+    this.parts.clear();
+    this.lightning.clear();
+    for (const k of this.shocks) { k.on = false; k.m.visible = false; }
+    for (const f of this.fx) { f.active = false; f.flash.visible = f.ring.visible = false; }
+    for (const b of this.bolts) this.deactivate(b);
+  }
+
+  /** Только эффекты (частицы, волны, вспышки, молнии): идут, даже когда боя нет (смерть, экран потерь), и сами гаснут. */
+  updateFx(dt) {
     this.lightning.update(dt);
     this.laser.update(dt);
     this.parts.update(dt);

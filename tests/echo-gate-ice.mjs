@@ -80,3 +80,7 @@ test('гравитация: снаряд почти стоит, потом ре�
   while (d < 6 && t < 5) { t += 0.005; d += 16 * gravityFactor(G, t) * 0.005; }
   assert.ok(t > 0.9 && t < 1.6, String(t));
 });
+
+test('огонь: взрыв при смерти включён по умолчанию', () => {
+  assert.ok(CONFIG.fire.deathScale > 0 && CONFIG.fire.deathScale <= 1.5);
+});

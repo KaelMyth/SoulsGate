@@ -253,7 +253,7 @@ export class Game {
     this.midgeView.update(0, this.midges.items);
     this.loot.clear();
     if (this.staffUi) this.staffUi.close();
-    for (const b of this.attack.bolts) this.attack.deactivate(b);
+    this.attack.clearFx(); // эффекты боя не переезжают в лагерь
     this.attack.clearStaffFx();
   }
 
@@ -595,7 +595,7 @@ export class Game {
     }
     if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);
-    if (this.playing) this.attack.update(dt, m.x, m.z);
+    if (this.playing) this.attack.update(dt, m.x, m.z); else this.attack.updateFx(dt); // после смерти эффекты доигрывают и гаснут
     this.frost.update(this.spawner.alive, this.stats.time || performance.now() / 1000);
     this.loot.update(dt, m.x, m.z);
     if (this.floorCleared && !this.floorChoiceShown) {

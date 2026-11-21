@@ -38,6 +38,7 @@ const TUNABLES = [
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.stacksToExplode', label: 'Стаков до взрыва', min: 2, max: 8, step: 1 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.explosionRadius', label: 'Радиус взрыва, м', min: 0.5, max: 6, step: 0.1 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.explosionDamage', label: 'Урон взрыва', min: 0, max: 10, step: 0.5 },
+  { tab: 'Оружие', group: 'Огненный посох', path: 'fire.deathScale', label: 'Взрыв при смерти горящего, доля', min: 0, max: 1.5, step: 0.05 },
   { tab: 'Оружие', group: 'Электрический посох', path: 'electric.stackTime', label: 'Время стака, с', min: 0.5, max: 10, step: 0.5 },
   { tab: 'Оружие', group: 'Электрический посох', path: 'electric.stacksToChain', label: 'Стаков до цепной молнии', min: 1, max: 6, step: 1 },
   { tab: 'Оружие', group: 'Электрический посох', path: 'electric.chainFalloff', label: 'Спад урона на звене, доля', min: 0, max: 0.9, step: 0.05 },

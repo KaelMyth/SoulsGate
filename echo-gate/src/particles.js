@@ -4,7 +4,7 @@ import * as THREE from 'three';
 
 export class Particles {
   /** scene: куда добавлять; map: мягкая белая текстура пятна; max: размер пула (самые старые не вытесняются, лишнее пропускается). */
-  constructor(scene, map, max = 260) {
+  constructor(scene, map, max = 420) {
     this.list = [];
     for (let i = 0; i < max; i++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
