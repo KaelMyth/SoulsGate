@@ -61,6 +61,24 @@ export class ModLoadout {
     return grown;
   }
 
+  /** Убрать модификатор из ячейки i вместе со всем, что от неё выросло (ячейка снова пуста и без ответвлений). false, если нечего убирать. */
+  remove(i) {
+    const c = this.cells[i];
+    if (!c || !c.mod) return false;
+    c.mod = null;
+    const drop = new Set();
+    const collect = (k) => this.cells.forEach((x, j) => { if (x.parent === k) { drop.add(j); collect(j); } });
+    collect(i);
+    if (drop.size) {
+      const map = new Map();
+      const next = [];
+      this.cells.forEach((x, j) => { if (!drop.has(j)) { map.set(j, next.length); next.push(x); } });
+      next.forEach((x) => { if (x.parent >= 0) x.parent = map.get(x.parent); });
+      this.cells = next;
+    }
+    return true;
+  }
+
   /** Усиление ячейки i: произведение множителей у отходящих от неё ячеек (Эпический/Легендарный). */
   boost(i) {
     let k = 1;

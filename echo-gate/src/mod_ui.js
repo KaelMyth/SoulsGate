@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 import { lookTier } from './staff_tiers.js';
 import { glowTexture } from './staff_icons.js';
-import { MOD_INFO, isMult, multOf } from './mods.js';
+import { MOD_INFO, MOD_IDS, isMult, multOf } from './mods.js';
 import { MOD_ICON } from './mod_icons.js';
 
 function el(tag, attrs = {}, ...kids) {
@@ -123,7 +123,19 @@ export class ModMenu {
     this.field = el('div', { class: 'mm-field' });
     this.hint = el('div', { class: 'mm-hint' }, 'Tap a glowing point to attach');
     this.skip = el('button', { type: 'button', class: 'mm-skip' }, 'Discard');
-    this.root = el('div', { id: 'modmenu', role: 'dialog', 'aria-label': 'Modifier' }, this.canvas, this.svg, this.field, this.card, this.hint, this.skip);
+    // Панель администратора (стенд на тестовом поле): выбрать мод или корзину и нажимать на точки созвездия.
+    this.palette = el('div', { class: 'mm-palette' });
+    this.chips = {};
+    for (const id of [...MOD_IDS, 'trash']) {
+      const info = id === 'trash' ? { name: 'Delete', color: '#ff6a6a' } : MOD_INFO[id];
+      const chip = el('button', { type: 'button', class: 'mm-chip', 'data-tool': id });
+      chip.style.setProperty('--m', info.color);
+      chip.innerHTML = `<span class="ci">${id === 'trash' ? '<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z" fill="currentColor"/></svg>' : MOD_ICON[id]}</span><span class="cn">${info.name}</span>`;
+      chip.addEventListener('click', () => this.setTool(id));
+      this.palette.append(chip);
+      this.chips[id] = chip;
+    }
+    this.root = el('div', { id: 'modmenu', role: 'dialog', 'aria-label': 'Modifier' }, this.canvas, this.svg, this.field, this.card, this.palette, this.hint, this.skip);
     root.append(this.root);
     this.skip.addEventListener('click', () => { if (!this.busy) this.close(); });
     this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -132,8 +144,59 @@ export class ModMenu {
 
   get mods() { return this.game.stats.mods; }
 
+  /** Админский режим (стенд на тестовом поле): сколько угодно модов в любые точки, мод можно удалить; done после закрытия. */
+  showAdmin(done) {
+    this.admin = true;
+    this.mod = null;
+    this.done = done || null;
+    this.open = true;
+    this.busy = false;
+    this.root.classList.add('admin');
+    this.skip.textContent = 'Done';
+    this.skip.classList.remove('off');
+    this.hint.classList.remove('off');
+    this.hint.textContent = 'Pick a mod, tap a point';
+    this.root.style.setProperty('--m', '#cdb8ff');
+    this.root.style.display = 'flex';
+    this.field.replaceChildren(); this.svg.replaceChildren(); this.nodes = [];
+    this.setTool(this.tool || 'might');
+    this.rebuild(false);
+    this.initScene();
+    void this.root.offsetWidth;
+    this.root.classList.add('on');
+    this.last = performance.now();
+    const loop = (now) => {
+      if (!this.open) return;
+      const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000)); this.last = now;
+      this.renderScene(dt);
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  setTool(id) {
+    this.tool = id;
+    for (const [k, c] of Object.entries(this.chips)) c.classList.toggle('on', k === id);
+  }
+
+  /** Нажатие на точку в админском режиме: повесить выбранный мод или удалить мод вместе с тем, что выросло от него. */
+  adminTap(i) {
+    if (this.tool === 'trash') {
+      if (!this.mods.remove(i)) return;
+      this.field.replaceChildren(); this.svg.replaceChildren(); this.nodes = [];
+      this.rebuild(false);
+      return;
+    }
+    const grown = this.mods.equip(i, this.tool);
+    this.rebuild(true, i, grown);
+  }
+
   /** Открыть меню с выпавшим модификатором; done вызывается после закрытия. */
   show(mod, done) {
+    this.admin = false;
+    this.root.classList.remove('admin');
+    this.skip.textContent = 'Discard';
+    this.hint.textContent = 'Tap a glowing point to attach';
     this.mod = mod;
     this.done = done || null;
     this.open = true;
@@ -246,6 +309,7 @@ export class ModMenu {
   }
 
   equip(i) {
+    if (this.admin) { if (this.open) this.adminTap(i); return; }
     if (!this.open || this.busy || !this.mod) return;
     this.busy = true;
     this.hint.classList.add('off');
