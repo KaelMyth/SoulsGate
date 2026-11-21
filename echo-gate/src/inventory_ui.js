@@ -1,7 +1,8 @@
 // Окно инвентаря: сверху витрина с магом и открытым фолиантом (3D, InventoryView), под ней полоса со счётчиками
 // (сила духа слева, предметов из лимита по центру, монеты справа) и ячейки инвентаря. Открывается кнопкой у кучи снаряжения.
 import { InventoryView } from './inventory_view.js';
-import { makeStaffIcons } from './staff_icons.js';
+import { lookTier } from './staff_tiers.js';
+import { makeStaffIcons, iconOf } from './staff_icons.js';
 import { repairCost } from './sharpen.js';
 
 const TOME_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="4" width="19" height="24" rx="2.500" fill="#3a2a3d" stroke="#c9a25a" stroke-width="1.400"/><rect x="9.500" y="6.500" width="14" height="19" rx="1.500" fill="#e9e2cf"/><rect x="7" y="4" width="4" height="24" rx="2" fill="#2a1d2d"/><path d="M17.500 11.500l3.200 4.200-3.200 4.200-3.200-4.200z" fill="none" stroke="#1fc8e6" stroke-width="1.600"/><circle cx="17.500" cy="15.700" r="1.100" fill="#35f2ff"/></svg>`;
@@ -145,7 +146,7 @@ export class InventoryUi {
     for (const slot of ['tome', 'staff']) {
       const carrying = !!(this.drag && this.drag.src.type === 'equip' && this.drag.src.slot === slot);
       if (this.view) this.view.setVisible(slot, !!inv.equipped[slot] && !carrying);
-      if (this.view && slot === 'staff') this.view.setStaffVariant(inv.equipped.staff ? inv.equipped.staff.element : null);
+      if (this.view && slot === 'staff') this.view.setStaffVariant(inv.equipped.staff ? inv.equipped.staff.element : null, inv.equipped.staff ? lookTier(inv.equipped.staff.sharpen || 0) : 0);
       this.hints[slot].classList.toggle('on', !inv.equipped[slot] || carrying || !!(this.drag && this.drag.item.slot === slot));
     }
   }
@@ -153,7 +154,7 @@ export class InventoryUi {
   /** Иконка предмета: посохи рисуются по настоящим 3D-моделям (если получилось), иначе рисованные значки. */
   iconOf(item) {
     if (item.kind === 'staff') {
-      const url = this.icons && this.icons[item.element || 'basic'];
+      const url = iconOf(this.icons, item);
       if (url) return `<img src="${url}" alt="" draggable="false">`;
       return STAFF_ICONS[item.element] || STAFF_ICON;
     }

@@ -1,6 +1,6 @@
 // Окно консоли разработчика: все посохи в трёх ступенях заточки (+1, +5, +10). Нажатие создаёт свежий посох и сразу надевает его.
 // Прежний надетый посох уходит в рюкзак (если он тоже из консоли, просто исчезает: консольные копии не копятся).
-import { makeStaffIcons } from './staff_icons.js';
+import { makeStaffIcons, iconOf } from './staff_icons.js';
 import { startingStaff, fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff } from './items.js';
 
 const STAFFS = [
@@ -48,7 +48,7 @@ export class DevConsoleUi {
     this.rows = [];
     for (const s of STAFFS) {
       const img = el('img', { alt: '', draggable: 'false' });
-      const url = this.icons && this.icons[s.element || 'basic'];
+      const url = iconOf(this.icons, s);
       if (url) img.src = url;
       const btns = LEVELS.map((lv) => {
         const b = el('button', { type: 'button', class: 'dc-lv', 'data-lv': String(lv) }, `+${lv}`);

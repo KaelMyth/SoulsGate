@@ -37,6 +37,7 @@ import { Hud } from './hud.js';
 import { Settings } from './settings.js';
 import { Hub, PopButton } from './hub.js';
 import { ForgeUi } from './forge_ui.js';
+import { lookTier } from './staff_tiers.js';
 import { DevConsoleUi } from './devconsole_ui.js';
 import { Inventory } from './inventory.js';
 import { fireStaff, iceStaff, electricStaff, gravityStaff, laserStaff, bladesStaff, pearlGem } from './items.js';
@@ -471,7 +472,7 @@ export class Game {
     const eq = this.inventory.equipped;
     this.hero.staff.visible = !!eq.staff;
     this.hero.tome.visible = !!eq.tome;
-    this.hero.setStaff(eq.staff ? eq.staff.element : null); // у стихийного посоха свой вид
+    this.hero.setStaff(eq.staff ? eq.staff.element : null, eq.staff ? lookTier(eq.staff.sharpen || 0) : 0); // у стихийного посоха свой вид
   }
 
   /** Короткое сообщение посреди экрана (исчезает само). */

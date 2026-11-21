@@ -128,10 +128,10 @@ export class InventoryView {
   }
 
   /** Сменить вид посоха на витрине: null или 'basic' | 'fire' | 'ice' | 'electric'. */
-  setStaffVariant(variant) {
-    const before = this.hero.staffVariant;
-    this.hero.setStaff(variant);
-    if (this.hero.staffVariant !== before) this.collectStaffHits();
+  setStaffVariant(variant, tier = 0) {
+    const before = this.hero.staffModel;
+    this.hero.setStaff(variant, tier);
+    if (this.hero.staffModel !== before) this.collectStaffHits();
   }
 
   /** Показать или спрятать предмет витрины ('tome' или 'staff'): спрятан, когда снят или его тащат. */

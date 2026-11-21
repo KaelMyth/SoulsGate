@@ -1,5 +1,5 @@
 {
-  "build": 84,
+  "build": 85,
   "commit": "071bbb8",
-  "notes": "Per-tier projectile looks for ice, fire, gravity and electric staffs (size, glow, particle density, arc width)."
+  "notes": "Staff models look different per sharpening tier (+0..4 / +5..9 / +10): bigger crystal, glow, rings and sparks."
 }
