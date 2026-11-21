@@ -31,6 +31,7 @@ function glow(rgb, size) {
   return s;
 }
 
+const C_GOLD = 0xf2c04a;
 const COL = { wood: 0x5a3d2b, woodL: 0x7a5239, woodD: 0x33221a, red: 0xa3323a, redD: 0x6e2227, gold: 0xe0a93e, cream: 0xf0e4c8, wall: 0x2b2340, wallD: 0x1c1730 };
 
 export class ShopView {
@@ -46,14 +47,63 @@ export class ShopView {
     const rim = new THREE.DirectionalLight(0x8fb4ff, 0.6); rim.position.set(-4, 3, -3); sc.add(rim);
 
     this.dog = new Husky();
-    this.dog.group.position.set(0, 0, -0.05);
-    this.dog.group.scale.setScalar(1.12);
+    this.dog.group.position.set(0, 0.42, 0.1);   // выше и ближе: видны голова, жилет и лапы на прилавке
+    this.dog.group.scale.setScalar(1.15);
     sc.add(this.dog.group);
 
     this.sway = [];
+    this.buildMotes();
+    this.buildCoins();
     this.buildWall();
     this.buildCounter();
     this.buildAwning();
+  }
+
+  /** Мерцающая пыль и светлячки в тёплом свете лавки: сцена не стоит на месте. */
+  buildMotes() {
+    const N = 46;
+    const pos = new Float32Array(N * 3);
+    this.moteSeed = [];
+    for (let i = 0; i < N; i++) {
+      this.moteSeed.push({ x: (Math.random() - 0.5) * 5, y: Math.random() * 3.2, z: -0.6 + Math.random() * 2.4, sp: 0.04 + Math.random() * 0.08, ph: Math.random() * 6.28 });
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const c = document.createElement('canvas');
+    c.width = c.height = 32;
+    const x = c.getContext('2d');
+    const gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, 'rgba(255,230,170,1)'); gr.addColorStop(0.4, 'rgba(255,190,110,0.4)'); gr.addColorStop(1, 'rgba(255,170,90,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 32, 32);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.motes = new THREE.Points(g, new THREE.PointsMaterial({ map: tex, size: 0.13, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+    this.motes.frustumCulled = false;
+    this.scene.add(this.motes);
+  }
+
+  /** Монеты для покупки: пул золотых дисков, взлетают над прилавком, вертятся и падают. */
+  buildCoins() {
+    const m = new THREE.MeshStandardMaterial({ color: C_GOLD, roughness: 0.35, metalness: 0.6, emissive: 0x6a4a10, emissiveIntensity: 0.6, flatShading: true });
+    this.coins = [];
+    for (let i = 0; i < 16; i++) {
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.025, 12), m);
+      c.visible = false;
+      this.scene.add(c);
+      this.coins.push({ m: c, vx: 0, vy: 0, vz: 0, life: 0 });
+    }
+  }
+
+  /** Покупка: пёс радуется, над прилавком взлетают монеты. */
+  celebrate() {
+    this.dog.cheer(1);
+    for (const c of this.coins) {
+      c.life = 1.1 + Math.random() * 0.5;
+      c.m.visible = true;
+      c.m.position.set((Math.random() - 0.5) * 0.9, 1.15, 1.0);
+      c.vx = (Math.random() - 0.5) * 1.4; c.vy = 2.6 + Math.random() * 1.8; c.vz = -0.2 + Math.random() * 0.8;
+      c.m.rotation.set(Math.random() * 3, 0, Math.random() * 3);
+    }
   }
 
   /** Задняя стена с двумя полками, на них бутылки, банки и свитки. */
@@ -125,7 +175,7 @@ export class ShopView {
       pan.userData.s = s;
     }
     // Банки с разноцветными светящимися шариками.
-    [[-0.55, 0xff8a5a], [-0.2, 0x7be0ff]].forEach(([x, c], k) => {
+    [[-0.95, 0xff8a5a], [-0.68, 0x7be0ff]].forEach(([x, c], k) => {
       const jar = new THREE.Group(); jar.position.set(x, top, 0.05); g.add(jar);
       cyl(0.15, 0.15, 0.3, new THREE.MeshStandardMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.28, roughness: 0.1 }), 0, 0.15, 0, jar, 12);
       for (let i = 0; i < 6; i++) {
@@ -202,6 +252,23 @@ export class ShopView {
     this.t += dt;
     const t = this.t;
     this.dog.update(dt, 0, 6);
+    const arr = this.motes.geometry.attributes.position.array;
+    this.moteSeed.forEach((m, i) => {
+      const y = (m.y + t * m.sp) % 3.4;
+      arr[i * 3] = m.x + Math.sin(t * 0.5 + m.ph) * 0.25;
+      arr[i * 3 + 1] = y;
+      arr[i * 3 + 2] = m.z;
+    });
+    this.motes.geometry.attributes.position.needsUpdate = true;
+    this.motes.material.opacity = 0.7 + 0.2 * Math.sin(t * 1.7);
+    for (const c of this.coins) {
+      if (c.life <= 0) continue;
+      c.life -= dt;
+      c.vy -= 7.5 * dt;
+      c.m.position.x += c.vx * dt; c.m.position.y += c.vy * dt; c.m.position.z += c.vz * dt;
+      c.m.rotation.x += 9 * dt; c.m.rotation.z += 5 * dt;
+      if (c.life <= 0 || c.m.position.y < 0.9) { c.life = 0; c.m.visible = false; }
+    }
     this.beam.rotation.z = 0.12 * Math.sin(t * 0.9);
     for (const pan of this.beam.children.filter((c) => c.userData.s)) pan.rotation.z = -this.beam.rotation.z;
     for (const l of this.lanterns) {
