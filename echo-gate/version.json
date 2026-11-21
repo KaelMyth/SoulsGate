@@ -1,5 +1,5 @@
 {
-  "build": 82,
+  "build": 83,
   "commit": "071bbb8",
-  "notes": "Hit impacts v2, death explosion of burning enemies, no effects carried to the camp."
+  "notes": "Ice staff tiers by sharpening: freeze on 2 stacks at +5, frozen enemies release 4 spikes on death at +10."
 }

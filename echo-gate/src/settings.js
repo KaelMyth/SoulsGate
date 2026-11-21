@@ -33,6 +33,8 @@ const TUNABLES = [
   { tab: 'Оружие', group: 'Ледяной посох', path: 'ice.slowPerStack', label: 'Замедление за стак, доля', min: 0.05, max: 0.5, step: 0.05 },
   { tab: 'Оружие', group: 'Ледяной посох', path: 'ice.stacksToFreeze', label: 'Стаков до заморозки', min: 2, max: 8, step: 1 },
   { tab: 'Оружие', group: 'Ледяной посох', path: 'ice.freezeTime', label: 'Заморозка, с', min: 0.2, max: 5, step: 0.1 },
+  { tab: 'Оружие', group: 'Ледяной посох', path: 'ice.spikeDamage', label: 'Урон шипа из глыбы, доля', min: 0, max: 2, step: 0.1 },
+  { tab: 'Оружие', group: 'Ледяной посох', path: 'ice.spikeRange', label: 'Дальность шипа, м', min: 1, max: 12, step: 0.5 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.burnTime', label: 'Длительность горения, с', min: 0.5, max: 10, step: 0.5 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.burnDps', label: 'Урон горения за стак, в секунду', min: 0, max: 2, step: 0.05 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.stacksToExplode', label: 'Стаков до взрыва', min: 2, max: 8, step: 1 },

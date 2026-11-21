@@ -84,3 +84,12 @@ test('гравитация: снаряд почти стоит, потом ре�
 test('огонь: взрыв при смерти включён по умолчанию', () => {
   assert.ok(CONFIG.fire.deathScale > 0 && CONFIG.fire.deathScale <= 1.5);
 });
+
+test('лёд по ступеням заточки: на средней два стака замораживают, на высшей шипы при смерти', async () => {
+  const { tierOf } = await import('../echo-gate/src/staff_tiers.js');
+  assert.deepEqual([0, 4, 5, 9, 10].map((s) => tierOf(CONFIG, s)), [0, 0, 1, 1, 2]);
+  const stacks = (t) => ({ ...ice, stacksToFreeze: ice.tiers[t].stacksToFreeze });
+  const e0 = mk(); applyIce(e0, stacks(0)); assert.equal(applyIce(e0, stacks(0)), 'chill');
+  const e1 = mk(); applyIce(e1, stacks(1)); assert.equal(applyIce(e1, stacks(1)), 'freeze');
+  assert.deepEqual(ice.tiers.map((t) => t.deathSpikes), [0, 0, 4]);
+});
