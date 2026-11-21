@@ -88,3 +88,10 @@ test('soul bonus caps: 5 ×1.1, 3 ×1.5, 1 ×2', () => {
   stats.reset();
   assert.deepEqual(stats.soulMods, { soul10: 0, soul50: 0, soul100: 0 });
 });
+
+test('имя игрока: чистка и ограничение длины', async () => {
+  const { cleanName, NAME_MAX } = await import('../echo-gate/src/name_prompt.js');
+  assert.equal(cleanName('   Dark   Lord  '), 'Dark Lord');
+  assert.equal(cleanName('   '), '');
+  assert.equal(cleanName('x'.repeat(40)).length, NAME_MAX);
+});

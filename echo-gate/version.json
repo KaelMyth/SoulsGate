@@ -1,5 +1,5 @@
 {
-  "build": 91,
+  "build": 92,
   "commit": "071bbb8",
-  "notes": "Reset progress button in settings; Arcane Roll 30% shorter."
+  "notes": "Enter-your-name prompt on first launch and after progress reset; name shown above the mage in the backpack."
 }
