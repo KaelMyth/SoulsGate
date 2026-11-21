@@ -308,6 +308,8 @@ export class Attack {
     b.pierce = this.getMods ? this.getMods().pierce : 0; // сколько целей шарик пробьёт насквозь (модификатор Пробитие)
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = grav; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
+    b.fromSpike = false;
+    b.iceTier = ice && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень ледяного посоха по заточке
     const tier = this.tierNow();
     b.tier = tier && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0;
     b.sz = tier ? tier.size : 1;
@@ -456,8 +458,10 @@ export class Attack {
     this.impact(b.x, Math.max(0.25, b.y), b.z, b.vx, b.vz, kill, e.kind, b.el);
     if (fire && !kill && applyFire(e, this.fireCfg) === 'explode') this.explode(e);
     if (ice && !kill) {
-      const r = applyIce(e, this.ice); // замедление; три стака замораживают
+      const T = this.ice.tiers[b.iceTier || 0] || this.ice.tiers[0];
+      const r = applyIce(e, { ...this.ice, stacksToFreeze: T.stacksToFreeze }); // замедление; на ступени 0 три стака замораживают, выше два
       if (r === 'freeze') {
+        e.freezeTier = b.iceTier || 0; // ступень, которой заморожен: от неё зависит, выпустит ли шипы при смерти
         this.burst(e.state.x, 0.5, e.state.z, c.hitSize * 2.2, 0.4, 'ice');
         this.shock(e.state.x, e.state.z, c.hitSize * 4.5, 0.5, 0xe8f9ff);
         for (let i = 0; i < this.n(16); i++) {
@@ -485,8 +489,49 @@ export class Attack {
     this.deathBurst(e, depth);
   }
 
+  /** Замороженный врагом высшей ступени ледяного посоха умирает: ледяная глыба раскалывается, шипы летят в стороны.
+   * Шипы, убившие замороженного, новых шипов не дают (иначе цепь без конца). */
+  iceDeath(e, fromSpike) {
+    if (fromSpike || !(e.freezeT > 0) || !this.ice || !this.ice.tiers) return;
+    const T = this.ice.tiers[e.freezeTier || 0];
+    if (!T || !(T.deathSpikes > 0)) return;
+    e.freezeT = 0;
+    const x = e.state.x, z = e.state.z;
+    this.burst(x, 0.5, z, this.cfg.hitSize * 2.4, 0.4, 'ice');
+    this.shock(x, z, this.cfg.hitSize * 5, 0.5, 0xe8f9ff);
+    for (let i = 0; i < this.n(18); i++) {
+      const a = rr(0, 6.283), sp = rr(2, 7);
+      this.parts.emit({ x, y: 0.5, z, vx: Math.cos(a) * sp, vy: rr(1, 4.5), vz: Math.sin(a) * sp, life: rr(0.4, 0.8), size0: rr(0.14, 0.26), size1: 0.06, c0: 0xffffff, c1: 0x6fc8ff, drag: 1.5, grav: 12 });
+    }
+    const base = rr(0, 6.283);
+    for (let i = 0; i < T.deathSpikes; i++) this.spawnSpike(x, z, base + (i * 6.283185) / T.deathSpikes);
+  }
+
+  /** Ледяной шип, вылетевший из разбитой глыбы: летит в сторону a на spikeRange, бьёт слабее выстрела и вешает замедление. */
+  spawnSpike(x, z, a) {
+    const c = this.cfg, I = this.ice;
+    const b = this.bolts.find((q) => !q.active) || this.makeBolt();
+    const dx = Math.cos(a), dz = Math.sin(a);
+    b.active = true;
+    b.x = x; b.y = 0.5; b.z = z;
+    b.vx = dx * c.speed; b.vy = 0; b.vz = dz * c.speed;
+    b.life = I.spikeRange / c.speed + 0.1;
+    b.trailT = 0; b.launch = 0.12;
+    for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; t.s.material.map = this.ball; t.s.material.needsUpdate = true; }
+    b.el = 'ice'; b.pierce = 0;
+    if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
+    b.grav = false; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
+    b.fromSpike = true; b.iceTier = 2; b.tier = 0; b.sz = 1; b.trailN = TRAIL;
+    b.dmgMul = I.spikeDamage;
+    b.halo.material.color.setHex(ICE); b.halo.visible = true;
+    b.core.visible = false; b.lens.visible = false;
+    b.spike.visible = true;
+    b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir.set(dx, 0, dz));
+  }
+
   /** Враг умер горящим (любым уроном): небольшой взрыв на его месте. Взрыв может добить других горящих, цепочка до 3 звеньев. */
-  deathBurst(e, depth) {
+  deathBurst(e, depth, fromSpike = false) {
+    this.iceDeath(e, fromSpike);
     const F = this.fireCfg;
     if (!F || !(F.deathScale > 0) || depth >= 3 || !(e.burnT > 0) || !(e.burn > 0)) return;
     e.burn = 0; e.burnT = 0;
