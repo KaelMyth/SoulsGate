@@ -191,7 +191,11 @@ export class Game {
     if (o.ui.testAdClaim) o.ui.testAdClaim.addEventListener('click', () => this.claimTestRewardedAd());
     if (o.ui.saveBtn) o.ui.saveBtn.addEventListener('click', () => this.openSaves());
     if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.setPaused(true));
-    if (this.pauseEl) this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
+    if (this.pauseEl) {
+      this.pauseEl.querySelector('button').addEventListener('click', () => this.setPaused(false));
+      this.homeBtn = this.pauseEl.querySelector('button.home');
+      if (this.homeBtn) this.homeBtn.addEventListener('click', () => this.homeFromPause());
+    }
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.playing) this.setPaused(true); });
     this.enterHub();
 
@@ -628,11 +632,47 @@ export class Game {
     this.forgeUi.show();
   }
 
+  /** Кнопка «домой» в паузе: первое нажатие просит подтвердить (потерянный забег не вернуть), второе в течение 3 с выходит в хаб.
+   * Добыча забега, не сданная в хаб, пропадает, как при «домой» после смерти. */
+  homeFromPause() {
+    if (!this.paused || !this.playing) return;
+    const hint = this.pauseEl.querySelector('.hint');
+    if (!this.homeSure) {
+      this.homeSure = true;
+      this.homeBtn.classList.add('sure');
+      if (hint) hint.textContent = 'Tap again to leave the run';
+      clearTimeout(this.homeTimer);
+      this.homeTimer = setTimeout(() => this.resetHomeConfirm(), 3000);
+      return;
+    }
+    this.resetHomeConfirm();
+    this.runRewards = { souls: 0 };
+    this.setPaused(false);
+    this.playing = false;
+    this.dead = false;
+    this.restart();
+    this.attack.parts.clear();
+    this.attack.lightning.clear();
+    if (this.pauseBtn) this.pauseBtn.classList.add('gone');
+    this.enterHub();
+    if (this.ui.start) this.ui.start.classList.remove('gone');
+    if (this.hud) { this.hud.hide(); this.settings.hide(); }
+  }
+
+  resetHomeConfirm() {
+    this.homeSure = false;
+    clearTimeout(this.homeTimer);
+    if (this.homeBtn) this.homeBtn.classList.remove('sure');
+    const hint = this.pauseEl && this.pauseEl.querySelector('.hint');
+    if (hint) hint.textContent = '';
+  }
+
   /** Пауза боя: логика стоит, кадр рисуется, поверх окно с кнопкой продолжить. Только в забеге. */
   setPaused(on) {
     if (on && !this.playing) return;
     this.paused = on;
     this.stick.cancel();
+    if (!on) this.resetHomeConfirm();
     if (this.pauseEl) this.pauseEl.classList.toggle('on', on);
   }
 
