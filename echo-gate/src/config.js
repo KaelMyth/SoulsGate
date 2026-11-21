@@ -419,6 +419,14 @@ export const CONFIG = {
     devRadius: 2.2,      // м: ближе этого к консоли выходит кнопка
     devHysteresis: 0.8,
     devButtonRise: 60,   // px
+    benchX: 9.2,         // м: стенд сборки посоха в правом углу тестового поля (местные координаты)
+    benchZ: 62.2,
+    benchScale: 1.1,
+    benchHalfW: 1.9,     // м: полуразмер для столкновений
+    benchHalfD: 1.9,
+    benchRadius: 2.3,    // м: ближе этого к стенду выходит кнопка
+    benchHysteresis: 0.8,
+    benchButtonRise: 60, // px
     rockStep: 2.1,       // м: шаг камней по краю
     playRadius: 3.2,     // м: ближе этого к костру из огня выходит Play
     playHysteresis: 0.9, // м: запас, чтобы кнопка не мигала на границе

@@ -65,3 +65,19 @@ test('рулетка: веса соблюдаются', () => {
   assert.ok(n.might > n.pierce && n.pierce > n.epic && n.epic > n.legendary);
   assert.ok(Math.abs(n.legendary / 20000 - 0.08) < 0.01);
 });
+
+test('remove: убирает мод и всё, что выросло от него; индексы остаются согласованными', () => {
+  const m = mk();
+  m.equip(0, 'might');
+  const c = m.cells.findIndex((x) => x.parent === 0);
+  m.equip(c, 'swift');
+  m.equip(1, 'pierce');
+  assert.equal(m.remove(0), true);
+  assert.equal(m.cells[0].mod, null);
+  assert.ok(!m.cells.some((x) => x.parent === 0), 'ответвления ушли');
+  assert.equal(m.cells.filter((x) => x.branch === 0).length, 1);
+  const p = m.cells.findIndex((x) => x.mod === 'pierce');
+  assert.ok(m.cells.filter((x) => x.parent === p).length === 2, 'вторая ветка цела');
+  assert.equal(m.remove(0), false, 'пустую ячейку не убрать');
+  assert.equal(m.equip(0, 'might').length, 2, 'после удаления ячейка снова растёт');
+});

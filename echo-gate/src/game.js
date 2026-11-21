@@ -133,6 +133,7 @@ export class Game {
     this.shopBtn = new PopButton(o.ui.shopBtn, { radius: H.shopRadius, hysteresis: H.shopHysteresis, rise: H.shopButtonRise }, () => this.bus.emit('shop:open', {}));
     this.anvilBtn = new PopButton(o.ui.anvilBtn, { radius: H.enchantRadius, hysteresis: H.enchantHysteresis, rise: H.enchantButtonRise }, () => this.bus.emit('enchant:open', {})); // окна пока нет
     this.gearBtn = new PopButton(o.ui.gearBtn, { radius: H.gearRadius, hysteresis: H.gearHysteresis, rise: H.gearButtonRise }, () => this.bus.emit('gear:open', {}));
+    this.benchBtn = new PopButton(o.ui.benchBtn, { radius: H.benchRadius, hysteresis: H.benchHysteresis, rise: H.benchButtonRise }, () => this.openBench());
     this.devBtn = new PopButton(o.ui.devBtn, { radius: H.devRadius, hysteresis: H.devHysteresis, rise: H.devButtonRise }, () => this.openDev());
     this.anchor = { x: 0, y: 0, z: 0 };
     this.inventory = new Inventory(this.cfg.inventory);
@@ -480,6 +481,7 @@ export class Game {
         { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
         { x: H.enchantX, z: H.enchantZ, hx: H.enchantHalfW, hz: H.enchantHalfD },
         { x: H.devX, z: H.devZ, hx: H.devHalfW, hz: H.devHalfD },
+        { x: H.benchX, z: H.benchZ, hx: H.benchHalfW, hz: H.benchHalfD },
       ] };
     this.motion.x = H.startDown * Math.sin(a);
     this.motion.z = H.startDown * Math.cos(a);
@@ -727,6 +729,14 @@ export class Game {
     this.loot.add(type, this.motion.x + Math.cos(a) * r, this.motion.z + Math.sin(a) * r, 1, true);
   }
 
+  /** Стенд сборки посоха на тестовом поле: админское меню созвездия (любые моды в любые точки, удаление). Окно считается открытой консолью. */
+  openBench() {
+    if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.modMenu) return;
+    this.devOpen = true;
+    this.stick.cancel();
+    this.modMenu.showAdmin(() => { this.devOpen = false; });
+  }
+
   /** Консоль разработчика в углу хаба: хаб замирает, поверх окно со всеми посохами. */
   openDev() {
     if (!this.inHub || this.switching || this.invOpen || this.forgeOpen || this.devOpen || !this.devUi) return;
@@ -828,6 +838,8 @@ export class Game {
       if (b.textContent !== String(this.inventory.souls)) b.textContent = String(this.inventory.souls);
     }
     if (this.ui.devLoot) this.ui.devLoot.classList.toggle('gone', !hubOn);
+    const ab = this.hub.benchButtonAnchor(this.anchor);
+    this.benchBtn.update(dt, this.hub.distToBench(this.motion.x, this.motion.z), this.world, hubOn, ab.x, ab.y, ab.z);
     const ad = this.hub.devButtonAnchor(this.anchor);
     this.devBtn.update(dt, this.hub.distToDev(this.motion.x, this.motion.z), this.world, hubOn, ad.x, ad.y, ad.z);
     const ae = this.hub.enchantButtonAnchor(this.anchor);
