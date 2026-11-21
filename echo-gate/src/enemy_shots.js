@@ -1,4 +1,4 @@
-// Шары жуков-стрелков (SoulsGate enemy shot, мир в метрах): оранжевая светящаяся точка летит по прямой в сторону героя
+// Шары жуков-стрелков (SoulsGate enemy shot, мир в метрах): фиолетовая светящаяся точка летит по прямой в сторону героя
 // на момент выстрела. Попал в героя: урон (hurtHero учитывает неуязвимость), шар гаснет. Прошёл range: гаснет.
 // Пул объектов, спрайты с аддитивным смешиванием (как шарики мага), без света и теней.
 import * as THREE from 'three';
@@ -8,10 +8,10 @@ function glowTexture() {
   c.width = c.height = 64;
   const g = c.getContext('2d');
   const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  r.addColorStop(0, 'rgba(255,245,220,1)');
-  r.addColorStop(0.25, 'rgba(255,190,90,1)');
-  r.addColorStop(0.6, 'rgba(255,120,30,0.55)');
-  r.addColorStop(1, 'rgba(255,90,20,0)');
+  r.addColorStop(0, 'rgba(255,240,255,1)');
+  r.addColorStop(0.25, 'rgba(226,130,255,1)');
+  r.addColorStop(0.6, 'rgba(150,60,230,0.55)');
+  r.addColorStop(1, 'rgba(110,40,200,0)');
   g.fillStyle = r;
   g.fillRect(0, 0, 64, 64);
   const t = new THREE.CanvasTexture(c);
