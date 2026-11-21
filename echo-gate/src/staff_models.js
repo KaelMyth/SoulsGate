@@ -458,51 +458,83 @@ function flare(glowTex, color, size) {
   return g;
 }
 
-/** Лазерный (по лазеру из SoulsGate): тёмное древко с голубыми линиями, ромб-излучатель, прямой луч с белой жилой и звёздная вспышка на конце. */
-function laserStaff(glowTex, matBelt) {
+/** Посох лазера (Призма), три ступени (+0..4 / +5..9 / +10): жемчужное древко с золотом и белым кристаллом света в золотых рогах; два парящих осколка и вторая пара рогов; корона из лучей, кольцо и шесть осколков. */
+function laserStaff(glowTex, matBelt, tier = 0) {
   const group = new THREE.Group();
-  const navy = std(0x1c2638, { roughness: 0.4, metalness: 0.6 });
-  const steel = std(0x8fa3c0, { roughness: 0.3, metalness: 0.85 });
-  const cyan = basic(0x6ecdff);
-  shaftParts(group, navy, steel, matBelt);
-  for (const y of [0.05, 0.5, 0.95]) {
-    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.025, 12), cyan);
+  const pearl = std(0xf3f0ff, { roughness: 0.35, metalness: 0.15 });
+  const gold = std(0xe9c872, { roughness: 0.3, metalness: 0.8 });
+  const white = basic(0xffffff);
+  shaftParts(group, pearl, gold, matBelt);
+  for (const y of [0.1, 0.55, 1.0]) { // тонкие золотые кольца на жемчужном древке
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.009, 6, 18), gold);
+    r.rotation.x = Math.PI / 2;
     r.position.y = y;
     group.add(r);
   }
-  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.05, 0.12, 8), steel);
-  collar.position.y = 1.5;
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.048, 0.1, 10), gold);
+  collar.position.y = 1.52;
   group.add(collar);
-  for (const s of [-1, 1]) { // две скобы-«усика» у излучателя
-    group.add(tube([[s * 0.05, 1.55, 0], [s * 0.17, 1.62, 0], [s * 0.2, 1.78, 0]], 0.014, steel, 12));
+  // Золотые рога-полумесяцы держат кристалл: у +0 одна пара, у +5 две, у +10 три.
+  const nPairs = tier + 1;
+  for (let p = 0; p < nPairs; p++) {
+    for (const s of [-1, 1]) {
+      const h = 0.14 + 0.07 * p;
+      group.add(tube([[s * 0.04, 1.55, 0], [s * (0.14 + 0.05 * p), 1.64 + 0.04 * p, 0], [s * (0.18 + 0.06 * p), 1.8 + 0.07 * p, 0], [s * (0.1 + 0.04 * p), 1.94 + 0.1 * p, 0]], 0.012, gold, 16));
+    }
   }
-  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0).scale(0.8, 1.15, 0.8), std(0x8fdcff, { emissive: 0x3aaeff, emissiveIntensity: 1.5, roughness: 0.15, flatShading: true }));
-  crystal.position.y = 1.72;
-  const innerCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0).scale(0.8, 1.15, 0.8), basic(0xe8f8ff));
-  innerCore.position.y = 1.72;
-  const beam = new THREE.Group(); // луч вверх: четыре слоя, как в игре
-  const layers = [];
-  for (const [r, col, op] of [[0.1, 0x6ecdff, 0.1], [0.055, 0x6ecdff, 0.22], [0.03, 0x6ecdff, 0.7], [0.014, 0xe8f8ff, 1]]) {
-    const m = basic(col, { transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.5, 10, 1, true), m);
-    c.position.y = 2.1;
-    beam.add(c);
-    layers.push({ c, m, op });
+  const cy = [1.78, 1.82, 1.9][tier];
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry([0.12, 0.15, 0.18][tier], 0).scale(0.75, 1.4, 0.75), std(0xffffff, { emissive: 0xdde8ff, emissiveIntensity: 1.3, roughness: 0.1, flatShading: true }));
+  crystal.position.y = cy;
+  const inner = new THREE.Mesh(new THREE.OctahedronGeometry([0.05, 0.065, 0.08][tier], 0).scale(0.75, 1.4, 0.75), white);
+  inner.position.y = cy;
+  const glow = halo(glowTex, 0xdde8ff, [1.0, 1.5, 2.3][tier], [0.55, 0.7, 0.8][tier]);
+  glow.position.y = cy;
+  group.add(crystal, inner, glow);
+  // +5: два осколка света парят по бокам; +10: шесть осколков, солнечные лучи и золотое кольцо вокруг кристалла.
+  const sh = [];
+  const nSh = [0, 2, 6][tier];
+  for (let i = 0; i < nSh; i++) {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0).scale(0.7, 1.5, 0.7), std(0xffffff, { emissive: 0xdde8ff, emissiveIntensity: 1 }));
+    group.add(m);
+    sh.push({ m, a: (i / nSh) * 6.28, r: 0.26 + 0.05 * (i % 2) });
   }
-  const tipFlare = flare(glowTex, 0xcdeeff, 0.8);
-  tipFlare.position.y = 2.38;
-  const glow = halo(glowTex, 0x6ecdff, 1.0, 0.6);
-  glow.position.y = 1.72;
-  group.add(crystal, innerCore, beam, tipFlare, glow);
+  const rays = [];
+  let ring = null;
+  if (tier === 2) {
+    for (let i = 0; i < 8; i++) { // лучи-иглы света вокруг кристалла
+      const ray = new THREE.Mesh(new THREE.PlaneGeometry(0.035, i % 2 ? 0.5 : 0.8).translate(0, i % 2 ? 0.25 : 0.4, 0), new THREE.MeshBasicMaterial({ color: 0xeaf0ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      ray.position.y = cy;
+      ray.rotation.z = (i / 8) * Math.PI * 2;
+      group.add(ray);
+      rays.push(ray);
+    }
+    ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.012, 6, 40), gold);
+    ring.position.y = cy;
+    group.add(ring);
+  }
+  const flr = flare(glowTex, 0xffffff, [0.5, 0.8, 1.2][tier]);
+  flr.position.y = cy;
+  group.add(flr);
   return {
     group, crystal, glow,
     update(t, k) {
-      const f = 0.9 + 0.1 * Math.sin(t * 70) + 0.05 * Math.sin(t * 23);
-      for (const l of layers) { l.c.scale.x = l.c.scale.z = f; l.m.opacity = Math.min(1, l.op * (0.85 + 0.25 * f + k * 0.2)); }
-      tipFlare.scale.setScalar(0.9 + 0.2 * Math.sin(t * 9));
-      tipFlare.rotation.z = Math.sin(t * 1.3) * 0.1;
-      crystal.rotation.y = t * 1.5;
-      glow.material.opacity = 0.5 + 0.12 * Math.sin(t * 6);
+      crystal.rotation.y = t * 1.2;
+      inner.rotation.y = -t * 1.8;
+      const f = 1 + 0.08 * Math.sin(t * 4.5) + k * 0.1;
+      crystal.scale.setScalar(f);
+      glow.material.opacity = [0.5, 0.65, 0.8][tier] + 0.12 * Math.sin(t * 3.1);
+      flr.scale.setScalar(0.9 + 0.2 * Math.sin(t * 5));
+      flr.rotation.z = t * 0.6;
+      for (const s of sh) {
+        const a = s.a + t * 1.1;
+        s.m.position.set(Math.cos(a) * s.r, cy + 0.05 * Math.sin(t * 2 + s.a * 3), Math.sin(a) * s.r);
+        s.m.rotation.y = t * 2;
+      }
+      for (let i = 0; i < rays.length; i++) {
+        rays[i].rotation.z = (i / 8) * Math.PI * 2 + t * 0.35;
+        rays[i].material.opacity = 0.35 + 0.2 * Math.sin(t * 3 + i);
+      }
+      if (ring) ring.rotation.set(1.2 + Math.sin(t * 0.7) * 0.15, t * 0.5, 0.4);
     },
   };
 }
@@ -615,5 +647,5 @@ export function buildStaffModel(variant, glowTex, matBelt, tier = 0) {
   const v = BUILDERS[variant] ? variant : 'basic';
   const m = BUILDERS[v](glowTex, matBelt, tier);
   m.glowTex = glowTex;
-  return tier > 0 && v !== 'ice' && v !== 'fire' && v !== 'electric' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
+  return tier > 0 && v !== 'ice' && v !== 'fire' && v !== 'electric' && v !== 'laser' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
 }
