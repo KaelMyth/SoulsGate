@@ -1,5 +1,6 @@
 // Модификаторы снаряда (чистая логика, без графики): выпадают в рулетке, вешаются в ячейки на посохе, меняют поведение выстрела.
-// Ячейки растут деревом: у навершия три корневые ячейки; когда в ячейку повешен модификатор, над ней вырастает ещё одна (всего не больше cells).
+// Ячейки растут созвездием: от посоха две ветки (две корневые ячейки); когда в ячейку повешен модификатор, от неё отходят ещё две
+// (в каждой ветке не больше branchMax ячеек, всего до 2 × branchMax).
 // Эпический ×2 и Легендарный ×3 усиливают то, к чему подвешены: в корневой ячейке (на самом посохе) умножают число снарядов,
 // в вышестоящей усиливают модификатор, от которого отходят. Числа лежат в CONFIG.mods. Модификаторы действуют только в текущем забеге.
 
@@ -36,22 +37,28 @@ export class ModLoadout {
   }
 
   reset() {
-    // cell: { mod: id|null, parent: -1 (на посохе) | индекс ячейки }
+    // cell: { mod: id|null, parent: -1 (на посохе) | индекс ячейки, branch: номер ветки (0..roots-1) }
     this.cells = [];
-    for (let i = 0; i < this.cfg.roots; i++) this.cells.push({ mod: null, parent: -1 });
+    for (let i = 0; i < this.cfg.roots; i++) this.cells.push({ mod: null, parent: -1, branch: i });
   }
 
-  /** Повесить модификатор в ячейку i (замена разрешена). Возвращает индекс выросшей новой ячейки или -1. */
+  /** Сколько ячеек сейчас в ветке b. */
+  branchSize(b) { return this.cells.filter((x) => x.branch === b).length; }
+
+  /** Повесить модификатор в ячейку i (замена разрешена). Возвращает индексы выросших новых ячеек (пусто, если ничего не выросло). */
   equip(i, mod) {
     const c = this.cells[i];
-    if (!c || !MOD_INFO[mod]) return -1;
+    if (!c || !MOD_INFO[mod]) return [];
     c.mod = mod;
+    const grown = [];
     const hasChild = this.cells.some((x) => x.parent === i);
-    if (!hasChild && this.cells.length < this.cfg.cells) {
-      this.cells.push({ mod: null, parent: i });
-      return this.cells.length - 1;
+    if (!hasChild) {
+      for (let k = 0; k < this.cfg.children && this.branchSize(c.branch) < this.cfg.branchMax; k++) {
+        this.cells.push({ mod: null, parent: i, branch: c.branch });
+        grown.push(this.cells.length - 1);
+      }
     }
-    return -1;
+    return grown;
   }
 
   /** Усиление ячейки i: произведение множителей у отходящих от неё ячеек (Эпический/Легендарный). */

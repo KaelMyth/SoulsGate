@@ -6,24 +6,35 @@ import { ModLoadout, pickMod, MOD_IDS } from '../echo-gate/src/mods.js';
 
 const mk = () => new ModLoadout(CONFIG.mods);
 
-test('старт: три пустые корневые ячейки, эффекты нейтральны', () => {
+test('старт: две пустые корневые ячейки (две ветки), эффекты нейтральны', () => {
   const m = mk();
-  assert.equal(m.cells.length, 3);
+  assert.equal(m.cells.length, 2);
   assert.deepEqual(m.effects(), { damage: 1, rate: 1, pierce: 0, shots: 1 });
 });
 test('обычные модификаторы: Мощь +20% урона, Прыткость +20% скорости, Пробитие 1', () => {
-  const m = mk(); m.equip(0, 'might'); m.equip(1, 'swift'); m.equip(2, 'pierce');
+  const m = mk(); m.equip(0, 'might'); m.equip(1, 'swift'); m.equip(m.cells.findIndex((c) => c.parent === 0), 'pierce');
   const e = m.effects();
   assert.ok(Math.abs(e.damage - 1.2) < 1e-9 && Math.abs(e.rate - 1.2) < 1e-9 && e.pierce === 1);
 });
-test('после повешивания над ячейкой вырастает новая, всего не больше пяти', () => {
+test('после повешивания от ячейки отходят две новые, в ветке не больше восьми', () => {
   const m = mk();
-  assert.equal(m.equip(0, 'might'), 3);
-  assert.equal(m.equip(1, 'might'), 4);
-  assert.equal(m.equip(2, 'might'), -1);
-  assert.equal(m.cells.length, 5);
-  assert.equal(m.equip(0, 'swift'), -1); // замена не растит ячейки
-  assert.equal(m.cells.length, 5);
+  assert.deepEqual(m.equip(0, 'might'), [2, 3]);
+  assert.equal(m.equip(0, 'swift').length, 0); // замена не растит ячейки
+  assert.equal(m.cells.length, 4);
+  // растим левую ветку до предела
+  let guard = 0;
+  while (m.branchSize(0) < 8 && guard++ < 50) {
+    const empty = m.cells.findIndex((c) => c.branch === 0 && !c.mod);
+    m.equip(empty, 'might');
+  }
+  assert.equal(m.branchSize(0), 8);
+  assert.equal(m.branchSize(1), 1, 'вторая ветка не затронута');
+  const empty = m.cells.findIndex((c) => c.branch === 0 && !c.mod);
+  if (empty >= 0) m.equip(empty, 'might');
+  assert.equal(m.branchSize(0), 8, 'потолок ветки');
+  // вторая ветка растёт независимо
+  assert.equal(m.equip(1, 'might').length, 2);
+  assert.equal(m.branchSize(1), 3);
 });
 test('Эпический и Легендарный на самом посохе умножают число снарядов', () => {
   const m = mk(); m.equip(0, 'epic');
@@ -45,7 +56,7 @@ test('множитель в верхней ячейке усиливает мо�
 });
 test('reset очищает ячейки', () => {
   const m = mk(); m.equip(0, 'epic'); m.reset();
-  assert.equal(m.cells.length, 3); assert.equal(m.effects().shots, 1);
+  assert.equal(m.cells.length, 2); assert.equal(m.effects().shots, 1);
 });
 test('рулетка: веса соблюдаются', () => {
   let s = 7; const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
