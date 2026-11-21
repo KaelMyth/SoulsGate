@@ -5,7 +5,7 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
-import { applyIce, applyFire, burnTick, applyShock, gravityFactor } from './status.js';
+import { applyIce, applyFire, burnTick, gravityFactor } from './status.js';
 import { Lightning } from './lightning.js';
 import { Laser } from './laser.js';
 import { Blades } from './blades.js';
@@ -188,9 +188,11 @@ export class Attack {
     this.ring = ringTexture();
     this.bolts = [];
     this.orbs = []; // шары живого пламени (пул)
+    this.balls = []; // шаровые молнии (пул)
+    this.zapCount = 0;
     this.fx = [];      // пул вспышек и колец попадания
     this.parts = new Particles(scene, this.glow); // искры, осколки, огоньки
-    this.lightning = new Lightning(scene, this.glow); // дуги электрического посоха
+    this.lightning = new Lightning(scene, this.glow, 24); // дуги электрического посоха
     this.laser = new Laser(scene, LASER_CFG());
     this.shocks = [];  // кольца-волны на земле
     for (let i = 0; i < SHOCKS; i++) this.shocks.push(this.makeShock());
@@ -419,18 +421,33 @@ export class Attack {
     b.launch = 0.12; // шарик в начале полёта крупнее и сжимается
   }
 
-  /** Электрический посох: дуга от кристалла в цель бьёт мгновенно и вешает стак электризации. Стаки stacksToChain вызывают цепную
-   * молнию на ближайших врагов (каждый следующий получает на chainFalloff меньше урона). Если дуга убила цель, цепь идёт сразу. */
+  /** Ступень электрического посоха по заточке (0..2). */
+  stormTier() { return this.tiers && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; }
+
+  /** Вид дуг по ступени: цвет сердцевины и свечения, толщина (жёлтая, голубая, фиолетово-белая). */
+  arcStyle(tier) {
+    const look = this.lookNow('electric');
+    return { width: (look ? look.width : 1) * 1.2, color: [0xfffbe0, 0xeaf6ff, 0xffffff][tier], glow: [0xffe45a, 0x6fc8ff, 0xa98bff][tier] };
+  }
+
+  /** Электрический посох: дуга от кристалла в цель бьёт мгновенно и перескакивает по цепочке: на +0..4 на 2 врагов, дальше на 4 (урон 2-й цели 75%,
+   * 3-й 50%, 4-й 25%). На +10 каждый ballEvery-й разряд выпускает ещё и шаровую молнию. */
   zap(target) {
     const c = this.cfg, E = this.elec;
     const tx = target.state.x, tz = target.state.z;
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
     this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, 'electric');
     this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, 'electric');
-    this.lightning.arc([this.tip.x, this.tip.y, this.tip.z], [tx, 0.45, tz], { life: 0.22, width: 1.2 * ((this.lookNow('electric') || {}).width || 1) });
+    const tier = this.stormTier(), T = E && E.tiers ? E.tiers[tier] : { targets: 2 };
+    const st = this.arcStyle(tier);
+    this.lightning.arc([this.tip.x, this.tip.y, this.tip.z], [tx, 0.45, tz], { life: 0.22, ...st });
     const dmg = this.cur().damage;
-    const killed = this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
-    if (killed || (E && applyShock(target, E) === 'chain')) this.chain(target, dmg);
+    this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
+    if (T.targets > 1) this.chain(target, dmg, T.targets - 1, st);
+    if (T.ball) {
+      this.zapCount = (this.zapCount || 0) + 1;
+      if (this.zapCount % (E.ballEvery || 3) === 0) this.spawnBall(tx, tz);
+    }
   }
 
   /** Удар током по врагу: урон, лёгкое откидывание, искры. true, если враг убит (тогда он исчезает, награда как обычно). */
@@ -445,14 +462,13 @@ export class Attack {
     return kill;
   }
 
-  /** Цепная молния от врага from: до chainJumps прыжков на ближайших в chainRange, урон каждого следующего на chainFalloff меньше.
-   * Урон и смерти применяются сразу, дуги рисуются по очереди. */
-  chain(from, dmg0) {
+  /** Цепь от врага from: extra следующих врагов по цепочке (каждый ближайший к предыдущему в chainRange, ещё не задетый). Урон: доли E.falloff от основного. */
+  chain(from, dmg0, extra, st) {
     const E = this.elec;
     if (!E) return;
     const seen = new Set([from]);
-    let px = from.state.x, pz = from.state.z, dmg = dmg0 * (1 - E.chainFalloff);
-    for (let j = 0; j < E.chainJumps; j++) {
+    let px = from.state.x, pz = from.state.z;
+    for (let j = 0; j < extra; j++) {
       let best = null, bd = E.chainRange * E.chainRange;
       for (const o of this.spawner.alive) {
         if (seen.has(o)) continue;
@@ -462,9 +478,63 @@ export class Attack {
       if (!best) break;
       seen.add(best);
       const nx = best.state.x, nz = best.state.z;
-      this.lightning.arc([px, 0.45, pz], [nx, 0.45, nz], { life: 0.22, delay: 0.07 * (j + 1), width: Math.max(0.6, 1 - 0.15 * j) * ((this.lookNow('electric') || {}).width || 1) });
-      this.strike(best, dmg, nx - px, nz - pz);
-      px = nx; pz = nz; dmg *= (1 - E.chainFalloff);
+      this.lightning.arc([px, 0.45, pz], [nx, 0.45, nz], { life: 0.22, delay: 0.07 * (j + 1), ...st, width: Math.max(0.6, 1 - 0.1 * j) * st.width });
+      this.strike(best, dmg0 * (E.falloff[Math.min(j, E.falloff.length - 1)]), nx - px, nz - pz);
+      px = nx; pz = nz;
+    }
+  }
+
+  /** Шаровая молния: рождается у кристалла, плывёт к ближайшему врагу, бьёт врагов рядом ball.hits раз и пропадает. */
+  spawnBall(tx, tz) {
+    let o = this.balls.find((q) => !q.on);
+    if (!o) {
+      o = { on: false, core: sprite(this.glow, 0xffffff, 1), halo: sprite(this.glow, 0x8f78ff, 0.8), t: 0 };
+      this.scene.add(o.halo, o.core);
+      this.balls.push(o);
+    }
+    const B = this.elec.ball;
+    o.on = true; o.hits = 0; o.life = B.life; o.gap = 0.25; o.t = 0; o.tendril = 0;
+    o.x = this.tip.x; o.y = 1.2; o.z = this.tip.z;
+    const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz) || 1;
+    o.dx = dx / d; o.dz = dz / d;
+    o.core.visible = o.halo.visible = true;
+    this.burst(o.x, o.y, o.z, this.cfg.hitSize * 1.4, 0.3, 'electric');
+  }
+
+  endBall(o, boom = true) {
+    if (boom) this.burst(o.x, o.y, o.z, this.cfg.hitSize * 1.5, 0.35, 'electric');
+    o.on = false; o.core.visible = o.halo.visible = false;
+  }
+
+  hideBalls() { for (const o of this.balls) { o.on = false; o.core.visible = o.halo.visible = false; } }
+
+  updateBalls(dt) {
+    const B = this.elec && this.elec.ball;
+    if (!B) return;
+    for (const o of this.balls) {
+      if (!o.on) continue;
+      o.t += dt; o.life -= dt; o.gap -= dt; o.tendril -= dt;
+      if (o.life <= 0 || o.hits >= B.hits) { this.endBall(o); continue; }
+      let t = null, bd = B.seekRange * B.seekRange;
+      for (const e of this.spawner.alive) { const dx = e.state.x - o.x, dz = e.state.z - o.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; t = e; } }
+      if (t) {
+        const dx = t.state.x - o.x, dz = t.state.z - o.z, d = Math.hypot(dx, dz) || 1;
+        if (d > B.zapRange * 0.55) { o.dx += (dx / d - o.dx) * Math.min(1, dt * 4); o.dz += (dz / d - o.dz) * Math.min(1, dt * 4); const n = Math.hypot(o.dx, o.dz) || 1; o.dx /= n; o.dz /= n; o.x += o.dx * B.speed * dt; o.z += o.dz * B.speed * dt; }
+        if (d <= B.zapRange && o.gap <= 0) { // удар по врагу рядом; цепи нет
+          o.gap = B.zapGap; o.hits++;
+          this.lightning.arc([o.x, o.y, o.z], [t.state.x, 0.45, t.state.z], { life: 0.2, ...this.arcStyle(2) });
+          this.strike(t, this.cur().damage * B.damage, dx, dz);
+        }
+      } else { o.x += o.dx * B.speed * 0.6 * dt; o.z += o.dz * B.speed * 0.6 * dt; }
+      const p = 1 + 0.12 * Math.sin(o.t * 32) + 0.06 * Math.sin(o.t * 53);
+      o.core.position.set(o.x, o.y, o.z); o.halo.position.set(o.x, o.y, o.z);
+      o.core.scale.setScalar(0.75 * p); o.halo.scale.setScalar(1.9 * p);
+      if (o.tendril <= 0) { // щупальца-искры вокруг шара
+        o.tendril = 0.09;
+        const a = rr(0, 6.283), r = rr(0.5, 0.95);
+        this.lightning.arc([o.x, o.y, o.z], [o.x + Math.cos(a) * r, o.y + rr(-0.5, 0.5), o.z + Math.sin(a) * r], { life: 0.1, width: 0.55, color: 0xffffff, glow: 0xa98bff });
+      }
+      this.parts.emit({ x: o.x + rr(-0.15, 0.15), y: o.y + rr(-0.15, 0.15), z: o.z + rr(-0.15, 0.15), vx: rr(-1, 1), vy: rr(-0.5, 1), vz: rr(-1, 1), life: rr(0.2, 0.4), size0: rr(0.1, 0.2), size1: 0, c0: 0xffffff, c1: 0x7f68ff, drag: 2, grav: 0, alpha: 0.9 });
     }
   }
 
@@ -904,6 +974,7 @@ export class Attack {
     }
     this.burn(dt);
     this.updateFlames(dt);
+    this.updateBalls(dt);
     this.sparkle(dt);
     this.updateFx(dt);
   }
@@ -918,7 +989,10 @@ export class Attack {
     this.hideFlames();
   }
 
-  hideFlames() { for (const o of this.orbs) { o.on = false; o.core.visible = o.halo.visible = false; } }
+  hideFlames() {
+    for (const o of this.orbs) { o.on = false; o.core.visible = o.halo.visible = false; }
+    this.hideBalls();
+  }
 
   /** Только эффекты (частицы, волны, вспышки, молнии): идут, даже когда боя нет (смерть, экран потерь), и сами гаснут. */
   updateFx(dt) {
