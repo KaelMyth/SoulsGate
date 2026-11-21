@@ -10,6 +10,7 @@ import { Lightning } from './lightning.js';
 import { Laser } from './laser.js';
 import { Blades } from './blades.js';
 import { forceTier, tierOf } from './staff_tiers.js';
+import { snowflakeTexture } from './staff_models.js';
 
 const BLUE = 0x2f86ff;
 const DEEP = 0x1f5bff;
@@ -87,17 +88,61 @@ PAL.blades = { flash: 'glow', flashC: 0xdff4ff, ring: 0x8fc8ff, muz0: 0xffffff, 
 const pal = (el) => PAL[el] || PAL.basic;
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
-/** Ледяной шип: острый кристалл с остриём вперёд (+Y), бледное свечение вокруг. Ориентируется по скорости снаряда. */
-function makeSpike() {
+/** Ледяной снаряд, три вида по ступени посоха (острие вперёд, +Y): setTier(0) маленький осколок, 1 осколок покрупнее с боковыми гранями,
+ * 2 остроконечная комета: длинное копьё, шипы, ледяной хвост и снежинки. tick(t): анимация снежинок. */
+export function makeSpike() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xe6f8ff }));
-  body.position.y = 0.1;
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), new THREE.MeshBasicMaterial({ color: 0x7fcfff }));
-  tail.position.y = -0.45;
-  tail.rotation.x = Math.PI;
-  const glow = new THREE.Mesh(new THREE.ConeGeometry(0.17, 1.0, 6), new THREE.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
-  glow.position.y = 0.05;
-  g.add(glow, body, tail);
+  const add = (parent, geo, color, o = {}) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, ...o })); parent.add(m); return m; };
+  const glowO = { transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false };
+  const cone = (r, h, n = 6) => new THREE.ConeGeometry(r, h, n);
+  // 0: маленький осколок: тонкий ромб
+  const t0 = new THREE.Group();
+  add(t0, cone(0.07, 0.5, 4), 0xe6f8ff).position.y = 0.12;
+  add(t0, cone(0.07, 0.16, 4), 0x7fcfff).rotation.x = Math.PI;
+  t0.children[1].position.y = -0.21;
+  add(t0, cone(0.11, 0.6, 4), 0x8fdcff, glowO).position.y = 0.08;
+  // 1: осколок побольше: шестигранный, с двумя боковыми гранями-плавниками
+  const t1 = new THREE.Group();
+  add(t1, cone(0.12, 0.85, 6), 0xe6f8ff).position.y = 0.15;
+  add(t1, cone(0.12, 0.3, 6), 0x7fcfff).rotation.x = Math.PI;
+  t1.children[1].position.y = -0.4;
+  for (const sx of [-1, 1]) {
+    const f = add(t1, cone(0.05, 0.4, 4), 0xbfeaff);
+    f.position.set(sx * 0.12, -0.12, 0); f.rotation.z = -sx * 0.55;
+  }
+  add(t1, cone(0.2, 1.0, 6), 0x8fdcff, glowO).position.y = 0.05;
+  // 2: комета: длинное копьё с шипами, холодный хвост и снежинки
+  const t2 = new THREE.Group();
+  add(t2, cone(0.13, 1.3, 8), 0xffffff).position.y = 0.3;
+  add(t2, cone(0.2, 0.5, 8), 0x9fe4ff).rotation.x = Math.PI;
+  t2.children[1].position.y = -0.4;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const sp = add(t2, cone(0.045, 0.55, 4), 0xcff3ff);
+    sp.position.set(Math.cos(a) * 0.17, -0.12, Math.sin(a) * 0.17);
+    sp.rotation.set(Math.sin(a) * 2.5, 0, -Math.cos(a) * 2.5); // острия назад и в стороны, как у кометы
+  }
+  const tail = add(t2, cone(0.26, 2.1, 10), 0x7fd0ff, { transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
+  tail.rotation.x = Math.PI; tail.position.y = -1.35;
+  add(t2, cone(0.28, 1.6, 8), 0xaaf0ff, glowO).position.y = 0.2;
+  const flakes = [];
+  for (let i = 0; i < 4; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: snowflakeTexture(), color: 0xeafaff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.scale.set(0.3, 0.3, 1);
+    t2.add(sp);
+    flakes.push({ sp, i });
+  }
+  const tiers = [t0, t1, t2];
+  g.add(t0, t1, t2);
+  g.userData.setTier = (n) => { tiers.forEach((q, i) => { q.visible = i === n; }); };
+  g.userData.tick = (t) => {
+    for (const f of flakes) {
+      const a = t * 4 + f.i * 1.57;
+      f.sp.position.set(Math.cos(a) * 0.32, -0.5 - f.i * 0.42, Math.sin(a) * 0.32);
+      f.sp.material.rotation = t * 3 + f.i;
+    }
+  };
+  g.userData.setTier(0);
   g.renderOrder = 5;
   g.visible = false;
   return g;
@@ -334,7 +379,7 @@ export class Attack {
     b.core.visible = !ice;
     b.spike.visible = ice;
     b.lens.visible = false;
-    if (ice) b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir);
+    if (ice) { b.spike.userData.setTier(b.iceTier); b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir); }
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
     if (!opts.quiet) {
       this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize * b.sz, 0.16, b.el); // вспышка у кристалла
@@ -535,6 +580,7 @@ export class Attack {
     b.halo.material.color.setHex(ICE); b.halo.visible = true;
     b.core.visible = false; b.lens.visible = false;
     b.spike.visible = true;
+    b.spike.userData.setTier(0); // шипы из глыбы: маленькие осколки
     b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir.set(dx, 0, dz));
   }
 
@@ -712,6 +758,7 @@ export class Attack {
       const pulse = (1 + Math.sin(b.life * 40) * 0.12) * (1 + 1.3 * (b.launch / 0.12));
       if (b.el === 'ice') { // шип: сам кристалл, холодное свечение и снежный след вместо синих точек
         b.spike.position.set(b.x, b.y, b.z);
+        if (b.iceTier === 2 && !b.fromSpike) b.spike.userData.tick(performance.now() / 1000);
         b.spike.scale.setScalar(c.size * 1.5 * (b.sz || 1) * (1 + 0.6 * (b.launch / 0.12)));
         b.halo.position.set(b.x, b.y, b.z);
         b.halo.scale.setScalar(c.size * 2.0 * (b.sz || 1) * (1 + 0.08 * Math.sin(b.life * 30)));

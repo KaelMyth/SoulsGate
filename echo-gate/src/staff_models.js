@@ -109,8 +109,29 @@ function fireStaff(glowTex, matBelt) {
   };
 }
 
-/** Ледяной: серебристо-голубое древко с белой спиралью, корона из ледяных кристаллов и парящие льдинки. */
-function iceStaff(glowTex, matBelt) {
+/** Снежинка (шестилучевая) для спрайтов ледяного посоха и снаряда. */
+let snowTex = null;
+export function snowflakeTexture() {
+  if (snowTex) return snowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.translate(64, 64);
+  g.strokeStyle = '#fff'; g.lineCap = 'round';
+  for (let i = 0; i < 6; i++) {
+    g.save(); g.rotate((i * Math.PI) / 3);
+    g.lineWidth = 6; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -54); g.stroke();
+    g.lineWidth = 4;
+    for (const y of [-20, -36]) { g.beginPath(); g.moveTo(0, y); g.lineTo(-12, y - 11); g.moveTo(0, y); g.lineTo(12, y - 11); g.stroke(); }
+    g.restore();
+  }
+  snowTex = new THREE.CanvasTexture(c);
+  snowTex.colorSpace = THREE.SRGBColorSpace;
+  return snowTex;
+}
+
+/** Ледяной посох, три ступени (+0..4 / +5..9 / +10): осколок; крупный кристалл с короной и сосульками; ледяная корона с остриём, кольцом кристаллов и снежинками. */
+function iceStaff(glowTex, matBelt, tier = 0) {
   const group = new THREE.Group();
   const steel = std(0x9cc0de, { roughness: 0.3, metalness: 0.55 });
   const fur = std(0xf1f8ff, { roughness: 1 });
@@ -118,41 +139,95 @@ function iceStaff(glowTex, matBelt) {
   shaftParts(group, steel, steel, fur);
   const helix = [];
   for (let i = 0; i <= 40; i++) { const y = -0.2 + (i / 40) * 1.6; const a = i * 0.55; helix.push([Math.cos(a) * 0.05, y, Math.sin(a) * 0.05]); }
-  group.add(tube(helix, 0.011, frostW, 80));
-  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.045, 0.08, 6), steel);
+  group.add(tube(helix, tier === 2 ? 0.02 : 0.011, frostW, 80));
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(tier ? 0.09 : 0.075, 0.045, tier ? 0.1 : 0.08, 6), steel);
   collar.position.y = 1.52;
   group.add(collar);
   const iceMat = std(0xbdeeff, { emissive: 0x4cc4ff, emissiveIntensity: 0.7, roughness: 0.08, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.93 });
-  const shard = (h, r) => new THREE.LatheGeometry([[0.0001, 0], [r, h * 0.18], [r * 0.9, h * 0.7], [0.0001, h]].map(([x, y]) => new THREE.Vector2(x, y)), 6);
-  const crystal = new THREE.Mesh(shard(0.5, 0.075), iceMat);
+  const deep = std(0x6fc4f0, { emissive: 0x2a8fe0, emissiveIntensity: 0.6, roughness: 0.1, flatShading: true, transparent: true, opacity: 0.92 });
+  const shard = (h, r, sides = 6) => new THREE.LatheGeometry([[0.0001, 0], [r, h * 0.18], [r * 0.9, h * 0.7], [0.0001, h]].map(([x, y]) => new THREE.Vector2(x, y)), sides);
+  const MAIN = [{ h: 0.4, r: 0.06 }, { h: 0.66, r: 0.095 }, { h: 1.0, r: 0.115 }][tier];
+  const crystal = new THREE.Mesh(shard(MAIN.h, MAIN.r, tier === 2 ? 8 : 6), iceMat);
   crystal.position.y = 1.54;
   group.add(crystal);
-  for (let i = 0; i < 5; i++) { // корона: пять осколков наружу
-    const a = (i / 5) * Math.PI * 2;
-    const m = new THREE.Mesh(shard(0.27, 0.045), iceMat);
-    m.position.set(Math.cos(a) * 0.07, 1.54, Math.sin(a) * 0.07);
-    m.rotation.set(Math.sin(a) * 0.55, 0, -Math.cos(a) * 0.55);
-    group.add(m);
+  const lean = (m, ox, oy, oz, a, tilt) => { m.position.set(ox + Math.cos(a) * 0.07, oy, oz + Math.sin(a) * 0.07); m.rotation.set(Math.sin(a) * tilt, 0, -Math.cos(a) * tilt); group.add(m); };
+  if (tier === 0) {
+    for (let i = 0; i < 3; i++) lean(new THREE.Mesh(shard(0.16, 0.03), deep), 0, 1.54, 0, (i / 3) * 6.28 + 0.4, 0.7);
+  } else if (tier === 1) {
+    for (let i = 0; i < 6; i++) lean(new THREE.Mesh(shard(i % 2 ? 0.28 : 0.4, 0.05), i % 2 ? deep : iceMat), 0, 1.54, 0, (i / 6) * 6.28, i % 2 ? 0.85 : 0.5);
+    for (let i = 0; i < 3; i++) { // сосульки вниз под воротником
+      const ic = new THREE.Mesh(shard(0.2 + 0.05 * i, 0.03), deep);
+      const a = (i / 3) * 6.28 + 0.9;
+      ic.position.set(Math.cos(a) * 0.07, 1.5, Math.sin(a) * 0.07);
+      ic.rotation.set(Math.PI - Math.sin(a) * 0.25, 0, Math.cos(a) * 0.25);
+      group.add(ic);
+    }
+  } else {
+    // Корона: два боковых копья крест-накрест, ряд из восьми длинных осколков и ряд из восьми коротких ниже.
+    for (let i = 0; i < 2; i++) lean(new THREE.Mesh(shard(0.7, 0.07, 6), iceMat), 0, 1.54, 0, i * Math.PI + 0.5, 0.42);
+    for (let i = 0; i < 8; i++) lean(new THREE.Mesh(shard(0.5, 0.05), iceMat), 0, 1.54, 0, (i / 8) * 6.28, 0.78);
+    for (let i = 0; i < 8; i++) lean(new THREE.Mesh(shard(0.26, 0.04), deep), 0, 1.52, 0, ((i + 0.5) / 8) * 6.28, 1.2);
+    for (let i = 0; i < 6; i++) { // сосульки
+      const ic = new THREE.Mesh(shard(0.3 + 0.08 * (i % 2), 0.035), deep);
+      const a = (i / 6) * 6.28 + 0.3;
+      ic.position.set(Math.cos(a) * 0.09, 1.5, Math.sin(a) * 0.09);
+      ic.rotation.set(Math.PI - Math.sin(a) * 0.3, 0, Math.cos(a) * 0.3);
+      group.add(ic);
+    }
+    for (let i = 0; i < 5; i++) { // иней на древке: ледяные кристаллики вдоль верхней части
+      const fr = new THREE.Mesh(shard(0.12, 0.025), iceMat);
+      const a = i * 2.4;
+      fr.position.set(Math.cos(a) * 0.05, 1.0 + i * 0.1, Math.sin(a) * 0.05);
+      fr.rotation.set(Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1);
+      group.add(fr);
+    }
   }
-  const glow = halo(glowTex, 0xaee9ff, 0.9, 0.65);
-  glow.position.y = 1.76;
-  const floaters = [];
-  for (let i = 0; i < 3; i++) {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.03, 0).scale(1, 1.6, 1), iceMat);
-    group.add(m);
-    floaters.push({ m, a: (i / 3) * 6.28, r: 0.2 + 0.03 * i });
-  }
+  const glow = halo(glowTex, 0xaee9ff, [0.7, 1.05, 1.7][tier], [0.55, 0.7, 0.85][tier]);
+  glow.position.y = 1.54 + MAIN.h * 0.5;
   group.add(glow);
+  const floaters = [];
+  const nF = [2, 4, 5][tier];
+  for (let i = 0; i < nF; i++) {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.03 + 0.012 * tier, 0).scale(1, 1.6, 1), iceMat);
+    group.add(m);
+    floaters.push({ m, a: (i / nF) * 6.28, r: 0.2 + 0.03 * i + 0.06 * tier });
+  }
+  // Ступень +10: кольцо крупных кристаллов вокруг короны и парящие снежинки.
+  const ringC = [], flakes = [];
+  if (tier === 2) {
+    for (let i = 0; i < 8; i++) {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0).scale(0.7, 1.7, 0.7), deep);
+      group.add(m);
+      ringC.push({ m, a: (i / 8) * 6.28 });
+    }
+    for (let i = 0; i < 4; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: snowflakeTexture(), color: 0xeafaff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+      sp.scale.set(0.2, 0.2, 1);
+      group.add(sp);
+      flakes.push({ sp, a: (i / 4) * 6.28, h: i % 2 });
+    }
+  }
+  const cy = 1.54 + MAIN.h * 0.45;
   return {
     group, crystal, glow,
     update(t, k) {
       crystal.rotation.y = t * 0.6;
       for (const f of floaters) {
         const a = f.a + t * (0.8 + k * 0.6);
-        f.m.position.set(Math.cos(a) * f.r, 1.78 + Math.sin(t * 1.7 + f.a) * 0.07, Math.sin(a) * f.r);
+        f.m.position.set(Math.cos(a) * f.r, cy + 0.1 + Math.sin(t * 1.7 + f.a) * 0.07, Math.sin(a) * f.r);
         f.m.rotation.y = t * 2;
       }
-      glow.material.opacity = 0.55 + 0.1 * Math.sin(t * 2);
+      for (const r of ringC) {
+        const a = r.a - t * 0.7;
+        r.m.position.set(Math.cos(a) * 0.4, cy - 0.12 + Math.sin(t * 1.3 + r.a * 2) * 0.05, Math.sin(a) * 0.4);
+        r.m.rotation.y = -a;
+      }
+      for (const f of flakes) {
+        const a = f.a + t * 0.9;
+        f.sp.position.set(Math.cos(a) * 0.5, cy + 0.38 - f.h * 0.5 + Math.sin(t * 1.6 + f.a) * 0.07, Math.sin(a) * 0.5);
+        f.sp.material.rotation = t * 0.8 + f.a;
+      }
+      glow.material.opacity = [0.55, 0.65, 0.8][tier] + 0.1 * Math.sin(t * 2);
     },
   };
 }
@@ -455,7 +530,7 @@ function decorate(m, variant, tier) {
 /** variant: 'basic' (по умолчанию) | 'fire' | 'ice' | 'electric' | 'gravity' | 'laser' | 'blades'; tier 0..2 по заточке (+0..4 / +5..9 / +10). */
 export function buildStaffModel(variant, glowTex, matBelt, tier = 0) {
   const v = BUILDERS[variant] ? variant : 'basic';
-  const m = BUILDERS[v](glowTex, matBelt);
+  const m = BUILDERS[v](glowTex, matBelt, tier);
   m.glowTex = glowTex;
-  return tier > 0 ? decorate(m, v, tier) : m;
+  return tier > 0 && v !== 'ice' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
 }
