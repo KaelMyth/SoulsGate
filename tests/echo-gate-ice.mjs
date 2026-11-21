@@ -93,3 +93,15 @@ test('лёд по ступеням заточки: на средней два с
   const e1 = mk(); applyIce(e1, stacks(1)); assert.equal(applyIce(e1, stacks(1)), 'freeze');
   assert.deepEqual(ice.tiers.map((t) => t.deathSpikes), [0, 0, 4]);
 });
+
+test('вид стихийных снарядов растёт со ступенью заточки', () => {
+  for (const el of ['ice', 'fire', 'gravity', 'electric']) {
+    const L = CONFIG.tiers.look[el];
+    assert.equal(L.length, 3);
+    assert.ok(L[0].dens < L[1].dens && L[1].dens < L[2].dens, el);
+  }
+  for (const el of ['ice', 'fire', 'gravity']) {
+    const L = CONFIG.tiers.look[el];
+    assert.ok(L[0].size < L[1].size && L[1].size < L[2].size, el);
+  }
+});

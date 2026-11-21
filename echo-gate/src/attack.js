@@ -286,6 +286,12 @@ export class Attack {
     return this.tiers && this.getSharpen ? forceTier(this.tiers, this.getSharpen()) : null;
   }
 
+  /** Вид стихийного снаряда по ступени заточки (размер, густота частиц, свечение); null у обычного посоха. */
+  lookNow(el) {
+    const L = el && this.tiers && this.tiers.tiers.look && this.tiers.tiers.look[el];
+    return L && this.getSharpen ? L[tierOf(this.tiers, this.getSharpen())] : null;
+  }
+
   /** opts.spread: поворот направления (рад), opts.quiet: без вспышки у кристалла (второй снаряд залпа). */
   fire(target, opts = {}) {
     const c = this.cfg;
@@ -312,11 +318,14 @@ export class Attack {
     b.iceTier = ice && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень ледяного посоха по заточке
     const tier = this.tierNow();
     b.tier = tier && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0;
-    b.sz = tier ? tier.size : 1;
+    const look = this.lookNow(b.el);
+    b.look = look;
+    b.sz = tier ? tier.size : look ? look.size : 1;
     b.trailN = tier ? tier.trail : TRAIL;
     b.dmgMul = (grav && this.gravCfg ? 1 + this.gravCfg.damageBonus : 1) * (tier ? tier.damage : 1);
     if (grav && this.gravCfg) b.life = this.gravCfg.rampTime + this.cur().range / c.speed / 1 + 1.5; // хватит на задержку и полёт
     b.halo.material.color.setHex(ice ? ICE : fire ? 0xff7a1a : grav ? 0x8c93a3 : tier ? tier.halo : BLUE);
+    if (look && look.halo) b.halo.material.color.setHex(look.halo);
     b.halo.visible = true;
     b.core.material.map = fire || grav ? this.glow : this.ball; // огонь и гравитация: ядро из мягкого пятна
     b.core.material.color.setHex(fire ? 0xfff0b0 : grav ? 0xe6e9ee : 0xffffff);
@@ -342,7 +351,7 @@ export class Attack {
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
     this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, 'electric');
     this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, 'electric');
-    this.lightning.arc([this.tip.x, this.tip.y, this.tip.z], [tx, 0.45, tz], { life: 0.22, width: 1.2 });
+    this.lightning.arc([this.tip.x, this.tip.y, this.tip.z], [tx, 0.45, tz], { life: 0.22, width: 1.2 * ((this.lookNow('electric') || {}).width || 1) });
     const dmg = this.cur().damage;
     const killed = this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
     if (killed || (E && applyShock(target, E) === 'chain')) this.chain(target, dmg);
@@ -377,7 +386,7 @@ export class Attack {
       if (!best) break;
       seen.add(best);
       const nx = best.state.x, nz = best.state.z;
-      this.lightning.arc([px, 0.45, pz], [nx, 0.45, nz], { life: 0.22, delay: 0.07 * (j + 1), width: Math.max(0.6, 1 - 0.15 * j) });
+      this.lightning.arc([px, 0.45, pz], [nx, 0.45, nz], { life: 0.22, delay: 0.07 * (j + 1), width: Math.max(0.6, 1 - 0.15 * j) * ((this.lookNow('electric') || {}).width || 1) });
       this.strike(best, dmg, nx - px, nz - pz);
       px = nx; pz = nz; dmg *= (1 - E.chainFalloff);
     }
@@ -521,7 +530,7 @@ export class Attack {
     b.el = 'ice'; b.pierce = 0;
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = false; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
-    b.fromSpike = true; b.iceTier = 2; b.tier = 0; b.sz = 1; b.trailN = TRAIL;
+    b.fromSpike = true; b.iceTier = 2; b.tier = 0; b.sz = 1; b.look = null; b.trailN = TRAIL;
     b.dmgMul = I.spikeDamage;
     b.halo.material.color.setHex(ICE); b.halo.visible = true;
     b.core.visible = false; b.lens.visible = false;
@@ -703,12 +712,13 @@ export class Attack {
       const pulse = (1 + Math.sin(b.life * 40) * 0.12) * (1 + 1.3 * (b.launch / 0.12));
       if (b.el === 'ice') { // шип: сам кристалл, холодное свечение и снежный след вместо синих точек
         b.spike.position.set(b.x, b.y, b.z);
-        b.spike.scale.setScalar(c.size * 1.5 * (1 + 0.6 * (b.launch / 0.12)));
+        b.spike.scale.setScalar(c.size * 1.5 * (b.sz || 1) * (1 + 0.6 * (b.launch / 0.12)));
         b.halo.position.set(b.x, b.y, b.z);
-        b.halo.scale.setScalar(c.size * 2.0 * (1 + 0.08 * Math.sin(b.life * 30)));
+        b.halo.scale.setScalar(c.size * 2.0 * (b.sz || 1) * (1 + 0.08 * Math.sin(b.life * 30)));
         b.snowT += dt;
-        while (b.snowT >= 0.016) {
-          b.snowT -= 0.016;
+        const iceEvery = 0.016 / (b.look ? b.look.dens : 1);
+        while (b.snowT >= iceEvery) {
+          b.snowT -= iceEvery;
           this.parts.emit({ x: b.x - b.vx * 0.012 + rr(-0.05, 0.05), y: b.y + rr(-0.05, 0.05), z: b.z - b.vz * 0.012 + rr(-0.05, 0.05), vx: rr(-0.5, 0.5), vy: rr(0.1, 0.7), vz: rr(-0.5, 0.5),
             life: rr(0.3, 0.55), size0: rr(0.1, 0.18), size1: 0, c0: 0xffffff, c1: 0x8fd8ff, drag: 2, grav: 1.5, alpha: 0.9 });
         }
@@ -744,8 +754,9 @@ export class Attack {
       }
       if (fireB) { // искры и язычки, отлетающие от огненного шара
         b.snowT += dt;
-        while (b.snowT >= 0.02) {
-          b.snowT -= 0.02;
+        const fireEvery = 0.02 / (b.look ? b.look.dens : 1);
+        while (b.snowT >= fireEvery) {
+          b.snowT -= fireEvery;
           this.parts.emit({ x: b.x + rr(-0.06, 0.06), y: b.y + rr(-0.06, 0.06), z: b.z + rr(-0.06, 0.06), vx: rr(-0.7, 0.7), vy: rr(0.3, 1.4), vz: rr(-0.7, 0.7), life: rr(0.25, 0.5), size0: rr(0.12, 0.22), size1: 0, c0: 0xffd070, c1: 0xd0300a, drag: 2, grav: -2, alpha: 0.85 });
         }
       }

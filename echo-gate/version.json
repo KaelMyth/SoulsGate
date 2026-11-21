@@ -1,5 +1,5 @@
 {
-  "build": 83,
+  "build": 84,
   "commit": "071bbb8",
-  "notes": "Ice staff tiers by sharpening: freeze on 2 stacks at +5, frozen enemies release 4 spikes on death at +10."
+  "notes": "Per-tier projectile looks for ice, fire, gravity and electric staffs (size, glow, particle density, arc width)."
 }
