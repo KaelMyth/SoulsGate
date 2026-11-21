@@ -1,4 +1,5 @@
-// Статусы врагов от стихий посоха (чистая логика, без графики). Огонь: каждое попадание даёт стак поджога на burnTime секунд
+// Статусы врагов от стихий посоха (чистая логика, без графики). Электричество: попадание дуги вешает стак электризации на stackTime секунд;
+// stacksToChain стаков вызывают цепную молнию (Attack.chain), стаки сбрасываются. Огонь: каждое попадание даёт стак поджога на burnTime секунд
 // (повторное попадание обновляет время), горящий получает burnDps урона в секунду за стак (в единицах урона выстрела);
 // stacksToExplode стаков вызывают небольшой взрыв (урон по области, см. Attack.explode), стаки сбрасываются.
 // Лёд:
@@ -7,7 +8,7 @@
 // Огромных врагов (heavy: скала, босс) заморозить нельзя, они только замедляются.
 // Поля врага: chill (стаки), chillT (с до конца замедления), freezeT (с до конца заморозки).
 
-export function resetStatus(e) { e.chill = 0; e.chillT = 0; e.freezeT = 0; e.burn = 0; e.burnT = 0; }
+export function resetStatus(e) { e.chill = 0; e.chillT = 0; e.freezeT = 0; e.burn = 0; e.burnT = 0; e.shock = 0; e.shockT = 0; }
 
 /** Попадание льдом. Возвращает 'chill' | 'freeze' | 'immune' (замороженный не накапливает стаки). */
 export function applyIce(e, ice) {
@@ -26,6 +27,7 @@ export function applyIce(e, ice) {
 
 /** Шаг времени: возвращает множитель скорости врага (0 = заморожен, 1 = без замедления). */
 export function tickStatus(e, dt, ice) {
+  if (e.shockT > 0) { e.shockT -= dt; if (e.shockT <= 0) { e.shock = 0; e.shockT = 0; } }
   if (e.freezeT > 0) { e.freezeT = Math.max(0, e.freezeT - dt); return 0; }
   if (e.chillT > 0) {
     e.chillT -= dt;
@@ -52,4 +54,12 @@ export function burnTick(e, dt, fire, shotDamage) {
   e.burnT -= dt;
   if (e.burnT <= 0) { e.burn = 0; e.burnT = 0; }
   return dmg;
+}
+
+/** Попадание дугой. Возвращает 'shock' | 'chain'. */
+export function applyShock(e, elec) {
+  e.shock = (e.shock || 0) + 1;
+  e.shockT = elec.stackTime;
+  if (e.shock >= elec.stacksToChain) { e.shock = 0; e.shockT = 0; return 'chain'; }
+  return 'shock';
 }

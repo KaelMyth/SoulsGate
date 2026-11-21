@@ -5,7 +5,8 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
-import { applyIce, applyFire, burnTick } from './status.js';
+import { applyIce, applyFire, burnTick, applyShock } from './status.js';
+import { Lightning } from './lightning.js';
 
 const BLUE = 0x2f86ff;
 const DEEP = 0x1f5bff;
@@ -74,6 +75,7 @@ const ICE = 0xa8e6ff;
 const PAL = {
   basic: { flash: 'ball', flashC: 0xffffff, ring: BLUE, muz0: 0xeaf8ff, muz1: 0x3a8cff, sp0: 0xf4fdff, sp1: 0x2a6dff, spG: 11, spD: 2.6, spS: 0.04, mote0: 0x8fd0ff, mote1: 0x2447d8, moteG: -0.3, shock: BLUE },
   ice: { flash: 'glow', flashC: 0xdaf6ff, ring: ICE, muz0: 0xffffff, muz1: 0x7fd0ff, sp0: 0xf4fdff, sp1: 0x8fd8ff, spG: 14, spD: 1.8, spS: 0.1, mote0: 0xeafaff, mote1: 0x9fdcff, moteG: -0.3, shock: ICE },
+  electric: { flash: 'glow', flashC: 0xfff6b0, ring: 0xffe45a, muz0: 0xffffff, muz1: 0xffd21a, sp0: 0xffffff, sp1: 0xffd21a, spG: 8, spD: 3, spS: 0.03, mote0: 0xfff2a0, mote1: 0x9fc8ff, moteG: 0, shock: 0xffe45a },
   fire: { flash: 'glow', flashC: 0xffc060, ring: 0xff7a1a, muz0: 0xfff0b0, muz1: 0xff5a10, sp0: 0xffe9a0, sp1: 0xff3a10, spG: 6, spD: 2.2, spS: 0.06, mote0: 0xffa040, mote1: 0x802010, moteG: -1.6, shock: 0xff7a1a },
 };
 const pal = (el) => PAL[el] || PAL.basic;
@@ -110,6 +112,7 @@ export class Attack {
     this.bolts = [];   // пул шариков
     this.fx = [];      // пул вспышек и колец попадания
     this.parts = new Particles(scene, this.glow); // искры, осколки, огоньки
+    this.lightning = new Lightning(scene, this.glow); // дуги электрического посоха
     this.shocks = [];  // кольца-волны на земле
     for (let i = 0; i < SHOCKS; i++) this.shocks.push(this.makeShock());
     this.cool = 0;
@@ -240,6 +243,7 @@ export class Attack {
     this.hero.staffTip(this.tip);
     const tx = target.state.x, tz = target.state.z, ty = 0.4;
     this.dir.set(tx - this.tip.x, ty - this.tip.y, tz - this.tip.z).normalize();
+    if (this.getElement && this.getElement() === 'electric') { this.zap(target); return; } // электрический посох: мгновенная дуга вместо снаряда
     const b = this.bolts.find((e) => !e.active) || this.makeBolt();
     b.active = true;
     b.x = this.tip.x; b.y = this.tip.y; b.z = this.tip.z;
@@ -263,6 +267,68 @@ export class Attack {
     this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, b.el); // вспышка у кристалла
     this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, b.el);
     b.launch = 0.12; // шарик в начале полёта крупнее и сжимается
+  }
+
+  /** Электрический посох: дуга от кристалла в цель бьёт мгновенно и вешает стак электризации. Стаки stacksToChain вызывают цепную
+   * молнию на ближайших врагов (каждый следующий получает на chainFalloff меньше урона). Если дуга убила цель, цепь идёт сразу. */
+  zap(target) {
+    const c = this.cfg, E = this.elec;
+    const tx = target.state.x, tz = target.state.z;
+    this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
+    this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, 'electric');
+    this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, 'electric');
+    this.lightning.arc([this.tip.x, this.tip.y, this.tip.z], [tx, 0.45, tz], { life: 0.22, width: 1.2 });
+    const dmg = this.cur().damage;
+    const killed = this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
+    if (killed || (E && applyShock(target, E) === 'chain')) this.chain(target, dmg);
+  }
+
+  /** Удар током по врагу: урон, лёгкое откидывание, искры. true, если враг убит (тогда он исчезает, награда как обычно). */
+  strike(e, dmg, dx, dz) {
+    const x = e.state.x, z = e.state.z;
+    e.hp -= dmg;
+    this.spawner.knock(e, dx, dz);
+    const kill = e.hp <= 0;
+    this.burst(x, 0.45, z, this.cfg.hitSize * (kill ? 1.8 : 0.9), kill ? 0.45 : 0.26, 'electric');
+    this.impact(x, 0.45, z, dx, dz, kill, e.kind, 'electric');
+    if (kill) { this.spawner.kill(e); if (this.onKill) this.onKill(e); }
+    return kill;
+  }
+
+  /** Цепная молния от врага from: до chainJumps прыжков на ближайших в chainRange, урон каждого следующего на chainFalloff меньше.
+   * Урон и смерти применяются сразу, дуги рисуются по очереди. */
+  chain(from, dmg0) {
+    const E = this.elec;
+    if (!E) return;
+    const seen = new Set([from]);
+    let px = from.state.x, pz = from.state.z, dmg = dmg0 * (1 - E.chainFalloff);
+    for (let j = 0; j < E.chainJumps; j++) {
+      let best = null, bd = E.chainRange * E.chainRange;
+      for (const o of this.spawner.alive) {
+        if (seen.has(o)) continue;
+        const dx = o.state.x - px, dz = o.state.z - pz, d = dx * dx + dz * dz;
+        if (d < bd) { bd = d; best = o; }
+      }
+      if (!best) break;
+      seen.add(best);
+      const nx = best.state.x, nz = best.state.z;
+      this.lightning.arc([px, 0.45, pz], [nx, 0.45, nz], { life: 0.22, delay: 0.07 * (j + 1), width: Math.max(0.6, 1 - 0.15 * j) });
+      this.strike(best, dmg, nx - px, nz - pz);
+      px = nx; pz = nz; dmg *= (1 - E.chainFalloff);
+    }
+  }
+
+  /** Электризованные враги искрят: мелкие жёлтые искры вокруг. */
+  sparkle(dt) {
+    for (const e of this.spawner.alive) {
+      if (!(e.shockT > 0)) continue;
+      e.zapT = (e.zapT || 0) + dt;
+      while (e.zapT >= 0.12) {
+        e.zapT -= 0.12;
+        const a = rr(0, 6.283), r = e.radius * rr(0.6, 1.2);
+        this.parts.emit({ x: e.state.x + Math.cos(a) * r, y: rr(0.15, 0.8), z: e.state.z + Math.sin(a) * r, vx: Math.cos(a) * 0.8, vy: rr(-0.5, 1), vz: Math.sin(a) * 0.8, life: rr(0.1, 0.22), size0: rr(0.1, 0.18), size1: 0, c0: 0xffffff, c1: 0xffd21a, drag: 3, grav: 0 });
+      }
+    }
   }
 
   /** Текущие урон, перезарядка и дальность: по умолчанию из CONFIG, с посохом из его усилений (this.getStats). */
@@ -442,6 +508,8 @@ export class Attack {
       }
     }
     this.burn(dt);
+    this.sparkle(dt);
+    this.lightning.update(dt);
     this.parts.update(dt);
     for (const k of this.shocks) {
       if (!k.on) continue;
