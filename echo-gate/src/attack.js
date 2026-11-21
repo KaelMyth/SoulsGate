@@ -5,7 +5,7 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
-import { applyIce, applyFire, burnTick, applyShock } from './status.js';
+import { applyIce, applyFire, burnTick, applyShock, gravityFactor } from './status.js';
 import { Lightning } from './lightning.js';
 
 const BLUE = 0x2f86ff;
@@ -76,6 +76,7 @@ const PAL = {
   basic: { flash: 'ball', flashC: 0xffffff, ring: BLUE, muz0: 0xeaf8ff, muz1: 0x3a8cff, sp0: 0xf4fdff, sp1: 0x2a6dff, spG: 11, spD: 2.6, spS: 0.04, mote0: 0x8fd0ff, mote1: 0x2447d8, moteG: -0.3, shock: BLUE },
   ice: { flash: 'glow', flashC: 0xdaf6ff, ring: ICE, muz0: 0xffffff, muz1: 0x7fd0ff, sp0: 0xf4fdff, sp1: 0x8fd8ff, spG: 14, spD: 1.8, spS: 0.1, mote0: 0xeafaff, mote1: 0x9fdcff, moteG: -0.3, shock: ICE },
   electric: { flash: 'glow', flashC: 0xfff6b0, ring: 0xffe45a, muz0: 0xffffff, muz1: 0xffd21a, sp0: 0xffffff, sp1: 0xffd21a, spG: 8, spD: 3, spS: 0.03, mote0: 0xfff2a0, mote1: 0x9fc8ff, moteG: 0, shock: 0xffe45a },
+  gravity: { flash: 'glow', flashC: 0xd8dce6, ring: 0x9aa0b0, muz0: 0xffffff, muz1: 0x7d8494, sp0: 0xffffff, sp1: 0x7d8494, spG: 6, spD: 2.5, spS: 0.05, mote0: 0xcfd3dc, mote1: 0x4a4f5c, moteG: -0.4, shock: 0x9aa0b0 },
   fire: { flash: 'glow', flashC: 0xffc060, ring: 0xff7a1a, muz0: 0xfff0b0, muz1: 0xff5a10, sp0: 0xffe9a0, sp1: 0xff3a10, spG: 6, spD: 2.2, spS: 0.06, mote0: 0xffa040, mote1: 0x802010, moteG: -1.6, shock: 0xff7a1a },
 };
 const pal = (el) => PAL[el] || PAL.basic;
@@ -126,6 +127,8 @@ export class Attack {
     const b = { active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, trailT: 0, trail: [] };
     b.halo = sprite(this.glow, BLUE, 0.5);
     b.core = sprite(this.ball, 0xffffff, 1);
+    b.lens = sprite(this.ring, 0xb4bac8, 0.5);
+    this.scene.add(b.lens);
     b.spike = makeSpike();
     b.el = null;
     b.snowT = 0;
@@ -173,6 +176,13 @@ export class Attack {
   /** Вспышка и искры у кристалла при выстреле: веер вперёд по направлению шарика. */
   muzzle(x, y, z, dx, dy, dz, el = null) {
     const P = pal(el);
+    if (el === 'gravity') { // частицы стягиваются к кристаллу: снаряд собирается
+      for (let i = 0; i < this.n(10); i++) {
+        const a = rr(0, 6.283), r = rr(0.5, 0.9), up = rr(-0.3, 0.3);
+        this.parts.emit({ x: x + Math.cos(a) * r, y: y + up, z: z + Math.sin(a) * r, vx: -Math.cos(a) * r / 0.25, vy: -up / 0.25, vz: -Math.sin(a) * r / 0.25, life: 0.25, size0: rr(0.1, 0.18), size1: 0.03, c0: 0xffffff, c1: 0x7d8494, drag: 0, grav: 0, alpha: 0.9 });
+      }
+      return;
+    }
     const L = Math.hypot(dx, dz) || 1;
     for (let i = 0; i < this.n(9); i++) {
       const sp = rr(2, 6), sx = rr(-0.55, 0.55), sy = rr(-0.2, 0.5), sz = rr(-0.55, 0.55);
@@ -253,15 +263,19 @@ export class Attack {
     b.launch = 0;
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
     b.el = this.getElement ? this.getElement() : null; // стихия надетого посоха задаёт вид снаряда и эффект попадания
-    const ice = b.el === 'ice', fire = b.el === 'fire', P = pal(b.el);
-    b.halo.material.color.setHex(ice ? ICE : fire ? 0xff7a1a : BLUE);
+    const ice = b.el === 'ice', fire = b.el === 'fire', grav = b.el === 'gravity', P = pal(b.el);
+    b.grav = grav; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
+    b.dmgMul = grav && this.gravCfg ? 1 + this.gravCfg.damageBonus : 1;
+    if (grav && this.gravCfg) b.life = this.gravCfg.rampTime + this.cur().range / c.speed / 1 + 1.5; // хватит на задержку и полёт
+    b.halo.material.color.setHex(ice ? ICE : fire ? 0xff7a1a : grav ? 0x8c93a3 : BLUE);
     b.halo.visible = true;
-    b.core.material.map = fire ? this.glow : this.ball; // огонь: тёплое ядро из мягкого пятна
-    b.core.material.color.setHex(fire ? 0xfff0b0 : 0xffffff);
+    b.core.material.map = fire || grav ? this.glow : this.ball; // огонь и гравитация: ядро из мягкого пятна
+    b.core.material.color.setHex(fire ? 0xfff0b0 : grav ? 0xe6e9ee : 0xffffff);
     b.core.material.needsUpdate = true;
-    for (const t of b.trail) { t.s.material.map = fire ? this.glow : this.ball; t.s.material.needsUpdate = true; }
+    for (const t of b.trail) { t.s.material.map = fire || grav ? this.glow : this.ball; t.s.material.needsUpdate = true; }
     b.core.visible = !ice;
     b.spike.visible = ice;
+    b.lens.visible = false;
     if (ice) b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir);
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
     this.burst(this.tip.x, this.tip.y, this.tip.z, c.muzzleSize, 0.16, b.el); // вспышка у кристалла
@@ -348,7 +362,7 @@ export class Attack {
   /** Попадание: урон, вспышка, убитый жук исчезает. */
   hit(b, e) {
     const c = this.cfg;
-    e.hp -= this.cur().damage;
+    e.hp -= this.cur().damage * (b.dmgMul || 1);
     this.spawner.knock(e, b.vx, b.vz); // откидывание по ходу шарика
     const kill = e.hp <= 0;
     const ice = b.el === 'ice', fire = b.el === 'fire';
@@ -427,9 +441,59 @@ export class Attack {
     }
   }
 
+  /** Попадание шарика в текущей точке: враг или мошка. true, если шарик отработал (попал). */
+  advance(b, c) {
+    for (const e of this.spawner.alive) {
+      if (b.y >= 1.0 + e.radius) continue; // выше спины жука: пролетает
+      const dx = e.state.x - b.x, dz = e.state.z - b.z, r = c.hitRadius + e.radius;
+      if (dx * dx + dz * dz < r * r) { this.hit(b, e); return true; }
+    }
+    const mid = this.midges && this.midges.hitTest(b.x, b.z, c.hitRadius);
+    if (mid) { this.midges.kill(mid, 'shot'); this.burst(mid.x, 0.7, mid.z, c.hitSize * 0.7, 0.25, b.el); this.impact(mid.x, 0.7, mid.z, b.vx, b.vz, false, null, b.el); this.deactivate(b); return true; }
+    return false;
+  }
+
+  /** Промах: тихо гаснет. */
+  missFx(b) {
+    const P = pal(b.el);
+    this.burst(b.x, Math.max(0.1, b.y), b.z, this.cfg.hitSize * 0.6, 0.22, b.el);
+    for (let i = 0; i < this.n(4); i++) this.parts.emit({ x: b.x, y: Math.max(0.1, b.y), z: b.z, vx: rr(-1.5, 1.5), vy: rr(0.3, 1.5), vz: rr(-1.5, 1.5), life: rr(0.2, 0.4), size0: 0.12, size1: 0, c0: P.muz0, c1: P.muz1, drag: 3, grav: 6 });
+    this.deactivate(b);
+  }
+
+  /** Множитель скорости гравитационного снаряда по времени полёта (кривая SoulsGate: почти стоит, затем взрывной разгон). */
+  gravFactor(age) { return gravityFactor(this.gravCfg, age); }
+
+  /** Вид задержки: кольцо-линза сжимается к шарику, частицы стягиваются; при освобождении вспышка и волна. */
+  gravFx(b, dt) {
+    const G = this.gravCfg;
+    const t = Math.min(1, b.age / Math.max(0.001, G.rampTime));
+    const hold = Math.min(0.95, G.holdFraction);
+    if (t < hold) {
+      const ph = (b.age * 2.6) % 1;
+      b.lens.visible = true;
+      b.lens.position.set(b.x, b.y, b.z);
+      b.lens.scale.setScalar(this.cfg.size * (3.6 - 2.6 * ph));
+      b.lens.material.opacity = 0.15 + 0.5 * ph * (0.5 + 0.5 * t / hold);
+      b.pullT += dt;
+      while (b.pullT >= 0.045) {
+        b.pullT -= 0.045;
+        const a = rr(0, 6.283), r = rr(0.5, 0.9);
+        this.parts.emit({ x: b.x + Math.cos(a) * r, y: b.y + rr(-0.2, 0.2), z: b.z + Math.sin(a) * r, vx: -Math.cos(a) * r / 0.22, vy: 0, vz: -Math.sin(a) * r / 0.22, life: 0.22, size0: rr(0.08, 0.14), size1: 0.02, c0: 0xffffff, c1: 0x7d8494, drag: 0, grav: 0, alpha: 0.85 });
+      }
+    } else {
+      if (!b.released) { // освобождение: вспышка и волна
+        b.released = true;
+        this.burst(b.x, b.y, b.z, this.cfg.hitSize * 1.6, 0.3, 'gravity');
+        this.shock(b.x, b.z, 2.6, 0.35, 0xb4bac8);
+      }
+      b.lens.visible = false;
+    }
+  }
+
   deactivate(b) {
     b.active = false;
-    b.halo.visible = b.core.visible = b.spike.visible = false;
+    b.halo.visible = b.core.visible = b.spike.visible = b.lens.visible = false;
     for (const t of b.trail) t.s.visible = false;
   }
 
@@ -443,24 +507,23 @@ export class Attack {
     }
     for (const b of this.bolts) {
       if (!b.active) continue;
-      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       b.life -= dt;
-      // Попадание: жук ближе радиуса и шарик не выше его спины.
-      let hitE = null;
-      for (const e of this.spawner.alive) {
-        if (b.y >= 1.0 + e.radius) continue; // выше спины жука: пролетает
-        const dx = e.state.x - b.x, dz = e.state.z - b.z, r = c.hitRadius + e.radius;
-        if (dx * dx + dz * dz < r * r) { hitE = e; break; }
+      // Гравитационный снаряд (как в SoulsGate): сначала с трудом отрывается от героя, потом резкий рывок; стоп на предельной дальности.
+      let f = 1;
+      if (b.grav && this.gravCfg) { b.age += dt; f = this.gravFactor(b.age); this.gravFx(b, dt); }
+      const sp = Math.hypot(b.vx, b.vy, b.vz);
+      const total = sp * dt * f;
+      const subs = Math.max(1, Math.ceil(total / 0.25)); // быстрый рывок проверяем мелкими шагами, чтобы не пролететь сквозь врага
+      let ended = false;
+      for (let si = 0; si < subs && !ended; si++) {
+        const k = dt * f / subs;
+        b.x += b.vx * k; b.y += b.vy * k; b.z += b.vz * k;
+        b.travelled += sp * k;
+        ended = this.advance(b, c);
       }
-      if (hitE) { this.hit(b, hitE); continue; }
-      const mid = this.midges && this.midges.hitTest(b.x, b.z, c.hitRadius);
-      if (mid) { this.midges.kill(mid, 'shot'); this.burst(mid.x, 0.7, mid.z, c.hitSize * 0.7, 0.25); this.impact(mid.x, 0.7, mid.z, b.vx, b.vz, false); this.deactivate(b); continue; }
-      if (b.life <= 0 || b.y < 0.05) {
-        this.burst(b.x, Math.max(0.1, b.y), b.z, c.hitSize * 0.6, 0.22); // промах: тихо гаснет
-        for (let i = 0; i < this.n(4); i++) this.parts.emit({ x: b.x, y: Math.max(0.1, b.y), z: b.z, vx: rr(-1.5, 1.5), vy: rr(0.3, 1.5), vz: rr(-1.5, 1.5), life: rr(0.2, 0.4), size0: 0.12, size1: 0, c0: 0xbfe6ff, c1: 0x2a5bff, drag: 3, grav: 6 });
-        this.deactivate(b);
-        continue;
-      }
+      if (ended) continue;
+      if (b.grav && b.travelled >= this.cur().range) { this.missFx(b); continue; }
+      if (b.life <= 0 || b.y < 0.05) { this.missFx(b); continue; }
       // Хвост: каждые 1/60 с сдвигаем след.
       b.trailT += dt;
       while (b.trailT >= 1 / 60) {
@@ -484,11 +547,12 @@ export class Attack {
         for (const t of b.trail) t.s.visible = false;
         continue;
       }
-      const fireB = b.el === 'fire';
+      const fireB = b.el === 'fire', gravB = b.grav;
       b.core.position.set(b.x, b.y, b.z);
       b.halo.position.set(b.x, b.y, b.z);
-      b.core.scale.setScalar(c.size * (fireB ? 1.5 : 1.2) * pulse);
-      b.halo.scale.setScalar(c.size * (fireB ? 2.8 : 2.2) * pulse);
+      const tremble = gravB && !b.released ? 1 + 0.15 * Math.sin(b.age * 70) : 1; // под притяжением дрожит
+      b.core.scale.setScalar(c.size * (fireB ? 1.5 : gravB ? 1.1 : 1.2) * pulse * tremble);
+      b.halo.scale.setScalar(c.size * (fireB ? 2.8 : gravB ? 2.4 : 2.2) * pulse * tremble);
       for (let i = 0; i < TRAIL; i++) {
         const t = b.trail[i];
         const k = 1 - i / TRAIL;
@@ -497,6 +561,7 @@ export class Attack {
         t.s.scale.setScalar(c.size * (fireB ? 0.5 + 1.0 * k : 0.3 + 0.7 * k));
         t.s.material.opacity = (fireB ? 0.7 : 0.55) * k * k;
         if (fireB) t.s.material.color.setHex(i < 2 ? 0xffd070 : i < 5 ? 0xff8a20 : 0xd0300a); // от жёлтого к тёмно-красному по хвосту
+        else if (gravB) t.s.material.color.setHex(i < 3 ? 0xf0f2f6 : 0x8c93a3);
         else t.s.material.color.setHex(0xffffff);
       }
       if (fireB) { // искры и язычки, отлетающие от огненного шара

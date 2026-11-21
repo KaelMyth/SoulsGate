@@ -63,3 +63,13 @@ export function applyShock(e, elec) {
   if (e.shock >= elec.stacksToChain) { e.shock = 0; e.shockT = 0; return 'chain'; }
   return 'shock';
 }
+
+/** Множитель скорости гравитационного снаряда по времени полёта (кривая SoulsGate): почти стоит holdFraction времени rampTime, затем взрывной разгон. */
+export function gravityFactor(G, age) {
+  const t = Math.min(1, age / Math.max(0.001, G.rampTime));
+  const hold = Math.min(0.95, Math.max(0, G.holdFraction));
+  let curve;
+  if (t < hold) { const st = t / Math.max(0.001, hold); curve = 0.02 * st * st; }
+  else { const inv = 1 - (t - hold) / Math.max(0.001, 1 - hold); curve = 0.02 + 0.98 * (1 - inv * inv * inv * inv); }
+  return G.startSpeed + (G.maxSpeed - G.startSpeed) * curve;
+}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../echo-gate/src/config.js';
-import { resetStatus, applyIce, tickStatus, applyFire, burnTick, applyShock } from '../echo-gate/src/status.js';
+import { resetStatus, applyIce, tickStatus, applyFire, burnTick, applyShock, gravityFactor } from '../echo-gate/src/status.js';
 
 const ice = CONFIG.ice;
 const mk = (o = {}) => { const e = { ...o }; resetStatus(e); return e; };
@@ -67,4 +67,16 @@ test('электричество: два стака вызывают цепну�
   applyShock(e, el);
   assert.equal(applyShock(e, el), 'chain');
   assert.equal(e.shock, 0);
+});
+
+test('гравитация: снаряд почти стоит, потом резкий рывок до maxSpeed', () => {
+  const G = CONFIG.gravity;
+  assert.ok(Math.abs(gravityFactor(G, 0) - G.startSpeed) < 1e-9);
+  assert.ok(gravityFactor(G, G.rampTime * G.holdFraction * 0.99) < 0.2); // конец задержки: почти стоит
+  assert.ok(gravityFactor(G, G.rampTime * 0.9) > gravityFactor(G, G.rampTime * 0.8));
+  assert.ok(Math.abs(gravityFactor(G, G.rampTime + 1) - G.maxSpeed) < 1e-9);
+  // путь до цели 6 м при обычной скорости 16 м/с: с задержкой заметно дольше 0.375 с
+  let t = 0, d = 0;
+  while (d < 6 && t < 5) { t += 0.005; d += 16 * gravityFactor(G, t) * 0.005; }
+  assert.ok(t > 0.9 && t < 1.6, String(t));
 });
