@@ -1,5 +1,5 @@
 {
-  "build": 87,
+  "build": 88,
   "commit": "071bbb8",
-  "notes": "Ice staff: three distinct looks (shard / frost crown / glacier crown) and three projectiles (shard, big shard, ice comet with snowflakes)."
+  "notes": "Removed dash button, SAVE moved to pause menu, hub title and version fade out when the hero starts moving."
 }
