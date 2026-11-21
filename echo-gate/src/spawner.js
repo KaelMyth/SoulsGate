@@ -220,7 +220,7 @@ export class Spawner {
       const bull = pat.support && i === size - 2 && (groupIndex + 1) % pat.support.every === 0; // свободный бык вместо охранника
       const g = this.spawnAt(x + Math.cos(ang) * G.ringDist, z + Math.sin(ang) * G.ringDist, hx, hz, bull ? pat.support.kind : 'beetle');
       if (bull) continue;
-      g.guardOf = leader; g.guardGen = leader.gen; g.guardAng = ang;
+      g.guardOf = leader; g.guardGen = leader.gen; g.guardAng = ang; g.guardIdx = i; g.guardN = size - 1;
       g.goalOn = true; g.goalX = g.x; g.goalZ = g.z;
     }
   }
@@ -343,15 +343,23 @@ export class Spawner {
   /** Охрана: место в кольце вокруг стрелка; бросается в бой, когда герой подошёл или стрелок погиб (guards.js из SoulsGate). */
   updateGuards(hero) {
     const G = this.cfg.guards;
+    const broken = new Set(); // стрелки, чья охрана уже бросилась в бой: если подошли к одному из охранников, нападает вся охрана сразу
     for (const e of this.alive) {
       const g = e.guardOf;
       if (!g) continue;
       if (g.gen !== e.guardGen || g.hp <= 0 || !g.group.visible
-        || Math.hypot(hero.x - e.x, hero.z - e.z) < G.breakDist || Math.hypot(hero.x - g.x, hero.z - g.z) < G.breakDist) {
+        || Math.hypot(hero.x - e.x, hero.z - e.z) < G.breakDist || Math.hypot(hero.x - g.x, hero.z - g.z) < G.breakDist) broken.add(g);
+    }
+    for (const e of this.alive) {
+      const g = e.guardOf;
+      if (!g) continue;
+      if (broken.has(g) || g.gen !== e.guardGen || g.hp <= 0 || !g.group.visible) {
         e.guardOf = null; e.goalOn = false;
         continue;
       }
-      const a = Math.atan2(hero.z - g.z, hero.x - g.x) + e.guardAng; // кольцо поворачивается, один охранник всегда между стрелком и героем
+      // Охрана заслоняет стрелка веером со стороны героя: центр веера смотрит на героя, ширина G.arc рад. Веер поворачивается за героем.
+      const n = e.guardN || 1, k = n > 1 ? (e.guardIdx / (n - 1)) - 0.5 : 0;
+      const a = Math.atan2(hero.z - g.z, hero.x - g.x) + k * (G.arc || 0);
       e.goalX = g.x + Math.cos(a) * G.ringDist;
       e.goalZ = g.z + Math.sin(a) * G.ringDist;
     }
