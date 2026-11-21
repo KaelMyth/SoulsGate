@@ -7,6 +7,7 @@ import { Keys } from './input_keys.js';
 import { screenToWorld } from './iso.js';
 import { Motion } from './motion.js';
 import { World } from './world.js';
+import { Blizzard } from './blizzard.js';
 import { Hero } from './hero.js';
 import { Spawner } from './spawner.js';
 import { Scatter } from './scatter.js';
@@ -49,6 +50,8 @@ export class Game {
     this.canvas = o.canvas;
     this.world = new World(o.canvas, this.cfg);
     this.hero = new Hero();
+    this.blizzard = new Blizzard(this.cfg.blizzard);
+    this.world.overlay = this.blizzard;
     this.hero.addTo(this.world.scene);
     this.motion = new Motion(this.cfg);
     this.scatter = new Scatter(this.world.scene, this.cfg.scatter);
@@ -578,6 +581,8 @@ export class Game {
       if (this.floorClearTime >= 1.4) this.showFloorCleared();
     }
     this.world.follow(dt, m.x, m.z, false);
+    this.blizzard.setTarget(this.playing ? this.cfg.blizzard.level : 0); // в хабе тихо
+    this.blizzard.update(dt, m.x, m.z, this.world);
   }
 
   /** Нарисовать стик на экране (DOM поверх канваса). */

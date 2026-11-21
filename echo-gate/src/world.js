@@ -194,5 +194,6 @@ export class World {
 
   render() {
     this.renderer.render(this.scene, this.camera);
+    if (this.overlay) this.overlay.render(this.renderer, this.camera); // метель поверх кадра
   }
 }

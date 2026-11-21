@@ -1,5 +1,5 @@
 {
-  "build": 76,
+  "build": 77,
   "commit": "071bbb8",
-  "notes": "Home button in the pause menu."
+  "notes": "Snowstorm: 4 strength levels with smooth transitions (fog window around the hero, snow streams)."
 }

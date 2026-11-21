@@ -360,4 +360,20 @@ export const CONFIG = {
     repairSoulsPerLevel: 500, // души за выкуп сломанного предмета: это число × уровень заточки (минимум ×1)
   },
 
+  // Снежная буря (src/blizzard.js). level: цель силы 0..4 (0 тихо, 1 поземка, 2 метель, 3 буря, 4 белая мгла); едет плавно за easeTime.
+  // В хабе бури нет. Строка levels[i] = уровень i+1; между уровнями числа интерполируются, calm = состояние «тихо».
+  blizzard: {
+    level: 2,
+    easeTime: 2.2,        // с: постоянная времени плавного перехода между уровнями
+    maxFlakes: 1400, box: 52, height: 7,
+    fogLight: '#dbe4f2', fogDark: '#a3b1cc', flakeColor: '#f2f6ff',
+    calm: { flakes: 0, speed: 0, fall: 1, streak: 0.1, size: 0.03, alpha: 0, gust: 0, fogMax: 0, clear: 1.4, fade: 0.6, gloom: 0, near: 8, fogDrift: 0 },
+    levels: [
+      { name: 'Flurry',   flakes: 260,  speed: 6,  fall: 1.6, streak: 0.12, size: 0.035, alpha: 0.55, gust: 0.2,  fogMax: 0.22, clear: 0.9,  fade: 0.6,  gloom: 0,    near: 8,  fogDrift: 0.05 },
+      { name: 'Snowstorm', flakes: 600, speed: 11, fall: 2.2, streak: 0.16, size: 0.04,  alpha: 0.7,  gust: 0.45, fogMax: 0.5,  clear: 0.6,  fade: 0.5, gloom: 0.2,  near: 8,  fogDrift: 0.09 },
+      { name: 'Blizzard', flakes: 950,  speed: 17, fall: 3,   streak: 0.2,  size: 0.045, alpha: 0.8,  gust: 0.7,  fogMax: 0.78, clear: 0.38, fade: 0.4, gloom: 0.5,  near: 7,  fogDrift: 0.15 },
+      { name: 'Whiteout', flakes: 1350, speed: 24, fall: 3.6, streak: 0.24, size: 0.05,  alpha: 0.9,  gust: 0.9,  fogMax: 0.95, clear: 0.22, fade: 0.32, gloom: 0.8,  near: 6,  fogDrift: 0.22 },
+    ],
+  },
+
 };
