@@ -32,11 +32,13 @@ export class Lightning {
   }
 
   /** Дуга из точки a в точку b (x,y,z). life: сколько видна (с), delay: через сколько стартует, width: толщина свечения (1 = обычная). */
-  arc(a, b, { life = 0.2, delay = 0, width = 1 } = {}) {
+  arc(a, b, { life = 0.2, delay = 0, width = 1, color = 0xfffbe0, glow = 0xffe45a } = {}) {
     const q = this.arcs.find((e) => !e.on);
     if (!q) return;
     q.on = true; q.t = -delay; q.life = life; q.flick = 0; q.width = width;
     q.a = a; q.b = b;
+    q.line.material.color.setHex(color);
+    for (const sp of q.sprites) sp.material.color.setHex(glow);
     const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     q.n = Math.min(MAX_N, Math.max(4, Math.round(len / 0.4) + 1));
     this.shape(q);

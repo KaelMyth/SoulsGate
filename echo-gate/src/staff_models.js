@@ -280,49 +280,79 @@ function iceStaff(glowTex, matBelt, tier = 0) {
   };
 }
 
-/** Электрический: стальное древко с медными катушками, вилка-разрядник и яркий шар между зубцами, вспыхивают дуги. */
-function electricStaff(glowTex, matBelt) {
+/** Штормовой посох, три ступени (+0..4 / +5..9 / +10): вилка с одним кристаллом и дугами; четыре зубца и голубые дуги с электродами; корона шторма с плазменным шаром и вращающимися кольцами. */
+function electricStaff(glowTex, matBelt, tier = 0) {
   const group = new THREE.Group();
   const steel = std(0x3a4256, { roughness: 0.35, metalness: 0.7 });
   const copper = std(0xc9742f, { roughness: 0.35, metalness: 0.8 });
   shaftParts(group, steel, copper, matBelt);
-  for (let i = 0; i < 5; i++) { // медная катушка под головой
-    const r = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.014, 6, 16), copper);
+  const nCoil = [5, 8, 10][tier];
+  for (let i = 0; i < nCoil; i++) { // медная катушка под головой
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.052 + 0.005 * tier, 0.014, 6, 16), copper);
     r.rotation.x = Math.PI / 2;
-    r.position.y = 1.05 + i * 0.075;
+    r.position.y = 1.05 + i * (0.45 / nCoil) * (tier ? 1.15 : 1.3);
     group.add(r);
   }
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.1, 10), copper);
   collar.position.y = 1.52;
   group.add(collar);
+  const cy = [1.8, 1.82, 1.98][tier];
   const tips = [];
-  for (const s of [-1, 1]) { // вилка: два изогнутых зубца
-    group.add(tube([[s * 0.03, 1.55, 0], [s * 0.15, 1.7, 0], [s * 0.17, 1.88, 0], [s * 0.07, 2.0, 0]], 0.017, steel, 16));
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.07, 6), copper);
-    tip.position.set(s * 0.07, 2.02, 0);
+  const nProng = [2, 4, 6][tier];
+  const reach = [0.17, 0.22, 0.24][tier];
+  const topY = [2.0, 2.06, 2.22][tier];
+  for (let i = 0; i < nProng; i++) { // зубцы: у +0 вилка, у +5 четыре, у +10 шесть, загнутых к шару клеткой
+    const a = nProng === 2 ? i * Math.PI : (i / nProng) * Math.PI * 2;
+    const c = Math.cos(a), sn = Math.sin(a);
+    group.add(tube([[c * 0.03, 1.55, sn * 0.03], [c * reach * 0.9, 1.7, sn * reach * 0.9], [c * reach, 1.7 + (topY - 1.7) * 0.6, sn * reach], [c * reach * (tier === 2 ? 0.45 : 0.4), topY, sn * reach * (tier === 2 ? 0.45 : 0.4)]], 0.017 + 0.003 * tier, steel, 16));
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.07 + 0.03 * tier, 6), copper);
+    tip.position.set(c * reach * 0.4, topY + 0.02, sn * reach * 0.4);
     group.add(tip);
-    tips.push(new THREE.Vector3(s * 0.07, 2.0, 0), new THREE.Vector3(s * 0.17, 1.8, 0));
+    tips.push(new THREE.Vector3(c * reach * 0.4, topY, sn * reach * 0.4), new THREE.Vector3(c * reach, topY - 0.2, sn * reach));
   }
-  const crystal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.085, 1), std(0xfff0a0, { emissive: 0xffe060, emissiveIntensity: 1.3, roughness: 0.2 }));
-  crystal.position.y = 1.8;
-  const glow = halo(glowTex, 0xffe27a, 0.95, 0.7);
-  glow.position.y = 1.8;
-  const glow2 = halo(glowTex, 0xa98bff, 1.3, 0.28);
-  glow2.position.y = 1.8;
-  // Дуги: три ломаные линии от шара к зубцам, перегенерируются несколько раз в секунду.
+  if (tier >= 1) { // электроды: на концах зубцов светящиеся шарики
+    for (let i = 0; i < nProng; i++) {
+      const a = (i / nProng) * Math.PI * 2;
+      const e = halo(glowTex, tier === 2 ? 0xc0a8ff : 0x9fe0ff, 0.2, 0.9);
+      e.position.set(Math.cos(a) * reach * 0.4, topY + 0.07, Math.sin(a) * reach * 0.4);
+      group.add(e);
+    }
+  }
+  const crystal = new THREE.Mesh(new THREE.IcosahedronGeometry([0.07, 0.095, 0.115][tier], tier === 2 ? 2 : 1), std(tier ? 0xeaf6ff : 0xfff0a0, { emissive: tier === 2 ? 0xb49aff : tier ? 0x8fd8ff : 0xffe060, emissiveIntensity: 1.3, roughness: 0.2 }));
+  crystal.position.y = cy;
+  const gc = [0xffe27a, 0x9fe0ff, 0xcdbbff][tier];
+  const glow = halo(glowTex, gc, [0.85, 1.25, 1.9][tier], [0.7, 0.8, 0.85][tier]);
+  glow.position.y = cy;
+  const glow2 = halo(glowTex, 0xa98bff, [1.3, 1.8, 2.6][tier], [0.28, 0.3, 0.34][tier]);
+  glow2.position.y = cy;
+  // Дуги от шара к зубцам.
   const arcs = [];
-  const arcMat = new THREE.LineBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
-  for (let i = 0; i < 4; i++) {
+  const arcMat = new THREE.LineBasicMaterial({ color: tier === 2 ? 0xf2eaff : tier ? 0xeaf8ff : 0xfff6c0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  const nArc = [3, 5, 8][tier];
+  for (let i = 0; i < nArc; i++) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(7 * 3), 3));
     const line = new THREE.Line(g, arcMat);
     line.frustumCulled = false;
     group.add(line);
-    arcs.push({ g, to: tips[i] });
+    arcs.push({ g, to: tips[i % tips.length] });
   }
   group.add(crystal, glow2, glow);
+  // +10: плазменный шар в проволочной оболочке и два вращающихся кольца вокруг него.
+  let shell = null; const rings = [];
+  if (tier === 2) {
+    shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 1), new THREE.MeshBasicMaterial({ color: 0xcdbbff, wireframe: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    shell.position.y = cy;
+    group.add(shell);
+    for (let i = 0; i < 2; i++) {
+      const rg = new THREE.Mesh(new THREE.TorusGeometry(0.3 + 0.06 * i, 0.008, 6, 40), basic(i ? 0x9fe0ff : 0xc0a8ff, { transparent: true, opacity: 0.85 }));
+      rg.position.y = cy;
+      group.add(rg);
+      rings.push({ m: rg, i });
+    }
+  }
   let nextArc = 0;
-  const center = new THREE.Vector3(0, 1.8, 0);
+  const center = new THREE.Vector3(0, cy, 0);
   const regen = () => {
     for (const a of arcs) {
       const p = a.g.attributes.position;
@@ -345,6 +375,11 @@ function electricStaff(glowTex, matBelt) {
       glow.material.opacity = 0.55 + 0.25 * Math.sin(t * 19) + 0.1 * Math.sin(t * 41);
       glow2.material.opacity = 0.2 + 0.1 * Math.sin(t * 7);
       crystal.rotation.y = t * 3;
+      if (shell) {
+        shell.rotation.set(t * 0.9, t * 1.4, 0);
+        shell.scale.setScalar(1 + 0.06 * Math.sin(t * 11));
+        for (const r of rings) r.m.rotation.set(1.1 + r.i * 0.9 + t * (1.2 + r.i * 0.6), t * (0.8 - r.i * 1.5), r.i * 1.2);
+      }
     },
   };
 }
@@ -580,5 +615,5 @@ export function buildStaffModel(variant, glowTex, matBelt, tier = 0) {
   const v = BUILDERS[variant] ? variant : 'basic';
   const m = BUILDERS[v](glowTex, matBelt, tier);
   m.glowTex = glowTex;
-  return tier > 0 && v !== 'ice' && v !== 'fire' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
+  return tier > 0 && v !== 'ice' && v !== 'fire' && v !== 'electric' ? decorate(m, v, tier) : m; // у ледяного посоха три ступени собраны в самой модели
 }
