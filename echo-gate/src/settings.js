@@ -37,7 +37,7 @@ const TUNABLES = [
   { tab: 'Оружие', group: 'Ледяной посох', path: 'ice.spikeRange', label: 'Дальность шипа, м', min: 1, max: 12, step: 0.5 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.burnTime', label: 'Длительность горения, с', min: 0.5, max: 10, step: 0.5 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.burnDps', label: 'Урон горения за стак, в секунду', min: 0, max: 2, step: 0.05 },
-  { tab: 'Оружие', group: 'Огненный посох', path: 'fire.stacksToExplode', label: 'Стаков до взрыва', min: 2, max: 8, step: 1 },
+  { tab: 'Оружие', group: 'Огненный посох', path: 'fire.maxStacks', label: 'Макс. стаков горения', min: 1, max: 8, step: 1 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.explosionRadius', label: 'Радиус взрыва, м', min: 0.5, max: 6, step: 0.1 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.explosionDamage', label: 'Урон взрыва', min: 0, max: 10, step: 0.5 },
   { tab: 'Оружие', group: 'Огненный посох', path: 'fire.deathScale', label: 'Взрыв при смерти горящего, доля', min: 0, max: 1.5, step: 0.05 },

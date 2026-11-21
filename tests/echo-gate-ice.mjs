@@ -35,16 +35,17 @@ test('лёд: огромных врагов только замедляет, н�
   assert.ok(tickStatus(e, 0.1, ice) > 0);
 });
 
-test('огонь: стаки поджога, урон горения, на третьем стаке взрыв', () => {
+test('огонь: стаки поджога растут до трёх, урон горения', () => {
   const fire = CONFIG.fire;
   const e = mk();
   assert.equal(applyFire(e, fire), 'burn');
   assert.ok(Math.abs(burnTick(e, 1, fire, 1) - 0.25) < 1e-9); // 1 стак: 0.25 выстрела за секунду
   assert.equal(applyFire(e, fire), 'burn');
   assert.ok(Math.abs(burnTick(e, 1, fire, 2) - 1.0) < 1e-9); // 2 стака, урон 2: 0.25*2*1*2
-  assert.equal(applyFire(e, fire), 'explode');
-  assert.equal(e.burn, 0); assert.equal(e.burnT, 0);
-  assert.equal(burnTick(e, 1, fire, 1), 0);
+  assert.equal(applyFire(e, fire), 'burn');
+  assert.equal(applyFire(e, fire), 'burn');
+  assert.equal(e.burn, 3); // выше потолка не растёт
+  assert.ok(Math.abs(burnTick(e, 1, fire, 1) - 0.75) < 1e-9);
 });
 
 test('огонь: горение гаснет через burnTime, последний тик не больше остатка', () => {

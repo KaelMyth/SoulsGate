@@ -1,7 +1,7 @@
 // Статусы врагов от стихий посоха (чистая логика, без графики). Электричество: попадание дуги вешает стак электризации на stackTime секунд;
 // stacksToChain стаков вызывают цепную молнию (Attack.chain), стаки сбрасываются. Огонь: каждое попадание даёт стак поджога на burnTime секунд
 // (повторное попадание обновляет время), горящий получает burnDps урона в секунду за стак (в единицах урона выстрела);
-// stacksToExplode стаков вызывают небольшой взрыв (урон по области, см. Attack.explode), стаки сбрасываются.
+// стаки растут до maxStacks; взрыв и живое пламя зависят от ступени посоха (Attack.deathBurst).
 // Лёд:
 // каждое попадание ледяным снарядом даёт стак замедления на slowTime секунд (повторное попадание обновляет время),
 // каждый стак замедляет на slowPerStack; stacksToFreeze стаков замораживают врага на freezeTime секунд (стоит и не атакует).
@@ -37,12 +37,10 @@ export function tickStatus(e, dt, ice) {
   return 1;
 }
 
-/** Попадание огнём. Возвращает 'burn' | 'explode'. */
+/** Попадание огнём: +1 стак поджога (не больше maxStacks), горение обновляется. Взрыв теперь при смерти горящего (Attack.deathBurst). */
 export function applyFire(e, fire) {
-  if (!fire) return 'burn';
-  e.burn = (e.burn || 0) + 1;
-  e.burnT = fire.burnTime;
-  if (e.burn >= fire.stacksToExplode) { e.burn = 0; e.burnT = 0; return 'explode'; }
+  e.burn = Math.min((fire && fire.maxStacks) || 3, (e.burn || 0) + 1);
+  e.burnT = fire ? fire.burnTime : 3;
   return 'burn';
 }
 

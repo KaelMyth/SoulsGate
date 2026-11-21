@@ -147,6 +147,31 @@ export function makeSpike() {
   g.visible = false;
   return g;
 }
+/** Огненный хвост снаряда (позади острия, ось -Y): setTier(1) короткий язык, setTier(2) длинный двойной с белым ядром. */
+function makeFlameTail() {
+  const g = new THREE.Group();
+  const cone = (r, h, color, op) => {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 10, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    m.rotation.x = Math.PI; m.position.y = -h / 2;
+    g.add(m);
+    return m;
+  };
+  const outer = cone(0.2, 1.1, 0xff5a14, 0.55);
+  const mid = cone(0.13, 0.95, 0xffa030, 0.7);
+  const core = cone(0.07, 0.7, 0xfff0b0, 0.85);
+  g.userData.setTier = (n) => {
+    const L = n === 2 ? 1.5 : 0.8;
+    outer.scale.set(n === 2 ? 1.25 : 0.8, L, n === 2 ? 1.25 : 0.8);
+    mid.scale.set(1, L, 1);
+    core.scale.set(1, L, 1);
+    core.visible = n === 2;
+  };
+  g.userData.tick = (t, k) => { g.scale.set(k * (1 + 0.1 * Math.sin(t * 40)), k * (1 + 0.18 * Math.sin(t * 31 + 1)), k * (1 + 0.1 * Math.cos(t * 37))); };
+  g.userData.setTier(1);
+  g.renderOrder = 5;
+  g.visible = false;
+  return g;
+}
 const LASER_CFG = () => ({ glow: 0xff3345, core: 0xffffff, glowWidth: 0.9, coreWidth: 0.16, life: 0.24 });
 const KILL_COLOR = { beetle: 0xff6a55, shooter: 0xc07bff, bull: 0xffa040, rock: 0xa9b8d0 }; // осколки убитого врага
 const rr = (a, b) => a + Math.random() * (b - a);
@@ -161,7 +186,8 @@ export class Attack {
     this.glow = glowTexture();
     this.ball = ballTexture();
     this.ring = ringTexture();
-    this.bolts = [];   // пул шариков
+    this.bolts = [];
+    this.orbs = []; // шары живого пламени (пул)
     this.fx = [];      // пул вспышек и колец попадания
     this.parts = new Particles(scene, this.glow); // искры, осколки, огоньки
     this.lightning = new Lightning(scene, this.glow); // дуги электрического посоха
@@ -178,6 +204,7 @@ export class Attack {
 
   /** Конец забега: убрать клинок и лучи сразу. */
   clearStaffFx() {
+    this.hideFlames();
     if (this.blades) this.blades.hideNow();
     for (const b of this.laser.pool) { b.on = false; b.glow.visible = b.core.visible = false; }
   }
@@ -196,9 +223,10 @@ export class Attack {
     b.lens = sprite(this.ring, 0xb4bac8, 0.5);
     this.scene.add(b.lens);
     b.spike = makeSpike();
+    b.flame = makeFlameTail();
     b.el = null;
     b.snowT = 0;
-    this.scene.add(b.halo, b.core, b.spike);
+    this.scene.add(b.halo, b.core, b.spike, b.flame);
     for (let i = 0; i < TRAIL; i++) {
       const s = sprite(this.ball, 0xffffff, 0.6);
       this.scene.add(s);
@@ -361,6 +389,7 @@ export class Attack {
     b.grav = grav; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
     b.fromSpike = false;
     b.iceTier = ice && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень ледяного посоха по заточке
+    b.fireTier = fire && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень огненного посоха: от неё зависят взрыв и живое пламя
     const tier = this.tierNow();
     b.tier = tier && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0;
     const look = this.lookNow(b.el);
@@ -378,6 +407,8 @@ export class Attack {
     for (const t of b.trail) { t.s.material.map = fire || grav ? this.glow : this.ball; t.s.material.needsUpdate = true; }
     b.core.visible = !ice;
     b.spike.visible = ice;
+    b.flame.visible = fire && b.fireTier >= 1;
+    if (b.flame.visible) b.flame.userData.setTier(b.fireTier);
     b.lens.visible = false;
     if (ice) { b.spike.userData.setTier(b.iceTier); b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir); }
     this.hero.cast(Math.atan2(tx - this.hero.group.position.x, tz - this.hero.group.position.z));
@@ -510,7 +541,7 @@ export class Attack {
     const ice = b.el === 'ice', fire = b.el === 'fire';
     this.burst(b.x, Math.max(0.25, b.y), b.z, c.hitSize * 0.9, 0.26, b.el);
     this.impact(b.x, Math.max(0.25, b.y), b.z, b.vx, b.vz, kill, e.kind, b.el);
-    if (fire && !kill && applyFire(e, this.fireCfg) === 'explode') this.explode(e);
+    if (fire && !kill) { applyFire(e, this.fireCfg); e.burnTier = b.fireTier || 0; } // ступень, которой подожжён: от неё зависит, взорвётся ли при смерти
     if (ice && !kill) {
       const T = this.ice.tiers[b.iceTier || 0] || this.ice.tiers[0];
       const r = applyIce(e, { ...this.ice, stacksToFreeze: T.stacksToFreeze }); // замедление; на ступени 0 три стака замораживают, выше два
@@ -575,6 +606,7 @@ export class Attack {
     b.el = 'ice'; b.pierce = 0;
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = false; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
+    b.fireTier = 0;
     b.fromSpike = true; b.iceTier = 2; b.tier = 0; b.sz = 1; b.look = null; b.trailN = TRAIL;
     b.dmgMul = I.spikeDamage;
     b.halo.material.color.setHex(ICE); b.halo.visible = true;
@@ -589,8 +621,65 @@ export class Attack {
     this.iceDeath(e, fromSpike);
     const F = this.fireCfg;
     if (!F || !(F.deathScale > 0) || depth >= 3 || !(e.burnT > 0) || !(e.burn > 0)) return;
+    const T = F.tiers && F.tiers[e.burnTier || 0];
+    if (!T || !T.deathExplosion) return;
     e.burn = 0; e.burnT = 0;
     this.explode(e, F.deathScale, depth + 1);
+    if (T.liveFlame) this.spawnFlame(e.state.x, e.state.z); // ступень +10: из огня собирается шар
+  }
+
+  /** Живое пламя: шар собирается над местом смерти, затем летит в ближайшего врага и вешает ему один стак горения (без урона). */
+  spawnFlame(x, z) {
+    let o = this.orbs.find((q) => !q.on);
+    if (!o) {
+      o = { on: false, core: sprite(this.glow, 0xfff0b0, 1), halo: sprite(this.glow, 0xff5a14, 0.8) };
+      this.scene.add(o.halo, o.core);
+      this.orbs.push(o);
+    }
+    o.on = true; o.t = 0; o.phase = 'gather'; o.x = x; o.y = 1.1; o.z = z; o.target = null;
+    o.core.visible = o.halo.visible = true;
+  }
+
+  updateFlames(dt) {
+    const F = this.fireCfg;
+    if (!F) return;
+    const G = F.flameGather || 0.6;
+    for (const o of this.orbs) {
+      if (!o.on) continue;
+      o.t += dt;
+      const pulse = 1 + 0.12 * Math.sin(o.t * 30);
+      if (o.phase === 'gather') {
+        const k = Math.min(1, o.t / G);
+        for (let i = 0; i < 3; i++) { // языки огня стягиваются к центру
+          const a = rr(0, 6.283), r = 1.5 * (1 - k * 0.6) + 0.3, sp = 7;
+          this.parts.emit({ x: o.x + Math.cos(a) * r, y: o.y + rr(-0.4, 0.4), z: o.z + Math.sin(a) * r, vx: -Math.cos(a) * sp, vy: rr(-0.5, 0.5), vz: -Math.sin(a) * sp, life: r / sp * 0.9, size0: rr(0.15, 0.3), size1: 0.03, c0: 0xffd070, c1: 0xd0300a, drag: 0, grav: 0, alpha: 0.9 });
+        }
+        const sz = (0.25 + 0.95 * k) * pulse;
+        o.core.position.set(o.x, o.y, o.z); o.halo.position.set(o.x, o.y, o.z);
+        o.core.scale.setScalar(sz * 0.8); o.halo.scale.setScalar(sz * 2.2);
+        if (k >= 1) {
+          o.target = this.nearest(o.x, o.z);
+          if (!o.target) { this.burst(o.x, o.y, o.z, this.cfg.hitSize * 1.6, 0.3, 'fire'); o.on = false; o.core.visible = o.halo.visible = false; }
+          else o.phase = 'fly';
+        }
+        continue;
+      }
+      if (!o.target || !this.spawner.alive.includes(o.target)) o.target = this.nearest(o.x, o.z); // цель погибла: ищем другую
+      const tg = o.target;
+      if (!tg) { this.burst(o.x, o.y, o.z, this.cfg.hitSize * 1.6, 0.3, 'fire'); o.on = false; o.core.visible = o.halo.visible = false; continue; }
+      const dx = tg.state.x - o.x, dy = 0.5 - o.y, dz = tg.state.z - o.z, d = Math.hypot(dx, dy, dz) || 1, step = (F.flameSpeed || 14) * dt;
+      if (d <= step + tg.radius * 0.8) {
+        applyFire(tg, F); tg.burnTier = 2;
+        this.burst(tg.state.x, 0.5, tg.state.z, this.cfg.hitSize * 1.6, 0.35, 'fire');
+        for (let i = 0; i < this.n(10); i++) this.parts.emit({ x: tg.state.x, y: 0.5, z: tg.state.z, vx: rr(-3, 3), vy: rr(1, 4), vz: rr(-3, 3), life: rr(0.3, 0.6), size0: rr(0.15, 0.28), size1: 0, c0: 0xffe9a0, c1: 0xff3a10, drag: 2, grav: 4 });
+        o.on = false; o.core.visible = o.halo.visible = false;
+        continue;
+      }
+      o.x += dx / d * step; o.y += dy / d * step; o.z += dz / d * step;
+      o.core.position.set(o.x, o.y, o.z); o.halo.position.set(o.x, o.y, o.z);
+      o.core.scale.setScalar(1.0 * pulse); o.halo.scale.setScalar(2.4 * pulse);
+      this.parts.emit({ x: o.x + rr(-0.1, 0.1), y: o.y + rr(-0.1, 0.1), z: o.z + rr(-0.1, 0.1), vx: rr(-0.5, 0.5), vy: rr(0.2, 1), vz: rr(-0.5, 0.5), life: rr(0.25, 0.45), size0: rr(0.18, 0.3), size1: 0, c0: 0xffd070, c1: 0xd0300a, drag: 2, grav: -2, alpha: 0.85 });
+    }
   }
 
   /** Огненный взрыв на третьем стаке поджога: урон всем в радиусе, откидывание от центра, вспышка, волны, пламя и угли. */
@@ -691,7 +780,7 @@ export class Attack {
 
   deactivate(b) {
     b.active = false;
-    b.halo.visible = b.core.visible = b.spike.visible = b.lens.visible = false;
+    b.halo.visible = b.core.visible = b.spike.visible = b.lens.visible = b.flame.visible = false;
     for (const t of b.trail) t.s.visible = false;
   }
 
@@ -773,6 +862,11 @@ export class Attack {
         continue;
       }
       const fireB = b.el === 'fire', gravB = b.grav;
+      if (fireB && b.flame.visible) { // хвост пламени тянется назад по полёту
+        b.flame.position.set(b.x, b.y, b.z);
+        b.flame.quaternion.setFromUnitVectors(Y_AXIS, this.dir.set(b.vx, b.vy, b.vz).normalize());
+        b.flame.userData.tick(performance.now() / 1000, (b.sz || 1) * c.size * 1.6);
+      }
       b.core.position.set(b.x, b.y, b.z);
       b.halo.position.set(b.x, b.y, b.z);
       const tremble = gravB && !b.released ? 1 + 0.15 * Math.sin(b.age * 70) : 1; // под притяжением дрожит
@@ -809,6 +903,7 @@ export class Attack {
       }
     }
     this.burn(dt);
+    this.updateFlames(dt);
     this.sparkle(dt);
     this.updateFx(dt);
   }
@@ -820,7 +915,10 @@ export class Attack {
     for (const k of this.shocks) { k.on = false; k.m.visible = false; }
     for (const f of this.fx) { f.active = false; f.flash.visible = f.ring.visible = false; }
     for (const b of this.bolts) this.deactivate(b);
+    this.hideFlames();
   }
+
+  hideFlames() { for (const o of this.orbs) { o.on = false; o.core.visible = o.halo.visible = false; } }
 
   /** Только эффекты (частицы, волны, вспышки, молнии): идут, даже когда боя нет (смерть, экран потерь), и сами гаснут. */
   updateFx(dt) {

@@ -1,5 +1,5 @@
 {
-  "build": 97,
-  "commit": "071bbb8",
-  "notes": "Staff workbench in the test field: admin mod menu with delete."
+  "build": 98,
+  "commit": "x",
+  "notes": "Fire staff tiers: ignite (3 stacks) / burning enemies explode on death / living flame orb; new fire staff looks and projectiles."
 }
