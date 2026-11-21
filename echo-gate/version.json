@@ -1,5 +1,5 @@
 {
-  "build": 88,
+  "build": 89,
   "commit": "071bbb8",
-  "notes": "Removed dash button, SAVE moved to pause menu, hub title and version fade out when the hero starts moving."
+  "notes": "HUD level label in English: \"Level N\"."
 }
