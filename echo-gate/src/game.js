@@ -101,7 +101,7 @@ export class Game {
       if (type === 'power' && this.staffUi && this.playing && !this.floorCleared) this.staffUi.open();
     };
     this.attack.onKill = (e) => {
-      this.creditKill(e);
+      if (this.playing) this.creditKill(e); // на тестовом поле ни душ, ни добычи
       this.bus.emit('enemy:killed', e);
       if (this.spawner.floorMode && e === this.spawner.boss) this.completeFloor();
     };
@@ -240,6 +240,9 @@ export class Game {
     this.block.reset();
     this.spawner.reset();
     this.spawner.enabled = false;
+    this.testSpawn = false;
+    this.inTest = false;
+    if (this.hub && this.hub.test) this.hub.test.spawning = false;
     this.floorCleared = false;
     this.floorChoiceShown = false;
     this.floorClearTime = 0;
@@ -449,11 +452,16 @@ export class Game {
     this.inHub = true;
     this.playing = false;
     if (this.dashBtn) this.dashBtn.classList.add('gone');
-    this.world.setHubGround(true, H.halfW - 0.5, H.halfD - 0.5);
+    const fullD = (2 * H.halfD + H.testD) / 2; // поле хаба вместе с тестовым полем под ним: полувысота и центр по z
+    this.world.setHubGround(true, H.halfW - 0.5, fullD - 0.5, fullD - H.halfD);
     this.hub.setActive(true);
     this.scatter.setVisible(false);
-    this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: H.halfD - H.wallMargin, ang: a,
+    this.inTest = false;
+    this.testSpawn = false;
+    this.hub.test.spawning = false;
+    this.motion.bounds = { hx: H.halfW - H.wallMargin, hz: fullD - H.wallMargin, cz: fullD - H.halfD, ang: a,
       blocks: [
+        ...this.hub.test.wallBlocks(),
         { x: 0, z: 0, r: H.fireRadius }, // костёр: сквозь него не пройти
         { x: 0, z: H.shopZ, hx: H.shopHalfW + 0.45, hz: H.shopHalfD + 0.45 },
         { x: H.gearX, z: H.gearZ, hx: H.gearHalfW, hz: H.gearHalfD },
@@ -587,7 +595,9 @@ export class Game {
     this.blockView.update(dt, this.block, m.x, m.z, this.cfg.hero.radius);
     this.invuln = Math.max(0, this.invuln - dt);
     this.heroBody.x = m.x; this.heroBody.z = m.z; this.heroBody.radius = this.cfg.hero.radius;
-    if (this.playing) {
+    if (this.inHub && !this.switching) this.testFieldStep();
+    const fight = this.playing || (this.inHub && this.inTest); // на тестовом поле бой идёт, герой неуязвим (hurtHero требует playing)
+    if (fight) {
       this.spawner.update(dt, this.heroBody, this.world.groundRadius());
       this.enemyShots.update(dt, this.heroBody, (dmg) => this.hurtHero(dmg));
       this.telegraphs.update(this.spawner);
@@ -596,7 +606,7 @@ export class Game {
     }
     if (this.playing && this.stats.hp <= 0) this.die();
     this.scatter.update(m.x, m.z);
-    if (this.playing) this.attack.update(dt, m.x, m.z); else this.attack.updateFx(dt); // после смерти эффекты доигрывают и гаснут
+    if (fight) this.attack.update(dt, m.x, m.z); else this.attack.updateFx(dt); // после смерти эффекты доигрывают и гаснут
     this.frost.update(this.spawner.alive, this.stats.time || performance.now() / 1000);
     this.loot.update(dt, m.x, m.z);
     if (this.floorCleared && !this.floorChoiceShown) {
@@ -609,7 +619,48 @@ export class Game {
     this.blizzard.update(dt, m.x, m.z, this.world);
   }
 
+  /** Тестовое поле: вход и выход меняют обзор и кнопку рывка, плиты включают и выключают спавн. */
+  testFieldStep() {
+    const H = this.cfg.hub, T = this.hub.test;
+    const L = this.hub.toLocal(this.motion.x, this.motion.z, this.tl || (this.tl = { x: 0, z: 0 }));
+    const ev = T.step(L.x, L.z);
+    const inTest = this.inTest ? L.z > H.halfD - 0.5 : L.z > H.halfD + 0.5; // с запасом, чтобы в проходе не мигало
+    if (inTest !== this.inTest) {
+      this.inTest = inTest;
+      this.world.setView(inTest ? 'run' : 'hub');
+      if (this.dashBtn) this.dashBtn.classList.toggle('gone', !inTest);
+      if (!inTest && this.testSpawn) this.stopTest(false);
+    }
+    if (!inTest) return;
+    if (ev === 'start' && !this.testSpawn) this.startTest();
+    else if (ev === 'stop' && this.testSpawn) this.stopTest(true);
+  }
+
+  startTest() {
+    this.testSpawn = true;
+    this.hub.test.spawning = true;
+    this.spawner.startTest(this.cfg.hub.testWave);
+    this.toast('Spawning on');
+  }
+
+  /** Спавн выключен, враги и снаряды убраны, поле чистое. */
+  stopTest(say) {
+    this.testSpawn = false;
+    this.hub.test.spawning = false;
+    this.spawner.reset();
+    this.spawner.enabled = false;
+    this.enemyShots.clear();
+    this.telegraphs.update({ alive: [] });
+    this.midges.clear();
+    this.midgeView.update(0, this.midges.items);
+    this.loot.clear();
+    for (const b of this.attack.bolts) this.attack.deactivate(b);
+    this.attack.clearStaffFx();
+    if (say) this.toast('Spawning off');
+  }
+
   /** Нарисовать стик на экране (DOM поверх канваса). */
+
   drawStick() {
     const u = this.ui;
     if (!u || !u.base) return;

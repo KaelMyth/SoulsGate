@@ -6,6 +6,7 @@ import { Shop } from './shop.js';
 import { GearPile } from './gear.js';
 import { DevConsole } from './devconsole.js';
 import { EnchantingNook } from './enchanting.js';
+import { TestField } from './test_field.js';
 
 function mat(color, rough = 0.95) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, flatShading: true }); }
 function glowMat(color, opacity) {
@@ -166,7 +167,9 @@ export class Hub {
     this.enchant.group.scale.setScalar(cfg.enchantScale);
     this.group.add(this.enchant.group);
 
-    // Консоль разработчика в углу поля (справа внизу на экране).
+    // Тестовое поле под лагерем за скрытым проходом; консоль разработчика стоит в его углу.
+    this.test = new TestField(cfg);
+    this.group.add(this.test.group);
     this.dev = new DevConsole();
     this.dev.group.position.set(cfg.devX, 0, cfg.devZ);
     this.dev.group.scale.setScalar(cfg.devScale);
@@ -188,10 +191,18 @@ export class Hub {
       this.group.add(r);
     };
     let n = 0;
-    for (let x = -hx; x <= hx; x += step) { rock(x, -hz, n++); rock(x, hz, n++); }
+    for (let x = -hx; x <= hx; x += step) { rock(x, -hz, n++); if (Math.abs(x - cfg.gateX) > cfg.gateHalf + 0.9) rock(x, hz, n++); } // в нижней стене просвет под скрытый проход
     for (let z = -hz + step; z < hz; z += step) { rock(-hx, z, n++); rock(hx, z, n++); }
 
     this.setActive(true);
+  }
+
+  /** Мировая точка в местные оси поля (out.x, out.z). */
+  toLocal(wx, wz, out) {
+    const a = this.group.rotation.y;
+    out.x = wx * Math.cos(a) - wz * Math.sin(a);
+    out.z = wx * Math.sin(a) + wz * Math.cos(a);
+    return out;
   }
 
   /** Расстояние (м) от мировой точки до прямоугольника вагончика: 0 внутри. */
@@ -293,6 +304,7 @@ export class Hub {
     this.gear.update(dt);
     this.enchant.update(dt);
     this.dev.update(dt);
+    this.test.update(dt, lx, lz);
     this.shop.update(dt, lx - this.shop.group.position.x, lz - this.shop.group.position.z);
   }
 }
