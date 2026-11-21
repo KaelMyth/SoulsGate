@@ -37,7 +37,6 @@ const ui = {
   anvilBtn: document.getElementById('anvil-btn'),
   devBtn: document.getElementById('dev-btn'),
   pauseBtn: document.getElementById('pause-btn'),
-  dashBtn: document.getElementById('dash-btn'),
   pause: document.getElementById('pause'),
 };
 const R = CONFIG.stick.radius;
