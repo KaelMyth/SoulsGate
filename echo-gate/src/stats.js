@@ -1,3 +1,4 @@
+import { ModLoadout } from './mods.js';
 // Характеристики героя: здоровье, опыт, уровень, счётчик убийств. Чистая логика без графики (тестируется в Node).
 // Числа берутся из CONFIG.hero и CONFIG.xp каждый кадр, поэтому ползунки настроек действуют сразу.
 export class Stats {
@@ -16,6 +17,7 @@ export class Stats {
     this.kills = 0;
     this.upgrades = { power: 0, speed: 0, range: 0 }; // кристаллы усиления, вложенные в части посоха
     this.loot = { power: 0, skill: 0, page: 0 }; // подобранные кристаллы усиления, умения и обрывки страниц
+    if (!this.mods) this.mods = new ModLoadout(this.cfg.mods); else this.mods.reset(); // модификаторы снаряда живут один забег
     this.soulMods = { soul10: 0, soul50: 0, soul100: 0 }; // множители только на текущий забег
     this.levelFlash = 0; // с: сколько ещё показывать «Уровень N»
   }

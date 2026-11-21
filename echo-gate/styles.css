@@ -657,3 +657,52 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #forge.busy .fg-chips { opacity: 0; transform: translateY(-14px); pointer-events: none; }
 #forge.busy .fg-sheet { opacity: 0; pointer-events: none; }
 #forge .fg-broken { flex: 0 0 auto; height: 48px; padding: 0 14px; border: 1px solid #8a4a4a; border-radius: 14px; background: linear-gradient(#5a2630, #2e1218); color: #ffd4d4; font: 600 15px "Iowan Old Style", Georgia, serif; cursor: pointer; }
+
+/* Меню модификатора (после арканной рулетки) */
+#roulette .rl-cell.mod { flex-direction: column; gap: 4px; font-size: 13px; }
+#roulette .rl-cell.mod { --c: var(--m); }
+#roulette .rl-cell .mi { width: 38px; height: 38px; display: block; color: var(--m, #fff); filter: drop-shadow(0 0 6px var(--m, #fff)); }
+#roulette .rl-cell .mi svg { width: 100%; height: 100%; }
+#roulette .rl-cell .mn { font: 600 11px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.08em; text-transform: uppercase; }
+#modmenu { position: absolute; inset: 0; z-index: 60; display: none; flex-direction: column; align-items: center; opacity: 0; transition: opacity 0.35s ease; touch-action: none;
+  background: radial-gradient(ellipse at 50% 100%, rgba(80, 50, 160, 0.55), rgba(8, 5, 20, 0.97) 70%); --m: #fff; }
+#modmenu.on { opacity: 1; }
+#modmenu .mm-canvas, #modmenu .mm-streams, #modmenu .mm-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#modmenu .mm-field { pointer-events: none; }
+#modmenu .mm-card { position: relative; margin-top: max(18px, env(safe-area-inset-top)); width: min(86%, 360px); display: flex; gap: 14px; align-items: center; padding: 12px 16px; border-radius: 14px;
+  border: 2px solid var(--m); background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 60%), rgba(13, 10, 34, 0.92); box-shadow: 0 0 28px color-mix(in srgb, var(--m) 55%, transparent); color: #fff;
+  font-family: "Iowan Old Style", Georgia, serif; transition: opacity 0.4s, transform 0.4s; }
+#modmenu .mm-card.spent { opacity: 0.25; transform: scale(0.94); }
+#modmenu .mm-icon { flex: none; width: 52px; height: 52px; color: var(--m); filter: drop-shadow(0 0 8px var(--m)); }
+#modmenu .mm-icon svg { width: 100%; height: 100%; }
+#modmenu .mm-tag { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--m); }
+#modmenu .mm-name { font-size: 22px; font-weight: 700; margin: 2px 0 3px; text-shadow: 0 0 10px var(--m); }
+#modmenu .mm-desc { font-size: 14px; color: #d8cdf5; line-height: 1.25; }
+#modmenu .mm-hint { position: relative; margin-top: 10px; font: 13px/1 "Iowan Old Style", Georgia, serif; letter-spacing: 0.16em; text-transform: uppercase; color: #cdb8ff; animation: mmhint 1.6s ease-in-out infinite; transition: opacity 0.3s; }
+#modmenu .mm-hint.off { opacity: 0; animation: none; }
+@keyframes mmhint { 50% { opacity: 0.45; } }
+#modmenu .mm-skip { position: absolute; right: 16px; bottom: max(14px, env(safe-area-inset-bottom)); padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(205, 184, 255, 0.4); background: rgba(13, 10, 34, 0.7); color: #cdb8ff; font: 13px "Iowan Old Style", Georgia, serif; }
+#modmenu .mm-skip.off { opacity: 0; pointer-events: none; }
+#modmenu .mm-cell { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; padding: 0; border-radius: 50%; border: 2px solid rgba(190, 160, 255, 0.28); background: rgba(150, 110, 255, 0.07); color: var(--m, #fff);
+  pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.25s, border-color 0.25s, background 0.25s, box-shadow 0.25s; }
+#modmenu .mm-cell:not(.filled) { animation: mmcell 2.4s ease-in-out infinite; }
+#modmenu .mm-cell:active { transform: scale(0.94); }
+#modmenu .mm-cell .mi { width: 34px; height: 34px; display: block; }
+#modmenu .mm-cell .mi svg { width: 100%; height: 100%; }
+#modmenu .mm-cell.filled { border-color: var(--m); background: radial-gradient(circle, color-mix(in srgb, var(--m) 35%, transparent), rgba(13, 10, 34, 0.9) 75%); box-shadow: 0 0 20px color-mix(in srgb, var(--m) 60%, transparent); }
+#modmenu .mm-cell .mv { position: absolute; top: 100%; margin-top: 3px; white-space: nowrap; font: 11px "Iowan Old Style", Georgia, serif; color: #e8defc; letter-spacing: 0.04em; }
+#modmenu .mm-cell.grow { animation: mmgrow 0.9s ease-out both; }
+#modmenu .mm-cell.flash { animation: mmflash 0.6s ease-out; }
+@keyframes mmcell { 50% { border-color: rgba(190, 160, 255, 0.5); background: rgba(150, 110, 255, 0.14); } }
+@keyframes mmgrow { 0%, 45% { opacity: 0; transform: scale(0.4); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes mmflash { 0% { transform: scale(1.35); box-shadow: 0 0 40px var(--m); } 100% { transform: scale(1); } }
+#modmenu .mm-fly { position: absolute; width: 52px; height: 52px; margin: -26px 0 0 -26px; color: var(--m); filter: drop-shadow(0 0 10px var(--m)); transition: transform 0.6s cubic-bezier(0.5, 0, 0.3, 1); pointer-events: none; z-index: 3; }
+#modmenu .mm-fly svg { width: 100%; height: 100%; }
+#modmenu .mm-stream path { fill: none; stroke-linecap: round; }
+#modmenu .mm-stream .glow { stroke: rgba(150, 110, 255, 0.22); stroke-width: 9; }
+#modmenu .mm-stream .core { stroke: rgba(200, 170, 255, 0.5); stroke-width: 2; }
+#modmenu .mm-stream .flow { stroke: #fff; stroke-width: 2; stroke-dasharray: 0.08 0.22; animation: mmflow 1.4s linear infinite; opacity: 0.8; }
+#modmenu .mm-stream.grow path { stroke-dasharray: 1; animation: mmdraw 0.8s ease-out both; }
+#modmenu .mm-stream.grow .flow { stroke-dasharray: 0.08 0.22; animation: mmflow 1.4s linear infinite; }
+@keyframes mmflow { to { stroke-dashoffset: -0.3; } }
+@keyframes mmdraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }

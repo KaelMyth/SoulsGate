@@ -22,6 +22,8 @@ import { pickChoices, applyUpgrade } from './upgrades.js';
 import { Block } from './block.js';
 import { Frost } from './frost.js';
 import { Roulette } from './roulette.js';
+import { ModMenu } from './mod_ui.js';
+import { pickMod } from './mods.js';
 import { BlockView } from './block_view.js';
 import { Rock } from './rock.js';
 import { Midges } from './midges.js';
@@ -85,7 +87,12 @@ export class Game {
     this.attack.tiers = this.cfg;
     this.attack.getSharpen = () => this.equippedSharpen();
     this.attack.getElement = () => { const s = this.inventory.equipped.staff; return s ? s.element : null; };
-    this.attack.getStats = () => staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
+    this.attack.getMods = () => this.stats.mods.effects();
+    this.attack.getStats = () => { // посох с заточкой, затем модификаторы снаряда: урон и скорострельность
+      const s = staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
+      const m = this.stats.mods.effects();
+      return { ...s, damage: s.damage * m.damage, interval: s.interval / m.rate };
+    };
     this.loot.onCollect = (type, v) => {
       this.stats.collect(type, v);
       this.bus.emit('loot:collected', { type, value: v });
@@ -188,7 +195,10 @@ export class Game {
       onOpen: () => { this.rolling = true; this.stick.cancel(); },
       onClose: () => { this.rolling = false; },
       onResult: (v) => this.bus.emit('roulette:result', { value: v }),
+      pick: () => pickMod(Math.random, this.cfg.mods),
+      onPick: (id, done) => this.modMenu.show(id, done),
     });
+    if (o.ui.root) this.modMenu = new ModMenu(o.ui.root, this);
     this.pauseBtn = o.ui.pauseBtn;
     this.dashBtn = o.ui.dashBtn;
     if (this.dashBtn) this.dashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (this.playing && !this.paused && !this.choosing) this.dashFromInput(); });
@@ -236,6 +246,7 @@ export class Game {
     this.hideFloorUi();
     if (this.levelUp) this.levelUp.reset();
     if (this.roulette) this.roulette.reset();
+    if (this.modMenu) this.modMenu.reset();
     this.enemyShots.clear();
     this.telegraphs.update({ alive: [] });
     this.midges.clear();

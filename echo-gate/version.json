@@ -1,5 +1,5 @@
 {
-  "build": 80,
+  "build": 81,
   "commit": "071bbb8",
-  "notes": "Force staff tiers by sharpening (+1 spark, +5 bolt, +10 twin bolt); dev console in the hub corner with every staff."
+  "notes": "In-run staff modifiers from the arcane roulette: Might, Swiftness, Piercing, Epic x2, Legendary x3; five-cell modifier menu."
 }
