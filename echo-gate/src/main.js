@@ -32,6 +32,7 @@ const ui = {
   fps: document.getElementById('fps'),
   shopBtn: document.getElementById('shop-btn'),
   gearBtn: document.getElementById('gear-btn'),
+  skillBtn: document.getElementById('skill-btn'),
   soulHud: document.getElementById('souls-hud'),
   saveBtn: document.getElementById('save-btn'),
   anvilBtn: document.getElementById('anvil-btn'),

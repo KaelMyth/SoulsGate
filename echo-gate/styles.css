@@ -810,3 +810,17 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #roulette.dbl { animation: rlFlash 0.7s ease-out; }
 @keyframes rlPulse { from { transform: scale(1); } to { transform: scale(1.18); } }
 @keyframes rlFlash { 0% { box-shadow: inset 0 0 0 100vmax rgba(255, 214, 120, 0.55); } 100% { box-shadow: inset 0 0 0 100vmax rgba(255, 214, 120, 0); } }
+
+/* Умение фолианта: кнопка у правого края, перезарядка кольцом и числом секунд. */
+#skill-btn { position: absolute; z-index: 20; right: max(12px, env(safe-area-inset-right)); bottom: 30%; width: 60px; height: 60px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(160, 200, 255, 0.45); border-radius: 14px; color: rgba(225, 238, 255, 0.92); cursor: pointer; overflow: hidden;
+  background: linear-gradient(160deg, rgba(120, 170, 255, 0.22), rgba(8, 13, 26, 0.32)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 14px rgba(0, 0, 0, 0.25);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); transition: opacity 0.4s, transform 0.1s, border-color 0.15s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#skill-btn svg { width: 30px; height: 30px; fill: currentColor; filter: drop-shadow(0 0 6px rgba(140, 190, 255, 0.6)); }
+#skill-btn:active { transform: scale(0.94); border-color: #ffb14a; }
+#skill-btn::after { content: ""; position: absolute; inset: 0; background: conic-gradient(rgba(5, 9, 20, 0.72) calc(var(--cd, 0) * 360deg), transparent 0); pointer-events: none; }
+#skill-btn b { position: absolute; z-index: 1; font: 700 20px/1 var(--serif, Georgia, serif); color: #fff; text-shadow: 0 1px 4px #000; pointer-events: none; }
+#skill-btn.wait { border-color: rgba(160, 200, 255, 0.2); }
+#skill-btn.wait svg { opacity: 0.4; }
+#skill-btn.gone { opacity: 0; pointer-events: none; }
+body.staff-open #skill-btn { visibility: hidden; }

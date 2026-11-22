@@ -1,5 +1,5 @@
 {
-  "build": 115,
+  "build": 116,
   "commit": "x",
-  "notes": "Modifiers Epic and Legendary renamed to x2 and x3 (rarity stays)."
+  "notes": "Force Tome skill: nova of plain bolts in all directions, 15 s cooldown, uses staff mods."
 }
