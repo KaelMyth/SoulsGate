@@ -456,7 +456,8 @@ export class Attack {
     const dmg = this.cur().damage;
     const killed = this.strike(target, dmg, tx - this.tip.x, tz - this.tip.z);
     let seen = new Set([target]);
-    if (T.targets > 1) seen = this.chain(target, dmg, T.targets - 1, st, seen, E.falloff);
+    const pierce = Math.round((this.getMods ? this.getMods().pierce : 0) || 0); // Пробитие: дуга перескакивает на столько врагов больше
+    if (T.targets + pierce > 1) seen = this.chain(target, dmg, T.targets + pierce - 1, st, seen, E.falloff);
     if (killed || (E && applyShock(target, E) === 'chain')) {
       const f = Array.from({ length: E.chainJumps }, (_, j) => Math.pow(1 - E.chainFalloff, j + 1));
       this.chain(target, dmg, E.chainJumps, st, seen, f);
@@ -511,6 +512,7 @@ export class Attack {
     }
     const B = this.elec.ball;
     o.on = true; o.hits = 0; o.life = B.life; o.gap = 0.25; o.t = 0; o.tendril = 0;
+    o.maxHits = B.hits + Math.round((this.getMods ? this.getMods().pierce : 0) || 0); // Пробитие: шар бьёт на столько раз больше
     o.x = this.tip.x; o.y = 1.2; o.z = this.tip.z;
     const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz) || 1;
     o.dx = dx / d; o.dz = dz / d;
@@ -531,7 +533,7 @@ export class Attack {
     for (const o of this.balls) {
       if (!o.on) continue;
       o.t += dt; o.life -= dt; o.gap -= dt; o.tendril -= dt;
-      if (o.life <= 0 || o.hits >= B.hits) { this.endBall(o); continue; }
+      if (o.life <= 0 || o.hits >= (o.maxHits || B.hits)) { this.endBall(o); continue; }
       let t = null, bd = B.seekRange * B.seekRange;
       for (const e of this.spawner.alive) { const dx = e.state.x - o.x, dz = e.state.z - o.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; t = e; } }
       if (t) {
