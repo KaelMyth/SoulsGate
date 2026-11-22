@@ -1,5 +1,5 @@
 {
-  "build": 112,
+  "build": 113,
   "commit": "x",
-  "notes": "Roulette: Double card, the strip doubles and spins again with two rewards."
+  "notes": "Storm staff now works with all modifiers: Piercing adds chain targets and ball hits."
 }
