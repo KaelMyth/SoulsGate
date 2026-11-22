@@ -1,5 +1,5 @@
 {
-  "build": 112,
+  "build": 113,
   "commit": "x",
-  "notes": "Roulette: Double card, the strip doubles and spins again with two rewards."
+  "notes": "Tomes are sharpenable items; Force Tome has 3 looks (worn/fine/superb); sharpen gem cost is now constant."
 }

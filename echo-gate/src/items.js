@@ -56,8 +56,8 @@ export class Item {
 /** Стартовый фолиант игрока. */
 export function startingTome() {
   return new Item({
-    kind: 'tome', name: 'Worn Tome', rarity: 'common',
-    desc: 'A weathered leather tome. It keeps the spells you have learned.',
+    kind: 'tome', name: 'Force Tome', rarity: 'common',
+    desc: 'A plain tome of raw force. Sharpen it to bind the pages tighter and make its runes burn brighter.',
   });
 }
 

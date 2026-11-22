@@ -1,5 +1,6 @@
 // Иконки посохов для инвентаря: рисуем настоящие 3D-модели (staff_models.js) в маленький прозрачный кадр
 // и отдаём картинками (data URL). Один раз за запуск, отдельный крошечный WebGL-контекст сразу закрывается.
+import { buildTomeModel } from './tome_models.js';
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 
@@ -21,6 +22,7 @@ export function glowTexture() {
 /** Иконка предмета-посоха из набора makeStaffIcons: с учётом ступени заточки. */
 export function iconOf(icons, item) {
   if (!icons) return undefined;
+  if (item.kind === 'tome') { const t = (item.sharpen || 0) >= 10 ? 2 : (item.sharpen || 0) >= 5 ? 1 : 0; return icons[t ? `tome:${t}` : 'tome']; }
   const v = item.element || 'basic', t = (item.sharpen || 0) >= 10 ? 2 : (item.sharpen || 0) >= 5 ? 1 : 0;
   return icons[t ? `${v}:${t}` : v] || icons[v];
 }
@@ -60,6 +62,18 @@ export function makeStaffIcons(size = 192) {
         out[tier ? `${variant}:${tier}` : variant] = canvas.toDataURL('image/png');
         scene.remove(holder);
       }
+    }
+    for (let tier = 0; tier < 3; tier++) { // фолианты: анфас, чуть повёрнут
+      const model = buildTomeModel(tier, glowTex);
+      model.update(1.3, 0.5);
+      const holder = new THREE.Group();
+      holder.add(model.group);
+      holder.scale.setScalar(2.6);
+      holder.rotation.set(-0.15, -0.45, 0.1);
+      scene.add(holder);
+      renderer.render(scene, camera);
+      out[tier ? `tome:${tier}` : 'tome'] = canvas.toDataURL('image/png');
+      scene.remove(holder);
     }
   } catch (e) {
     return out; // без WebGL остаются обычные иконки

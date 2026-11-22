@@ -145,6 +145,7 @@ export class InventoryUi {
       c.style.setProperty('--rar', it ? it.rarityInfo.color : 'transparent');
       c.innerHTML = it ? `<span class="it">${this.iconOf(it)}</span>${it.sharpen ? `<b class="plus">+${it.sharpen}</b>` : ''}` : '';
     });
+    if (this.view) this.view.setTomeTier(inv.equipped.tome ? lookTier(inv.equipped.tome.sharpen || 0) : 0);
     for (const slot of ['tome', 'staff']) {
       const carrying = !!(this.drag && this.drag.src.type === 'equip' && this.drag.src.slot === slot);
       if (this.view) this.view.setVisible(slot, !!inv.equipped[slot] && !carrying);
@@ -155,10 +156,10 @@ export class InventoryUi {
 
   /** Иконка предмета: посохи рисуются по настоящим 3D-моделям (если получилось), иначе рисованные значки. */
   iconOf(item) {
-    if (item.kind === 'staff') {
+    if (item.kind === 'staff' || item.kind === 'tome') {
       const url = iconOf(this.icons, item);
       if (url) return `<img src="${url}" alt="" draggable="false">`;
-      return STAFF_ICONS[item.element] || STAFF_ICON;
+      if (item.kind === 'staff') return STAFF_ICONS[item.element] || STAFF_ICON;
     }
     return ICONS[item.kind] || '';
   }

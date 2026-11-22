@@ -14,7 +14,7 @@ test('шанс: 100% на первую, потом минус 10% до 10%', () 
   assert.equal(sharpenInfo(CONFIG, 10).maxed, true);
 });
 test('цена растёт с уровнем', () => {
-  assert.deepEqual([0, 1, 4, 9].map((l) => sharpenInfo(CONFIG, l).cost), [1, 2, 5, 10]);
+  assert.deepEqual([0, 1, 4, 9].map((l) => sharpenInfo(CONFIG, l).cost), [1, 1, 1, 1]);
 });
 test('прибавка и числа посоха', () => {
   assert.equal(bonusAt(CONFIG, 0), 0); assert.equal(bonusAt(CONFIG, 1), 5); assert.equal(bonusAt(CONFIG, 4), 8);
@@ -30,13 +30,13 @@ test('провал: посох в сломанных, камни списаны,
   const inv = mk(); const st = fireStaff(); inv.add(st); inv.equipFrom(inv.slots.indexOf(st));
   st.sharpen = 3;
   const r = attemptSharpen(CONFIG, inv, st, () => 0.99);
-  assert.equal(r.broken, true); assert.equal(inv.broken[0], st); assert.equal(inv.equipped.staff, null); assert.equal(inv.gemCount(), 16);
+  assert.equal(r.broken, true); assert.equal(inv.broken[0], st); assert.equal(inv.equipped.staff, null); assert.equal(inv.gemCount(), 19);
   assert.equal(st.sharpen, 3);
 });
 test('не хватает камней: ничего не меняется', () => {
-  const inv = mk(1); const st = fireStaff(); st.sharpen = 2; inv.add(st);
+  const inv = mk(0); const st = fireStaff(); st.sharpen = 2; inv.add(st);
   const r = attemptSharpen(CONFIG, inv, st, () => 0);
-  assert.equal(r.reason, 'gems'); assert.equal(st.sharpen, 2); assert.equal(inv.gemCount(), 1);
+  assert.equal(r.reason, 'gems'); assert.equal(st.sharpen, 2); assert.equal(inv.gemCount(), 0);
 });
 test('выкуп за души и за рекламу', () => {
   const inv = mk(0); const st = fireStaff(); inv.add(st); inv.breakItem(st);
@@ -65,4 +65,12 @@ test('заточка реально меняет числа посоха (уро
   const s10 = staffStats(CONFIG, up, 10);
   assert.ok(s10.damage > s1.damage && s10.interval < s1.interval && s10.might > base.might);
   assert.deepEqual(staffStats(CONFIG, up, 0), base);
+});
+
+test('фолиант точится так же, цена камней постоянная', async () => {
+  const { startingTome } = await import('../echo-gate/src/items.js');
+  const inv = mk(); const tome = startingTome(); inv.add(tome);
+  for (let i = 0; i < 3; i++) assert.equal(attemptSharpen(CONFIG, inv, tome, () => 0).ok, true);
+  assert.equal(tome.sharpen, 3); assert.equal(inv.gemCount(), 17); // по одному камню за попытку
+  assert.equal(tome.name, 'Force Tome');
 });

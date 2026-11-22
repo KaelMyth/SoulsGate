@@ -1,6 +1,7 @@
 // Маг Echo Gate: стилизованная 3D-фигурка по образцу (синяя мантия, огромная кривая шляпа, тёмное лицо
 // с бирюзовыми глазами, шарф, пояс, чёрные перчатки, коричневые сапоги). Собран из примитивов Three.js, без внешних файлов.
 // Модель смотрит в +z. Графика готова к замене: всё, что снаружи нужно игре, это Hero.group и Hero.update().
+import { buildTomeModel } from './tome_models.js';
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 
@@ -361,47 +362,27 @@ export class Hero {
     this.staffGlow = this.staffModel.glow;
   }
 
-  /** Фолиант в руке -x: тёмная обложка с золотыми уголками, светящаяся руна, блок страниц. Парит над ладонью. */
+  /** Фолиант в руке -x: вид по ступени заточки (tome_models.js). Парит над ладонью, лицом вперёд-наружу. */
   buildTome(glowTex) {
-    const cover = new THREE.MeshStandardMaterial({ color: 0x3a2a3d, roughness: 0.8 });
-    const pages = new THREE.MeshStandardMaterial({ color: 0xe9e2cf, roughness: 0.95 });
-    const gold = new THREE.MeshStandardMaterial({ color: 0xc9a25a, roughness: 0.45, metalness: 0.5 });
+    this.glowTex = glowTex;
     const tome = new THREE.Group();
-    const W = 0.27;
-    const H = 0.36;
-    const T = 0.085;
-    tome.add(new THREE.Mesh(new THREE.BoxGeometry(W, H, T), cover));
-    const block = new THREE.Mesh(new THREE.BoxGeometry(W - 0.03, H - 0.03, T - 0.03), pages);
-    block.position.set(0.012, 0, 0);
-    tome.add(block);
-    // Корешок и уголки.
-    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.035, H + 0.01, T + 0.012), cover);
-    spine.position.x = -W / 2;
-    tome.add(spine);
-    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
-      const c = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, T + 0.014), gold);
-      c.position.set(sx * (W / 2 - 0.02), sy * (H / 2 - 0.02), 0);
-      tome.add(c);
-    }
-    // Руна на лицевой стороне (+z).
-    const rune = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.17, 0.17),
-      new THREE.MeshBasicMaterial({ map: makeRuneTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
-    rune.position.z = T / 2 + 0.004;
-    tome.add(rune);
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowTex, color: COLORS.eye, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false,
-    }));
-    glow.scale.set(0.5, 0.5, 1);
-    glow.position.z = T / 2 + 0.02;
-    tome.add(glow);
-    this.runeGlow = glow;
+    this.tome = tome;
+    this.tomeTier = -1;
+    this.setTome(0);
     // Над ладонью (рука -x), лицом вперёд-наружу.
     tome.position.set(-0.2, -0.3, 0.1);
     tome.scale.setScalar(1.35);
     this.arms[0].add(tome);
-    this.tome = tome;
+  }
+
+  /** Сменить вид фолианта по ступени заточки 0..2. */
+  setTome(tier) {
+    if (tier === this.tomeTier) return;
+    this.tomeTier = tier;
+    if (this.tomeModel) this.tome.remove(this.tomeModel.group);
+    this.tomeModel = buildTomeModel(tier, this.glowTex);
+    this.tome.add(this.tomeModel.group);
+    this.runeGlow = this.tomeModel.group.children.find((c) => c.isSprite) || { material: { opacity: 0 } };
   }
 
   /** Добавить фигуру и тень в сцену. */
@@ -514,7 +495,7 @@ export class Hero {
     const pulse = 0.5 + 0.5 * Math.sin(this.t * 3 + (frac + dashK) * 2);
     this.crystal.material.emissiveIntensity = 1.0 + pulse * 0.6 + frac * 0.3 + dashK * 0.6 + castK * 2.2;
     this.staffGlow.material.opacity = Math.min(1, 0.55 + pulse * 0.25 + dashK * 0.2 + castK * 0.35);
-    this.runeGlow.material.opacity = 0.25 + pulse * 0.2 + dashK * 0.25;
+    if (this.tomeModel) this.tomeModel.update(performance.now() / 1000, 0.5 + pulse * 0.5 + dashK);
     this.crystal.rotation.y += dt * (1.2 + frac * 2);
     this.staffModel.update(this.t, Math.min(1, frac + dashK));
 
