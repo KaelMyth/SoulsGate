@@ -9,7 +9,7 @@ const mk = () => new ModLoadout(CONFIG.mods);
 test('старт: две пустые корневые ячейки (две ветки), эффекты нейтральны', () => {
   const m = mk();
   assert.equal(m.cells.length, 2);
-  assert.deepEqual(m.effects(), { damage: 1, rate: 1, pierce: 0, shots: 1 });
+  assert.deepEqual(m.effects(), { damage: 1, rate: 1, pierce: 0, shots: 1, crit: 0, critMul: CONFIG.mods.critMul, range: 1, vamp: 0, vampHeal: CONFIG.mods.vampHeal });
 });
 test('обычные модификаторы: Мощь +20% урона, Прыткость +20% скорости, Пробитие 1', () => {
   const m = mk(); m.equip(0, 'might'); m.equip(1, 'swift'); m.equip(m.cells.findIndex((c) => c.parent === 0), 'pierce');
@@ -80,4 +80,16 @@ test('remove: убирает мод и всё, что выросло от нег
   assert.ok(m.cells.filter((x) => x.parent === p).length === 2, 'вторая ветка цела');
   assert.equal(m.remove(0), false, 'пустую ячейку не убрать');
   assert.equal(m.equip(0, 'might').length, 2, 'после удаления ячейка снова растёт');
+});
+
+test('Крит, Дальность, Вампиризм: числа и усиление Epic', () => {
+  const m = new ModLoadout(CONFIG.mods);
+  assert.equal(m.effects().crit, 0); assert.equal(m.effects().range, 1); assert.equal(m.effects().vamp, 0);
+  m.equip(0, 'crit'); m.equip(1, 'reach');
+  const e = m.effects();
+  assert.ok(Math.abs(e.crit - CONFIG.mods.crit) < 1e-9 && Math.abs(e.range - (1 + CONFIG.mods.reach)) < 1e-9);
+  const child = m.cells.findIndex((c) => c.parent === 1); m.equip(child, 'epic');
+  assert.ok(Math.abs(m.effects().range - (1 + CONFIG.mods.reach * 2)) < 1e-9);
+  const v = new ModLoadout(CONFIG.mods); v.equip(0, 'vamp');
+  assert.ok(Math.abs(v.effects().vamp - CONFIG.mods.vamp) < 1e-9);
 });

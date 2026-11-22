@@ -95,7 +95,7 @@ export class Game {
     this.attack.getStats = () => { // посох с заточкой, затем модификаторы снаряда: урон и скорострельность
       const s = staffStats(this.cfg, this.stats.upgrades, this.equippedSharpen());
       const m = this.stats.mods.effects();
-      return { ...s, damage: s.damage * m.damage, interval: s.interval / m.rate };
+      return { ...s, damage: s.damage * m.damage, interval: s.interval / m.rate, range: s.range * m.range };
     };
     this.loot.onCollect = (type, v, drop) => {
       this.stats.collect(type, v);
@@ -112,6 +112,11 @@ export class Game {
     }
     this.attack.onKill = (e) => {
       if (this.playing) this.creditKill(e); // на тестовом поле ни душ, ни добычи
+      const vm = this.playing ? this.stats.mods.effects() : null;
+      if (vm && vm.vamp > 0 && Math.random() < vm.vamp && this.stats.hp > 0) { // Вампиризм: убитый враг лечит мага
+        this.stats.heal(this.stats.maxHp * vm.vampHeal);
+        this.attack.shock(this.motion.x, this.motion.z, 2.2, 0.45, 0x66ff88);
+      }
       this.bus.emit('enemy:killed', e);
       if (this.spawner.floorMode && e === this.spawner.boss) this.completeFloor();
     };

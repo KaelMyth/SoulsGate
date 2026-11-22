@@ -99,6 +99,9 @@ function valueText(mod, root, boost, cfg) {
   if (isMult(mod)) return root ? `×${multOf(cfg, mod) * boost} shots` : `×${multOf(cfg, mod) * boost} boost`;
   if (mod === 'might') return `+${Math.round(cfg.damage * boost * 100)}% dmg`;
   if (mod === 'swift') return `+${Math.round(cfg.rate * boost * 100)}% rate`;
+  if (mod === 'crit') return `${Math.round(cfg.crit * boost * 100)}% crit`;
+  if (mod === 'reach') return `+${Math.round(cfg.reach * boost * 100)}% range`;
+  if (mod === 'vamp') return `${Math.round(cfg.vamp * boost * 100)}% heal`;
   return `${cfg.pierce * boost} target${cfg.pierce * boost > 1 ? 's' : ''}`;
 }
 
