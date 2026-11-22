@@ -391,7 +391,10 @@ export class Attack {
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
     b.el = this.getElement ? this.getElement() : null; // стихия надетого посоха задаёт вид снаряда и эффект попадания
     const ice = b.el === 'ice', fire = b.el === 'fire', grav = b.el === 'gravity', P = pal(b.el);
-    b.pierce = this.getMods ? this.getMods().pierce : 0; // сколько целей шарик пробьёт насквозь (модификатор Пробитие)
+    const mods = this.getMods ? this.getMods() : null;
+    b.pierce = mods ? mods.pierce : 0; // сколько целей шарик пробьёт насквозь (модификатор Пробитие)
+    b.seek = mods ? mods.seek || 0 : 0; b.seekR = mods ? mods.seekRange : 0; b.lock = null; // Самонаведение: только у настоящих снарядов (лазер, молния, чёрная дыра, клинки сюда не доходят)
+    b.splitLeft = mods ? mods.split || 0 : 0; b.splitAt = mods ? mods.splitDist : 0; // Раздвоение: сколько делений осталось и на каком пути следующее
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = grav; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
     b.fast = !!(grav && this.gravCfg && this.gravCfg.aura && this.tierIndex() >= 1); // +5: снаряд без задержки, почти мгновенно
@@ -759,7 +762,7 @@ export class Attack {
     b.life = I.spikeRange / c.speed + 0.1;
     b.trailT = 0; b.launch = 0.12;
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; t.s.material.map = this.ball; t.s.material.needsUpdate = true; }
-    b.el = 'ice'; b.pierce = 0;
+    b.el = 'ice'; b.pierce = 0; b.seek = 0; b.splitLeft = 0; // осколки глыбы не наводятся и не делятся
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = false; b.fast = false; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
     b.fireTier = 0;
@@ -894,6 +897,71 @@ export class Attack {
     const mid = this.midges && this.midges.hitTest(b.x, b.z, c.hitRadius);
     if (mid) { this.midges.kill(mid, 'shot'); this.burst(mid.x, 0.7, mid.z, c.hitSize * 0.7, 0.25, b.el); this.impact(mid.x, 0.7, mid.z, b.vx, b.vz, false, null, b.el); this.deactivate(b); return true; }
     return false;
+  }
+
+  /** Врагов впереди снаряда в радиусе наведения, от ближнего к дальнему. */
+  seekList(b) {
+    const R2 = b.seekR * b.seekR, cand = [];
+    for (const e of this.spawner.alive) {
+      if (b.hitSet && b.hitSet.has(e)) continue; // уже пробитого не ищем
+      const dx = e.state.x - b.x, dz = e.state.z - b.z, d2 = dx * dx + dz * dz;
+      if (d2 > R2 || dx * b.vx + dz * b.vz <= 0) continue; // только впереди: назад снаряд не разворачивается
+      cand.push([d2, e]);
+    }
+    return cand.sort((p, q) => p[0] - q[0]).map((c) => c[1]);
+  }
+
+  /** Самонаведение: снаряд доворачивает к выбранному врагу, не быстрее b.seek рад/с, скорость не меняется. Цель
+   * запоминается (b.lock), пока жива и впереди; при раздвоении половинки получают разных врагов. */
+  steer(b, dt) {
+    let e = b.lock;
+    const ok = e && this.spawner.alive.includes(e) && !(b.hitSet && b.hitSet.has(e)) && (e.state.x - b.x) * b.vx + (e.state.z - b.z) * b.vz > 0;
+    if (!ok) { e = this.seekList(b)[0] || null; b.lock = e; }
+    if (!e) return;
+    const sp = Math.hypot(b.vx, b.vy, b.vz) || 1;
+    const cx = b.vx / sp, cy = b.vy / sp, cz = b.vz / sp;
+    let tx = e.state.x - b.x, ty = 0.5 - b.y, tz = e.state.z - b.z;
+    const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+    const ang = Math.acos(Math.max(-1, Math.min(1, cx * tx + cy * ty + cz * tz)));
+    const k = ang <= 1e-4 ? 0 : Math.min(1, (b.seek * dt) / ang);
+    const nx = cx + (tx - cx) * k, ny = cy + (ty - cy) * k, nz = cz + (tz - cz) * k;
+    const nl = Math.hypot(nx, ny, nz) || 1;
+    b.vx = (nx / nl) * sp; b.vy = (ny / nl) * sp; b.vz = (nz / nl) * sp;
+  }
+
+  /** Раздвоение: снаряд делится на два поменьше и послабее, они расходятся веером. Дальше делятся ещё, пока остались деления. */
+  splitBolt(b) {
+    const M = this.getMods ? this.getMods() : null;
+    const ang = M ? M.splitAngle : 0.3, sz = M ? M.splitSize : 0.7, dm = M ? M.splitDamage : 0.6;
+    const kids = [];
+    const near = b.seek > 0 ? this.seekList(b) : []; // половинки наводятся на разных врагов: одна на ближнего, вторая на следующего
+    const first = b.lock && near.includes(b.lock) ? b.lock : near[0];
+    const second = near.find((e) => e !== first);
+    for (const sign of [-1, 1]) {
+      const d = this.bolts.find((q) => !q.active && q !== b) || this.makeBolt();
+      for (const k of ['el', 'grav', 'age', 'travelled', 'pullT', 'released', 'fast', 'fromSpike', 'iceTier', 'fireTier', 'tier', 'look', 'sz', 'trailN', 'dmgMul', 'life', 'seek', 'seekR', 'pierce'])
+        d[k] = b[k];
+      d.active = true;
+      d.x = b.x; d.y = b.y; d.z = b.z;
+      const ca = Math.cos(sign * ang), sa = Math.sin(sign * ang);
+      d.vx = b.vx * ca - b.vz * sa; d.vz = b.vx * sa + b.vz * ca; d.vy = b.vy;
+      d.splitLeft = b.splitLeft - 1; d.splitAt = b.travelled + (M ? M.splitDist : 2.2);
+      d.lock = null;
+      d.sz = b.sz * sz; d.dmgMul = b.dmgMul * dm;
+      d.hitSet = new Set(b.hitSet || []);
+      d.trailT = 0; d.launch = 0.12; d.snowT = 0;
+      for (const t of d.trail) { t.x = d.x; t.y = d.y; t.z = d.z; t.s.material.map = b.trail[0].s.material.map; t.s.material.needsUpdate = true; }
+      d.halo.material.color.copy(b.halo.material.color); d.halo.visible = true;
+      d.core.material.map = b.core.material.map; d.core.material.color.copy(b.core.material.color); d.core.material.needsUpdate = true;
+      d.core.visible = b.core.visible; d.spike.visible = b.spike.visible; d.flame.visible = b.flame.visible; d.lens.visible = false;
+      if (d.flame.visible) d.flame.userData.setTier(d.fireTier);
+      if (d.spike.visible) d.spike.userData.setTier(d.iceTier);
+      d.lock = sign < 0 ? first || null : second || first || null;
+      kids.push(d);
+    }
+    this.burst(b.x, b.y, b.z, this.cfg.muzzleSize * (b.sz || 1) * 0.8, 0.14, b.el);
+    this.deactivate(b);
+    return kids;
   }
 
   /** Промах: тихо гаснет. */
@@ -1118,6 +1186,7 @@ export class Attack {
         if (b.fast) f = this.gravCfg.aura.fastMul;
         else { f = this.gravFactor(b.age); this.gravFx(b, dt); }
       }
+      if (b.seek > 0) this.steer(b, dt);
       const sp = Math.hypot(b.vx, b.vy, b.vz);
       const total = sp * dt * f;
       const subs = Math.max(1, Math.ceil(total / 0.25)); // быстрый рывок проверяем мелкими шагами, чтобы не пролететь сквозь врага
@@ -1129,6 +1198,7 @@ export class Attack {
         ended = this.advance(b, c);
       }
       if (ended) continue;
+      if (b.splitLeft > 0 && b.travelled >= b.splitAt) { this.splitBolt(b); continue; }
       if (b.grav && b.travelled >= this.cur().range) { this.missFx(b); continue; }
       if (b.life <= 0 || b.y < 0.05) { this.missFx(b); continue; }
       // Хвост: каждые 1/60 с сдвигаем след.
@@ -1142,6 +1212,7 @@ export class Attack {
       const pulse = (1 + Math.sin(b.life * 40) * 0.12) * (1 + 1.3 * (b.launch / 0.12));
       if (b.el === 'ice') { // шип: сам кристалл, холодное свечение и снежный след вместо синих точек
         b.spike.position.set(b.x, b.y, b.z);
+        b.spike.quaternion.setFromUnitVectors(Y_AXIS, this.dir.set(b.vx, b.vy, b.vz).normalize()); // шип смотрит туда, куда летит
         if (b.iceTier === 2 && !b.fromSpike) b.spike.userData.tick(performance.now() / 1000);
         b.spike.scale.setScalar(c.size * 1.5 * (b.sz || 1) * (1 + 0.6 * (b.launch / 0.12)));
         b.halo.position.set(b.x, b.y, b.z);

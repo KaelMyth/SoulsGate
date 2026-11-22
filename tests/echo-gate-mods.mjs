@@ -9,7 +9,9 @@ const mk = () => new ModLoadout(CONFIG.mods);
 test('старт: две пустые корневые ячейки (две ветки), эффекты нейтральны', () => {
   const m = mk();
   assert.equal(m.cells.length, 2);
-  assert.deepEqual(m.effects(), { damage: 1, rate: 1, pierce: 0, shots: 1, crit: 0, critMul: CONFIG.mods.critMul, range: 1, vamp: 0, vampHeal: CONFIG.mods.vampHeal });
+  const e0 = m.effects();
+  assert.deepEqual({ damage: e0.damage, rate: e0.rate, pierce: e0.pierce, shots: e0.shots, crit: e0.crit, critMul: e0.critMul, range: e0.range, vamp: e0.vamp, vampHeal: e0.vampHeal, seek: e0.seek, split: e0.split },
+    { damage: 1, rate: 1, pierce: 0, shots: 1, crit: 0, critMul: CONFIG.mods.critMul, range: 1, vamp: 0, vampHeal: CONFIG.mods.vampHeal, seek: 0, split: 0 });
 });
 test('обычные модификаторы: Мощь +20% урона, Прыткость +20% скорости, Пробитие 1', () => {
   const m = mk(); m.equip(0, 'might'); m.equip(1, 'swift'); m.equip(m.cells.findIndex((c) => c.parent === 0), 'pierce');
@@ -63,7 +65,8 @@ test('рулетка: веса соблюдаются', () => {
   const n = {}; for (const id of MOD_IDS) n[id] = 0;
   for (let i = 0; i < 20000; i++) n[pickMod(rnd, CONFIG.mods)]++;
   assert.ok(n.might > n.pierce && n.pierce > n.epic && n.epic > n.legendary);
-  assert.ok(Math.abs(n.legendary / 20000 - 0.08) < 0.01);
+  const total = MOD_IDS.reduce((a, id) => a + CONFIG.mods.weights[id], 0);
+  assert.ok(Math.abs(n.legendary / 20000 - CONFIG.mods.weights.legendary / total) < 0.01);
 });
 
 test('remove: убирает мод и всё, что выросло от него; индексы остаются согласованными', () => {
@@ -92,4 +95,13 @@ test('Крит, Дальность, Вампиризм: числа и усиле
   assert.ok(Math.abs(m.effects().range - (1 + CONFIG.mods.reach * 2)) < 1e-9);
   const v = new ModLoadout(CONFIG.mods); v.equip(0, 'vamp');
   assert.ok(Math.abs(v.effects().vamp - CONFIG.mods.vamp) < 1e-9);
+});
+
+test('Самонаведение и Раздвоение: числа, усиление Эпическим, потолок делений', () => {
+  const m = mk(); m.equip(0, 'seek'); m.equip(1, 'split');
+  let e = m.effects();
+  assert.equal(e.seek, CONFIG.mods.seek); assert.equal(e.split, CONFIG.mods.split);
+  m.equip(m.cells.findIndex((c) => c.parent === 1), 'epic'); // Эпический под Раздвоением: два деления
+  e = m.effects();
+  assert.equal(e.split, Math.min(CONFIG.mods.splitMax, CONFIG.mods.split * CONFIG.mods.epic));
 });

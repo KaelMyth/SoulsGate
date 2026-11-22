@@ -102,6 +102,8 @@ function valueText(mod, root, boost, cfg) {
   if (mod === 'crit') return `${Math.round(cfg.crit * boost * 100)}% crit`;
   if (mod === 'reach') return `+${Math.round(cfg.reach * boost * 100)}% range`;
   if (mod === 'vamp') return `${Math.round(cfg.vamp * boost * 100)}% heal`;
+  if (mod === 'seek') return `${Math.round(cfg.seek * boost)} turn`;
+  if (mod === 'split') return `split ×${Math.min(cfg.splitMax, Math.round(cfg.split * boost))}`;
   return `${cfg.pierce * boost} target${cfg.pierce * boost > 1 ? 's' : ''}`;
 }
 
