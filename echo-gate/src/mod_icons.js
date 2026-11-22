@@ -16,6 +16,8 @@ export const MOD_ICON = {
   seek: '<svg viewBox="0 0 32 32"><path d="M3 27C4 14 12 7 22 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M20 2l8 6-8 6z" fill="currentColor"/><circle cx="26" cy="22" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
   // Раздвоение: одна линия делится на две
   split: '<svg viewBox="0 0 32 32"><path d="M4 16h9M13 16L26 7M13 16l13 9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="27" cy="7" r="3" fill="currentColor"/><circle cx="27" cy="25" r="3" fill="currentColor"/></svg>',
+  // Удвоение рулетки: две ленты со стрелкой-вращением
+  double: '<svg viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2.500"/><rect x="3" y="18" width="26" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2.500"/><path d="M16 6v8M16 18v8" stroke="currentColor" stroke-width="2.500"/></svg>',
   // Эпический: фиолетовый ромб с ×2
   epic: '<svg viewBox="0 0 32 32"><path d="M16 1l13 15-13 15L3 16z" fill="currentColor" opacity=".25"/><path d="M16 1l13 15-13 15L3 16z" fill="none" stroke="currentColor" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="13" fill="currentColor">×2</text></svg>',
   // Легендарный: золотая звезда с ×3

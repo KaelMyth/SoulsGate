@@ -227,7 +227,7 @@ export class Game {
       onOpen: () => { this.rolling = true; this.stick.cancel(); },
       onClose: () => { this.rolling = false; },
       onResult: (v) => this.bus.emit('roulette:result', { value: v }),
-      pick: () => pickMod(Math.random, this.cfg.mods),
+      pick: (o) => (!(o && o.noDouble) && Math.random() < this.cfg.mods.doubleChance ? 'double' : pickMod(Math.random, this.cfg.mods)), // Double только в первой ленте
       onPick: (id, done) => this.modMenu.show(id, done),
     });
     if (o.ui.root) this.modMenu = new ModMenu(o.ui.root, this);
