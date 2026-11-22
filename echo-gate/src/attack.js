@@ -5,7 +5,7 @@
 // Числа в CONFIG.attack. Попадание отнимает hp у жука, убитый жук исчезает (Spawner.kill).
 import * as THREE from 'three';
 import { Particles } from './particles.js';
-import { applyIce, applyFire, burnTick, applyShock, gravityFactor } from './status.js';
+import { applyIce, applyFire, burnTick, applyShock, gravityFactor, auraSlow, holePull } from './status.js';
 import { Lightning } from './lightning.js';
 import { Laser } from './laser.js';
 import { Blades } from './blades.js';
@@ -202,6 +202,9 @@ export class Attack {
     this.onKill = null; // (жук) => void, вызывается при убийстве
     this.tip = new THREE.Vector3();
     this.dir = new THREE.Vector3();
+    this.holes = []; // чёрные дыры гравитационного посоха +10 (пул)
+    this.aura = null; // гравитационное искажение вокруг героя (+5)
+    this.auraT = 0; this.auraOn = false;
     this.blades = null; // Blades: создаётся, когда game передаст CONFIG.blades (attack.setBlades)
   }
 
@@ -377,6 +380,7 @@ export class Attack {
     if (opts.spread) { const ca = Math.cos(opts.spread), sa = Math.sin(opts.spread), dx = this.dir.x, dz = this.dir.z; this.dir.x = dx * ca - dz * sa; this.dir.z = dx * sa + dz * ca; }
     if (this.getElement && this.getElement() === 'laser') { this.fireLaser(target); return; } // лазерный посох: мгновенный пробивающий луч
     if (this.getElement && this.getElement() === 'electric') { this.zap(target); return; } // электрический посох: мгновенная дуга вместо снаряда
+    if (this.getElement && this.getElement() === 'gravity' && this.gravCfg && this.gravCfg.hole && this.tierIndex() >= 2) { this.fireHole(target); return; } // +10: чёрная дыра вместо снаряда
     const b = this.bolts.find((e) => !e.active) || this.makeBolt();
     b.active = true;
     b.x = this.tip.x; b.y = this.tip.y; b.z = this.tip.z;
@@ -390,6 +394,8 @@ export class Attack {
     b.pierce = this.getMods ? this.getMods().pierce : 0; // сколько целей шарик пробьёт насквозь (модификатор Пробитие)
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
     b.grav = grav; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
+    b.fast = !!(grav && this.gravCfg && this.gravCfg.aura && this.tierIndex() >= 1); // +5: снаряд без задержки, почти мгновенно
+    if (b.fast) b.released = true;
     b.fromSpike = false;
     b.iceTier = ice && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень ледяного посоха по заточке
     b.fireTier = fire && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень огненного посоха: от неё зависят взрыв и живое пламя
@@ -400,7 +406,7 @@ export class Attack {
     b.sz = tier ? tier.size : look ? look.size : 1;
     b.trailN = tier ? tier.trail : TRAIL;
     b.dmgMul = (grav && this.gravCfg ? 1 + this.gravCfg.damageBonus : 1) * (tier ? tier.damage : 1);
-    if (grav && this.gravCfg) b.life = this.gravCfg.rampTime + this.cur().range / c.speed / 1 + 1.5; // хватит на задержку и полёт
+    if (grav && this.gravCfg) b.life = b.fast ? this.cur().range / c.speed + 0.6 : this.gravCfg.rampTime + this.cur().range / c.speed / 1 + 1.5; // хватит на задержку и полёт
     b.halo.material.color.setHex(ice ? ICE : fire ? 0xff7a1a : grav ? 0x8c93a3 : tier ? tier.halo : BLUE);
     if (look && look.halo) b.halo.material.color.setHex(look.halo);
     b.halo.visible = true;
@@ -743,7 +749,7 @@ export class Attack {
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; t.s.material.map = this.ball; t.s.material.needsUpdate = true; }
     b.el = 'ice'; b.pierce = 0;
     if (b.hitSet) b.hitSet.clear(); else b.hitSet = new Set();
-    b.grav = false; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
+    b.grav = false; b.fast = false; b.age = 0; b.travelled = 0; b.pullT = 0; b.released = false;
     b.fireTier = 0;
     b.fromSpike = true; b.iceTier = 2; b.tier = 0; b.sz = 1; b.look = null; b.trailN = TRAIL;
     b.dmgMul = I.spikeDamage;
@@ -886,6 +892,138 @@ export class Attack {
     this.deactivate(b);
   }
 
+
+  /** Плоское светящееся кольцо на земле (для искажения и чёрных дыр). */
+  makeDisc(color, op) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: this.ring, color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.renderOrder = 3; m.visible = false;
+    this.scene.add(m);
+    return m;
+  }
+
+  /** +10: чёрная дыра летит к врагу и остаётся тянуть всех рядом. */
+  fireHole(target) {
+    const H = this.gravCfg.hole;
+    this.hero.cast(Math.atan2(target.state.x - this.hero.group.position.x, target.state.z - this.hero.group.position.z));
+    let h = this.holes.find((q) => !q.on);
+    if (!h) {
+      if (this.holes.length >= H.max) h = this.holes.reduce((a, q) => (q.t > a.t ? q : a)); // самую старую заменяем новой
+      else {
+        h = { on: false, t: 0 };
+        h.disc = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: 0x000000, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false }));
+        h.disc.renderOrder = 6; h.disc.visible = false;
+        h.halo = sprite(this.glow, 0x6a5cff, 0.6);
+        h.rim = sprite(this.ring, 0xb9a8ff, 0.9);
+        h.flat = this.makeDisc(0x7a5cff, 0.8);
+        h.flat2 = this.makeDisc(0xc9bcff, 0.5);
+        this.scene.add(h.disc, h.halo, h.rim);
+        this.holes.push(h);
+      }
+    }
+    const dx = target.state.x - this.tip.x, dz = target.state.z - this.tip.z, d = Math.hypot(dx, dz) || 1;
+    h.on = true; h.t = 0; h.x = this.tip.x; h.z = this.tip.z; h.dx = dx / d; h.dz = dz / d;
+    h.stop = Math.min(this.cur().range, d + H.reach); // до какой дальности летит, потом стоит
+    h.run = 0; h.tickT = 0; h.fxT = 0;
+    this.burst(this.tip.x, this.tip.y, this.tip.z, this.cfg.muzzleSize * 1.4, 0.2, 'gravity');
+    this.shock(this.tip.x, this.tip.z, 1.8, 0.3, 0x8a7cff);
+  }
+
+  /** Убить врага чёрной дырой (награда и эффекты как при обычной смерти). */
+  killByHole(e) {
+    this.burst(e.state.x, 0.35, e.state.z, this.cfg.hitSize * 1.9, 0.45, 'gravity');
+    this.spawner.kill(e);
+    if (this.onKill) this.onKill(e);
+    this.deathBurst(e, 0);
+  }
+
+  /** Искажение вокруг героя (+5 и выше) и чёрные дыры (+10): замедление, притяжение, урон, вид. */
+  updateGravity(dt, hx, hz, el) {
+    const G = this.gravCfg;
+    const tier = G && el === 'gravity' ? this.tierIndex() : -1;
+    const auraNow = tier >= 1 && G.aura;
+    if (auraNow || this.auraOn) {
+      for (const e of this.spawner.alive) e.auraMul = auraNow ? auraSlow(G.aura, Math.hypot(e.state.x - hx, e.state.z - hz)) : 1;
+      this.auraOn = !!auraNow;
+    }
+    if (auraNow) this.auraFx(dt, hx, hz, G.aura);
+    else if (this.aura) this.aura.a.visible = this.aura.b.visible = false;
+    for (const h of this.holes) if (h.on) this.updateHole(h, dt, hx, hz);
+  }
+
+  auraFx(dt, hx, hz, A) {
+    if (!this.aura) this.aura = { a: this.makeDisc(0x8c93ff, 0.45), b: this.makeDisc(0xdfe3ff, 0.3) };
+    this.auraT += dt;
+    const R = A.radius * 2, p = 0.5 + 0.5 * Math.sin(this.auraT * 2.2);
+    for (const [m, k, off, op] of [[this.aura.a, 1, 0, 0.3 + 0.2 * p], [this.aura.b, 0.72 + 0.28 * ((this.auraT * 0.5) % 1), 0, 0.28 * (1 - (this.auraT * 0.5) % 1)]]) {
+      m.visible = true; m.position.set(hx, 0.05, hz); m.scale.setScalar(R * k * (1 + 0.02 * off)); m.material.opacity = op;
+    }
+    this.aura.a.rotation.y = this.auraT * 0.35;
+    this.auraPT = (this.auraPT || 0) + dt;
+    while (this.auraPT >= 0.05) { // частицы закручиваются вокруг героя внутрь
+      this.auraPT -= 0.05;
+      const a = rr(0, 6.283), r = A.radius * rr(0.55, 1), sp = 2.2;
+      this.parts.emit({ x: hx + Math.cos(a) * r, y: rr(0.1, 0.9), z: hz + Math.sin(a) * r,
+        vx: -Math.cos(a) * sp * 0.6 - Math.sin(a) * sp, vy: 0, vz: -Math.sin(a) * sp * 0.6 + Math.cos(a) * sp,
+        life: r / (sp * 0.8), size0: rr(0.1, 0.2), size1: 0.02, c0: 0xdfe3ff, c1: 0x4a3fb0, drag: 0.2, grav: 0, alpha: 0.7 });
+    }
+  }
+
+  updateHole(h, dt, hx, hz) {
+    const H = this.gravCfg.hole;
+    h.t += dt;
+    if (h.t >= H.life) {
+      h.on = false; h.disc.visible = h.halo.visible = h.rim.visible = h.flat.visible = h.flat2.visible = false;
+      this.shock(h.x, h.z, H.radius * 2.2, 0.4, 0x8a7cff);
+      this.burst(h.x, 0.5, h.z, this.cfg.hitSize * 2, 0.35, 'gravity');
+      return;
+    }
+    if (h.run < h.stop) { const st = Math.min(H.speed * dt, h.stop - h.run); h.run += st; h.x += h.dx * st; h.z += h.dz * st; }
+    const grow = Math.min(1, h.t / 0.3), fade = Math.min(1, (H.life - h.t) / 0.5), k = grow * fade;
+    // тянем врагов; боссов не двигаем, но бьём сильно
+    h.tickT += dt;
+    const doTick = h.tickT >= H.tick;
+    if (doTick) h.tickT -= H.tick;
+    const boss = this.spawner.boss, dmg = this.cur().damage;
+    for (const e of [...this.spawner.alive]) {
+      const dx = e.state.x - h.x, dz = e.state.z - h.z, d = Math.hypot(dx, dz);
+      if (d >= H.radius) continue;
+      const isBoss = e === boss;
+      if (!isBoss) {
+        const m = holePull(H, e.x, e.z, h.x, h.z, dt);
+        e.x += m.dx; e.z += m.dz; e.state.x = e.x; e.state.z = e.z;
+      }
+      if (!doTick) continue;
+      const hurt = isBoss ? H.bossTickDmg : d < H.coreRadius + e.radius ? H.tickDmg : 0;
+      if (hurt <= 0) continue;
+      e.hp -= dmg * hurt;
+      e.flash = 0.1;
+      if (e.hp <= 0) this.killByHole(e);
+    }
+    // вид: чёрное ядро, фиолетовый ореол, кольцо-аккреция, частицы стягиваются
+    const y = 0.5, S = H.coreRadius * 2.2 * k;
+    h.disc.visible = h.halo.visible = h.rim.visible = h.flat.visible = h.flat2.visible = true;
+    h.disc.position.set(h.x, y, h.z); h.disc.scale.setScalar(S);
+    h.halo.position.set(h.x, y, h.z); h.halo.scale.setScalar(S * 2.6 * (1 + 0.06 * Math.sin(h.t * 14)));
+    h.rim.position.set(h.x, y, h.z); h.rim.scale.setScalar(S * (1.5 + 0.12 * Math.sin(h.t * 9))); h.rim.material.opacity = 0.9 * k;
+    h.flat.position.set(h.x, 0.05, h.z); h.flat.scale.setScalar(H.radius * 2 * k); h.flat.rotation.y = h.t * 1.4; h.flat.material.opacity = 0.55 * k;
+    h.flat2.position.set(h.x, 0.06, h.z); h.flat2.scale.setScalar(H.radius * 2 * k * (0.5 + 0.5 * ((h.t * 0.8) % 1))); h.flat2.material.opacity = 0.5 * k * (1 - (h.t * 0.8) % 1);
+    h.fxT += dt;
+    while (h.fxT >= 0.03) {
+      h.fxT -= 0.03;
+      const a = rr(0, 6.283), r = H.radius * rr(0.5, 1), sp = r / 0.5;
+      this.parts.emit({ x: h.x + Math.cos(a) * r, y: rr(0.1, 0.9), z: h.z + Math.sin(a) * r,
+        vx: -Math.cos(a) * sp - Math.sin(a) * sp * 0.6, vy: 0, vz: -Math.sin(a) * sp + Math.cos(a) * sp * 0.6,
+        life: 0.5, size0: rr(0.1, 0.22), size1: 0.02, c0: 0xcbbfff, c1: 0x201040, drag: 0, grav: 0, alpha: 0.85 });
+    }
+  }
+
+  hideGravity() {
+    for (const h of this.holes) { h.on = false; h.disc.visible = h.halo.visible = h.rim.visible = h.flat.visible = h.flat2.visible = false; }
+    if (this.aura) this.aura.a.visible = this.aura.b.visible = false;
+    if (this.auraOn) { for (const e of this.spawner.alive) e.auraMul = 1; this.auraOn = false; }
+  }
+
   /** Множитель скорости гравитационного снаряда по времени полёта (кривая SoulsGate: почти стоит, затем взрывной разгон). */
   gravFactor(age) { return gravityFactor(this.gravCfg, age); }
 
@@ -952,16 +1090,22 @@ export class Attack {
           }
         }
         this.cool = this.cur().interval;
+        if (el === 'gravity' && this.gravCfg && this.gravCfg.hole && this.tierIndex() >= 2) this.cool *= this.gravCfg.hole.interval / this.cfg.interval; // +10: реже, но чёрными дырами
         if (this.laserGap) { this.cool = Math.max(this.cool, this.laserGap); this.laserGap = 0; } // лазер держит луч, следующая атака после паузы
       }
       else this.cool = 0.1; // нет цели: проверяем чаще, чтобы выстрел вышел сразу, как жук появится
     }
+    this.updateGravity(dt, hx, hz, el);
     for (const b of this.bolts) {
       if (!b.active) continue;
       b.life -= dt;
       // Гравитационный снаряд (как в SoulsGate): сначала с трудом отрывается от героя, потом резкий рывок; стоп на предельной дальности.
       let f = 1;
-      if (b.grav && this.gravCfg) { b.age += dt; f = this.gravFactor(b.age); this.gravFx(b, dt); }
+      if (b.grav && this.gravCfg) {
+        b.age += dt;
+        if (b.fast) f = this.gravCfg.aura.fastMul;
+        else { f = this.gravFactor(b.age); this.gravFx(b, dt); }
+      }
       const sp = Math.hypot(b.vx, b.vy, b.vz);
       const total = sp * dt * f;
       const subs = Math.max(1, Math.ceil(total / 0.25)); // быстрый рывок проверяем мелкими шагами, чтобы не пролететь сквозь врага
@@ -1060,6 +1204,7 @@ export class Attack {
   }
 
   hideFlames() {
+    this.hideGravity();
     this.beam.on = false; this.laser.clear();
     for (const o of this.orbs) { o.on = false; o.core.visible = o.halo.visible = false; }
     this.hideBalls();

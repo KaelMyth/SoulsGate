@@ -12,7 +12,7 @@ export function staffStats(cfg, up, sharpen = 0) {
   const damage = (A.damage + S.power.perStone * up.power) * k;
   const interval = Math.max(S.speed.min, A.interval * Math.pow(S.speed.mult, up.speed) / k);
   const range = (A.range + S.range.perStone * up.range) * k;
-  // Мощь посоха: урон в секунду, умноженный на относительную дальность; 20 у посоха без усилений.
+  // Мощь посоха: урон в секунду, умноженный на относительную дальность; 13 у посоха без усилений.
   const might = Math.round((damage / interval) * (range / A.range) * 10);
   return { damage, interval, range, might };
 }
