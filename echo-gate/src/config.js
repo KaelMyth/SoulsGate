@@ -295,7 +295,7 @@ export const CONFIG = {
     tiers: [
       { dur: 0.6, ramp: 0, width: 1 },
       { dur: 0.8, ramp: 0.6, width: 1.5, pierceDead: true },
-      { dur: 1.4, ramp: 0, width: 1.7, sweep: 65, pierceAll: true }, // sweep: градусов, на которые луч поворачивается за атаку
+      { dur: 1.4, ramp: 0, width: 1.7, pierceDead: true, pierceAll: true }, // +10: луч держится на первом враге, прошивает его насквозь и идёт до конца карты (без поворота в сторону)
     ],
   },
 
