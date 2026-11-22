@@ -312,6 +312,15 @@ export const CONFIG = {
     orbitRadius: 1.7, orbitSpeed: 2.8, height: 1.0, follow: 12, // орбита вокруг героя
     lungeSpeed: 26, returnSpeed: 20, overshoot: 1.6, reach: 0.85, summonTime: 0.5,
     color: 0xdff4ff, edgeColor: 0x6a9ae8, glowColor: 0x8fc8ff,
+    daggerLen: 0.5,    // длина лезвия кинжала относительно меча
+    // Ступени по заточке (+0..4, +5..9, +10). ring: клинков за спиной; portalMul: пауза между вылетами из порталов (к перезарядке посоха);
+    // pierce: сколько врагов пронзает меч; giantEvery/giantMul/giantRadius: двуручник с неба (с, урон к урону посоха, м).
+    tiers: [
+      { dagger: true },
+      { ring: 4, portalMul: 0.55, pierce: [2, 3], swordMul: 1.3 },
+      { ring: 8, big: true, portalMul: 0.28, pierce: [2, 3], swordMul: 1.3, giantEvery: 4, giantMul: 5, giantRadius: 3.2 },
+    ],
+    swordSpeed: 24, portalDist: 1.7, portalLife: 0.5, portalSize: 1.8, ringRadius: 1.05, ringSpeed: 1.6,
   },
 
   // Модификаторы снаряда (рулетка): ячейки на посохе, веса выпадения и числа эффектов.
