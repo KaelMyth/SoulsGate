@@ -6,7 +6,7 @@ export function sharpenInfo(cfg, level) {
   const S = cfg.sharpen;
   if (level >= S.maxLevel) return { maxed: true, level, next: level, chance: 0, cost: 0, bonusNow: bonusAt(cfg, level), bonusNext: bonusAt(cfg, level) };
   const chance = Math.max(S.minChance, S.firstChance - S.chanceStep * level);
-  return { maxed: false, level, next: level + 1, chance, cost: level + 1, bonusNow: bonusAt(cfg, level), bonusNext: bonusAt(cfg, level + 1) };
+  return { maxed: false, level, next: level + 1, chance, cost: S.cost, bonusNow: bonusAt(cfg, level), bonusNext: bonusAt(cfg, level + 1) };
 }
 
 /** Прибавка к характеристикам (в процентах) у предмета с заточкой level. */
@@ -31,7 +31,7 @@ export function repairCost(cfg, item) {
  * Возвращает { ok: bool, broken: bool, reason?: string, level }.
  */
 export function attemptSharpen(cfg, inv, item, rng = Math.random) {
-  if (!item || item.kind !== 'staff') return { ok: false, broken: false, reason: 'notStaff', level: 0 };
+  if (!item || (item.kind !== 'staff' && item.kind !== 'tome')) return { ok: false, broken: false, reason: 'notStaff', level: 0 };
   const info = sharpenInfo(cfg, item.sharpen);
   if (info.maxed) return { ok: false, broken: false, reason: 'maxed', level: item.sharpen };
   if (!inv.takeGems(info.cost)) return { ok: false, broken: false, reason: 'gems', level: item.sharpen };

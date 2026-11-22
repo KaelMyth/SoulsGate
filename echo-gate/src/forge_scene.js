@@ -1,6 +1,7 @@
 // 3D-сцена окна заточки: тёмный зал с колоннами, каменный алтарь с рунами, настоящая модель посоха над ним,
 // рунные круги, луч света, пылинки. Эффекты: зарядка (камни слетаются в посох), вспышка успеха, поломка осколками.
 // Снаружи: ForgeScene(canvas), setStaff(variant), charge(), win(), lose(), resize(w, h), update(dt) + render().
+import { buildTomeModel } from './tome_models.js';
 import * as THREE from 'three';
 import { buildStaffModel } from './staff_models.js';
 import { glowTexture } from './staff_icons.js';
@@ -162,7 +163,13 @@ export class ForgeScene {
     this.variant = variant;
     this.tier = tier;
     if (this.staff) this.staffAnchor.remove(this.staff.group);
-    const m = buildStaffModel(variant, this.glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }), tier);
+    let m;
+    if (variant === 'tome') { // книга парит над постаментом; обёртка нужна, потому что update() сам ставит масштаб и вращение группы
+      const inner = buildTomeModel(tier, this.glowTex);
+      inner.group.scale.setScalar(3.2); inner.group.position.y = 1.1;
+      const wrap = new THREE.Group(); wrap.add(inner.group);
+      m = { group: wrap, update: inner.update };
+    } else m = buildStaffModel(variant, this.glowTex, new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.9 }), tier);
     this.staff = m;
     this.staffAnchor.add(m.group);
     m.group.visible = true;

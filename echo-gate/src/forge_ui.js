@@ -3,6 +3,7 @@
 import { makeStaffIcons, iconOf } from './staff_icons.js';
 import { ForgeScene } from './forge_scene.js';
 import { lookTier } from './staff_tiers.js';
+import { TOME_TIER_NAMES } from './tome_models.js';
 import { sharpenInfo, attemptSharpen, sharpenedStats } from './sharpen.js';
 import { GEM_ICON, SOUL_ICON } from './inventory_ui.js';
 
@@ -76,7 +77,8 @@ export class ForgeUi {
   staffs() {
     const list = [];
     if (this.inv.equipped.staff) list.push(this.inv.equipped.staff);
-    for (const s of this.inv.slots) if (s && s.kind === 'staff') list.push(s);
+    if (this.inv.equipped.tome) list.push(this.inv.equipped.tome);
+    for (const s of this.inv.slots) if (s && (s.kind === 'staff' || s.kind === 'tome')) list.push(s);
     return list;
   }
 
@@ -139,8 +141,8 @@ export class ForgeUi {
       this.chips.append(b);
     }
     const it = this.sel;
-    if (!it) { this.name.textContent = 'No staff'; this.rows.innerHTML = ''; this.go.disabled = true; return; }
-    if (this.scene) { if (this.scene.broken) this.scene.restore(); this.scene.setStaff(it.element || 'basic', lookTier(it.sharpen || 0)); }
+    if (!it) { this.name.textContent = 'Nothing to sharpen'; this.rows.innerHTML = ''; this.go.disabled = true; return; }
+    if (this.scene) { if (this.scene.broken) this.scene.restore(); this.scene.setStaff(it.kind === 'tome' ? 'tome' : it.element || 'basic', lookTier(it.sharpen || 0)); }
     this.name.textContent = it.label;
     this.name.style.setProperty('--rar', it.rarityInfo.color);
     const info = sharpenInfo(this.cfg, it.sharpen);
@@ -150,9 +152,11 @@ export class ForgeUi {
     this.chance.textContent = info.maxed ? '—' : `${Math.round(info.chance * 100)}%`;
     this.chanceBox.style.setProperty('--c', info.chance > 0.65 ? '#6fe08a' : info.chance > 0.35 ? '#ffc65a' : '#ff6a5a');
     const row = (label, a, b) => `<div class="r"><span>${label}</span><em>${a}</em><i>→</i><strong>${info.maxed ? a : b}</strong></div>`;
-    this.rows.innerHTML = row('Damage', cur.damage.toFixed(2), nxt.damage.toFixed(2))
-      + row('Attack speed', cur.rate.toFixed(2) + '/s', nxt.rate.toFixed(2) + '/s')
-      + row('Range', cur.range.toFixed(1) + ' m', nxt.range.toFixed(1) + ' m');
+    this.rows.innerHTML = it.kind === 'tome'
+      ? row('Level', `+${it.sharpen}`, `+${info.next}`) + row('Quality', TOME_TIER_NAMES[lookTier(it.sharpen)], TOME_TIER_NAMES[lookTier(info.next)])
+      : row('Damage', cur.damage.toFixed(2), nxt.damage.toFixed(2))
+        + row('Attack speed', cur.rate.toFixed(2) + '/s', nxt.rate.toFixed(2) + '/s')
+        + row('Range', cur.range.toFixed(1) + ' m', nxt.range.toFixed(1) + ' m');
     this.filled = !info.maxed && have >= info.cost; // камни вложены сами, если их хватает
     this.socket.classList.toggle('filled', this.filled);
     this.socket.innerHTML = info.maxed ? '' : `<span class="ico gem">${GEM_ICON}</span><b>${this.filled ? `×${info.cost}` : `${have}/${info.cost}`}</b>`;
@@ -174,7 +178,7 @@ export class ForgeUi {
       this.socket.classList.remove('firing');
       if (this.scene) { if (r.ok) this.scene.win(); else this.scene.lose(); }
       if (r.ok) { this.say(`${it.name} +${r.level}`); this.name.textContent = it.label; }
-      else if (r.broken) this.say('The staff broke! Find it in the Broken tab');
+      else if (r.broken) this.say('It broke! Find it in the Broken tab');
       else this.say('Not enough gems');
       setTimeout(() => {
         this.busy = false;

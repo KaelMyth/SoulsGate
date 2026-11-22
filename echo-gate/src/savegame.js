@@ -32,7 +32,7 @@ function unpackItem(raw) {
     throw new Error('Invalid item in save');
   }
   return new Item({
-    id: raw.id, kind: raw.kind, name: raw.name, rarity: raw.rarity,
+    id: raw.id, kind: raw.kind, name: raw.kind === 'tome' && raw.name === 'Worn Tome' ? 'Force Tome' : raw.name, rarity: raw.rarity,
     level: raw.level, sharpen: raw.sharpen, durability: raw.durability,
     desc: raw.desc, element: raw.element,
   });

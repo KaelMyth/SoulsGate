@@ -507,6 +507,7 @@ export class Game {
     const eq = this.inventory.equipped;
     this.hero.staff.visible = !!eq.staff;
     this.hero.tome.visible = !!eq.tome;
+    this.hero.setTome(eq.tome ? lookTier(eq.tome.sharpen || 0) : 0); // вид фолианта по заточке
     this.hero.setStaff(eq.staff ? eq.staff.element : null, eq.staff ? lookTier(eq.staff.sharpen || 0) : 0); // у стихийного посоха свой вид
   }
 

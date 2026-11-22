@@ -39,10 +39,11 @@ function glowTexture() {
 }
 
 /** Открытый фолиант: обложка, две страницы углом «V», светящиеся руны. Центр в корешке. */
-function openTome(glowTex) {
+function openTome(glowTex, tier = 1) {
   const g = new THREE.Group();
-  const cover = new THREE.MeshStandardMaterial({ color: 0x3a2a3d, roughness: 0.8, flatShading: true });
-  const gold = new THREE.MeshStandardMaterial({ color: 0xc9a25a, roughness: 0.45, metalness: 0.5, flatShading: true });
+  // Вид по ступени заточки: 0 потрёпанный (коричневая кожа, без золота), 1 добротный, 2 роскошный (тёмная обложка, яркое золото, кружащие руны).
+  const cover = new THREE.MeshStandardMaterial({ color: [0x4b3829, 0x3a2a3d, 0x171442][tier], roughness: tier ? 0.7 : 0.95, flatShading: true });
+  const gold = new THREE.MeshStandardMaterial({ color: [0x6b5238, 0xc9a25a, 0xffd36b][tier], roughness: tier ? 0.4 : 0.95, metalness: tier ? 0.6 : 0, flatShading: true });
   const PW = 0.62, PH = 0.82;
   for (const s of [-1, 1]) {
     const half = new THREE.Group();
@@ -51,14 +52,14 @@ function openTome(glowTex) {
     const back = new THREE.Mesh(new THREE.BoxGeometry(PW + 0.06, PH + 0.06, 0.05), cover);
     back.position.set(s * (PW / 2 + 0.02), 0, -0.05);
     half.add(back);
-    const block = new THREE.Mesh(new THREE.BoxGeometry(PW, PH, 0.07), new THREE.MeshStandardMaterial({ color: 0xe6dcc4, roughness: 0.95 }));
+    const block = new THREE.Mesh(new THREE.BoxGeometry(PW, PH, 0.07), new THREE.MeshStandardMaterial({ color: [0xbfb08e, 0xe6dcc4, 0xf4ecd6][tier], roughness: 0.95 }));
     block.position.set(s * (PW / 2 + 0.02), 0, 0);
     half.add(block);
     const face = new THREE.Mesh(new THREE.PlaneGeometry(PW - 0.04, PH - 0.04), new THREE.MeshBasicMaterial({ map: pageTexture(s < 0) }));
     face.position.set(s * (PW / 2 + 0.02), 0, 0.037);
     half.add(face);
     for (const sy of [-1, 1]) { // золотые уголки по внешним краям
-      const k = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), gold);
+      const k = new THREE.Mesh(new THREE.BoxGeometry(0.08 + 0.04 * tier, 0.08 + 0.04 * tier, 0.08), gold);
       k.position.set(s * (PW + 0.02), sy * (PH / 2 + 0.01), -0.04);
       half.add(k);
     }
@@ -67,11 +68,26 @@ function openTome(glowTex) {
   const spine = new THREE.Mesh(new THREE.BoxGeometry(0.06, PH + 0.08, 0.1), cover);
   spine.position.z = -0.05;
   g.add(spine);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+  if (tier === 2) { // роскошный: камень на корешке
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), new THREE.MeshStandardMaterial({ color: 0x9ff6ff, emissive: 0x4fe8ff, emissiveIntensity: 1.3, flatShading: true }));
+    gem.scale.set(1, 1.5, 1); gem.position.set(0, 0, 0.02);
+    g.add(gem);
+  }
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: [0.2, 0.55, 0.8][tier], blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(2.2, 2.2, 1);
   glow.position.z = 0.15;
   g.add(glow);
   g.userData.glow = glow;
+  g.userData.base = [0.2, 0.45, 0.65][tier];
+  g.userData.orbit = [];
+  if (tier === 2) { // кружащие руны и золотая рамка на корешке
+    for (let i = 0; i < 6; i++) {
+      const o = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xaef8ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+      o.scale.set(0.3, 0.3, 1);
+      g.add(o);
+      g.userData.orbit.push(o);
+    }
+  }
   return g;
 }
 
@@ -95,7 +111,9 @@ export class InventoryView {
     this.motion = { x: 0, z: 0, vx: 0, vz: 0, speed: 0, dashing: false, glideT: 0 };
 
     const glowTex = glowTexture();
-    this.tome = openTome(glowTex);
+    this.glowTex = glowTex;
+    this.tomeTier = 1;
+    this.tome = openTome(glowTex, 1);
     sc.add(this.tome);
     // Мишени для нажатий: меши фолианта и посоха (у посоха ещё невидимая толстая «гильза», тонкое древко иначе не поймать).
     const proxy = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 2.1, 6), new THREE.MeshBasicMaterial({ visible: false }));
@@ -134,6 +152,20 @@ export class InventoryView {
     if (this.hero.staffModel !== before) this.collectStaffHits();
   }
 
+  /** Вид фолианта по ступени заточки 0..2 (пересобирается при смене). */
+  setTomeTier(tier) {
+    if (tier === this.tomeTier) return;
+    this.tomeTier = tier;
+    const vis = this.tome.visible;
+    this.scene.remove(this.tome);
+    this.tome = openTome(this.glowTex, tier);
+    this.tome.visible = vis;
+    this.scene.add(this.tome);
+    this.hits.tome.length = 0;
+    this.tome.traverse((o) => { if (o.isMesh) this.hits.tome.push(o); });
+    this.parts.tome = this.tome;
+  }
+
   /** Показать или спрятать предмет витрины ('tome' или 'staff'): спрятан, когда снят или его тащат. */
   setVisible(slot, on) {
     this.parts[slot].visible = on;
@@ -167,7 +199,8 @@ export class InventoryView {
     this.tome.position.set(-1.25, 1.5 + 0.06 * br, 0.55);
     this.tome.scale.setScalar(1.1);
     this.tome.rotation.set(-0.42 + 0.03 * Math.sin(t * 1.1), 0.5 + 0.08 * Math.sin(t * 0.7), 0.04 * Math.sin(t * 0.9));
-    this.tome.userData.glow.material.opacity = 0.45 + 0.15 * Math.sin(t * 2.4);
+    this.tome.userData.glow.material.opacity = this.tome.userData.base + 0.15 * Math.sin(t * 2.4);
+    this.tome.userData.orbit.forEach((o, i) => { const a = t * 1.1 + (i / 6) * Math.PI * 2; o.position.set(Math.cos(a) * 0.95, Math.sin(a * 1.4) * 0.5, Math.sin(a) * 0.4 + 0.2); });
     this.tomeLight.position.set(-1.25, 1.85, 1.3);
     for (const m of this.motes) {
       const u = m.userData;
