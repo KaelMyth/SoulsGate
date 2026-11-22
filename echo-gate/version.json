@@ -1,5 +1,5 @@
 {
-  "build": 116,
+  "build": 117,
   "commit": "x",
-  "notes": "Force Tome skill: nova of plain bolts in all directions, 15 s cooldown, uses staff mods."
+  "notes": "Crit now works on gravity staff black hole ticks."
 }

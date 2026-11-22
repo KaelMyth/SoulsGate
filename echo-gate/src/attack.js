@@ -1100,7 +1100,7 @@ export class Attack {
       if (!doTick) continue;
       const hurt = isBoss ? H.bossTickDmg : d < H.coreRadius + e.radius ? H.tickDmg : 0;
       if (hurt <= 0) continue;
-      e.hp -= dmg * hurt;
+      e.hp -= dmg * hurt * this.critRoll(e, true); // Крит: тик дыры иногда бьёт сильнее (без вспышки)
       e.flash = 0.1;
       if (e.hp <= 0) this.killByHole(e);
     }
