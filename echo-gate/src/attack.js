@@ -463,6 +463,7 @@ export class Attack {
   /** Удар током по врагу: урон, лёгкое откидывание, искры. true, если враг убит (тогда он исчезает, награда как обычно). */
   strike(e, dmg, dx, dz, el = 'electric') {
     const x = e.state.x, z = e.state.z;
+    dmg *= this.critRoll(e);
     e.hp -= dmg;
     this.spawner.knock(e, dx, dz);
     const kill = e.hp <= 0;
@@ -640,7 +641,7 @@ export class Attack {
 
   /** Один тик лазера по врагу: урон без откидывания; смерть как у обычного удара. Если цель погибла, а это основная, луч «прошивает» (см. updateBeam). */
   laserTick(e, dmg, dx, dz) {
-    e.hp -= dmg;
+    e.hp -= dmg * this.critRoll(e, true);
     if (e.hp > 0) return;
     const x = e.state.x, z = e.state.z;
     this.burst(x, 0.45, z, this.cfg.hitSize * 1.8, 0.45, 'laser');
@@ -676,10 +677,21 @@ export class Attack {
     return best;
   }
 
+  /** Модификатор Крит: множитель урона этого удара (1 или critMul) и жёлтая вспышка на враге. */
+  critRoll(e, silent = false) {
+    const m = this.getMods ? this.getMods() : null;
+    if (!m || !(m.crit > 0) || Math.random() >= m.crit) return 1;
+    if (!silent) {
+      this.burst(e.state.x, 0.6, e.state.z, this.cfg.hitSize * 1.4, 0.3);
+      this.shock(e.state.x, e.state.z, 1.6, 0.3, 0xffe14a);
+    }
+    return m.critMul;
+  }
+
   /** Попадание: урон, вспышка, убитый жук исчезает. */
   hit(b, e) {
     const c = this.cfg;
-    e.hp -= this.cur().damage * (b.dmgMul || 1);
+    e.hp -= this.cur().damage * (b.dmgMul || 1) * this.critRoll(e);
     this.spawner.knock(e, b.vx, b.vz); // откидывание по ходу шарика
     const kill = e.hp <= 0;
     const ice = b.el === 'ice', fire = b.el === 'fire';
