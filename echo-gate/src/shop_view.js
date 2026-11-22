@@ -47,8 +47,8 @@ export class ShopView {
     const rim = new THREE.DirectionalLight(0x8fb4ff, 0.6); rim.position.set(-4, 3, -3); sc.add(rim);
 
     this.dog = new Husky();
-    this.dog.group.position.set(0, 0.42, 0.1);   // выше и ближе: видны голова, жилет и лапы на прилавке
-    this.dog.group.scale.setScalar(1.15);
+    this.dog.group.position.set(0, 0, -0.05);
+    this.dog.group.scale.setScalar(1.12);
     sc.add(this.dog.group);
 
     this.sway = [];
@@ -175,7 +175,7 @@ export class ShopView {
       pan.userData.s = s;
     }
     // Банки с разноцветными светящимися шариками.
-    [[-0.95, 0xff8a5a], [-0.68, 0x7be0ff]].forEach(([x, c], k) => {
+    [[-0.55, 0xff8a5a], [-0.2, 0x7be0ff]].forEach(([x, c], k) => {
       const jar = new THREE.Group(); jar.position.set(x, top, 0.05); g.add(jar);
       cyl(0.15, 0.15, 0.3, new THREE.MeshStandardMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.28, roughness: 0.1 }), 0, 0.15, 0, jar, 12);
       for (let i = 0; i < 6; i++) {

@@ -56,140 +56,94 @@ function signTexture(text) {
 export class Husky {
   constructor() {
     this.group = new THREE.Group();
-    const fur = mat(C.fur), furD = mat(0x56637a), white = mat(C.white), pinkM = mat(C.pink, 0.6);
-    const ico = (r, d, m, sx, sy, sz, x, y, z, parent) => {
-      const e = new THREE.Mesh(new THREE.IcosahedronGeometry(r, d), m);
-      e.scale.set(sx, sy, sz); e.position.set(x, y, z); parent.add(e); return e;
-    };
-    // Туловище: плотное, с белой грудью, красным жилетом с золотыми пуговицами и шарфом.
-    this.body = new THREE.Group();
-    this.group.add(this.body);
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.54, 0.95, 8), fur);
+    const fur = mat(C.fur), furD = mat(C.furDark), white = mat(C.white);
+    // Туловище и фартук.
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 0.95, 7), fur);
     torso.position.y = 0.5;
-    this.body.add(torso);
-    ico(0.3, 1, white, 1.05, 1.25, 0.65, 0, 0.62, 0.3, this.body); // белая грудь
-    const vest = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.55, 0.62, 8, 1, false, -1.05, 2.1 + 0.28), mat(C.apron));
-    vest.position.set(0, 0.36, 0.03);
-    this.body.add(vest);
-    for (let i = 0; i < 3; i++) { // пуговицы
-      const bt = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 8), mat(C.gold, 0.35, { metalness: 0.5 }));
-      bt.rotation.x = Math.PI / 2;
-      bt.position.set(0, 0.62 - i * 0.17, 0.54 - i * 0.015);
-      this.body.add(bt);
-    }
-    // Загривок: пышный белый воротник из острых клочков.
-    for (let i = 0; i < 11; i++) {
-      const a = (i / 11) * Math.PI * 2;
-      const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 4), i % 2 ? white : fur);
-      tuft.position.set(Math.sin(a) * 0.4, 0.96, Math.cos(a) * 0.4);
-      tuft.rotation.set(Math.cos(a) * 1.1, 0, -Math.sin(a) * 1.1);
-      this.body.add(tuft);
-    }
-    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.07, 6, 14), mat(0xd4473b));
-    scarf.rotation.x = Math.PI / 2 - 0.2;
-    scarf.position.set(0, 0.97, 0.06);
-    this.body.add(scarf);
-    const tail1 = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.4, 5), mat(0xd4473b)); // конец шарфа
-    tail1.position.set(0.2, 0.74, 0.4); tail1.rotation.set(Math.PI, 0, 0.25);
-    this.body.add(tail1);
-    // Хвост: пушистый, закручен на спину, виляет.
-    this.tail = new THREE.Group();
-    this.tail.position.set(0, 0.28, -0.5);
-    for (let i = 0; i < 4; i++) {
-      const seg = new THREE.Mesh(new THREE.IcosahedronGeometry(0.14 - i * 0.012, 0), i === 3 ? white : fur);
-      seg.scale.set(1, 1, 1.3);
-      seg.position.set(0, 0.12 * i + 0.04 * i * i, -0.1 * i);
-      this.tail.add(seg);
-    }
-    this.body.add(this.tail);
-
-    // Голова: крупнее и дружелюбнее, тёмная шапочка, белая морда с «бровными точками».
+    this.group.add(torso);
+    const apron = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.53, 0.6, 7, 1, false, -1.0, 2.0 + 0.28), mat(C.apron));
+    apron.position.set(0, 0.4, 0.03);
+    this.group.add(apron);
+    // Голова.
     this.head = new THREE.Group();
-    this.head.position.y = 1.36;
+    this.head.position.y = 1.32;
     this.group.add(this.head);
-    ico(0.42, 1, furD, 1.12, 0.96, 1.0, 0, 0.02, 0, this.head);             // тёмная шапочка
-    ico(0.34, 1, white, 1.0, 0.7, 0.8, 0, -0.14, 0.2, this.head);            // белые щёки
+    const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 1), fur);
+    skull.scale.set(1.08, 0.95, 0.98);
+    this.head.add(skull);
+    const mask = new THREE.Mesh(new THREE.IcosahedronGeometry(0.31, 1), white); // белая нижняя часть морды
+    mask.scale.set(1.0, 0.82, 0.8);
+    mask.position.set(0, -0.1, 0.22);
+    this.head.add(mask);
+    const muzzle = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 1), white);
+    muzzle.scale.set(1.0, 0.8, 1.15);
+    muzzle.position.set(0, -0.12, 0.45);
+    this.head.add(muzzle);
+    const nose = new THREE.Mesh(new THREE.IcosahedronGeometry(0.075, 0), mat(C.nose, 0.4));
+    nose.scale.set(1.2, 0.8, 1);
+    nose.position.set(0, -0.04, 0.63);
+    this.head.add(nose);
+    // Тёмная «бровная» метка над глазами.
     for (const sx of [-1, 1]) {
-      ico(0.17, 0, white, 0.7, 1.6, 0.7, sx * 0.1, 0.18, 0.34, this.head).rotation.z = -sx * 0.12; // белая проточина-лучи на лбу
-      ico(0.13, 0, furD, 1.25, 0.85, 0.7, sx * 0.2, 0.06, 0.34, this.head); // тёмная «маска» вокруг глаз
-      ico(0.03, 0, white, 1, 1, 1, sx * 0.17, 0.2, 0.43, this.head);         // светлая бровная точка
+      const brow = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 0), furD);
+      brow.scale.set(1.2, 0.7, 0.7);
+      brow.position.set(sx * 0.16, 0.18, 0.32);
+      this.head.add(brow);
     }
-    ico(0.075, 0, white, 0.55, 2.2, 0.55, 0, 0.12, 0.42, this.head);         // проточина по лбу
-    // Морда: вытянутый конус, белая, на конце чёрный нос.
-    const muz = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.46, 6), white);
-    muz.rotation.x = -Math.PI / 2;
-    muz.position.set(0, -0.1, 0.47);
-    muz.scale.set(1, 1, 0.78);
-    this.head.add(muz);
-    ico(0.075, 1, mat(C.nose, 0.3), 1.25, 0.85, 1, 0, -0.03, 0.72, this.head);   // нос
-    const jaw = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.36, 6), white);     // нижняя челюсть, чуть приоткрыта
-    jaw.rotation.x = -Math.PI / 2 + 0.16;
-    jaw.position.set(0, -0.23, 0.42);
-    jaw.scale.set(1, 1, 0.55);
-    this.head.add(jaw);
-    ico(0.12, 0, mat(0x5a1420, 0.7), 1.0, 0.35, 1.3, 0, -0.18, 0.46, this.head);  // тёмная полость рта
-    this.tongue = ico(0.06, 0, pinkM, 0.95, 0.4, 1.5, 0.0, -0.265, 0.56, this.head);
-    for (const sx of [-1, 1]) { // клочки шерсти по щекам
-      for (let i = 0; i < 3; i++) {
-        const tf = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.24, 4), white);
-        tf.position.set(sx * (0.36 + i * 0.015), -0.15 - i * 0.07, 0.1 - i * 0.04);
-        tf.rotation.set(0.2, 0, sx * (1.25 + i * 0.12));
-        this.head.add(tf);
-      }
-    }
-    // Глаза: большие голубые, с зрачком и двумя бликами.
+    // Глаза: голубые, с тёмным зрачком и бликом, чуть прищурены радостью.
     this.eyes = [];
     for (const sx of [-1, 1]) {
       const eye = new THREE.Group();
-      eye.position.set(sx * 0.2, 0.06, 0.4);
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.095, 12, 9), new THREE.MeshBasicMaterial({ color: C.eye }));
-      ball.scale.set(1, 1.12, 0.65);
+      eye.position.set(sx * 0.17, 0.06, 0.37);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: C.eye }));
+      ball.scale.set(1, 1.1, 0.7);
       eye.add(ball);
-      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshBasicMaterial({ color: 0x0b1220 }));
-      pupil.position.set(0, -0.005, 0.045);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0x0b1220 }));
+      pupil.position.set(0, 0, 0.04);
       eye.add(pupil);
-      for (const [gx, gy, gr] of [[0.026, 0.03, 0.02], [-0.02, -0.025, 0.01]]) {
-        const gl = new THREE.Mesh(new THREE.SphereGeometry(gr, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-        gl.position.set(gx, gy, 0.075);
-        eye.add(gl);
-      }
+      const gl = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      gl.position.set(0.02, 0.02, 0.07);
+      eye.add(gl);
       this.head.add(eye);
       this.eyes.push(eye);
     }
-    // Уши: большие, острые, торчком, с розовой серединой и пушистым краем.
+    // Улыбка: дуга под носом, уголки приподняты.
+    const smile = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.014, 5, 12, Math.PI), mat(C.nose, 0.5));
+    smile.rotation.z = Math.PI; // дуга вниз
+    smile.position.set(0, -0.12, 0.575);
+    smile.scale.set(1, 0.75, 1);
+    this.head.add(smile);
+    const tongue = new THREE.Mesh(new THREE.IcosahedronGeometry(0.045, 0), mat(C.pink, 0.6));
+    tongue.scale.set(1, 0.6, 0.8);
+    tongue.position.set(0.03, -0.215, 0.545);
+    this.head.add(tongue);
+    // Уши: острые, торчком; внутри розовое.
     this.ears = [];
     for (const sx of [-1, 1]) {
       const ear = new THREE.Group();
-      ear.position.set(sx * 0.29, 0.32, -0.04);
-      const o = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.5, 4), furD);
-      o.position.y = 0.2; o.scale.z = 0.55;
+      ear.position.set(sx * 0.27, 0.3, -0.02);
+      const o = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.42, 4), fur);
+      o.position.y = 0.17;
       ear.add(o);
-      const inn = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 4), pinkM);
-      inn.position.set(0, 0.16, 0.05); inn.scale.z = 0.4;
+      const inn = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 4), mat(C.pink));
+      inn.position.set(0, 0.14, 0.06);
       ear.add(inn);
-      const rim = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 4), white);
-      rim.position.set(sx * 0.07, 0.3, 0.02);
-      ear.add(rim);
-      ear.rotation.z = -sx * 0.2;
+      ear.rotation.z = -sx * 0.22;
       this.head.add(ear);
       this.ears.push(ear);
     }
-    // Лапы на прилавке; правая машет.
+    // Руки на прилавке; правая машет.
     this.arms = [];
     for (const sx of [-1, 1]) {
       const arm = new THREE.Group();
       arm.position.set(sx * 0.5, 0.85, 0.05);
-      const a = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.55, 6), fur);
+      const a = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.55, 6), fur);
       a.position.set(0, -0.22, 0.12);
       a.rotation.x = -0.55;
       arm.add(a);
-      const paw = ico(0.14, 0, white, 1.05, 0.8, 1.2, 0, -0.44, 0.32, arm);
-      for (const tx of [-0.05, 0, 0.05]) { // три тёмных пальца-коготка
-        const toe = new THREE.Mesh(new THREE.IcosahedronGeometry(0.02, 0), mat(C.nose));
-        toe.position.set(tx, -0.5, 0.45);
-        arm.add(toe);
-      }
-      void paw;
+      const paw = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 0), white);
+      paw.position.set(0, -0.44, 0.3);
+      arm.add(paw);
       this.group.add(arm);
       this.arms.push(arm);
     }
@@ -197,14 +151,14 @@ export class Husky {
     this.joy = 0;
   }
 
-  /** Обрадовать пса (покупка, приветствие): подпрыгивает, ушки торчком, хвост виляет быстрее. */
+  /** Обрадовать пса (покупка): подпрыгивает и машет лапой. */
   cheer(k = 1) { this.joy = Math.max(this.joy, k); }
 
   /** (tx, tz): где игрок относительно лавки (метры, оси лавки; +z к камере), look: 0..1 насколько игрок «виден». */
   update(dt, tx, tz) {
     this.t += dt;
     const t = this.t;
-    this.joy = Math.max(0, this.joy - dt * 0.9);
+    this.joy = Math.max(0, (this.joy || 0) - dt * 0.9);
     const j = this.joy;
     this.group.position.y = 0.012 * Math.sin(t * 2.2) + Math.abs(Math.sin(t * 11)) * 0.09 * j; // дышит, от радости подпрыгивает
     // Следит за игроком: голова поворачивается и наклоняется к нему (в пределах шеи), корпус чуть подворачивается следом.
@@ -218,22 +172,17 @@ export class Husky {
     this.lookY = (this.lookY || 0) + (yawT - (this.lookY || 0)) * (1 - Math.exp(-dt / 0.12));
     this.lookX = (this.lookX || 0) + (pitchT - (this.lookX || 0)) * (1 - Math.exp(-dt / 0.15));
     this.group.rotation.y = this.lookY * 0.25;
-    this.head.rotation.z = 0.05 * Math.sin(t * 1.1) - this.lookY * 0.06 + 0.1 * Math.sin(t * 9) * j;
+    this.head.rotation.z = 0.05 * Math.sin(t * 1.1) - this.lookY * 0.06;
     this.head.rotation.y = this.lookY * 0.75 + 0.05 * Math.sin(t * 0.6);
-    this.head.rotation.x = this.lookX + 0.03 * Math.sin(t * 1.7) - 0.08 * j;
-    // Уши: иногда дёргается одно, при радости оба торчком и дрожат.
+    this.head.rotation.x = this.lookX + 0.03 * Math.sin(t * 1.7);
+    // Ухо иногда дёргается.
     const tw = Math.max(0, Math.sin(t * 0.7 + 1)) ** 12;
-    this.ears[0].rotation.x = -0.35 * tw - 0.15 * j;
-    this.ears[1].rotation.x = -0.15 * j;
-    for (const [i, e] of this.ears.entries()) e.rotation.z = (i ? 1 : -1) * (0.2 + 0.06 * Math.sin(t * 14 + i) * j);
-    // Хвост виляет: лениво всегда, быстро и широко от радости.
-    this.tail.rotation.y = Math.sin(t * (2.4 + 9 * j)) * (0.25 + 0.5 * j);
-    // Язык чуть шевелится: пёс дышит.
-    this.tongue.position.y = -0.265 - 0.012 * Math.sin(t * 5) - 0.02 * j;
-    // Моргание; от радости глаза-«дуги».
-    const bl = ((t % 3.4) > 3.28 ? 0.15 : 1) * (1 - 0.45 * Math.min(1, j * 1.5));
+    this.ears[0].rotation.x = -0.35 * tw;
+    this.ears[1].rotation.x = 0.0;
+    // Моргание.
+    const bl = (t % 3.4) > 3.28 ? 0.15 : 1;
     for (const e of this.eyes) e.scale.y = bl;
-    // Приветственное махание правой рукой раз в несколько секунд (чаще при радости).
+    // Приветственное махание правой рукой раз в несколько секунд.
     const w = Math.max(Math.max(0, Math.sin(t * 0.45 - 1)) ** 6, Math.min(1, j * 1.3));
     this.arms[1].rotation.x = -1.7 * w;
     this.arms[1].rotation.z = -0.35 * w + 0.28 * w * Math.sin(t * 9);

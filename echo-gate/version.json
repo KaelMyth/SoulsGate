@@ -1,5 +1,5 @@
 {
-  "build": 104,
+  "build": 105,
   "commit": "x",
-  "notes": "Shop redesign: new husky model, speech bubbles, dust, coins on purchase, animated cells and locked slots."
+  "notes": "Original husky model restored (hub and shop); shop UI polish kept."
 }
