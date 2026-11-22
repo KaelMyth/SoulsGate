@@ -4,6 +4,10 @@
 import { MOD_INFO } from './mods.js';
 import { MOD_ICON } from './mod_icons.js';
 
+/** Особая карточка ленты: не модификатор. Выпала: лента удваивается (два ряда) и крутится ещё раз, награды обоих рядов. */
+export const DOUBLE = 'double';
+const DOUBLE_INFO = { name: 'Double', color: '#ffd36b', tier: 'legendary' };
+
 // Логика ленты (makeRoll) чистая, без DOM, тестируется в Node.
 
 /** Лента: cells чисел, выигрыш на позиции win; offset: на сколько px сдвинуть ленту, чтобы выигрыш встал под метку. */
@@ -42,12 +46,10 @@ export class Roulette {
     this.open = false;
     this.done = false;
     this.raf = 0;
-    this.strip = el('div', { class: 'rl-strip' });
+    this.rows = el('div', { class: 'rl-rows' });
     this.hint = el('div', { class: 'rl-hint' }, '');
     this.title = el('div', { class: 'rl-title' }, 'Arcane Roll');
-    const view = el('div', { class: 'rl-view' }, this.strip, el('div', { class: 'rl-mark' }));
-    this.view = view;
-    this.root = el('div', { id: 'roulette', role: 'dialog', 'aria-label': 'Arcane Roll' }, this.title, view, this.hint);
+    this.root = el('div', { id: 'roulette', role: 'dialog', 'aria-label': 'Arcane Roll' }, this.title, this.rows, this.hint);
     this.root.addEventListener('click', () => this.close());
     root.append(this.root);
   }
@@ -63,16 +65,29 @@ export class Roulette {
     this.queue--;
     this.open = true;
     this.done = false;
+    this.second = false;
     this.onOpen();
-    this.roll = makeRoll(this.rnd, { pick: this.pick });
-    this.strip.replaceChildren(...this.roll.items.map((n) => this.card(n)));
-    this.strip.style.transform = 'translateX(0)';
+    this.title.textContent = 'Arcane Roll';
     this.hint.textContent = '';
     this.hint.classList.remove('on');
-    this.root.classList.remove('end');
+    this.root.classList.remove('end', 'dbl');
+    this.start(1);
     this.root.style.display = 'flex';
     void this.root.offsetWidth;
     this.root.classList.add('on');
+  }
+
+  /** Запустить count лент одновременно (2 после «Double»; вторая крутится дольше). */
+  start(count) {
+    this.lines = [];
+    this.rows.replaceChildren();
+    for (let i = 0; i < count; i++) {
+      const roll = makeRoll(this.rnd, { pick: this.pick ? () => this.pick({ noDouble: this.second }) : null });
+      const strip = el('div', { class: 'rl-strip' }, ...roll.items.map((n) => this.card(n)));
+      const view = el('div', { class: 'rl-view' + (this.second ? ' grow' : '') }, strip, el('div', { class: 'rl-mark' }));
+      this.rows.append(view);
+      this.lines.push({ roll, strip, view, dur: this.spinMs + i * 700, done: false });
+    }
     this.t0 = performance.now() + 350; // сначала окно плавно появляется
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame((t) => this.frame(t));
@@ -81,31 +96,42 @@ export class Roulette {
   /** Карточка ленты: число или модификатор (иконка и название). */
   card(n) {
     if (typeof n === 'number') return el('div', { class: 'rl-cell ' + tier(n) }, String(n));
-    const info = MOD_INFO[n];
+    const info = n === DOUBLE ? DOUBLE_INFO : MOD_INFO[n];
     const c = el('div', { class: 'rl-cell mod ' + info.tier });
     c.style.setProperty('--m', info.color);
     c.innerHTML = `<span class="mi">${MOD_ICON[n]}</span><span class="mn">${info.name}</span>`;
     return c;
   }
 
-  frame(now) {
+  frame() {
     if (!this.open) return;
-    const t = (performance.now() - this.t0) / this.spinMs;
-    const w = this.view.clientWidth;
-    const x = ease(t) * this.roll.offset - 0 ; // путь ленты
-    // метка по центру окна: сдвигаем так, чтобы точка ленты x оказалась под центром
-    this.strip.style.transform = `translateX(${(w / 2 - x).toFixed(1)}px)`;
-    if (t >= 1) { this.finish(); return; }
-    this.raf = requestAnimationFrame((n) => this.frame(n));
+    let all = true;
+    for (const L of this.lines) {
+      const t = (performance.now() - this.t0) / L.dur;
+      const w = L.view.clientWidth;
+      L.strip.style.transform = `translateX(${(w / 2 - ease(t) * L.roll.offset).toFixed(1)}px)`; // метка по центру: точка ленты x встаёт под центр
+      if (t >= 1) {
+        if (!L.done) { L.done = true; L.strip.children[L.roll.win].classList.add('won'); }
+      } else all = false;
+    }
+    if (all) { this.finish(); return; }
+    this.raf = requestAnimationFrame(() => this.frame());
   }
 
   finish() {
+    const vals = this.lines.map((L) => L.roll.value);
+    if (!this.second && vals[0] === DOUBLE) { // «Double»: короткая вспышка, и сразу снова, уже двумя лентами
+      this.root.classList.add('dbl');
+      this.title.textContent = 'DOUBLE ROLL';
+      this.dblTimer = setTimeout(() => { this.second = true; this.start(2); }, 1400);
+      return;
+    }
     this.done = true;
-    this.strip.children[this.roll.win].classList.add('won');
+    this.values = vals;
     this.root.classList.add('end');
     this.hint.textContent = 'Tap to continue';
     this.hint.classList.add('on');
-    this.onResult(this.roll.value);
+    for (const v of vals) this.onResult(v);
   }
 
   close() {
@@ -114,15 +140,22 @@ export class Roulette {
     this.root.classList.remove('on');
     clearTimeout(this.timer);
     const next = () => { if (this.queue > 0) this.show(); else this.onClose(); };
+    const vals = this.values.slice();
+    const run = () => { // награды по очереди: на каждую своё окно модификатора
+      if (!vals.length) { next(); return; }
+      const v = vals.shift();
+      if (this.onPick && typeof v === 'string') this.onPick(v, run); else run();
+    };
     this.timer = setTimeout(() => {
       this.root.style.display = 'none';
-      if (this.onPick && typeof this.roll.value === 'string') this.onPick(this.roll.value, next); else next();
+      run();
     }, 250);
   }
 
   reset() {
     cancelAnimationFrame(this.raf);
     clearTimeout(this.timer);
+    clearTimeout(this.dblTimer);
     this.queue = 0;
     this.root.classList.remove('on');
     this.root.style.display = 'none';

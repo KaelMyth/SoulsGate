@@ -801,3 +801,12 @@ body.staff-open #pause-btn, body.staff-open #cfg-btn, body.staff-open #fps { vis
 #shop .shop-detail { animation: none; }
 #shop .shop-detail.on .card { animation: shop-card 0.22s ease-out; }
 @keyframes shop-card { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* Рулетка: ряды лент и «Double» (удвоение). */
+#roulette .rl-rows { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+#roulette .rl-view.grow { animation: rlGrow 0.55s ease-out both; }
+@keyframes rlGrow { from { opacity: 0; transform: scaleY(0.1); } to { opacity: 1; transform: scaleY(1); } }
+#roulette.dbl .rl-title { color: #ffe29a; text-shadow: 0 0 26px rgba(255, 200, 80, 0.95); animation: rlPulse 0.5s ease-in-out infinite alternate; }
+#roulette.dbl { animation: rlFlash 0.7s ease-out; }
+@keyframes rlPulse { from { transform: scale(1); } to { transform: scale(1.18); } }
+@keyframes rlFlash { 0% { box-shadow: inset 0 0 0 100vmax rgba(255, 214, 120, 0.55); } 100% { box-shadow: inset 0 0 0 100vmax rgba(255, 214, 120, 0); } }
