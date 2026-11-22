@@ -127,6 +127,9 @@ export class Game {
       this.dash(this.tmp.x, this.tmp.z);
     });
     this.keys = new Keys(() => this.dashFromInput());
+    this.skillCd = 0; // с до следующего умения фолианта
+    this.skillBtn = o.ui.skillBtn || null;
+    if (this.skillBtn) this.skillBtn.addEventListener('click', () => this.useSkill());
     this.tmp = { x: 0, z: 0 };
     this.kv = { x: 0, y: 0 };
     this.ui = o.ui; // { base, knob, start }
@@ -555,6 +558,7 @@ export class Game {
     this.floorClearTime = 0;
     this.inHub = false;
     this.playing = true;
+    this.skillCd = 0;
     this.blizzard.startRun();
     this.hub.setActive(false);
     this.scatter.setVisible(true);
@@ -608,7 +612,31 @@ export class Game {
   }
 
   /** Один шаг логики. */
+  /** Умение надетого фолианта. Force: залп обычных снарядов во все стороны, перезарядка CONFIG.skills.force.cooldown. */
+  useSkill() {
+    const tome = this.inventory.equipped.tome;
+    if (!tome || !this.playing || this.dead || this.paused || this.skillCd > 0 || !this.attack) return false;
+    const S = this.cfg.skills.force;
+    this.attack.nova(S.count);
+    this.skillCd = S.cooldown;
+    return true;
+  }
+
+  /** Кнопка умения: видна в забеге при надетом фолианте, кольцо перезарядки и секунды. */
+  updateSkillBtn() {
+    const b = this.skillBtn;
+    if (!b) return;
+    const show = this.playing && !this.dead && !!this.inventory.equipped.tome;
+    b.classList.toggle('gone', !show);
+    if (!show) return;
+    const cd = this.cfg.skills.force.cooldown;
+    b.classList.toggle('wait', this.skillCd > 0);
+    b.style.setProperty('--cd', (this.skillCd / cd).toFixed(3));
+    b.lastChild.textContent = this.skillCd > 0 ? String(Math.ceil(this.skillCd)) : '';
+  }
+
   step(dt) {
+    this.skillCd = Math.max(0, this.skillCd - dt);
     const m = this.motion;
     const inp = this.readInput(this.tmp);
     m.speedMult = 1 + this.stats.bonus.speed;
@@ -841,6 +869,7 @@ export class Game {
     if (!this.dead && !this.soulTallyUi?.open && !this.saveUi?.open && !this.paused && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.shopOpen && !this.choosing && !this.rolling)
       advance(dt, (s) => this.step(s));
     this.drawStick();
+    this.updateSkillBtn();
     if (!this.paused && !this.soulTallyUi?.open && !this.saveUi?.open && !this.invOpen && !this.forgeOpen && !this.devOpen && !this.shopOpen && !this.naming)
       this.hub.update(dt, this.motion.x, this.motion.z);
     if (!(this.shopOpen && this.shopUi.render(dt)) && (!this.invOpen || !this.invUi.render(dt))) this.world.render();

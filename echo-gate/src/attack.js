@@ -375,12 +375,22 @@ export class Attack {
   fire(target, opts = {}) {
     const c = this.cfg;
     this.hero.staffTip(this.tip);
-    const tx = target.state.x, tz = target.state.z, ty = 0.4;
-    this.dir.set(tx - this.tip.x, ty - this.tip.y, tz - this.tip.z).normalize();
+    // opts.plain: обычный снаряд независимо от посоха (умение фолианта); opts.angle: направление по компасу вместо цели, от героя.
+    const el = opts.plain ? null : this.getElement ? this.getElement() : null;
+    let tx, tz, ty = 0.4;
+    if (opts.angle !== undefined) {
+      const hp = this.hero.group.position;
+      this.tip.set(hp.x, 1.0, hp.z);
+      tx = hp.x + Math.sin(opts.angle) * 10; tz = hp.z + Math.cos(opts.angle) * 10;
+      this.dir.set(Math.sin(opts.angle), (0.6 - this.tip.y) / (0.7 * this.cur().range), Math.cos(opts.angle)).normalize(); // слегка вниз: к дальнему краю снаряд снижается к уровню жуков
+    } else {
+      tx = target.state.x; tz = target.state.z;
+      this.dir.set(tx - this.tip.x, ty - this.tip.y, tz - this.tip.z).normalize();
+    }
     if (opts.spread) { const ca = Math.cos(opts.spread), sa = Math.sin(opts.spread), dx = this.dir.x, dz = this.dir.z; this.dir.x = dx * ca - dz * sa; this.dir.z = dx * sa + dz * ca; }
-    if (this.getElement && this.getElement() === 'laser') { this.fireLaser(target); return; } // лазерный посох: мгновенный пробивающий луч
-    if (this.getElement && this.getElement() === 'electric') { this.zap(target); return; } // электрический посох: мгновенная дуга вместо снаряда
-    if (this.getElement && this.getElement() === 'gravity' && this.gravCfg && this.gravCfg.hole && this.tierIndex() >= 2) { this.fireHole(target); return; } // +10: чёрная дыра вместо снаряда
+    if (el === 'laser') { this.fireLaser(target); return; } // лазерный посох: мгновенный пробивающий луч
+    if (el === 'electric') { this.zap(target); return; } // электрический посох: мгновенная дуга вместо снаряда
+    if (el === 'gravity' && this.gravCfg && this.gravCfg.hole && this.tierIndex() >= 2) { this.fireHole(target); return; } // +10: чёрная дыра вместо снаряда
     const b = this.bolts.find((e) => !e.active) || this.makeBolt();
     b.active = true;
     b.x = this.tip.x; b.y = this.tip.y; b.z = this.tip.z;
@@ -389,7 +399,7 @@ export class Attack {
     b.trailT = 0;
     b.launch = 0;
     for (const t of b.trail) { t.x = b.x; t.y = b.y; t.z = b.z; }
-    b.el = this.getElement ? this.getElement() : null; // стихия надетого посоха задаёт вид снаряда и эффект попадания
+    b.el = el; // стихия надетого посоха задаёт вид снаряда и эффект попадания
     const ice = b.el === 'ice', fire = b.el === 'fire', grav = b.el === 'gravity', P = pal(b.el);
     const mods = this.getMods ? this.getMods() : null;
     b.pierce = mods ? mods.pierce : 0; // сколько целей шарик пробьёт насквозь (модификатор Пробитие)
@@ -402,7 +412,7 @@ export class Attack {
     b.fromSpike = false;
     b.iceTier = ice && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень ледяного посоха по заточке
     b.fireTier = fire && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0; // ступень огненного посоха: от неё зависят взрыв и живое пламя
-    const tier = this.tierNow();
+    const tier = opts.plain ? null : this.tierNow();
     b.tier = tier && this.getSharpen ? tierOf(this.tiers, this.getSharpen()) : 0;
     const look = this.lookNow(b.el);
     b.look = look;
@@ -429,6 +439,18 @@ export class Attack {
       this.muzzle(this.tip.x, this.tip.y, this.tip.z, this.dir.x, this.dir.y, this.dir.z, b.el);
     }
     b.launch = 0.12; // шарик в начале полёта крупнее и сжимается
+  }
+
+  /** Умение Force-фолианта: count обычных снарядов во все стороны от героя. Модификаторы посоха действуют как у обычного выстрела
+   * (урон, пробитие, дальность, крит, наведение, раздвоение); Эпический/Легендарный на посохе умножает число снарядов. */
+  nova(count) {
+    const m = this.getMods ? this.getMods() : null;
+    const n = Math.max(1, Math.round(count * (m ? m.shots : 1)));
+    const hp = this.hero.group.position;
+    const a0 = Math.random() * Math.PI * 2;
+    for (let i = 0; i < n; i++) this.fire(null, { plain: true, angle: a0 + (i / n) * Math.PI * 2, quiet: true });
+    this.burst(hp.x, 1.0, hp.z, this.cfg.muzzleSize * 2.2, 0.25);
+    this.shock(hp.x, hp.z, 4.5, 0.5, BLUE);
   }
 
   /** Ступень электрического посоха по заточке (0..2). */
