@@ -117,18 +117,20 @@ export class Husky {
     tongue.scale.set(1, 0.6, 0.8);
     tongue.position.set(0.03, -0.215, 0.545);
     this.head.add(tongue);
-    // Уши: острые, торчком; внутри розовое.
+    // Уши: острые, торчком; внутри розовое. Основание утоплено в череп и сглажено «подушечкой» из шерсти, чтобы не было щели и резких стыков.
     this.ears = [];
     for (const sx of [-1, 1]) {
       const ear = new THREE.Group();
-      ear.position.set(sx * 0.27, 0.3, -0.02);
-      const o = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.42, 4), fur);
-      o.position.y = 0.17;
+      ear.position.set(sx * 0.24, 0.2, -0.02);
+      const o = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 8), fur); // широкое основание целиком внутри черепа: ухо вырастает из головы без стыка
+      o.position.y = 0.2;
+      o.scale.z = 0.7;
       ear.add(o);
-      const inn = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 4), mat(C.pink));
-      inn.position.set(0, 0.14, 0.06);
+      const inn = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.36, 8), mat(C.pink));
+      inn.position.set(0, 0.2, 0.08);
+      inn.scale.z = 0.5;
       ear.add(inn);
-      ear.rotation.z = -sx * 0.22;
+      ear.rotation.z = -sx * 0.2;
       this.head.add(ear);
       this.ears.push(ear);
     }
