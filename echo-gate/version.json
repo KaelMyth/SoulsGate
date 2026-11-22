@@ -1,5 +1,5 @@
 {
-  "build": 114,
+  "build": 115,
   "commit": "x",
-  "notes": "Tomes are sharpenable items; Force Tome has 3 looks (worn/fine/superb); sharpen gem cost is now constant."
+  "notes": "Modifiers Epic and Legendary renamed to x2 and x3 (rarity stays)."
 }
