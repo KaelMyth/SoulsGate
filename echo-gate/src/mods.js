@@ -16,8 +16,8 @@ export const MOD_INFO = {
   vamp: { name: 'Vampirism', color: '#ff4a6a', tier: 'common', desc: 'Kills sometimes heal you' },
   seek: { name: 'Seeker', color: '#ff9ad5', tier: 'common', desc: 'Shots steer toward enemies (bolts only: not lasers, lightning, blades or black holes)' },
   split: { name: 'Splitting', color: '#9affea', tier: 'common', desc: 'Shot splits in two smaller ones mid-flight (bolts only)' },
-  epic: { name: 'Epic', color: '#b06bff', tier: 'epic', desc: '×2 to what it is attached to: shots on the staff, or the modifier below it' },
-  legendary: { name: 'Legendary', color: '#ffc65a', tier: 'legendary', desc: '×3 to what it is attached to: shots on the staff, or the modifier below it' },
+  epic: { name: '×2', color: '#b06bff', tier: 'epic', desc: '×2 to what it is attached to: shots on the staff, or the modifier below it' },
+  legendary: { name: '×3', color: '#ffc65a', tier: 'legendary', desc: '×3 to what it is attached to: shots on the staff, or the modifier below it' },
 };
 
 /** Множитель, который даёт модификатор (1 у обычных). */
