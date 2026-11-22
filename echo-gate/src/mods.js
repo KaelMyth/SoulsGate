@@ -4,7 +4,7 @@
 // Эпический ×2 и Легендарный ×3 усиливают то, к чему подвешены: в корневой ячейке (на самом посохе) умножают число снарядов,
 // в вышестоящей усиливают модификатор, от которого отходят. Числа лежат в CONFIG.mods. Модификаторы действуют только в текущем забеге.
 
-export const MOD_IDS = ['might', 'swift', 'pierce', 'crit', 'reach', 'vamp', 'epic', 'legendary'];
+export const MOD_IDS = ['might', 'swift', 'pierce', 'crit', 'reach', 'vamp', 'seek', 'split', 'epic', 'legendary'];
 
 /** Описание модификаторов для интерфейса: название, цвет, краткое описание. */
 export const MOD_INFO = {
@@ -14,6 +14,8 @@ export const MOD_INFO = {
   crit: { name: 'Crit', color: '#ffe14a', tier: 'common', desc: '15% of shots hit twice as hard' },
   reach: { name: 'Reach', color: '#6aa8ff', tier: 'common', desc: 'Range +25%' },
   vamp: { name: 'Vampirism', color: '#ff4a6a', tier: 'common', desc: 'Kills sometimes heal you' },
+  seek: { name: 'Seeker', color: '#ff9ad5', tier: 'common', desc: 'Shots steer toward enemies (bolts only: not lasers, lightning, blades or black holes)' },
+  split: { name: 'Splitting', color: '#9affea', tier: 'common', desc: 'Shot splits in two smaller ones mid-flight (bolts only)' },
   epic: { name: 'Epic', color: '#b06bff', tier: 'epic', desc: '×2 to what it is attached to: shots on the staff, or the modifier below it' },
   legendary: { name: 'Legendary', color: '#ffc65a', tier: 'legendary', desc: '×3 to what it is attached to: shots on the staff, or the modifier below it' },
 };
@@ -92,7 +94,7 @@ export class ModLoadout {
   /** Итог (+ crit: шанс крита, critMul, range: множитель дальности, vamp: шанс лечения за убийство, vampHeal): { damage, rate (множитель скорострельности), pierce (сквозь сколько целей), shots (снарядов за выстрел) }. */
   effects() {
     const C = this.cfg;
-    let damage = 1, rate = 1, pierce = 0, shots = 1, crit = 0, range = 1, vamp = 0;
+    let damage = 1, rate = 1, pierce = 0, shots = 1, crit = 0, range = 1, vamp = 0, seek = 0, split = 0;
     this.cells.forEach((c, i) => {
       if (!c.mod) return;
       if (isMult(c.mod)) { if (c.parent === -1) shots *= multOf(C, c.mod) * this.boost(i); return; }
@@ -103,7 +105,9 @@ export class ModLoadout {
       else if (c.mod === 'crit') crit += C.crit * k;
       else if (c.mod === 'reach') range += C.reach * k;
       else if (c.mod === 'vamp') vamp += C.vamp * k;
+      else if (c.mod === 'seek') seek += C.seek * k;
+      else if (c.mod === 'split') split += C.split * k;
     });
-    return { damage, rate, pierce, shots, crit: Math.min(1, crit), critMul: C.critMul, range, vamp: Math.min(1, vamp), vampHeal: C.vampHeal };
+    return { damage, rate, pierce, shots, crit: Math.min(1, crit), critMul: C.critMul, range, vamp: Math.min(1, vamp), vampHeal: C.vampHeal, seek, seekRange: C.seekRange, split: Math.min(C.splitMax, Math.round(split)), splitDist: C.splitDist, splitSize: C.splitSize, splitDamage: C.splitDamage, splitAngle: C.splitAngle };
   }
 }
