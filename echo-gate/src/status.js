@@ -71,3 +71,18 @@ export function gravityFactor(G, age) {
   else { const inv = 1 - (t - hold) / Math.max(0.001, 1 - hold); curve = 0.02 + 0.98 * (1 - inv * inv * inv * inv); }
   return G.startSpeed + (G.maxSpeed - G.startSpeed) * curve;
 }
+
+/** Замедление врага в гравитационном искажении: 1 вне радиуса, плавно до A.minSpeed у самого героя. */
+export function auraSlow(A, dist) {
+  if (dist >= A.radius) return 1;
+  const t = 1 - Math.max(0, dist) / A.radius;
+  return 1 - (1 - A.minSpeed) * t * t * (3 - 2 * t);
+}
+
+/** Сдвиг врага к центру чёрной дыры за dt: сильнее ближе к центру, не дальше самого центра. Возвращает {dx, dz}. */
+export function holePull(H, ex, ez, hx, hz, dt) {
+  const dx = hx - ex, dz = hz - ez, d = Math.hypot(dx, dz);
+  if (d >= H.radius || d < 1e-4) return { dx: 0, dz: 0 };
+  const step = Math.min(d, H.pull * (0.35 + 0.65 * (1 - d / H.radius)) * dt);
+  return { dx: dx / d * step, dz: dz / d * step };
+}

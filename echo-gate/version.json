@@ -1,5 +1,5 @@
 {
-  "build": 107,
+  "build": 108,
   "commit": "x",
-  "notes": "Laser staff +10: beam no longer sweeps sideways, pierces enemies to the end of the map."
+  "notes": "Gravity staff tiers: +5 distortion aura and instant bolts, +10 black holes. Base attack interval 0.75."
 }

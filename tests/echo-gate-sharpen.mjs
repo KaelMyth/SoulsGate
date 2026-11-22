@@ -19,7 +19,7 @@ test('цена растёт с уровнем', () => {
 test('прибавка и числа посоха', () => {
   assert.equal(bonusAt(CONFIG, 0), 0); assert.equal(bonusAt(CONFIG, 1), 5); assert.equal(bonusAt(CONFIG, 4), 8);
   const s = sharpenedStats(CONFIG, 1);
-  assert.ok(Math.abs(s.damage - 1.05) < 1e-9 && Math.abs(s.range - 9.45) < 1e-9 && Math.abs(s.rate - 2.1) < 1e-9);
+  assert.ok(Math.abs(s.damage - 1.05) < 1e-9 && Math.abs(s.range - 9.45) < 1e-9 && Math.abs(s.rate - 1.4) < 1e-9);
 });
 test('удача: +1, камни списаны', () => {
   const inv = mk(); const st = fireStaff(); inv.add(st);

@@ -476,7 +476,7 @@ export class Spawner {
     this.swarm.steer(list);
     for (const e of list) {
       const def = e.def;
-      e.timeMul = tickStatus(e, dt0, this.cfg.ice); // лёд: замедление и заморозка
+      e.timeMul = tickStatus(e, dt0, this.cfg.ice) * (e.auraMul === undefined ? 1 : e.auraMul); // лёд: замедление и заморозка; гравитационное искажение
       dt = dt0 * e.timeMul;
       if (e.goalOn) e.swX = e.swZ = 0; // стая охранников не тянет их друг к другу
       const hdx = hero.x - e.x, hdz = hero.z - e.z;
