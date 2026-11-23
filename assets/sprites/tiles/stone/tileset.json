@@ -1,0 +1,150 @@
+{
+ "tile_size": 32,
+ "corner_order": "NW NE SW SE, 1 = upper (тёмные плиты), 0 = lower (светлый камень)",
+ "tiles": [
+  {
+   "file": "stone-1101.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "upper",
+    "SW": "lower",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-1010.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "lower",
+    "SW": "upper",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-0100.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "upper",
+    "SW": "lower",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-1100.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "upper",
+    "SW": "lower",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-0110.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "upper",
+    "SW": "upper",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-1000.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "lower",
+    "SW": "lower",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-0000.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "lower",
+    "SW": "lower",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-0001.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "lower",
+    "SW": "lower",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-1011.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "lower",
+    "SW": "upper",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-0011.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "lower",
+    "SW": "upper",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-0010.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "lower",
+    "SW": "upper",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-0101.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "upper",
+    "SW": "lower",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-1111.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "upper",
+    "SW": "upper",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-1110.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "upper",
+    "SW": "upper",
+    "SE": "lower"
+   }
+  },
+  {
+   "file": "stone-1001.png",
+   "corners": {
+    "NW": "upper",
+    "NE": "lower",
+    "SW": "lower",
+    "SE": "upper"
+   }
+  },
+  {
+   "file": "stone-0111.png",
+   "corners": {
+    "NW": "lower",
+    "NE": "upper",
+    "SW": "upper",
+    "SE": "upper"
+   }
+  }
+ ]
+}

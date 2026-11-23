@@ -1,6 +1,6 @@
 {
- "generated": "2026-11-23T12:30:37.350Z",
- "count": 103,
+ "generated": "2026-11-23T12:33:02.144Z",
+ "count": 119,
  "items": [
   {
    "path": "hero/echo-mage/Idle/rotations/east.png",
@@ -720,6 +720,118 @@
    "path": "items/tome/tome.png",
    "bytes": 685,
    "mtime": 1795436285745,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0000.png",
+   "bytes": 815,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0001.png",
+   "bytes": 982,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0010.png",
+   "bytes": 1045,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0011.png",
+   "bytes": 1095,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0100.png",
+   "bytes": 977,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0101.png",
+   "bytes": 1058,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0110.png",
+   "bytes": 1099,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-0111.png",
+   "bytes": 1107,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1000.png",
+   "bytes": 963,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1001.png",
+   "bytes": 1066,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1010.png",
+   "bytes": 1072,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1011.png",
+   "bytes": 1060,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1100.png",
+   "bytes": 923,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1101.png",
+   "bytes": 1017,
+   "mtime": 1795437172123,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1110.png",
+   "bytes": 1038,
+   "mtime": 1795437172128,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "tiles/stone/stone-1111.png",
+   "bytes": 1087,
+   "mtime": 1795437172128,
    "w": 32,
    "h": 32
   }
