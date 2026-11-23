@@ -1,6 +1,6 @@
 {
- "generated": "2026-11-23T13:13:59.642Z",
- "count": 123,
+ "generated": "2026-11-23T14:11:57.796Z",
+ "count": 151,
  "items": [
   {
    "path": "hero/echo-mage/Idle/rotations/east.png",
@@ -645,6 +645,202 @@
    "mtime": 1795436985359,
    "w": 32,
    "h": 32
+  },
+  {
+   "path": "hero/mage-staff/idle_east/frame_000.png",
+   "bytes": 723,
+   "mtime": 1795442900907,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_east/frame_001.png",
+   "bytes": 720,
+   "mtime": 1795442900910,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_east/frame_002.png",
+   "bytes": 734,
+   "mtime": 1795442900910,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_east/frame_003.png",
+   "bytes": 734,
+   "mtime": 1795442900910,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_east/frame_004.png",
+   "bytes": 731,
+   "mtime": 1795442900910,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_east/frame_005.png",
+   "bytes": 729,
+   "mtime": 1795442900910,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_south/frame_000.png",
+   "bytes": 736,
+   "mtime": 1795442681267,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_south/frame_001.png",
+   "bytes": 754,
+   "mtime": 1795442681267,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_south/frame_002.png",
+   "bytes": 761,
+   "mtime": 1795442681267,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_south/frame_003.png",
+   "bytes": 757,
+   "mtime": 1795442681267,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_south/frame_004.png",
+   "bytes": 777,
+   "mtime": 1795442681267,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/idle_south/frame_005.png",
+   "bytes": 760,
+   "mtime": 1795442681267,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_000.png",
+   "bytes": 718,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_001.png",
+   "bytes": 761,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_002.png",
+   "bytes": 788,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_003.png",
+   "bytes": 766,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_004.png",
+   "bytes": 718,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_005.png",
+   "bytes": 818,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_006.png",
+   "bytes": 804,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_east/frame_007.png",
+   "bytes": 801,
+   "mtime": 1795442980483,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_000.png",
+   "bytes": 732,
+   "mtime": 1795442795287,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_001.png",
+   "bytes": 786,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_002.png",
+   "bytes": 791,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_003.png",
+   "bytes": 791,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_004.png",
+   "bytes": 732,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_005.png",
+   "bytes": 805,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_006.png",
+   "bytes": 781,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/mage-staff/walk_south/frame_007.png",
+   "bytes": 775,
+   "mtime": 1795442795292,
+   "w": 48,
+   "h": 48
   },
   {
    "path": "items/staff/staff-l1.png",
