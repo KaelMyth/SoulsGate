@@ -1,0 +1,36 @@
+{
+  "group_id": "727d3199-bac2-4c88-bab3-9cf10869d868",
+  "states": [
+    {
+      "character": {
+        "id": "5ac3c262-ec0b-4919-bccb-18199ab5d4d4",
+        "name": "Idle",
+        "prompt": "cute chibi wizard, very big head and small body, minimalist clean pixel art; huge burgundy wizard hat with bent drooping tip, face fully in black shadow with two glowing cyan dot eyes, short burgundy robe, tan scarf, brown belt with small gold buckle, black gloves, brown boots; empty hands, no staff, no book, nothing held",
+        "size": {
+          "width": 32,
+          "height": 32
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-11-23T11:50:33.538540+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-11-23T11:52:16.081791"
+}

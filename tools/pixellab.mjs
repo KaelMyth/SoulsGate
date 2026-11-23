@@ -201,6 +201,9 @@ async function main() {
         image_size: size(opt.size),
         view: opt.view || "low top-down",
         n_directions: Number(opt.dirs || 8),
+        ...(opt.outline && { outline: opt.outline }),
+        ...(opt.detail && { detail: opt.detail }),
+        ...(opt.shading && { shading: opt.shading }),
         ...(opt.name && { name: opt.name }),
         ...(opt.seed && { seed: Number(opt.seed) }),
       });
