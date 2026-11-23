@@ -9,7 +9,7 @@
 //   node tools/pixellab.mjs balance
 //   node tools/pixellab.mjs image "<prompt>" [--size 64x64] [--view low top-down] [--direction south]
 //        [--outline "single color black outline"] [--shading "basic shading"] [--detail "medium detail"]
-//        [--bg] [--seed N] [--name file] [--out dir]                 # pixflux, synchronous
+//        [--bg] [--seed N] [--model pixen] [--name file] [--out dir]  # pixflux (pixen: от 16 px)
 //   node tools/pixellab.mjs pro "<prompt>" [--size 64x64] [--bg] [--seed N] [--name file] [--out dir]
 //                                                                    # generate-image-v2 (Pro), async
 //   node tools/pixellab.mjs character "<prompt>" [--size 64x64] [--view low top-down] [--dirs 8] [--name n]
@@ -178,8 +178,13 @@ async function main() {
         ...(opt.detail && { detail: opt.detail }),
         ...(opt.isometric && { isometric: true }),
         ...(opt.seed && { seed: Number(opt.seed) }),
+        // --init file.png: начать с картинки (той же величины), --strength 1..999 — насколько держаться за неё
+        ...(opt.init && { init_image: { type: "base64", base64: fs.readFileSync(opt.init).toString("base64"), format: "png" }, init_image_strength: Number(opt.strength || 300) }),
+        ...(opt.palette && { color_image: { type: "base64", base64: fs.readFileSync(opt.palette).toString("base64"), format: "png" } }),
       };
-      const r = await api("POST", "/create-image-pixflux", body);
+      // --model pixen: размеры от 16 px (кратно 4, меньше 32 только квадрат), без shading/isometric
+      if (opt.model === "pixen") { delete body.shading; delete body.isometric; }
+      const r = await api("POST", opt.model === "pixen" ? "/create-image-pixen" : "/create-image-pixflux", body);
       await report(saveImages({ image: r.image }, out, name), r.usage);
       break;
     }

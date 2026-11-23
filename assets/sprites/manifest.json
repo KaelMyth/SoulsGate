@@ -1,6 +1,6 @@
 {
- "generated": "2026-11-23T12:33:02.144Z",
- "count": 119,
+ "generated": "2026-11-23T12:55:35.559Z",
+ "count": 137,
  "items": [
   {
    "path": "hero/echo-mage/Idle/rotations/east.png",
@@ -720,6 +720,132 @@
    "path": "items/tome/tome.png",
    "bytes": 685,
    "mtime": 1795436285745,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_000.png",
+   "bytes": 511,
+   "mtime": 1795438535539,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_001.png",
+   "bytes": 494,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_002.png",
+   "bytes": 466,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_003.png",
+   "bytes": 445,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_004.png",
+   "bytes": 421,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_005.png",
+   "bytes": 415,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_006.png",
+   "bytes": 439,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_007.png",
+   "bytes": 420,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/cast/frame_008.png",
+   "bytes": 468,
+   "mtime": 1795438535544,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/closed-s22.png",
+   "bytes": 518,
+   "mtime": 1795438256623,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/closed-s23.png",
+   "bytes": 487,
+   "mtime": 1795438304275,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/closed32.png",
+   "bytes": 345,
+   "mtime": 1795438482867,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "items/tome/v2/open-s22.png",
+   "bytes": 461,
+   "mtime": 1795438279383,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/open-s23.png",
+   "bytes": 501,
+   "mtime": 1795438400227,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/open-s31.png",
+   "bytes": 451,
+   "mtime": 1795438432891,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/open-s32.png",
+   "bytes": 447,
+   "mtime": 1795438453487,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/open-s33.png",
+   "bytes": 478,
+   "mtime": 1795438468487,
+   "w": 20,
+   "h": 20
+  },
+  {
+   "path": "items/tome/v2/open32.png",
+   "bytes": 379,
+   "mtime": 1795438482899,
    "w": 32,
    "h": 32
   },
