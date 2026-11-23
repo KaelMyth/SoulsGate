@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-23T13:07:20.653Z",
+ "generated": "2026-11-23T13:13:59.642Z",
  "count": 123,
  "items": [
   {
@@ -648,24 +648,24 @@
   },
   {
    "path": "items/staff/staff-l1.png",
-   "bytes": 226,
-   "mtime": 1795438852247,
+   "bytes": 244,
+   "mtime": 1795439612107,
    "w": 32,
-   "h": 32
+   "h": 48
   },
   {
    "path": "items/staff/staff-l2.png",
-   "bytes": 276,
-   "mtime": 1795438852247,
+   "bytes": 294,
+   "mtime": 1795439612147,
    "w": 32,
-   "h": 32
+   "h": 48
   },
   {
    "path": "items/staff/staff-l3.png",
-   "bytes": 309,
-   "mtime": 1795438852247,
+   "bytes": 323,
+   "mtime": 1795439612179,
    "w": 32,
-   "h": 32
+   "h": 48
   },
   {
    "path": "items/staff/staff-sheet-source.png",
