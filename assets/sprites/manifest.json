@@ -1,6 +1,6 @@
 {
- "generated": "2026-11-23T11:56:37.625Z",
- "count": 24,
+ "generated": "2026-11-23T12:02:24.194Z",
+ "count": 48,
  "items": [
   {
    "path": "hero/echo-mage/Idle/rotations/east.png",
@@ -115,58 +115,226 @@
    "h": 32
   },
   {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_000.png",
+   "bytes": 450,
+   "mtime": 1795435327975,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_001.png",
+   "bytes": 393,
+   "mtime": 1795435327979,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_002.png",
+   "bytes": 393,
+   "mtime": 1795435327979,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_003.png",
+   "bytes": 395,
+   "mtime": 1795435327983,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_004.png",
+   "bytes": 395,
+   "mtime": 1795435327983,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_005.png",
+   "bytes": 394,
+   "mtime": 1795435327983,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_006.png",
+   "bytes": 394,
+   "mtime": 1795435327987,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/east/frame_007.png",
+   "bytes": 393,
+   "mtime": 1795435327987,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_000.png",
+   "bytes": 522,
+   "mtime": 1795435327991,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_001.png",
+   "bytes": 435,
+   "mtime": 1795435327991,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_002.png",
+   "bytes": 435,
+   "mtime": 1795435327991,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_003.png",
+   "bytes": 435,
+   "mtime": 1795435327991,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_004.png",
+   "bytes": 453,
+   "mtime": 1795435327995,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_005.png",
+   "bytes": 456,
+   "mtime": 1795435327995,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_006.png",
+   "bytes": 435,
+   "mtime": 1795435327995,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/south/frame_007.png",
+   "bytes": 435,
+   "mtime": 1795435327995,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_000.png",
+   "bytes": 452,
+   "mtime": 1795435327999,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_001.png",
+   "bytes": 379,
+   "mtime": 1795435327999,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_002.png",
+   "bytes": 379,
+   "mtime": 1795435327999,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_003.png",
+   "bytes": 390,
+   "mtime": 1795435327999,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_004.png",
+   "bytes": 390,
+   "mtime": 1795435328003,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_005.png",
+   "bytes": 390,
+   "mtime": 1795435328003,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_006.png",
+   "bytes": 390,
+   "mtime": 1795435328003,
+   "w": 48,
+   "h": 48
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/animations/idle_breathing/west/frame_007.png",
+   "bytes": 379,
+   "mtime": 1795435328003,
+   "w": 48,
+   "h": 48
+  },
+  {
    "path": "hero/echo-mage-base/Idle/rotations/east.png",
-   "bytes": 721,
-   "mtime": 1795434996000,
+   "bytes": 429,
+   "mtime": 1795435328003,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/north-east.png",
    "bytes": 650,
-   "mtime": 1795434996000,
+   "mtime": 1795435272000,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/north-west.png",
    "bytes": 622,
-   "mtime": 1795434996000,
+   "mtime": 1795435272000,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/north.png",
    "bytes": 657,
-   "mtime": 1795434996000,
+   "mtime": 1795435272000,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/south-east.png",
-   "bytes": 781,
-   "mtime": 1795434996000,
+   "bytes": 472,
+   "mtime": 1795435328007,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/south-west.png",
-   "bytes": 697,
-   "mtime": 1795434996000,
+   "bytes": 427,
+   "mtime": 1795435328007,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/south.png",
-   "bytes": 812,
-   "mtime": 1795434996000,
+   "bytes": 493,
+   "mtime": 1795435328007,
    "w": 32,
    "h": 32
   },
   {
    "path": "hero/echo-mage-base/Idle/rotations/west.png",
-   "bytes": 696,
-   "mtime": 1795434996000,
+   "bytes": 428,
+   "mtime": 1795435328011,
    "w": 32,
    "h": 32
   }

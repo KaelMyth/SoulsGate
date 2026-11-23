@@ -35,7 +35,9 @@ function toEntries(items, local = false) {
     const m = stem.match(FRAME_RE);
     if (m && m[1]) {
       const key = group + "/" + m[1];
-      if (!anims.has(key)) anims.set(key, { key, group, name: m[1], frames: [], local });
+      // Кадры PixelLab лежат как <анимация>/<направление>/frame_000.png: называем по папкам.
+      const name = /^frames?$/i.test(m[1]) ? group.split("/").slice(-2).join(" · ") : m[1];
+      if (!anims.has(key)) anims.set(key, { key, group, name, frames: [], local });
       anims.get(key).frames.push({ ...it, n: Number(m[2]) });
     } else singles.push({ key: it.path, group, name: stem, frames: [it], local });
   }

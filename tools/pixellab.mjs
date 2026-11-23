@@ -15,7 +15,7 @@
 //   node tools/pixellab.mjs character "<prompt>" [--size 64x64] [--view low top-down] [--dirs 8] [--name n]
 //                                                                    # create-character-v3 → ZIP
 //   node tools/pixellab.mjs animate <character_id> "<action>" [--template "idle breathing"] [--frames 8]
-//        [--dirs south,east] [--name n]                            # character animation → ZIP of the character
+//        [--dirs south,east] [--group id] [--name n]                            # character animation → ZIP of the character
 //   node tools/pixellab.mjs object "<prompt>" [--px 64] [--view top-down|sidescroller] [--name n]
 //                                                                    # create-1-direction-object → ZIP
 //   node tools/pixellab.mjs nobg <file.png> [--size WxH] [--name file]  # remove-background
@@ -216,20 +216,29 @@ async function main() {
     case "animate": {
       const [id, action] = pos;
       if (!id) throw new Error("animate needs <character_id>");
-      const body = {
-        character_id: id,
-        // V3 runs only walking/running/full sprinting templates; everything else needs pixminimax.
-        mode: opt.mode || (opt.template && !["walking", "running", "full sprinting"].includes(opt.template) ? "pixminimax" : "v3"),
-        frame_count: Number(opt.frames || 8),
-        directions: String(opt.dirs || "south").split(","),
-        ...(opt.template ? { template_action: opt.template } : { action_description: action || "idle breathing" }),
-        ...(action && { animation_name: action }),
-      };
-      const r = await api("POST", "/characters/animations", body);
-      console.log("animation_group_id", r.animation_group_id);
-      for (const j of r.background_job_ids || []) await poll(j);
+      const dirs = String(opt.dirs || "south").split(",");
+      let group = opt.group || null;
+      const usage = [];
+      // One direction per call (trial plans allow 1 parallel job); later calls join the same animation group.
+      for (const dir of dirs) {
+        const body = {
+          character_id: id,
+          // V3 runs only walking/running/full sprinting templates; everything else needs pixminimax.
+          mode: opt.mode || (opt.template && !["walking", "running", "full sprinting"].includes(opt.template) ? "pixminimax" : "v3"),
+          frame_count: Number(opt.frames || 8),
+          directions: [dir],
+          ...(opt.template ? { template_action: opt.template } : { action_description: action || "idle breathing" }),
+          ...(action && { animation_name: action }),
+          ...(group && { animation_group_id: group }),
+        };
+        const r = await api("POST", "/characters/animations", body);
+        group = r.animation_group_id;
+        console.log(`direction ${dir}: animation_group_id ${group}`);
+        for (const j of r.background_job_ids || []) await poll(j);
+        if (r.usage) usage.push(r.usage);
+      }
       const base = opt.name || slug(`char-${id.slice(0, 8)}`);
-      await report([await downloadZip("characters", id, out, base)], r.usage);
+      await report([await downloadZip("characters", id, out, base)], usage.length ? usage : undefined);
       break;
     }
 
