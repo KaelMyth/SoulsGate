@@ -18,6 +18,7 @@
 //        [--dirs south,east] [--group id] [--name n]                            # character animation → ZIP of the character
 //   node tools/pixellab.mjs animate-image <first.png> "<action>" [--frames 8] [--last end.png] [--name dir]
 //                                                                    # animate any image (items, FX) → frame_NNN.png
+//   node tools/pixellab.mjs sfx "<sound>" [--sec 1.5] [--name file] [--out dir]   # sound effect → WAV
 //   node tools/pixellab.mjs object "<prompt>" [--px 64] [--view top-down|sidescroller] [--name n]
 //                                                                    # create-1-direction-object → ZIP
 //   node tools/pixellab.mjs nobg <file.png> [--size WxH] [--name file]  # remove-background
@@ -268,6 +269,25 @@ async function main() {
       });
       if (!files.length) console.log(JSON.stringify(job.last_response).slice(0, 800));
       await report(files, r.usage);
+      break;
+    }
+
+    case "sfx": {
+      // Звуковой эффект: 1 генерация до 1,6 с, дальше ~0,6 за секунду. Результат WAV.
+      need();
+      const r = await api("POST", "/sound-effects", { prompt, seconds: Number(opt.sec || 1.5), ...(opt.name && { name: opt.name }) });
+      const id = (r.sound_effect && r.sound_effect.id) || r.id;
+      console.log("sound_effect", id, "quoted", r.quoted_generations);
+      let se;
+      for (let i = 0; i < 90; i++) { se = await api("GET", `/sound-effects/${id}`); if (se.status === "completed" || se.status === "failed") break; await sleep(3000); }
+      if (!se.audio_url) throw new Error("sound failed: " + JSON.stringify(se).slice(0, 500));
+      const res = await fetch(se.audio_url);
+      if (!res.ok) throw new Error(`download ${se.audio_url} → HTTP ${res.status}`);
+      const dir = path.resolve(opt.out || path.join(ROOT, "assets", "audio", "sfx"));
+      fs.mkdirSync(dir, { recursive: true });
+      const f = path.join(dir, `${name}.wav`);
+      fs.writeFileSync(f, Buffer.from(await res.arrayBuffer()));
+      console.log("saved", path.relative(process.cwd(), f), `${se.duration_ms} ms`);
       break;
     }
 
