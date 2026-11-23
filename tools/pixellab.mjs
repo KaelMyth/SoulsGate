@@ -296,6 +296,27 @@ async function main() {
       break;
     }
 
+    case "skeleton-animate": {
+      // Анимация по позам скелета, которые задаём сами: точки суставов (и кисти) известны точно.
+      //   skeleton-animate <first.png> <poses.json> --dir south --action idle --desc "..." --name dir
+      // poses.json: {"first": [18 суставов], "frames": [[18 суставов], ...]}, x/y в долях 0..1
+      const [file, posesFile] = pos;
+      const P = JSON.parse(fs.readFileSync(posesFile, "utf8"));
+      const r = await api("POST", "/animate-with-skeleton-v3", {
+        description: opt.desc, action: opt.action || "idle", direction: opt.dir || "south", view: opt.view || "low top-down",
+        first_frame: { type: "base64", base64: fs.readFileSync(file).toString("base64"), format: "png" },
+        first_frame_keypoints: P.first, keypoints: P.frames, no_background: true, ...(opt.seed && { seed: Number(opt.seed) }),
+      });
+      const job = await poll(r.background_job_id, { intervalMs: 8000 });
+      const imgs = (job.last_response && job.last_response.images) || [];
+      const dir = path.join(out, opt.name || "skeleton-anim");
+      fs.mkdirSync(dir, { recursive: true });
+      const files = imgs.map((im, i) => { const f = path.join(dir, `frame_${String(i).padStart(3, "0")}.png`); fs.writeFileSync(f, Buffer.from(String(im.base64 || im).replace(/^data:[^,]+,/, ""), "base64")); return f; });
+      if (!files.length) console.log(JSON.stringify(job.last_response).slice(0, 800));
+      await report(files, r.usage);
+      break;
+    }
+
     case "object": {
       need();
       const r = await api("POST", "/create-1-direction-object", {
