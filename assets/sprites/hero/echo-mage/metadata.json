@@ -1,0 +1,36 @@
+{
+  "group_id": "3a16240a-23d8-4829-9801-d3c2165c1365",
+  "states": [
+    {
+      "character": {
+        "id": "235fe99e-7e9a-46b2-ac25-205bc6674c97",
+        "name": "Idle",
+        "prompt": "small fantasy wizard: wide-brimmed burgundy wizard hat with bent drooping tip, face hidden in black shadow with two glowing cyan eyes, burgundy robe, tan scarf, brown leather belt with gold buckle, black gloves, brown boots; holds a wooden staff topped with a glowing turquoise crystal in one hand and a dark tome with a glowing cyan rune in the other",
+        "size": {
+          "width": 64,
+          "height": 64
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-11-23T11:46:19.430152+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-11-23T11:47:50.902977"
+}

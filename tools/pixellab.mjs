@@ -2,7 +2,7 @@
 // PixelLab API v2 client for SoulsGate sprite generation. Zero dependencies (Node 18+).
 // Docs: https://api.pixellab.ai/v2/llms.txt  ·  spec: https://api.pixellab.ai/v2/openapi.json
 //
-// Token: env PIXELLAB_API_KEY (or PIXELLAB_API_TOKEN). In Claude Code cloud sessions a
+// Token: env PIXELLAB_API_KEY (or PIXELLAB_API_TOKEN), else ~/.config/pixellab/token (outside the repo). In Claude Code cloud sessions a
 // network secret saved for api.pixellab.ai is injected by the proxy, so no env var is needed.
 //
 // Usage:
@@ -14,6 +14,8 @@
 //                                                                    # generate-image-v2 (Pro), async
 //   node tools/pixellab.mjs character "<prompt>" [--size 64x64] [--view low top-down] [--dirs 8] [--name n]
 //                                                                    # create-character-v3 → ZIP
+//   node tools/pixellab.mjs animate <character_id> "<action>" [--template "idle breathing"] [--frames 8]
+//        [--dirs south,east] [--name n]                            # character animation → ZIP of the character
 //   node tools/pixellab.mjs object "<prompt>" [--px 64] [--view top-down|sidescroller] [--name n]
 //                                                                    # create-1-direction-object → ZIP
 //   node tools/pixellab.mjs nobg <file.png> [--size WxH] [--name file]  # remove-background
@@ -37,7 +39,9 @@ if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_US
 }
 
 const BASE = process.env.PIXELLAB_BASE_URL || "https://api.pixellab.ai/v2";
-const TOKEN = process.env.PIXELLAB_API_KEY || process.env.PIXELLAB_API_TOKEN || "proxy-injected";
+const TOKEN_FILE = path.join(process.env.HOME || "", ".config", "pixellab", "token");
+const TOKEN = process.env.PIXELLAB_API_KEY || process.env.PIXELLAB_API_TOKEN ||
+  (fs.existsSync(TOKEN_FILE) ? fs.readFileSync(TOKEN_FILE, "utf8").trim() : "") || "proxy-injected";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const DEFAULT_OUT = path.join(ROOT, "assets", "sprites");
 
@@ -203,6 +207,26 @@ async function main() {
       console.log("character_id", r.character_id);
       await poll(r.background_job_id);
       await report([await downloadZip("characters", r.character_id, out, name)], r.usage);
+      break;
+    }
+
+    case "animate": {
+      const [id, action] = pos;
+      if (!id) throw new Error("animate needs <character_id>");
+      const body = {
+        character_id: id,
+        // V3 runs only walking/running/full sprinting templates; everything else needs pixminimax.
+        mode: opt.mode || (opt.template && !["walking", "running", "full sprinting"].includes(opt.template) ? "pixminimax" : "v3"),
+        frame_count: Number(opt.frames || 8),
+        directions: String(opt.dirs || "south").split(","),
+        ...(opt.template ? { template_action: opt.template } : { action_description: action || "idle breathing" }),
+        ...(action && { animation_name: action }),
+      };
+      const r = await api("POST", "/characters/animations", body);
+      console.log("animation_group_id", r.animation_group_id);
+      for (const j of r.background_job_ids || []) await poll(j);
+      const base = opt.name || slug(`char-${id.slice(0, 8)}`);
+      await report([await downloadZip("characters", id, out, base)], r.usage);
       break;
     }
 

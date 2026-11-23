@@ -1,5 +1,62 @@
 {
- "generated": "2026-11-23T11:40:37.989Z",
- "count": 0,
- "items": []
+ "generated": "2026-11-23T11:47:51.105Z",
+ "count": 8,
+ "items": [
+  {
+   "path": "hero/echo-mage/Idle/rotations/east.png",
+   "bytes": 2439,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/north-east.png",
+   "bytes": 2531,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/north-west.png",
+   "bytes": 2215,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/north.png",
+   "bytes": 2603,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/south-east.png",
+   "bytes": 3027,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/south-west.png",
+   "bytes": 3202,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/south.png",
+   "bytes": 2919,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  },
+  {
+   "path": "hero/echo-mage/Idle/rotations/west.png",
+   "bytes": 2243,
+   "mtime": 1795434470000,
+   "w": 64,
+   "h": 64
+  }
+ ]
 }
