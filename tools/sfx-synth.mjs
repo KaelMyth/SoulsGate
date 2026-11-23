@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Процедурные звуки без зависимостей: пишет WAV 44,1 кГц, 16 бит, моно.
-//   node tools/sfx-synth.mjs cast [--variant 1|2|3] [--out assets/audio/sfx/tome-cast-1.wav]
+//   node tools/sfx-synth.mjs cast [--variant 1|2|3] [--no-bell] [--out assets/audio/sfx/tome-cast-1.wav]
+// --no-bell  без звона и искр: только шелест страниц и шипение
 // Каст фолианта = шелест страниц (всплески шума) + кристаллический звон (негармонические тона) + магический «вжух» (шум с ростом тона).
 
 import fs from "node:fs";
@@ -22,7 +23,7 @@ function bandpass() {
 
 const env = (t, a, d) => (t < 0 ? 0 : t < a ? t / a : Math.exp(-(t - a) / d));
 
-function cast(variant = 1) {
+function cast(variant = 1, withBell = true) {
   const V = {
     1: { base: 1568, sweep: [500, 3200], len: 1.5, flaps: 5, sparkle: 0.5 },   // G6, яркий
     2: { base: 1175, sweep: [350, 2400], len: 1.6, flaps: 4, sparkle: 0.35 },  // D6, мягче и ниже
@@ -51,7 +52,7 @@ function cast(variant = 1) {
     const fw = V.sweep[0] * Math.pow(V.sweep[1] / V.sweep[0], p);
     const hump = Math.sin(Math.PI * Math.min(1, t / (V.len * 0.85))) ** 2;
     const s3 = bpWhoosh(noise, fw, 2.2) * hump * 0.55;
-    out[i] = s1 + bell * 0.32 + s3;
+    out[i] = s1 + (withBell ? bell * 0.32 : 0) + s3;
   }
   // мягкий хвост и нормализация до -1 dBFS
   const fade = Math.round(0.08 * SR);
@@ -74,11 +75,11 @@ function wav(samples) {
 
 const [kind = "cast", ...rest] = process.argv.slice(2);
 const arg = (k, d) => { const i = rest.indexOf("--" + k); return i < 0 ? d : rest[i + 1]; };
-if (kind !== "cast") { console.log("usage: node tools/sfx-synth.mjs cast [--variant 1|2|3] [--out file.wav]"); process.exit(1); }
+if (kind !== "cast") { console.log("usage: node tools/sfx-synth.mjs cast [--variant 1|2|3] [--no-bell] [--out file.wav]"); process.exit(1); }
 const v = Number(arg("variant", 1));
 const out = path.resolve(arg("out", `assets/audio/sfx/tome-cast-${v}.wav`));
 fs.mkdirSync(path.dirname(out), { recursive: true });
-const s = cast(v);
+const s = cast(v, !rest.includes("--no-bell"));
 fs.writeFileSync(out, wav(s));
 let peak = 0, rms = 0; for (const x of s) { peak = Math.max(peak, Math.abs(x)); rms += x * x; }
 console.log(`saved ${path.relative(process.cwd(), out)}  ${(s.length / SR).toFixed(2)} s  peak ${(20 * Math.log10(peak)).toFixed(1)} dBFS  rms ${(10 * Math.log10(rms / s.length)).toFixed(1)} dBFS`);
