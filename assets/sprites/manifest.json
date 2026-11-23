@@ -1,6 +1,6 @@
 {
- "generated": "2026-11-23T11:52:16.161Z",
- "count": 16,
+ "generated": "2026-11-23T11:56:37.625Z",
+ "count": 24,
  "items": [
   {
    "path": "hero/echo-mage/Idle/rotations/east.png",
@@ -111,6 +111,62 @@
    "path": "hero/echo-mage-32/Idle/rotations/west.png",
    "bytes": 877,
    "mtime": 1795434736000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/east.png",
+   "bytes": 721,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/north-east.png",
+   "bytes": 650,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/north-west.png",
+   "bytes": 622,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/north.png",
+   "bytes": 657,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/south-east.png",
+   "bytes": 781,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/south-west.png",
+   "bytes": 697,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/south.png",
+   "bytes": 812,
+   "mtime": 1795434996000,
+   "w": 32,
+   "h": 32
+  },
+  {
+   "path": "hero/echo-mage-base/Idle/rotations/west.png",
+   "bytes": 696,
+   "mtime": 1795434996000,
    "w": 32,
    "h": 32
   }

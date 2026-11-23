@@ -1,0 +1,36 @@
+{
+  "group_id": "ee287223-e2c7-47cd-9583-424337f74eb7",
+  "states": [
+    {
+      "character": {
+        "id": "17d0a2c6-4c25-4fd8-8c9a-2d4252a7e396",
+        "name": "Idle",
+        "prompt": "cute chibi wizard, very big head and small body, minimalist clean pixel art; huge dark navy blue pointed wizard hat with wide brim and the tall tip bent to one side; face completely black shadow with two glowing cyan oval eyes; thick dark navy blue cowl scarf covering the neck and lower face; long dark navy blue robe with wide sleeves; plain brown leather belt with plain brown buckle; black gloves; brown boots. Only navy blue, black, brown and cyan colors. No gold, no white, no hair, no trim, empty hands, nothing held",
+        "size": {
+          "width": 32,
+          "height": 32
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-11-23T11:55:17.486284+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-11-23T11:56:37.545278"
+}
