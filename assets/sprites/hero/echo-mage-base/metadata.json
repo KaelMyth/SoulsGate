@@ -28,6 +28,17 @@
           "south-west": "Idle/rotations/south-west.png"
         },
         "animations": {
+          "walk2_grounded_waddle_toward_camera_long_robe_reac": {
+            "south": [
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_000.png",
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_001.png",
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_002.png",
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_003.png",
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_004.png",
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_005.png",
+              "Idle/animations/walk2_grounded_waddle_toward_camera_long_robe_reac/south/frame_006.png"
+            ]
+          },
           "walking": {
             "east": [
               "Idle/animations/walking/east/frame_000.png",
@@ -92,11 +103,22 @@
               "Idle/animations/walking_toward_the_camera_with_small_calm_shufflin/south/frame_005.png",
               "Idle/animations/walking_toward_the_camera_with_small_calm_shufflin/south/frame_006.png"
             ]
+          },
+          "walk1_grounded_waddle_toward_camera_long_robe_reac": {
+            "south": [
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_000.png",
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_001.png",
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_002.png",
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_003.png",
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_004.png",
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_005.png",
+              "Idle/animations/walk1_grounded_waddle_toward_camera_long_robe_reac/south/frame_006.png"
+            ]
           }
         }
       }
     }
   ],
   "export_version": "3.1",
-  "export_date": "2026-11-23T12:25:07.983523"
+  "export_date": "2026-11-23T12:29:43.961944"
 }
