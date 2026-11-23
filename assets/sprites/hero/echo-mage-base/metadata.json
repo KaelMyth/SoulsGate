@@ -38,6 +38,16 @@
               "Idle/animations/walking/east/frame_005.png",
               "Idle/animations/walking/east/frame_006.png",
               "Idle/animations/walking/east/frame_007.png"
+            ],
+            "south": [
+              "Idle/animations/walking/south/frame_000.png",
+              "Idle/animations/walking/south/frame_001.png",
+              "Idle/animations/walking/south/frame_002.png",
+              "Idle/animations/walking/south/frame_003.png",
+              "Idle/animations/walking/south/frame_004.png",
+              "Idle/animations/walking/south/frame_005.png",
+              "Idle/animations/walking/south/frame_006.png",
+              "Idle/animations/walking/south/frame_007.png"
             ]
           },
           "idle_breathing": {
@@ -77,5 +87,5 @@
     }
   ],
   "export_version": "3.1",
-  "export_date": "2026-11-23T12:07:15.770609"
+  "export_date": "2026-11-23T12:16:53.010940"
 }

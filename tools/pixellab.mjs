@@ -16,6 +16,8 @@
 //                                                                    # create-character-v3 → ZIP
 //   node tools/pixellab.mjs animate <character_id> "<action>" [--template "idle breathing"] [--frames 8]
 //        [--dirs south,east] [--group id] [--name n]                            # character animation → ZIP of the character
+//   node tools/pixellab.mjs animate-image <first.png> "<action>" [--frames 8] [--last end.png] [--name dir]
+//                                                                    # animate any image (items, FX) → frame_NNN.png
 //   node tools/pixellab.mjs object "<prompt>" [--px 64] [--view top-down|sidescroller] [--name n]
 //                                                                    # create-1-direction-object → ZIP
 //   node tools/pixellab.mjs nobg <file.png> [--size WxH] [--name file]  # remove-background
@@ -239,6 +241,33 @@ async function main() {
       }
       const base = opt.name || slug(`char-${id.slice(0, 8)}`);
       await report([await downloadZip("characters", id, out, base)], usage.length ? usage : undefined);
+      break;
+    }
+
+    case "animate-image": {
+      // Анимация одной картинки по тексту (предметы, эффекты): первый кадр = PNG.
+      const [file, action] = pos;
+      if (!file || !action) throw new Error('animate-image needs <first.png> "<action>"');
+      const b64 = (f) => ({ type: "base64", base64: fs.readFileSync(f).toString("base64"), format: "png" });
+      const r = await api("POST", "/animate-with-text-v3", {
+        first_frame: b64(file),
+        ...(opt.last && { last_frame: b64(opt.last) }),
+        action,
+        frame_count: Number(opt.frames || 8),
+        no_background: true,
+        ...(opt.seed && { seed: Number(opt.seed) }),
+      });
+      const job = await poll(r.background_job_id);
+      const imgs = (job.last_response && job.last_response.images) || [];
+      const dir = path.join(out, opt.name || slug(action));
+      fs.mkdirSync(dir, { recursive: true });
+      const files = imgs.map((im, i) => {
+        const f = path.join(dir, `frame_${String(i).padStart(3, "0")}.png`);
+        fs.writeFileSync(f, Buffer.from(String(im.base64 || im).replace(/^data:[^,]+,/, ""), "base64"));
+        return f;
+      });
+      if (!files.length) console.log(JSON.stringify(job.last_response).slice(0, 800));
+      await report(files, r.usage);
       break;
     }
 
