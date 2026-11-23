@@ -28,6 +28,18 @@
           "south-west": "Idle/rotations/south-west.png"
         },
         "animations": {
+          "walking": {
+            "east": [
+              "Idle/animations/walking/east/frame_000.png",
+              "Idle/animations/walking/east/frame_001.png",
+              "Idle/animations/walking/east/frame_002.png",
+              "Idle/animations/walking/east/frame_003.png",
+              "Idle/animations/walking/east/frame_004.png",
+              "Idle/animations/walking/east/frame_005.png",
+              "Idle/animations/walking/east/frame_006.png",
+              "Idle/animations/walking/east/frame_007.png"
+            ]
+          },
           "idle_breathing": {
             "west": [
               "Idle/animations/idle_breathing/west/frame_000.png",
@@ -65,5 +77,5 @@
     }
   ],
   "export_version": "3.1",
-  "export_date": "2026-11-23T12:01:13.439516"
+  "export_date": "2026-11-23T12:07:15.770609"
 }

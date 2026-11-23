@@ -19,7 +19,7 @@ const crcTable = Array.from({ length: 256 }, (_, n) => {
 });
 const crc = (buf) => { let c = ~0; for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8); return ~c >>> 0; };
 
-function decode(buf) {
+export function decode(buf) {
   let i = 8, w, h, depth, type; const idat = [];
   while (i < buf.length) {
     const len = buf.readUInt32BE(i), t = buf.toString("ascii", i + 4, i + 8), d = buf.subarray(i + 8, i + 8 + len);
@@ -42,7 +42,7 @@ function decode(buf) {
   return { w, h, px };
 }
 
-function encode({ w, h, px }) {
+export function encode({ w, h, px }) {
   const st = w * 4, raw = Buffer.alloc((st + 1) * h);
   for (let y = 0; y < h; y++) px.copy(raw, y * (st + 1) + 1, y * st, (y + 1) * st);
   const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
@@ -55,6 +55,7 @@ const isCyan = (r, g, b) => g > 200 && b > 200 && g - r > 60;
 const isLight = (r, g, b) => (r + g + b) / 3 > 110 && Math.max(r, g, b) - Math.min(r, g, b) < 45 && !isCyan(r, g, b);
 const isGold = (r, g, b) => r > 170 && g > 90 && b < 130 && r - b > 90;
 
+if (import.meta.url === `file://${process.argv[1]}`) {
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith("--"));
 const opt = (k) => { const i = args.indexOf("--" + k); return i < 0 ? undefined : args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : true; };
@@ -81,3 +82,4 @@ for (const f of files) {
   if (n) console.log(`${dry ? "would fix" : "fixed"} ${n} px  ${path.relative(process.cwd(), f)}`);
 }
 console.log(`${files.length} files, ${total} pixels ${dry ? "to fix" : "recolored"}`);
+}
