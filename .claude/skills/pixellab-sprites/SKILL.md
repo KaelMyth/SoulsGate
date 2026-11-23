@@ -37,4 +37,5 @@ Parameters and enums: take them from https://api.pixellab.ai/v2/openapi.json, ne
 - Generate one sample first, show it to the user (Read the PNG), iterate on the prompt, then batch.
 - Save to `assets/sprites/<category>/` (e.g. `enemies/`, `hero/`, `fx/`, `ui/`). Use lowercase kebab-case names matching the game system (`rockbeetle`, `apostle`, `black-sun`).
 - Keep one style across the game: reuse the same `view`, `outline`, `shading`, `detail` and size; for consistency pass an existing sprite as a style/reference image (Pro endpoints) or fix a `seed`.
+- Preview: `tools/pixellab.mjs` rebuilds `assets/sprites/manifest.json` and unzips character/object ZIPs; the web viewer at `/sprites/` shows everything (animations from `name-N.png` frames). After adding files by hand run `node tools/sprites-manifest.mjs`.
 - The game currently draws most entities procedurally on canvas (`render_*.js`). Wiring a sprite in means loading it as an `Image` once at startup and drawing it with `ctx.imageSmoothingEnabled = false` so pixels stay crisp.

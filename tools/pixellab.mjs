@@ -123,16 +123,25 @@ function saveImages(obj, outDir, base) {
   return saved;
 }
 
-function report(files, usage) {
+async function report(files, usage) {
   for (const f of files) console.log("saved", path.relative(process.cwd(), f));
   if (usage) console.log("usage", JSON.stringify(usage));
+  // Обновляем манифест для просмотрщика sprites/.
+  const { buildManifest } = await import("./sprites-manifest.mjs");
+  const { count } = buildManifest();
+  console.log(`manifest updated: ${count} sprites (open /sprites/ to view)`);
 }
 
+// Скачивает ZIP персонажа/объекта и распаковывает его в папку <base>/, чтобы кадры были видны в просмотрщике.
 async function downloadZip(kind, id, outDir, base) {
   fs.mkdirSync(outDir, { recursive: true });
   const buf = await api("GET", `/${kind}/${id}/zip`);
   const file = path.join(outDir, `${base}.zip`);
   fs.writeFileSync(file, Buffer.isBuffer(buf) ? buf : Buffer.from(JSON.stringify(buf)));
+  const dir = path.join(outDir, base);
+  const r = spawnSync("unzip", ["-o", "-q", file, "-d", dir], { stdio: "inherit" });
+  if (r.status === 0) { fs.rmSync(file); return dir; }
+  console.warn("unzip not available or failed; ZIP kept as is:", file);
   return file;
 }
 
@@ -164,7 +173,7 @@ async function main() {
         ...(opt.seed && { seed: Number(opt.seed) }),
       };
       const r = await api("POST", "/create-image-pixflux", body);
-      report(saveImages({ image: r.image }, out, name), r.usage);
+      await report(saveImages({ image: r.image }, out, name), r.usage);
       break;
     }
 
@@ -177,7 +186,7 @@ async function main() {
         ...(opt.seed && { seed: Number(opt.seed) }),
       });
       const job = await poll(r.background_job_id);
-      report(saveImages(job.last_response, out, name), r.usage);
+      await report(saveImages(job.last_response, out, name), r.usage);
       break;
     }
 
@@ -193,7 +202,7 @@ async function main() {
       });
       console.log("character_id", r.character_id);
       await poll(r.background_job_id);
-      report([await downloadZip("characters", r.character_id, out, name)], r.usage);
+      await report([await downloadZip("characters", r.character_id, out, name)], r.usage);
       break;
     }
 
@@ -206,7 +215,7 @@ async function main() {
       });
       console.log("object_id", r.object_id);
       await poll(r.background_job_id);
-      report([await downloadZip("objects", r.object_id, out, name)], r.usage);
+      await report([await downloadZip("objects", r.object_id, out, name)], r.usage);
       break;
     }
 
@@ -218,7 +227,7 @@ async function main() {
         image_size: size(opt.size),
         background_removal_task: opt.complex ? "remove_complex_background" : "remove_simple_background",
       });
-      report(saveImages({ image: r.image }, out, opt.name || path.basename(prompt, ".png") + "-nobg"), r.usage);
+      await report(saveImages({ image: r.image }, out, opt.name || path.basename(prompt, ".png") + "-nobg"), r.usage);
       break;
     }
 
@@ -230,7 +239,7 @@ async function main() {
       const [method, p, json] = pos;
       const r = await api(method.toUpperCase(), p, json ? JSON.parse(json) : undefined);
       if (Buffer.isBuffer(r)) { const f = path.join(out, opt.name || "raw.bin"); fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(f, r); console.log("saved", f); }
-      else { const files = opt.save ? saveImages(r, out, name) : []; report(files); console.log(JSON.stringify(r, (k, v) => (k === "base64" ? `<${v.length} b64 chars>` : v), 2)); }
+      else { const files = opt.save ? saveImages(r, out, name) : []; if (files.length) await report(files); console.log(JSON.stringify(r, (k, v) => (k === "base64" ? `<${v.length} b64 chars>` : v), 2)); }
       break;
     }
 

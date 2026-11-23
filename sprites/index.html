@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f16">
+  <title>Спрайты SoulGates</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="title">
+      <h1>Спрайты</h1>
+      <span id="count" class="muted"></span>
+    </div>
+    <div class="controls">
+      <input id="search" type="search" placeholder="Поиск по имени или папке" autocomplete="off">
+      <label class="ctl">Масштаб
+        <input id="zoom" type="range" min="1" max="8" step="1" value="3">
+        <output id="zoomOut">3×</output>
+      </label>
+      <div class="seg" id="bg" role="radiogroup" aria-label="Фон">
+        <button data-bg="checker" class="on" title="Шахматка">▦</button>
+        <button data-bg="dark" title="Тёмный, как в игре">■</button>
+        <button data-bg="light" title="Светлый">□</button>
+      </div>
+      <label class="ctl" title="Кадров в секунду для анимаций">FPS
+        <input id="fps" type="number" min="1" max="60" value="8">
+      </label>
+      <label class="file">＋ Открыть файлы
+        <input id="files" type="file" accept="image/*" multiple>
+      </label>
+    </div>
+  </header>
+
+  <main id="main">
+    <p id="status" class="muted">Загрузка…</p>
+    <div id="groups"></div>
+  </main>
+
+  <dialog id="detail">
+    <form method="dialog" class="dlg-head">
+      <strong id="dTitle"></strong>
+      <button aria-label="Закрыть">✕</button>
+    </form>
+    <div id="dStage" class="stage checker"></div>
+    <dl id="dMeta"></dl>
+    <div class="dlg-actions">
+      <label class="ctl">Масштаб <input id="dZoom" type="range" min="1" max="16" value="6"></label>
+      <button id="dCopy" type="button">Копировать путь</button>
+      <a id="dOpen" target="_blank" rel="noopener">Открыть файл</a>
+    </div>
+  </dialog>
+
+  <div id="drop" hidden>Отпустите, чтобы посмотреть файлы</div>
+
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>
